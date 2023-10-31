@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "crates/assembly_parser",
+    "crates/assembler",
+]
+
+resolver = "2"

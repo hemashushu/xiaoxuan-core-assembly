@@ -1,0 +1,16 @@
+[package]
+name = "ancvm_assembler"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ancvm_assembly_parser = { path = "../assembly_parser" }
+ancvm_types = { path = "../../../xiaoxuan-core-vm/crates/types" }
+ancvm_binary = { path = "../../../xiaoxuan-core-vm/crates/binary" }
+ancvm_program = { path = "../../../xiaoxuan-core-vm/crates/program" }
+ancvm_runtime = { path = "../../../xiaoxuan-core-vm/crates/runtime" }
+
+[dev-dependencies]
+pretty_assertions = "1.4.0"

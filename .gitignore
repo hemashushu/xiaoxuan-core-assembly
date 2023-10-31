@@ -1,0 +1,8 @@
+/target
+/Cargo.lock
+/TODO
+
+*.elf
+*.so
+*.so.1.0.0
+*.a
