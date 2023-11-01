@@ -8,6 +8,7 @@ use ancvm_types::{opcode::Opcode, DataType, MemoryDataType};
 
 #[derive(Debug, PartialEq)]
 pub struct ModuleNode {
+    // module names can not be duplicated
     pub name: String,
 
     pub runtime_version_major: u16,
@@ -25,7 +26,10 @@ pub enum ModuleElementNode {
 
 #[derive(Debug, PartialEq)]
 pub struct FuncNode {
+    // the names of functions (includes imported function)
+    // in a module can not be duplicated.
     pub name: Option<String>,
+
     pub exported: bool,
     pub params: Vec<ParamNode>,
     pub results: Vec<DataType>,
@@ -35,13 +39,18 @@ pub struct FuncNode {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ParamNode {
-    pub tag: String,
+    // the names of all parameters and local variables in a function
+    // can not be duplicated.
+    pub name: String,
     pub data_type: DataType,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct LocalNode {
-    pub tag: String,
+    // the names of all parameters and local variables in a function
+    // can not be duplicated.
+    pub name: String,
+
     pub memory_data_type: MemoryDataType,
     pub data_length: u32,
 
@@ -65,52 +74,52 @@ pub enum Instruction {
 
     LocalLoad {
         opcode: Opcode,
-        tag: String,
+        name: String,
         offset: u16,
     },
 
     LocalStore {
         opcode: Opcode,
-        tag: String,
+        name: String,
         offset: u16,
         value: Box<Instruction>,
     },
 
     LocalLongLoad {
         opcode: Opcode,
-        tag: String,
+        name: String,
         offset: Box<Instruction>,
     },
 
     LocalLongStore {
         opcode: Opcode,
-        tag: String,
+        name: String,
         offset: Box<Instruction>,
         value: Box<Instruction>,
     },
 
     DataLoad {
         opcode: Opcode,
-        tag: String,
+        name: String,
         offset: u16,
     },
 
     DataStore {
         opcode: Opcode,
-        tag: String,
+        name: String,
         offset: u16,
         value: Box<Instruction>,
     },
 
     DataLongLoad {
         opcode: Opcode,
-        tag: String,
+        name: String,
         offset: Box<Instruction>,
     },
 
     DataLongStore {
         opcode: Opcode,
-        tag: String,
+        name: String,
         offset: Box<Instruction>,
         value: Box<Instruction>,
     },
@@ -185,7 +194,7 @@ pub enum Instruction {
     TailCall(Vec<Instruction>),
 
     Call {
-        tag: String,
+        name: String,
         args: Vec<Instruction>,
     },
 
@@ -205,7 +214,7 @@ pub enum Instruction {
     },
 
     ExtCall {
-        tag: String,
+        name: String,
         args: Vec<Instruction>,
     },
 }

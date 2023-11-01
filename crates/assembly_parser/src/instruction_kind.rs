@@ -22,40 +22,40 @@ pub enum InstructionKind {
     // (inst_name OPERAND_0 ... OPERAND_N)   ;; has operands
     NoParams(Opcode, /* operand_count */ u8),
 
-    // (local.load $tag)
-    // (local.load $tag offset)              ;; optional offset
+    // (local.load $name)
+    // (local.load $name offset)              ;; optional offset
     //
     // includes 'host_addr_local'
     LocalLoad(Opcode),
 
-    // (local.store $tag OPERAND)
-    // (local.store $tag offset OPERAND)     ;; optional offset
+    // (local.store $name OPERAND)
+    // (local.store $name offset OPERAND)     ;; optional offset
     LocalStore(Opcode),
 
-    // (local.load_long $tag OPERAND_FOR_OFFSET)
+    // (local.load_long $name OPERAND_FOR_OFFSET)
     //
     // includes 'host_addr_local_long'
     LocalLongLoad(Opcode),
 
-    // (local.long_store $tag OPERAND_FOR_OFFSET OPERAND)
+    // (local.long_store $name OPERAND_FOR_OFFSET OPERAND)
     LocalLongStore(Opcode),
 
-    // (data.load $tag)
-    // (data.load $tag offset)              ;; optional offset
+    // (data.load $name)
+    // (data.load $name offset)              ;; optional offset
     //
     // includes 'host_addr_data'
     DataLoad(Opcode),
 
-    // (data.store $tag OPERAND)
-    // (data.store $tag offset OPERAND)     ;; optional offset
+    // (data.store $name OPERAND)
+    // (data.store $name offset OPERAND)     ;; optional offset
     DataStore(Opcode),
 
-    // (data.load_long $tag OPERAND_FOR_OFFSET)
+    // (data.load_long $name OPERAND_FOR_OFFSET)
     //
     // includes 'host_addr_data_long'
     DataLongLoad(Opcode),
 
-    // (data.long_store $tag OPERAND_FOR_OFFSET OPERAND)
+    // (data.long_store $name OPERAND_FOR_OFFSET OPERAND)
     DataLongStore(Opcode),
 
     // (heap.load OPERAND_FOR_ADDR)
@@ -140,7 +140,7 @@ pub enum InstructionKind {
     // - 'tailcall', for recur function
     Sequence(&'static str),
 
-    // (call $tag OPERAND_0 ... OPERAND_N)
+    // (call $name OPERAND_0 ... OPERAND_N)
     Call,
 
     // (dyncall OPERAND_FOR_NUM OPERAND_0 ... OPERAND_N)
@@ -152,7 +152,7 @@ pub enum InstructionKind {
     // (syscall num OPERAND_0 ... OPERAND_N)
     SysCall,
 
-    // (extcall $tag OPERAND_0 ... OPERAND_N)
+    // (extcall $name OPERAND_0 ... OPERAND_N)
     ExtCall,
 }
 

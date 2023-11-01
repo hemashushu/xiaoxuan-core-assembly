@@ -280,11 +280,11 @@ fn parse_param_node(iter: &mut PeekableIterator<Token>) -> Result<ParamNode, Par
 
     consume_left_paren(iter, "param")?;
     consume_symbol(iter, "param")?;
-    let tag = expect_identifier(iter, "param")?;
+    let name = expect_identifier(iter, "param")?;
     let data_type = parse_data_type(iter)?;
     consume_right_paren(iter)?;
 
-    Ok(ParamNode { tag, data_type })
+    Ok(ParamNode { name, data_type })
 }
 
 fn parse_result_node(iter: &mut PeekableIterator<Token>) -> Result<DataType, ParseError> {
@@ -376,7 +376,7 @@ fn parse_local_node(iter: &mut PeekableIterator<Token>) -> Result<LocalNode, Par
 
     consume_left_paren(iter, "local")?;
     consume_symbol(iter, "local")?;
-    let tag = expect_identifier(iter, "local")?;
+    let name = expect_identifier(iter, "local")?;
 
     let (memory_data_type, data_length, align) = if iter.look_ahead_equals(0, &Token::LeftParen) {
         parse_memory_data_type_bytes(iter)?
@@ -387,7 +387,7 @@ fn parse_local_node(iter: &mut PeekableIterator<Token>) -> Result<LocalNode, Par
     consume_right_paren(iter)?;
 
     Ok(LocalNode {
-        tag,
+        name,
         memory_data_type,
         data_length,
         align,
@@ -641,7 +641,7 @@ fn parse_instruction_with_parentheses(
                     parse_instruction_sequence_node(iter, node_name)?
                 }
                 //
-                InstructionKind::Call => parse_instruction_kind_call_by_tag(iter, "call", true)?,
+                InstructionKind::Call => parse_instruction_kind_call_by_name(iter, "call", true)?,
                 InstructionKind::DynCall => parse_instruction_kind_call_by_operand_num(iter)?,
                 InstructionKind::EnvCall => {
                     parse_instruction_kind_call_by_num(iter, "envcall", true)?
@@ -650,7 +650,7 @@ fn parse_instruction_with_parentheses(
                     parse_instruction_kind_call_by_num(iter, "syscall", false)?
                 }
                 InstructionKind::ExtCall => {
-                    parse_instruction_kind_call_by_tag(iter, "extcall", false)?
+                    parse_instruction_kind_call_by_name(iter, "extcall", false)?
                 }
             }
         } else {
@@ -862,7 +862,7 @@ fn parse_instruction_kind_local_load(
 
     consume_left_paren(iter, "instruction")?;
     consume_symbol(iter, inst_name)?;
-    let tag = expect_identifier(iter, inst_name)?;
+    let name = expect_identifier(iter, inst_name)?;
     let offset = if let Some(offset_str) = expect_number_optional(iter) {
         parse_u16_string(offset_str)?
     } else {
@@ -873,13 +873,13 @@ fn parse_instruction_kind_local_load(
     if is_local {
         Ok(Instruction::LocalLoad {
             opcode,
-            tag,
+            name,
             offset,
         })
     } else {
         Ok(Instruction::DataLoad {
             opcode,
-            tag,
+            name,
             offset,
         })
     }
@@ -900,7 +900,7 @@ fn parse_instruction_kind_local_store(
 
     consume_left_paren(iter, "instruction")?;
     consume_symbol(iter, inst_name)?;
-    let tag = expect_identifier(iter, inst_name)?;
+    let name = expect_identifier(iter, inst_name)?;
     let offset = if let Some(offset_str) = expect_number_optional(iter) {
         parse_u16_string(offset_str)?
     } else {
@@ -913,14 +913,14 @@ fn parse_instruction_kind_local_store(
     if is_local {
         Ok(Instruction::LocalStore {
             opcode,
-            tag,
+            name,
             offset,
             value: Box::new(operand),
         })
     } else {
         Ok(Instruction::DataStore {
             opcode,
-            tag,
+            name,
             offset,
             value: Box::new(operand),
         })
@@ -939,20 +939,20 @@ fn parse_instruction_kind_local_long_load(
 
     consume_left_paren(iter, "instruction")?;
     consume_symbol(iter, inst_name)?;
-    let tag = expect_identifier(iter, inst_name)?;
+    let name = expect_identifier(iter, inst_name)?;
     let offset = parse_next_instruction_operand(iter, inst_name)?;
     consume_right_paren(iter)?;
 
     if is_local {
         Ok(Instruction::LocalLongLoad {
             opcode,
-            tag,
+            name,
             offset: Box::new(offset),
         })
     } else {
         Ok(Instruction::DataLongLoad {
             opcode,
-            tag,
+            name,
             offset: Box::new(offset),
         })
     }
@@ -970,7 +970,7 @@ fn parse_instruction_kind_local_long_store(
 
     consume_left_paren(iter, "instruction")?;
     consume_symbol(iter, inst_name)?;
-    let tag = expect_identifier(iter, inst_name)?;
+    let name = expect_identifier(iter, inst_name)?;
     let offset = parse_next_instruction_operand(iter, inst_name)?;
     let operand = parse_next_instruction_operand(iter, inst_name)?;
     consume_right_paren(iter)?;
@@ -978,14 +978,14 @@ fn parse_instruction_kind_local_long_store(
     if is_local {
         Ok(Instruction::LocalLongStore {
             opcode,
-            tag,
+            name,
             offset: Box::new(offset),
             value: Box::new(operand),
         })
     } else {
         Ok(Instruction::DataLongStore {
             opcode,
-            tag,
+            name,
             offset: Box::new(offset),
             value: Box::new(operand),
         })
@@ -1244,18 +1244,18 @@ fn parse_instruction_kind_for(
     })
 }
 
-fn parse_instruction_kind_call_by_tag(
+fn parse_instruction_kind_call_by_name(
     iter: &mut PeekableIterator<Token>,
     node_name: &str,
     is_call: bool,
 ) -> Result<Instruction, ParseError> {
-    // (call/extcall $tag ...) ...  //
-    // ^                       ^____// to here
-    // _____________________________// current token
+    // (call/extcall $name ...) ...  //
+    // ^                        ^____// to here
+    // ______________________________// current token
 
     consume_left_paren(iter, node_name)?;
     consume_symbol(iter, node_name)?;
-    let tag = expect_identifier(iter, node_name)?;
+    let name = expect_identifier(iter, node_name)?;
 
     let mut args = vec![];
     while let Some(arg) = parse_next_instruction_optional(iter)? {
@@ -1265,9 +1265,9 @@ fn parse_instruction_kind_call_by_tag(
     consume_right_paren(iter)?;
 
     let instruction = if is_call {
-        Instruction::Call { tag, args }
+        Instruction::Call { name, args }
     } else {
-        Instruction::ExtCall { tag, args }
+        Instruction::ExtCall { name, args }
     };
 
     Ok(instruction)
@@ -1637,11 +1637,11 @@ mod tests {
                     exported: false,
                     params: vec![
                         ParamNode {
-                            tag: "lhs".to_owned(),
+                            name: "lhs".to_owned(),
                             data_type: DataType::I32
                         },
                         ParamNode {
-                            tag: "rhs".to_owned(),
+                            name: "rhs".to_owned(),
                             data_type: DataType::I64
                         }
                     ],
@@ -1677,11 +1677,11 @@ mod tests {
                     exported: false,
                     params: vec![
                         ParamNode {
-                            tag: "lhs".to_owned(),
+                            name: "lhs".to_owned(),
                             data_type: DataType::I32
                         },
                         ParamNode {
-                            tag: "rhs".to_owned(),
+                            name: "rhs".to_owned(),
                             data_type: DataType::I64
                         }
                     ],
@@ -1777,25 +1777,25 @@ mod tests {
                     results: vec![],
                     locals: vec![
                         LocalNode {
-                            tag: "sum".to_owned(),
+                            name: "sum".to_owned(),
                             memory_data_type: MemoryDataType::I32,
                             data_length: 4,
                             align: 4
                         },
                         LocalNode {
-                            tag: "count".to_owned(),
+                            name: "count".to_owned(),
                             memory_data_type: MemoryDataType::I64,
                             data_length: 8,
                             align: 8
                         },
                         LocalNode {
-                            tag: "db".to_owned(),
+                            name: "db".to_owned(),
                             memory_data_type: MemoryDataType::BYTES,
                             data_length: 12,
                             align: 8
                         },
                         LocalNode {
-                            tag: "average".to_owned(),
+                            name: "average".to_owned(),
                             memory_data_type: MemoryDataType::F32,
                             data_length: 4,
                             align: 4
@@ -2008,38 +2008,38 @@ mod tests {
             Box::new(Instruction::Code(vec![
                 Instruction::LocalLoad {
                     opcode: Opcode::local_load32,
-                    tag: "sum".to_owned(),
+                    name: "sum".to_owned(),
                     offset: 0
                 },
                 Instruction::LocalLoad {
                     opcode: Opcode::local_load,
-                    tag: "count".to_owned(),
+                    name: "count".to_owned(),
                     offset: 4
                 },
                 //
                 Instruction::LocalStore {
                     opcode: Opcode::local_store32,
-                    tag: "left".to_owned(),
+                    name: "left".to_owned(),
                     offset: 0,
                     value: Box::new(Instruction::ImmI32(11))
                 },
                 //
                 Instruction::LocalStore {
                     opcode: Opcode::local_store,
-                    tag: "right".to_owned(),
+                    name: "right".to_owned(),
                     offset: 8,
                     value: Box::new(Instruction::ImmI64(13))
                 },
                 //
                 Instruction::LocalLongLoad {
                     opcode: Opcode::local_long_load,
-                    tag: "foo".to_owned(),
+                    name: "foo".to_owned(),
                     offset: Box::new(Instruction::ImmI32(17))
                 },
                 //
                 Instruction::LocalLongStore {
                     opcode: Opcode::local_long_store,
-                    tag: "bar".to_owned(),
+                    name: "bar".to_owned(),
                     offset: Box::new(Instruction::ImmI32(19)),
                     value: Box::new(Instruction::ImmI64(23))
                 },
@@ -2068,38 +2068,38 @@ mod tests {
             Box::new(Instruction::Code(vec![
                 Instruction::DataLoad {
                     opcode: Opcode::data_load32,
-                    tag: "sum".to_owned(),
+                    name: "sum".to_owned(),
                     offset: 0
                 },
                 Instruction::DataLoad {
                     opcode: Opcode::data_load,
-                    tag: "count".to_owned(),
+                    name: "count".to_owned(),
                     offset: 4
                 },
                 //
                 Instruction::DataStore {
                     opcode: Opcode::data_store32,
-                    tag: "left".to_owned(),
+                    name: "left".to_owned(),
                     offset: 0,
                     value: Box::new(Instruction::ImmI32(11))
                 },
                 //
                 Instruction::DataStore {
                     opcode: Opcode::data_store,
-                    tag: "right".to_owned(),
+                    name: "right".to_owned(),
                     offset: 8,
                     value: Box::new(Instruction::ImmI64(13))
                 },
                 //
                 Instruction::DataLongLoad {
                     opcode: Opcode::data_long_load,
-                    tag: "foo".to_owned(),
+                    name: "foo".to_owned(),
                     offset: Box::new(Instruction::ImmI32(17))
                 },
                 //
                 Instruction::DataLongStore {
                     opcode: Opcode::data_long_store,
-                    tag: "bar".to_owned(),
+                    name: "bar".to_owned(),
                     offset: Box::new(Instruction::ImmI32(19)),
                     value: Box::new(Instruction::ImmI64(23))
                 },
@@ -2207,13 +2207,13 @@ mod tests {
             Box::new(Instruction::Code(vec![Instruction::When {
                 locals: vec![
                     LocalNode {
-                        tag: "abc".to_owned(),
+                        name: "abc".to_owned(),
                         memory_data_type: MemoryDataType::I32,
                         data_length: 4,
                         align: 4
                     },
                     LocalNode {
-                        tag: "xyz".to_owned(),
+                        name: "xyz".to_owned(),
                         memory_data_type: MemoryDataType::I32,
                         data_length: 4,
                         align: 4
@@ -2223,12 +2223,12 @@ mod tests {
                 consequent: Box::new(Instruction::Do(vec![
                     Instruction::LocalLoad {
                         opcode: Opcode::local_load32,
-                        tag: "abc".to_owned(),
+                        name: "abc".to_owned(),
                         offset: 0
                     },
                     Instruction::LocalLoad {
                         opcode: Opcode::local_load32,
-                        tag: "xyz".to_owned(),
+                        name: "xyz".to_owned(),
                         offset: 0
                     }
                 ]))
@@ -2296,22 +2296,22 @@ mod tests {
             ),
             Box::new(Instruction::Code(vec![Instruction::LocalStore {
                 opcode: Opcode::local_store32,
-                tag: "i".to_owned(),
+                name: "i".to_owned(),
                 offset: 0,
                 value: Box::new(Instruction::If {
                     params: vec![
                         ParamNode {
-                            tag: "m".to_owned(),
+                            name: "m".to_owned(),
                             data_type: DataType::I32
                         },
                         ParamNode {
-                            tag: "n".to_owned(),
+                            name: "n".to_owned(),
                             data_type: DataType::I32
                         },
                     ],
                     results: vec![DataType::I32],
                     locals: vec![LocalNode {
-                        tag: "x".to_owned(),
+                        name: "x".to_owned(),
                         memory_data_type: MemoryDataType::I32,
                         data_length: 4,
                         align: 4
@@ -2320,12 +2320,12 @@ mod tests {
                         opcode: Opcode::i32_eq,
                         left: Box::new(Instruction::LocalLoad {
                             opcode: Opcode::local_load32,
-                            tag: "m".to_owned(),
+                            name: "m".to_owned(),
                             offset: 0
                         }),
                         right: Box::new(Instruction::LocalLoad {
                             opcode: Opcode::local_load32,
-                            tag: "n".to_owned(),
+                            name: "n".to_owned(),
                             offset: 0
                         })
                     }),
@@ -2334,7 +2334,7 @@ mod tests {
                         left: Box::new(Instruction::ImmI32(11)),
                         right: Box::new(Instruction::LocalLoad {
                             opcode: Opcode::local_load32,
-                            tag: "x".to_owned(),
+                            name: "x".to_owned(),
                             offset: 0
                         })
                     }),
@@ -2343,7 +2343,7 @@ mod tests {
                         left: Box::new(Instruction::ImmI32(13)),
                         right: Box::new(Instruction::LocalLoad {
                             opcode: Opcode::local_load32,
-                            tag: "x".to_owned(),
+                            name: "x".to_owned(),
                             offset: 0
                         })
                     })
@@ -2382,12 +2382,12 @@ mod tests {
             ),
             Box::new(Instruction::Code(vec![Instruction::Branch {
                 params: vec![ParamNode {
-                    tag: "x".to_owned(),
+                    name: "x".to_owned(),
                     data_type: DataType::I32
                 }],
                 results: vec![DataType::I32],
                 locals: vec![LocalNode {
-                    tag: "temp".to_owned(),
+                    name: "temp".to_owned(),
                     memory_data_type: MemoryDataType::I32,
                     data_length: 4,
                     align: 4
@@ -2398,7 +2398,7 @@ mod tests {
                             opcode: Opcode::i32_gt_s,
                             left: Box::new(Instruction::LocalLoad {
                                 opcode: Opcode::local_load32,
-                                tag: "x".to_owned(),
+                                name: "x".to_owned(),
                                 offset: 0
                             }),
                             right: Box::new(Instruction::ImmI32(11))
@@ -2461,17 +2461,17 @@ mod tests {
             Box::new(Instruction::Code(vec![Instruction::For {
                 params: vec![
                     ParamNode {
-                        tag: "sum".to_owned(),
+                        name: "sum".to_owned(),
                         data_type: DataType::I32
                     },
                     ParamNode {
-                        tag: "n".to_owned(),
+                        name: "n".to_owned(),
                         data_type: DataType::I32
                     },
                 ],
                 results: vec![DataType::I32],
                 locals: vec![LocalNode {
-                    tag: "temp".to_owned(),
+                    name: "temp".to_owned(),
                     memory_data_type: MemoryDataType::I32,
                     data_length: 4,
                     align: 4
@@ -2479,14 +2479,14 @@ mod tests {
                 code: Box::new(Instruction::Do(vec![
                     Instruction::LocalStore {
                         opcode: Opcode::local_store32,
-                        tag: "n".to_owned(),
+                        name: "n".to_owned(),
                         offset: 0,
                         value: Box::new(Instruction::UnaryOpParamI16 {
                             opcode: Opcode::i32_dec,
                             amount: 1,
                             number: Box::new(Instruction::LocalLoad {
                                 opcode: Opcode::local_load32,
-                                tag: "n".to_owned(),
+                                name: "n".to_owned(),
                                 offset: 0
                             })
                         })
@@ -2499,31 +2499,31 @@ mod tests {
                             opcode: Opcode::i32_eq,
                             left: Box::new(Instruction::LocalLoad {
                                 opcode: Opcode::local_load32,
-                                tag: "n".to_owned(),
+                                name: "n".to_owned(),
                                 offset: 0
                             }),
                             right: Box::new(noparams_nooperands(Opcode::zero))
                         }),
                         consequent: Box::new(Instruction::Break(vec![Instruction::LocalLoad {
                             opcode: Opcode::local_load32,
-                            tag: "sum".to_owned(),
+                            name: "sum".to_owned(),
                             offset: 0
                         }])),
                         alternate: Box::new(Instruction::Do(vec![
                             Instruction::LocalStore {
                                 opcode: Opcode::local_store32,
-                                tag: "sum".to_owned(),
+                                name: "sum".to_owned(),
                                 offset: 0,
                                 value: Box::new(Instruction::BinaryOp {
                                     opcode: Opcode::i32_add,
                                     left: Box::new(Instruction::LocalLoad {
                                         opcode: Opcode::local_load32,
-                                        tag: "sum".to_owned(),
+                                        name: "sum".to_owned(),
                                         offset: 0
                                     }),
                                     right: Box::new(Instruction::LocalLoad {
                                         opcode: Opcode::local_load32,
-                                        tag: "n".to_owned(),
+                                        name: "n".to_owned(),
                                         offset: 0
                                     })
                                 })
@@ -2531,12 +2531,12 @@ mod tests {
                             Instruction::Recur(vec![
                                 Instruction::LocalLoad {
                                     opcode: Opcode::local_load32,
-                                    tag: "sum".to_owned(),
+                                    name: "sum".to_owned(),
                                     offset: 0
                                 },
                                 Instruction::LocalLoad {
                                     opcode: Opcode::local_load32,
-                                    tag: "n".to_owned(),
+                                    name: "n".to_owned(),
                                     offset: 0
                                 }
                             ])
@@ -2594,11 +2594,11 @@ mod tests {
                     exported: false,
                     params: vec![
                         ParamNode {
-                            tag: "sum".to_owned(),
+                            name: "sum".to_owned(),
                             data_type: DataType::I32
                         },
                         ParamNode {
-                            tag: "n".to_owned(),
+                            name: "n".to_owned(),
                             data_type: DataType::I32
                         },
                     ],
@@ -2607,14 +2607,14 @@ mod tests {
                     code: Box::new(Instruction::Code(vec![
                         Instruction::LocalStore {
                             opcode: Opcode::local_store32,
-                            tag: "n".to_owned(),
+                            name: "n".to_owned(),
                             offset: 0,
                             value: Box::new(Instruction::UnaryOpParamI16 {
                                 opcode: Opcode::i32_dec,
                                 amount: 1,
                                 number: Box::new(Instruction::LocalLoad {
                                     opcode: Opcode::local_load32,
-                                    tag: "n".to_owned(),
+                                    name: "n".to_owned(),
                                     offset: 0
                                 })
                             })
@@ -2627,7 +2627,7 @@ mod tests {
                                 opcode: Opcode::i32_eq,
                                 left: Box::new(Instruction::LocalLoad {
                                     opcode: Opcode::local_load32,
-                                    tag: "n".to_owned(),
+                                    name: "n".to_owned(),
                                     offset: 0
                                 }),
                                 right: Box::new(noparams_nooperands(Opcode::zero))
@@ -2635,25 +2635,25 @@ mod tests {
                             consequent: Box::new(Instruction::Return(vec![
                                 Instruction::LocalLoad {
                                     opcode: Opcode::local_load32,
-                                    tag: "sum".to_owned(),
+                                    name: "sum".to_owned(),
                                     offset: 0
                                 }
                             ])),
                             alternate: Box::new(Instruction::Do(vec![
                                 Instruction::LocalStore {
                                     opcode: Opcode::local_store32,
-                                    tag: "sum".to_owned(),
+                                    name: "sum".to_owned(),
                                     offset: 0,
                                     value: Box::new(Instruction::BinaryOp {
                                         opcode: Opcode::i32_add,
                                         left: Box::new(Instruction::LocalLoad {
                                             opcode: Opcode::local_load32,
-                                            tag: "sum".to_owned(),
+                                            name: "sum".to_owned(),
                                             offset: 0
                                         }),
                                         right: Box::new(Instruction::LocalLoad {
                                             opcode: Opcode::local_load32,
-                                            tag: "n".to_owned(),
+                                            name: "n".to_owned(),
                                             offset: 0
                                         })
                                     })
@@ -2661,12 +2661,12 @@ mod tests {
                                 Instruction::TailCall(vec![
                                     Instruction::LocalLoad {
                                         opcode: Opcode::local_load32,
-                                        tag: "sum".to_owned(),
+                                        name: "sum".to_owned(),
                                         offset: 0
                                     },
                                     Instruction::LocalLoad {
                                         opcode: Opcode::local_load32,
-                                        tag: "n".to_owned(),
+                                        name: "n".to_owned(),
                                         offset: 0
                                     }
                                 ])
@@ -2710,18 +2710,18 @@ mod tests {
             ),
             Box::new(Instruction::Code(vec![
                 Instruction::Call {
-                    tag: "add".to_owned(),
+                    name: "add".to_owned(),
                     args: vec![Instruction::ImmI32(11), Instruction::ImmI32(13),]
                 },
                 Instruction::DynCall {
                     num: Box::new(Instruction::LocalLoad {
                         opcode: Opcode::local_load32,
-                        tag: "filter".to_owned(),
+                        name: "filter".to_owned(),
                         offset: 0
                     }),
                     args: vec![Instruction::LocalLoad {
                         opcode: Opcode::local_load,
-                        tag: "data".to_owned(),
+                        name: "data".to_owned(),
                         offset: 0
                     }]
                 },
@@ -2729,7 +2729,7 @@ mod tests {
                     num: 0x100,
                     args: vec![Instruction::LocalLoad {
                         opcode: Opcode::local_load,
-                        tag: "buf".to_owned(),
+                        name: "buf".to_owned(),
                         offset: 0
                     }]
                 },
@@ -2739,23 +2739,23 @@ mod tests {
                         Instruction::ImmI32(1),
                         Instruction::LocalLoad {
                             opcode: Opcode::local_load,
-                            tag: "msg".to_owned(),
+                            name: "msg".to_owned(),
                             offset: 0
                         },
                         Instruction::ImmI32(7),
                     ]
                 },
                 Instruction::ExtCall {
-                    tag: "format".to_owned(),
+                    name: "format".to_owned(),
                     args: vec![
                         Instruction::LocalLoad {
                             opcode: Opcode::local_load,
-                            tag: "str".to_owned(),
+                            name: "str".to_owned(),
                             offset: 0
                         },
                         Instruction::LocalLoad {
                             opcode: Opcode::local_load,
-                            tag: "values".to_owned(),
+                            name: "values".to_owned(),
                             offset: 0
                         }
                     ]
