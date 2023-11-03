@@ -6,9 +6,41 @@
 
 use std::{any::Any, fmt::Display};
 
+use ancvm_binary::module_image::{
+    data_name_section::DataNameEntry,
+    external_func_name_section::ExternalFuncNameEntry,
+    func_index_section::{FuncIndexEntry, FuncIndexItem, FuncIndexModuleEntry},
+    func_name_section::FuncNameEntry,
+    func_section::FuncEntry,
+    local_variable_section::LocalListEntry,
+    type_section::TypeEntry,
+};
 use ancvm_types::VMError;
 
 pub mod assembler;
+pub mod linker;
+
+pub struct ModuleEntry {
+    pub name: String,
+    pub runtime_version_major: u16,
+    pub runtime_version_minor: u16,
+
+    // pub shared_packages: Vec<String>,
+    pub type_entries: Vec<TypeEntry>,
+    pub local_list_entries: Vec<LocalListEntry>,
+    pub func_entries: Vec<FuncEntry>,
+
+    pub func_name_entries: Vec<FuncNameEntry>,
+    pub data_name_entries: Vec<DataNameEntry>,
+    pub external_func_name_entries: Vec<ExternalFuncNameEntry>,
+}
+
+pub struct IndexEntry {
+    // essential
+    pub func_index_module_entries: Vec<FuncIndexModuleEntry>,
+    // optional
+    // pub data_index_items: Vec<DataIndexItem>,
+}
 
 #[derive(Debug)]
 pub struct AssembleError {
