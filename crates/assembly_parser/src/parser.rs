@@ -79,7 +79,7 @@ use crate::{
         ModuleNode, ParamNode,
     },
     instruction_kind::{InstructionKind, INSTRUCTION_KIND_TABLE},
-    lexer::Token,
+    lexer::{NumberToken, Token},
     peekable_iterator::PeekableIterator,
     ParseError,
 };
@@ -437,20 +437,20 @@ fn parse_memory_data_type_bytes(
     consume_left_paren(iter, "bytes")?;
     consume_symbol(iter, "bytes")?;
 
-    let length_string = expect_number(iter, "the length of memory data type bytes")?;
-    let align_string = expect_number(iter, "the align of memory data type bytes")?;
+    let length_number_token = expect_number(iter, "the length of memory data type bytes")?;
+    let align_number_token = expect_number(iter, "the align of memory data type bytes")?;
 
-    let length = length_string.parse::<u32>().map_err(|_| {
+    let length = parse_u32_string(&length_number_token).map_err(|_| {
         ParseError::new(&format!(
-            "The length of memory data type bytes '{}' is not a valid number.",
-            length_string
+            "The length of memory data type bytes '{:?}' is not a valid number.",
+            length_number_token
         ))
     })?;
 
-    let align = align_string.parse::<u16>().map_err(|_| {
+    let align = parse_u16_string(&align_number_token).map_err(|_| {
         ParseError::new(&format!(
-            "The align of memory data type bytes '{}' is not a valid number.",
-            align_string
+            "The align of memory data type bytes '{:?}' is not a valid number.",
+            align_number_token
         ))
     })?;
 
@@ -750,10 +750,10 @@ fn parse_instruction_kind_imm_i32(
 
     consume_left_paren(iter, "i32.imm")?;
     consume_symbol(iter, "i32.imm")?;
-    let num_string = expect_number(iter, "i32.imm")?;
+    let number_token = expect_number(iter, "i32.imm")?;
     consume_right_paren(iter)?;
 
-    Ok(Instruction::ImmI32(parse_u32_string(num_string)?))
+    Ok(Instruction::ImmI32(parse_u32_string(&number_token)?))
 }
 
 fn parse_instruction_kind_imm_i64(
@@ -765,10 +765,10 @@ fn parse_instruction_kind_imm_i64(
 
     consume_left_paren(iter, "i64.imm")?;
     consume_symbol(iter, "i64.imm")?;
-    let num_string = expect_number(iter, "i64.imm")?;
+    let number_token = expect_number(iter, "i64.imm")?;
     consume_right_paren(iter)?;
 
-    Ok(Instruction::ImmI64(parse_u64_string(num_string)?))
+    Ok(Instruction::ImmI64(parse_u64_string(&number_token)?))
 }
 
 fn parse_instruction_kind_imm_f32(
@@ -785,25 +785,29 @@ fn parse_instruction_kind_imm_f32(
 
     consume_left_paren(iter, "f32.imm")?;
     consume_symbol(iter, "f32.imm")?;
-    let mut num_string = expect_number(iter, "f32.imm")?;
+    let number_token = expect_number(iter, "f32.imm")?;
     consume_right_paren(iter)?;
 
-    let e = ParseError::new(&format!("\"{}\" is not a valid float number.", num_string));
+    let e = ParseError::new(&format!(
+        "\"{:?}\" is not a valid float number.",
+        number_token
+    ));
 
-    // remove underscores
-    num_string.retain(|c| c != '_');
-
-    let fp = if num_string.starts_with("0x") {
-        let value =
-            u32::from_str_radix(num_string.strip_prefix("0x").unwrap(), 16).map_err(|_| e)?;
-        ImmF32::Hex(value)
-    } else if num_string.starts_with("0b") {
-        let value =
-            u32::from_str_radix(num_string.strip_prefix("0b").unwrap(), 2).map_err(|_| e)?;
-        ImmF32::Hex(value)
-    } else {
-        let value = num_string.as_str().parse::<f32>().map_err(|_| e)?;
-        ImmF32::Float(value)
+    let fp = match number_token {
+        NumberToken::Hex(mut ns) => {
+            ns.retain(|c| c != '_'); // remove underscores
+            let value = u32::from_str_radix(&ns, 16).map_err(|_| e)?;
+            ImmF32::Hex(value)
+        }
+        NumberToken::Binary(mut ns) => {
+            ns.retain(|c| c != '_');
+            let value = u32::from_str_radix(&ns, 2).map_err(|_| e)?;
+            ImmF32::Hex(value)
+        }
+        NumberToken::Decimal(ns) => {
+            let value = ns.as_str().parse::<f32>().map_err(|_| e)?;
+            ImmF32::Float(value)
+        }
     };
 
     Ok(Instruction::ImmF32(fp))
@@ -823,25 +827,29 @@ fn parse_instruction_kind_imm_f64(
 
     consume_left_paren(iter, "f64.imm")?;
     consume_symbol(iter, "f64.imm")?;
-    let mut num_string = expect_number(iter, "f64.imm")?;
+    let number_token = expect_number(iter, "f64.imm")?;
     consume_right_paren(iter)?;
 
-    let e = ParseError::new(&format!("\"{}\" is not a valid float number.", num_string));
+    let e = ParseError::new(&format!(
+        "\"{:?}\" is not a valid float number.",
+        number_token
+    ));
 
-    // remove underscores
-    num_string.retain(|c| c != '_');
-
-    let fp = if num_string.starts_with("0x") {
-        let value =
-            u64::from_str_radix(num_string.strip_prefix("0x").unwrap(), 16).map_err(|_| e)?;
-        ImmF64::Hex(value)
-    } else if num_string.starts_with("0b") {
-        let value =
-            u64::from_str_radix(num_string.strip_prefix("0b").unwrap(), 2).map_err(|_| e)?;
-        ImmF64::Hex(value)
-    } else {
-        let value = num_string.as_str().parse::<f64>().map_err(|_| e)?;
-        ImmF64::Float(value)
+    let fp = match number_token {
+        NumberToken::Hex(mut ns) => {
+            ns.retain(|c| c != '_'); // remove underscores
+            let value = u64::from_str_radix(&ns, 16).map_err(|_| e)?;
+            ImmF64::Hex(value)
+        }
+        NumberToken::Binary(mut ns) => {
+            ns.retain(|c| c != '_');
+            let value = u64::from_str_radix(&ns, 2).map_err(|_| e)?;
+            ImmF64::Hex(value)
+        }
+        NumberToken::Decimal(ns) => {
+            let value = ns.as_str().parse::<f64>().map_err(|_| e)?;
+            ImmF64::Float(value)
+        }
     };
 
     Ok(Instruction::ImmF64(fp))
@@ -863,8 +871,8 @@ fn parse_instruction_kind_local_load(
     consume_left_paren(iter, "instruction")?;
     consume_symbol(iter, inst_name)?;
     let name = expect_identifier(iter, inst_name)?;
-    let offset = if let Some(offset_str) = expect_number_optional(iter) {
-        parse_u16_string(offset_str)?
+    let offset = if let Some(offset_number_token) = expect_number_optional(iter) {
+        parse_u16_string(&offset_number_token)?
     } else {
         0
     };
@@ -901,8 +909,8 @@ fn parse_instruction_kind_local_store(
     consume_left_paren(iter, "instruction")?;
     consume_symbol(iter, inst_name)?;
     let name = expect_identifier(iter, inst_name)?;
-    let offset = if let Some(offset_str) = expect_number_optional(iter) {
-        parse_u16_string(offset_str)?
+    let offset = if let Some(offset_number_token) = expect_number_optional(iter) {
+        parse_u16_string(&offset_number_token)?
     } else {
         0
     };
@@ -1007,8 +1015,8 @@ fn parse_instruction_kind_heap_load(
     consume_left_paren(iter, "instruction")?;
     consume_symbol(iter, inst_name)?;
 
-    let offset = if let Some(offset_str) = expect_number_optional(iter) {
-        parse_u16_string(offset_str)?
+    let offset = if let Some(offset_token_number) = expect_number_optional(iter) {
+        parse_u16_string(&offset_token_number)?
     } else {
         0
     };
@@ -1038,8 +1046,8 @@ fn parse_instruction_kind_heap_store(
     consume_left_paren(iter, "instruction")?;
     consume_symbol(iter, inst_name)?;
 
-    let offset = if let Some(offset_str) = expect_number_optional(iter) {
-        parse_u16_string(offset_str)?
+    let offset = if let Some(offset_number_token) = expect_number_optional(iter) {
+        parse_u16_string(&offset_number_token)?
     } else {
         0
     };
@@ -1088,8 +1096,8 @@ fn parse_instruction_kind_unary_op_param_i16(
 
     consume_left_paren(iter, "instruction")?;
     consume_symbol(iter, inst_name)?;
-    let num_string = expect_number(iter, inst_name)?;
-    let param_i16 = parse_u16_string(num_string)?;
+    let number_token = expect_number(iter, inst_name)?;
+    let param_i16 = parse_u16_string(&number_token)?;
     let operand = parse_next_instruction_operand(iter, inst_name)?;
     consume_right_paren(iter)?;
 
@@ -1284,8 +1292,8 @@ fn parse_instruction_kind_call_by_num(
 
     consume_left_paren(iter, node_name)?;
     consume_symbol(iter, node_name)?;
-    let num_string = expect_number(iter, node_name)?;
-    let num = parse_u32_string(num_string)?;
+    let number_token = expect_number(iter, node_name)?;
+    let num = parse_u32_string(&number_token)?;
 
     let mut args = vec![];
     while let Some(arg) = parse_next_instruction_optional(iter)? {
@@ -1379,9 +1387,12 @@ fn consume_symbol(iter: &mut PeekableIterator<Token>, name: &str) -> Result<(), 
     consume_token(iter, Token::new_symbol(name))
 }
 
-fn expect_number(iter: &mut PeekableIterator<Token>, for_what: &str) -> Result<String, ParseError> {
+fn expect_number(
+    iter: &mut PeekableIterator<Token>,
+    for_what: &str,
+) -> Result<NumberToken, ParseError> {
     match iter.next() {
-        Some(Token::Number(s)) => Ok(s),
+        Some(Token::Number(number_token)) => Ok(number_token),
         _ => Err(ParseError::new(&format!(
             "Expect a number for {}",
             for_what
@@ -1389,13 +1400,13 @@ fn expect_number(iter: &mut PeekableIterator<Token>, for_what: &str) -> Result<S
     }
 }
 
-fn expect_number_optional(iter: &mut PeekableIterator<Token>) -> Option<String> {
+fn expect_number_optional(iter: &mut PeekableIterator<Token>) -> Option<NumberToken> {
     match iter.peek(0) {
         Some(token) => {
-            if let Token::Number(s) = token {
-                let cs = s.clone();
+            if let Token::Number(number_token) = token {
+                let number_token_clone = number_token.to_owned();
                 iter.next();
-                Some(cs)
+                Some(number_token_clone)
             } else {
                 None
             }
@@ -1499,61 +1510,82 @@ fn get_instruction_kind(inst_name: &str) -> Option<&InstructionKind> {
     }
 }
 
-fn parse_u16_string(mut num_string: String) -> Result<u16, ParseError> {
+fn parse_u16_string(number_token: &NumberToken) -> Result<u16, ParseError> {
     let e = ParseError::new(&format!(
-        "\"{}\" is not a valid integer number.",
-        num_string
+        "\"{:?}\" is not a valid integer number.",
+        number_token
     ));
 
-    // remove underscores
-    num_string.retain(|c| c != '_');
-
-    let num = if num_string.starts_with("0x") {
-        u16::from_str_radix(num_string.strip_prefix("0x").unwrap(), 16).map_err(|_| e)?
-    } else if num_string.starts_with("0b") {
-        u16::from_str_radix(num_string.strip_prefix("0b").unwrap(), 2).map_err(|_| e)?
-    } else {
-        num_string.as_str().parse::<i16>().map_err(|_| e)? as u16
+    let num = match number_token {
+        NumberToken::Hex(ns_ref) => {
+            let mut ns = ns_ref.to_owned();
+            ns.retain(|c| c != '_'); // remove underscores
+            u16::from_str_radix(&ns, 16).map_err(|_| e)?
+        }
+        NumberToken::Binary(ns_ref) => {
+            let mut ns = ns_ref.to_owned();
+            ns.retain(|c| c != '_');
+            u16::from_str_radix(&ns, 2).map_err(|_| e)?
+        }
+        NumberToken::Decimal(ns_ref) => {
+            let mut ns = ns_ref.to_owned();
+            ns.retain(|c| c != '_');
+            ns.as_str().parse::<i16>().map_err(|_| e)? as u16
+        }
     };
 
     Ok(num)
 }
 
-fn parse_u32_string(mut num_string: String) -> Result<u32, ParseError> {
+fn parse_u32_string(number_token: &NumberToken) -> Result<u32, ParseError> {
     let e = ParseError::new(&format!(
-        "\"{}\" is not a valid integer number.",
-        num_string
+        "\"{:?}\" is not a valid integer number.",
+        number_token
     ));
 
-    // remove underscores
-    num_string.retain(|c| c != '_');
-
-    let num = if num_string.starts_with("0x") {
-        u32::from_str_radix(num_string.strip_prefix("0x").unwrap(), 16).map_err(|_| e)?
-    } else if num_string.starts_with("0b") {
-        u32::from_str_radix(num_string.strip_prefix("0b").unwrap(), 2).map_err(|_| e)?
-    } else {
-        num_string.as_str().parse::<i32>().map_err(|_| e)? as u32
+    let num = match number_token {
+        NumberToken::Hex(ns_ref) => {
+            let mut ns = ns_ref.to_owned();
+            ns.retain(|c| c != '_'); // remove underscores
+            u32::from_str_radix(&ns, 16).map_err(|_| e)?
+        }
+        NumberToken::Binary(ns_ref) => {
+            let mut ns = ns_ref.to_owned();
+            ns.retain(|c| c != '_');
+            u32::from_str_radix(&ns, 2).map_err(|_| e)?
+        }
+        NumberToken::Decimal(ns_ref) => {
+            let mut ns = ns_ref.to_owned();
+            ns.retain(|c| c != '_');
+            ns.as_str().parse::<i32>().map_err(|_| e)? as u32
+        }
     };
 
     Ok(num)
 }
 
-fn parse_u64_string(mut num_string: String) -> Result<u64, ParseError> {
+fn parse_u64_string(number_token: &NumberToken) -> Result<u64, ParseError> {
     let e = ParseError::new(&format!(
-        "\"{}\" is not a valid integer number.",
-        num_string
+        "\"{:?}\" is not a valid integer number.",
+        number_token
     ));
 
-    // remove underscores
-    num_string.retain(|c| c != '_');
-
-    let num = if num_string.starts_with("0x") {
-        u64::from_str_radix(num_string.strip_prefix("0x").unwrap(), 16).map_err(|_| e)?
-    } else if num_string.starts_with("0b") {
-        u64::from_str_radix(num_string.strip_prefix("0b").unwrap(), 2).map_err(|_| e)?
-    } else {
-        num_string.as_str().parse::<i64>().map_err(|_| e)? as u64
+    let num = match number_token {
+        NumberToken::Hex(ns_ref) => {
+            let mut ns = ns_ref.to_owned();
+            ns.retain(|c| c != '_'); // remove underscores
+            u64::from_str_radix(&ns, 16).map_err(|_| e)?
+        }
+        NumberToken::Binary(ns_ref) => {
+            let mut ns = ns_ref.to_owned();
+            ns.retain(|c| c != '_');
+            u64::from_str_radix(&ns, 2).map_err(|_| e)?
+        }
+        NumberToken::Decimal(ns_ref) => {
+            let mut ns = ns_ref.to_owned();
+            ns.retain(|c| c != '_');
+            ns.as_str().parse::<i64>().map_err(|_| e)? as u64
+        }
     };
 
     Ok(num)
@@ -1584,7 +1616,7 @@ mod tests {
         init_instruction_kind_table();
 
         let mut chars = s.chars();
-        let mut char_iter = PeekableIterator::new(&mut chars, 2);
+        let mut char_iter = PeekableIterator::new(&mut chars, 3);
         let mut tokens = lex(&mut char_iter)?.into_iter();
         let mut token_iter = PeekableIterator::new(&mut tokens, 2);
         parse(&mut token_iter)

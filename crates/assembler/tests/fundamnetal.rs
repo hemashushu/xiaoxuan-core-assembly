@@ -15,7 +15,8 @@ mod utils;
 use crate::utils::assemble_single_module;
 
 #[test]
-fn test_fundamental_zero() {
+fn test_assemble_fundamental_zero() {
+    // () -> (i32)
     let module_binaries = assemble_single_module(
         r#"
         (module "main"
@@ -38,7 +39,8 @@ fn test_fundamental_zero() {
 }
 
 #[test]
-fn test_process_fundamental_drop() {
+fn test_assemble_fundamental_drop() {
+    // () -> (i32)
     let module_binaries = assemble_single_module(
         r#"
         (module "main"
@@ -64,7 +66,8 @@ fn test_process_fundamental_drop() {
 }
 
 #[test]
-fn test_process_fundamental_duplicate() {
+fn test_assemble_fundamental_duplicate() {
+    // () -> (i32, i32)
     let module_binaries = assemble_single_module(
         r#"
         (module "main"
@@ -92,7 +95,8 @@ fn test_process_fundamental_duplicate() {
 }
 
 #[test]
-fn test_process_fundamental_swap() {
+fn test_assemble_fundamental_swap() {
+    // () -> (i32, i32)
     let module_binaries = assemble_single_module(
         r#"
         (module "main"
@@ -121,7 +125,8 @@ fn test_process_fundamental_swap() {
 }
 
 #[test]
-fn test_process_fundamental_select_nez_false() {
+fn test_assemble_fundamental_select_nez_false() {
+    // () -> (i32)
     let module_binaries = assemble_single_module(
         r#"
         (module "main"
@@ -148,7 +153,8 @@ fn test_process_fundamental_select_nez_false() {
 }
 
 #[test]
-fn test_process_fundamental_select_nez_true() {
+fn test_assemble_fundamental_select_nez_true() {
+    // () -> (i32)
     let module_binaries = assemble_single_module(
         r#"
         (module "main"
@@ -175,7 +181,8 @@ fn test_process_fundamental_select_nez_true() {
 }
 
 #[test]
-fn test_process_fundamental_immediate_int() {
+fn test_assemble_fundamental_immediate_int() {
+    // () -> (i32, i64, i32, i64)
     let module_binaries = assemble_single_module(
         r#"
         (module "main"
@@ -209,7 +216,8 @@ fn test_process_fundamental_immediate_int() {
 }
 
 #[test]
-fn test_process_fundamental_immediate_float() {
+fn test_assemble_fundamental_immediate_float() {
+    // () -> (f32, f64, f32, f64)
     let module_binaries = assemble_single_module(
         r#"
             (module "main"
@@ -243,7 +251,8 @@ fn test_process_fundamental_immediate_float() {
 }
 
 #[test]
-fn test_process_fundamental_immediate_float_hex() {
+fn test_assemble_fundamental_immediate_float_hex() {
+    // () -> (f32, f64, f32, f64)
     let module_binaries = assemble_single_module(
         r#"
             (module "main"

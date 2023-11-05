@@ -106,3 +106,68 @@ pub fn link(
         func_index_module_entries,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use ancvm_assembly_parser::{
+        instruction_kind::init_instruction_kind_table, lexer::lex, parser::parse,
+        peekable_iterator::PeekableIterator,
+    };
+    use ancvm_program::{program_settings::ProgramSettings, program_source::ProgramSource};
+    use ancvm_runtime::{
+        in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
+    };
+    use ancvm_types::ForeignValue;
+
+    use crate::assembler::assemble_module_node;
+
+    use super::generate_image_binaries;
+
+    fn assemble_single_module(source: &str) -> Vec<Vec<u8>> {
+        init_instruction_kind_table();
+
+        let mut chars = source.chars();
+        let mut char_iter = PeekableIterator::new(&mut chars, 2);
+        let mut tokens = lex(&mut char_iter).unwrap().into_iter();
+        let mut token_iter = PeekableIterator::new(&mut tokens, 2);
+        let module_node = parse(&mut token_iter).unwrap();
+
+        let module_entry = assemble_module_node(&module_node).unwrap();
+        let program_settings = ProgramSettings::default();
+        generate_image_binaries(&vec![module_entry], &program_settings).unwrap()
+    }
+
+    #[test]
+    fn test_assemble_process_function() {
+        let module_binaries = assemble_single_module(
+            r#"
+        (module "main"
+            (runtime_version "1.0")
+            (fn $main
+                (param $a i32) (param $b i32)
+                (results i32 i32)
+                (code
+                    (local.load32 $a)
+                    (local.load32 $b)
+                )
+            )
+        )
+        "#,
+        );
+
+        let program_source0 = InMemoryProgramSource::new(module_binaries);
+        let program0 = program_source0.build_program().unwrap();
+        let mut thread_context0 = program0.create_thread_context();
+
+        let result0 = process_function(
+            &mut thread_context0,
+            0,
+            0,
+            &[ForeignValue::UInt32(11), ForeignValue::UInt32(13)],
+        );
+        assert_eq!(
+            result0.unwrap(),
+            vec![ForeignValue::UInt32(11), ForeignValue::UInt32(13),]
+        );
+    }
+}
