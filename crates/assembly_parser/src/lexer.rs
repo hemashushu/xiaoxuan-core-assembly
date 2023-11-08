@@ -886,6 +886,14 @@ mod tests {
         );
 
         assert_eq!(
+            // "__" is used for namespace separator
+            lex_from_str("$a__b__c").unwrap(),
+            vec![
+                Token::new_identifier("a__b__c"),
+            ]
+        );
+
+        assert_eq!(
             lex_from_str("$foo $bar").unwrap(),
             vec![Token::new_identifier("foo"), Token::new_identifier("bar"),]
         );

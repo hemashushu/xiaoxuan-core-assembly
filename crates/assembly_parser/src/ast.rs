@@ -14,7 +14,6 @@ pub struct ModuleNode {
     pub runtime_version_major: u16,
     pub runtime_version_minor: u16,
 
-    pub shared_packages: Vec<String>,
     pub element_nodes: Vec<ModuleElementNode>,
 }
 

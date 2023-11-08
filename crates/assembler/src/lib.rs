@@ -25,7 +25,6 @@ pub struct ModuleEntry {
     pub runtime_version_major: u16,
     pub runtime_version_minor: u16,
 
-    // pub shared_packages: Vec<String>,
     pub type_entries: Vec<TypeEntry>,
     pub local_list_entries: Vec<LocalListEntry>,
     pub func_entries: Vec<FuncEntry>,

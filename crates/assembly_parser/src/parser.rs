@@ -148,7 +148,6 @@ pub fn parse_module_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleNod
         name,
         runtime_version_major,
         runtime_version_minor,
-        shared_packages: vec![],
         element_nodes,
     };
 
@@ -1630,7 +1629,6 @@ mod tests {
                 name: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 2,
-                shared_packages: vec![],
                 element_nodes: vec![]
             }
         );
@@ -1663,7 +1661,6 @@ mod tests {
                 name: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                shared_packages: vec![],
                 element_nodes: vec![ModuleElementNode::FuncNode(FuncNode {
                     name: Some("add".to_owned()),
                     exported: false,
@@ -1703,7 +1700,6 @@ mod tests {
                 name: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                shared_packages: vec![],
                 element_nodes: vec![ModuleElementNode::FuncNode(FuncNode {
                     name: Some("add".to_owned()),
                     exported: false,
@@ -1740,7 +1736,6 @@ mod tests {
                 name: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                shared_packages: vec![],
                 element_nodes: vec![ModuleElementNode::FuncNode(FuncNode {
                     name: None,
                     exported: false,
@@ -1768,7 +1763,6 @@ mod tests {
                 name: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                shared_packages: vec![],
                 element_nodes: vec![ModuleElementNode::FuncNode(FuncNode {
                     name: Some("add".to_owned()),
                     exported: true,
@@ -1801,7 +1795,6 @@ mod tests {
                 name: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                shared_packages: vec![],
                 element_nodes: vec![ModuleElementNode::FuncNode(FuncNode {
                     name: Some("add".to_owned()),
                     exported: false,
@@ -2620,7 +2613,6 @@ mod tests {
                 name: "lib".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                shared_packages: vec![],
                 element_nodes: vec![ModuleElementNode::FuncNode(FuncNode {
                     name: Some("test".to_owned()),
                     exported: false,
