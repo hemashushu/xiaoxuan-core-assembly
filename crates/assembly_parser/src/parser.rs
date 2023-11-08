@@ -96,8 +96,8 @@ pub fn parse_module_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleNod
 
     // the node 'module' syntax:
     //
-    // (module "name" (runtime_version "1.0") ...)  ;; base
-    // (module "name" (runtime_version "1.0")
+    // (module $name (runtime_version "1.0") ...)  ;; base
+    // (module $name (runtime_version "1.0")
     //                                          ;; optional parameters
     //      (constructor $func_name)            ;; similar to GCC '__attribute__((constructor))', run before main()
     //      (entry $func_name)                  ;; similar to 'fn main()'
@@ -108,7 +108,7 @@ pub fn parse_module_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleNod
     consume_left_paren(iter, "module")?;
     consume_symbol(iter, "module")?;
 
-    let name = expect_string(iter, "module name")?;
+    let name = expect_identifier(iter, "module name")?;
     let (runtime_version_major, runtime_version_minor) = parse_module_runtime_version_node(iter)?;
 
     // optional parameters
@@ -1625,9 +1625,9 @@ mod tests {
     #[test]
     fn test_parse_empty_module() {
         assert_eq!(
-            parse_from_str(r#"(module "main" (runtime_version "1.2"))"#).unwrap(),
+            parse_from_str(r#"(module $app (runtime_version "1.2"))"#).unwrap(),
             ModuleNode {
-                name: "main".to_owned(),
+                name: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 2,
                 shared_packages: vec![],
@@ -1637,11 +1637,11 @@ mod tests {
 
         assert!(parse_from_str(r#"()"#).is_err());
         assert!(parse_from_str(r#"(module)"#).is_err());
-        assert!(parse_from_str(r#"(module "main")"#).is_err());
-        assert!(parse_from_str(r#"(module "main" ())"#).is_err());
-        assert!(parse_from_str(r#"(module "main" (runtime_version))"#).is_err());
-        assert!(parse_from_str(r#"(module "main" (runtime_version "1"))"#).is_err());
-        assert!(parse_from_str(r#"(module "main" (runtime_version "1a.2b"))"#).is_err());
+        assert!(parse_from_str(r#"(module $app)"#).is_err());
+        assert!(parse_from_str(r#"(module $app ())"#).is_err());
+        assert!(parse_from_str(r#"(module $app (runtime_version))"#).is_err());
+        assert!(parse_from_str(r#"(module $app (runtime_version "1"))"#).is_err());
+        assert!(parse_from_str(r#"(module $app (runtime_version "1a.2b"))"#).is_err());
     }
 
     #[test]
@@ -1649,7 +1649,7 @@ mod tests {
         assert_eq!(
             parse_from_str(
                 r#"
-            (module "main"
+            (module $app
                 (runtime_version "1.0")
                 (fn $add (param $lhs i32) (param $rhs i64) (result i32) (result i64)
                     ;; no local variables
@@ -1660,7 +1660,7 @@ mod tests {
             )
             .unwrap(),
             ModuleNode {
-                name: "main".to_owned(),
+                name: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
                 shared_packages: vec![],
@@ -1689,7 +1689,7 @@ mod tests {
         assert_eq!(
             parse_from_str(
                 r#"
-            (module "main"
+            (module $app
                 (runtime_version "1.0")
                 (fn $add (param $lhs i32) (param $rhs i64) (results i32 i64) (result f32) (result f64)
                     ;; no local variables
@@ -1700,7 +1700,7 @@ mod tests {
             )
             .unwrap(),
             ModuleNode {
-                name: "main".to_owned(),
+                name: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
                 shared_packages: vec![],
@@ -1729,7 +1729,7 @@ mod tests {
         assert_eq!(
             parse_from_str(
                 r#"
-            (module "main"
+            (module $app
                 (runtime_version "1.0")
                 (fn (code))
             )
@@ -1737,7 +1737,7 @@ mod tests {
             )
             .unwrap(),
             ModuleNode {
-                name: "main".to_owned(),
+                name: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
                 shared_packages: vec![],
@@ -1757,7 +1757,7 @@ mod tests {
         assert_eq!(
             parse_from_str(
                 r#"
-            (module "main"
+            (module $app
                 (runtime_version "1.0")
                 (fn $add exported (code))
             )
@@ -1765,7 +1765,7 @@ mod tests {
             )
             .unwrap(),
             ModuleNode {
-                name: "main".to_owned(),
+                name: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
                 shared_packages: vec![],
@@ -1786,7 +1786,7 @@ mod tests {
         assert_eq!(
             parse_from_str(
                 r#"
-            (module "main"
+            (module $app
                 (runtime_version "1.0")
                 (fn $add
                     ;; no params and results
@@ -1798,7 +1798,7 @@ mod tests {
             )
             .unwrap(),
             ModuleNode {
-                name: "main".to_owned(),
+                name: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
                 shared_packages: vec![],
@@ -1860,7 +1860,7 @@ mod tests {
         assert_eq!(
             parse_instructions_from_str(
                 r#"
-            (module "lib"
+            (module $lib
                 (runtime_version "1.0")
                 (fn $test
                     (code
@@ -1883,7 +1883,7 @@ mod tests {
         assert_eq!(
             parse_instructions_from_str(
                 r#"
-            (module "lib"
+            (module $lib
                 (runtime_version "1.0")
                 (fn $test
                     (code
@@ -1931,7 +1931,7 @@ mod tests {
         assert_eq!(
             parse_instructions_from_str(
                 r#"
-            (module "lib"
+            (module $lib
                 (runtime_version "1.0")
                 (fn $test
                     (code
@@ -1965,7 +1965,7 @@ mod tests {
         assert_eq!(
             parse_instructions_from_str(
                 r#"
-            (module "lib"
+            (module $lib
                 (runtime_version "1.0")
                 (fn $test
                     (code
@@ -2021,7 +2021,7 @@ mod tests {
         assert_eq!(
             parse_instructions_from_str(
                 r#"
-            (module "lib"
+            (module $lib
                 (runtime_version "1.0")
                 (fn $test
                     (code
@@ -2081,7 +2081,7 @@ mod tests {
         assert_eq!(
             parse_instructions_from_str(
                 r#"
-            (module "lib"
+            (module $lib
                 (runtime_version "1.0")
                 (fn $test
                     (code
@@ -2144,7 +2144,7 @@ mod tests {
         assert_eq!(
             parse_instructions_from_str(
                 r#"
-            (module "lib"
+            (module $lib
                 (runtime_version "1.0")
                 (fn $test
                     (code
@@ -2192,7 +2192,7 @@ mod tests {
         assert_eq!(
             parse_instructions_from_str(
                 r#"
-            (module "lib"
+            (module $lib
                 (runtime_version "1.0")
                 (fn $test
                     (code
@@ -2222,7 +2222,7 @@ mod tests {
         assert_eq!(
             parse_instructions_from_str(
                 r#"
-            (module "lib"
+            (module $lib
                 (runtime_version "1.0")
                 (fn $test
                     (code
@@ -2273,7 +2273,7 @@ mod tests {
         assert_eq!(
             parse_instructions_from_str(
                 r#"
-            (module "lib"
+            (module $lib
                 (runtime_version "1.0")
                 (fn $test
                     (code
@@ -2307,7 +2307,7 @@ mod tests {
         assert_eq!(
             parse_instructions_from_str(
                 r#"
-            (module "lib"
+            (module $lib
                 (runtime_version "1.0")
                 (fn $test
                     (code
@@ -2389,7 +2389,7 @@ mod tests {
         assert_eq!(
             parse_instructions_from_str(
                 r#"
-            (module "lib"
+            (module $lib
                 (runtime_version "1.0")
                 (fn $test
                     (code
@@ -2455,7 +2455,7 @@ mod tests {
         assert_eq!(
             parse_instructions_from_str(
                 r#"
-            (module "lib"
+            (module $lib
                 (runtime_version "1.0")
                 (fn $test
                     (code
@@ -2584,7 +2584,7 @@ mod tests {
         assert_eq!(
             parse_from_str(
                 r#"
-            (module "lib"
+            (module $lib
                 (runtime_version "1.0")
                 (fn $test (param $sum i32) (param $n i32) (result i32)
                     (code
@@ -2716,7 +2716,7 @@ mod tests {
         assert_eq!(
             parse_instructions_from_str(
                 r#"
-            (module "lib"
+            (module $lib
                 (runtime_version "1.0")
                 (fn $test
                     (code

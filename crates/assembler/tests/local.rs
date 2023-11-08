@@ -17,7 +17,7 @@ fn test_assemble_local_load_store() {
     // (f32, f64) -> (i64,i32,i32,i32,i32,i32, f32,f64 ,i64,i32)
     let module_binaries = assemble_single_module(
         r#"
-        (module "main"
+        (module $app
             (runtime_version "1.0")
             (fn $main
                 (param $v0 f32) (param $v1 f64)

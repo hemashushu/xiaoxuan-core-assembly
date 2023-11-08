@@ -141,7 +141,7 @@ mod tests {
     fn test_assemble_process_function() {
         let module_binaries = assemble_single_module(
             r#"
-        (module "main"
+        (module $app
             (runtime_version "1.0")
             (fn $main
                 (param $a i32) (param $b i32)

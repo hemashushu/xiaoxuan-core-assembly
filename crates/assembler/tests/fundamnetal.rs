@@ -19,7 +19,7 @@ fn test_assemble_fundamental_zero() {
     // () -> (i32)
     let module_binaries = assemble_single_module(
         r#"
-        (module "main"
+        (module $app
             (runtime_version "1.0")
             (fn $main (result i32)
                 (code
@@ -43,7 +43,7 @@ fn test_assemble_fundamental_drop() {
     // () -> (i32)
     let module_binaries = assemble_single_module(
         r#"
-        (module "main"
+        (module $app
             (runtime_version "1.0")
             (fn $main (result i32)
                 (code
@@ -70,7 +70,7 @@ fn test_assemble_fundamental_duplicate() {
     // () -> (i32, i32)
     let module_binaries = assemble_single_module(
         r#"
-        (module "main"
+        (module $app
             (runtime_version "1.0")
             (fn $main (results i32 i32)
                 (code
@@ -99,7 +99,7 @@ fn test_assemble_fundamental_swap() {
     // () -> (i32, i32)
     let module_binaries = assemble_single_module(
         r#"
-        (module "main"
+        (module $app
             (runtime_version "1.0")
             (fn $main (results i32 i32)
                 (code
@@ -129,7 +129,7 @@ fn test_assemble_fundamental_select_nez_false() {
     // () -> (i32)
     let module_binaries = assemble_single_module(
         r#"
-        (module "main"
+        (module $app
             (runtime_version "1.0")
             (fn $main (result i32)
                 (code
@@ -157,7 +157,7 @@ fn test_assemble_fundamental_select_nez_true() {
     // () -> (i32)
     let module_binaries = assemble_single_module(
         r#"
-        (module "main"
+        (module $app
             (runtime_version "1.0")
             (fn $main (result i32)
                 (code
@@ -185,7 +185,7 @@ fn test_assemble_fundamental_immediate_int() {
     // () -> (i32, i64, i32, i64)
     let module_binaries = assemble_single_module(
         r#"
-        (module "main"
+        (module $app
             (runtime_version "1.0")
             (fn $main (results i32 i64 i32 i64)
                 (code
@@ -220,7 +220,7 @@ fn test_assemble_fundamental_immediate_float() {
     // () -> (f32, f64, f32, f64)
     let module_binaries = assemble_single_module(
         r#"
-            (module "main"
+            (module $app
                 (runtime_version "1.0")
                 (fn $main (results f32 f64 f32 f64)
                     (code
@@ -255,7 +255,7 @@ fn test_assemble_fundamental_immediate_float_hex() {
     // () -> (f32, f64, f32, f64)
     let module_binaries = assemble_single_module(
         r#"
-            (module "main"
+            (module $app
                 (runtime_version "1.0")
                 (fn $main (results f32 f64 f32 f64)
                     (code

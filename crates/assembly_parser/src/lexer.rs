@@ -27,6 +27,15 @@ pub enum NumberToken {
 pub fn lex(iter: &mut PeekableIterator<char>) -> Result<Vec<Token>, ParseError> {
     let mut tokens: Vec<Token> = vec![];
 
+    // skip the shebang (https://en.wikipedia.org/wiki/Shebang_(Unix))
+    if iter.look_ahead_equals(0, &'#') && iter.look_ahead_equals(1, &'!') {
+        while let Some(curc) = iter.next() {
+            if curc == '\n' {
+                break;
+            }
+        }
+    }
+
     while let Some(curc) = iter.peek(0) {
         match curc {
             ' ' | '\t' | '\r' | '\n' => {
@@ -45,9 +54,12 @@ pub fn lex(iter: &mut PeekableIterator<char>) -> Result<Vec<Token>, ParseError> 
             'r' if iter.look_ahead_equals(1, &'"') => {
                 tokens.push(lex_raw_string(iter)?);
             }
+            'r' if iter.look_ahead_equals(1, &'#') && iter.look_ahead_equals(2, &'"') => {
+                tokens.push(lex_raw_string_variant2(iter)?);
+            }
             '"' => {
                 if iter.look_ahead_equals(1, &'"') && iter.look_ahead_equals(2, &'"') {
-                    tokens.push(lex_indented_string(iter)?);
+                    tokens.push(lex_paragraph_string(iter)?);
                 } else {
                     tokens.push(lex_string(iter)?);
                 }
@@ -171,12 +183,31 @@ fn lex_number_decimal(iter: &mut PeekableIterator<char>) -> Result<Token, ParseE
         iter.next();
     }
 
+    let mut found_point = false;
+    let mut found_e = false;
+
     while let Some(curc) = iter.peek(0) {
         match *curc {
-            '0'..='9' | '_' | '.' | 'e' => {
+            '0'..='9' | '_' => {
                 // valid digits for decimal number
                 num_string.push(*curc);
                 iter.next();
+            }
+            '.' if found_point == false => {
+                found_point = true;
+                num_string.push(*curc);
+                iter.next();
+            }
+            'e' if found_e == false => {
+                found_e = true;
+                if iter.look_ahead_equals(1, &'-') {
+                    num_string.push_str("e-");
+                    iter.next();
+                    iter.next();
+                } else {
+                    num_string.push(*curc);
+                    iter.next();
+                }
             }
             ' ' | '\t' | '\r' | '\n' | '(' | ')' | ';' | '#' => {
                 // terminator chars
@@ -226,7 +257,7 @@ fn lex_number_binary(iter: &mut PeekableIterator<char>) -> Result<Token, ParseEr
         }
     }
 
-    if num_string.len() < 3 {
+    if num_string.is_empty() {
         Err(ParseError::new("Incomplete binary number"))
     } else {
         Ok(Token::Number(NumberToken::Binary(num_string)))
@@ -265,21 +296,11 @@ fn lex_number_hex(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError
         }
     }
 
-    if num_string.len() < 3 {
+    if num_string.is_empty() {
         Err(ParseError::new("Incomplete hex number"))
     } else {
         Ok(Token::Number(NumberToken::Hex(num_string)))
     }
-}
-
-fn lex_indented_string(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError> {
-    // """                 //
-    // ^  indented string  //
-    // |  """?             //
-    // |     ^_____________// to here ('?' = any chars or EOF)
-    // |___________________// current char
-
-    todo!()
 }
 
 fn lex_string(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError> {
@@ -287,7 +308,7 @@ fn lex_string(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError> {
     // ^    ^__// to here
     // |_______// current char
 
-    iter.next(); // consume the quote mark
+    iter.next(); // consume the quote
 
     let mut ss = String::new();
 
@@ -326,6 +347,15 @@ fn lex_string(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError> {
                                     // unicode code point, e.g. '\u{2d}', '\u{6587}'
                                     ss.push(lex_string_unescape_unicode(iter)?);
                                 }
+                                '\n' => {
+                                    // multiple-line string
+                                    let _ = consume_leading_whitespaces(iter)?;
+                                }
+                                '\r' if iter.look_ahead_equals(0, &'\n') => {
+                                    // multiple-line string
+                                    iter.next();
+                                    let _ = consume_leading_whitespaces(iter)?;
+                                }
                                 _ => {
                                     return Err(ParseError::new(&format!(
                                         "Unsupported escape char: \"{}\"",
@@ -351,6 +381,38 @@ fn lex_string(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError> {
     }
 
     Ok(Token::String_(ss))
+}
+
+// return the amount of leading whitespaces
+fn consume_leading_whitespaces(iter: &mut PeekableIterator<char>) -> Result<usize, ParseError> {
+    // \nssssS  //
+    //   ^   ^__// to here ('s' = whitespace, i.e. [ \t], 'S' = not whitespace)
+    //   |______// current char
+
+    let mut count = 0;
+    loop {
+        match iter.peek(0) {
+            Some(nextc) if nextc == &' ' || nextc == &'\t' => {
+                count += 1;
+                iter.next();
+            }
+            None => return Err(ParseError::new("Expect the string content.")),
+            _ => break,
+        }
+    }
+
+    Ok(count)
+}
+
+fn skip_leading_whitespaces(iter: &mut PeekableIterator<char>, whitespaces: usize) {
+    for _ in 0..whitespaces {
+        match iter.peek(0) {
+            Some(nextc) if nextc == &' ' || nextc == &'\t' => {
+                iter.next();
+            }
+            _ => break,
+        }
+    }
 }
 
 fn lex_string_unescape_unicode(iter: &mut PeekableIterator<char>) -> Result<char, ParseError> {
@@ -411,7 +473,142 @@ fn lex_raw_string(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError
     // r"abc"?  //
     // ^     ^__// to here
     // |________// current char
-    todo!()
+
+    iter.next(); // consume char 'r'
+    iter.next(); // consume the quote
+
+    let mut ss = String::new();
+
+    loop {
+        match iter.next() {
+            Some(curc) => match curc {
+                '"' => {
+                    // end of the string
+                    break;
+                }
+                _ => {
+                    // ordinary char
+                    ss.push(curc);
+                }
+            },
+            None => return Err(ParseError::new("Missing end quote for string.")),
+        }
+    }
+
+    Ok(Token::String_(ss))
+}
+
+fn lex_raw_string_variant2(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError> {
+    // r#"abc"#?  //
+    // ^       ^__// to here
+    // |__________// current char
+
+    iter.next(); // consume char 'r'
+    iter.next(); // consume the hash
+    iter.next(); // consume the quote
+
+    let mut ss = String::new();
+
+    loop {
+        match iter.next() {
+            Some(curc) => match curc {
+                '"' if iter.look_ahead_equals(0, &'#') => {
+                    // end of the string
+                    iter.next(); // consume the hash
+                    break;
+                }
+                _ => {
+                    // ordinary char
+                    ss.push(curc);
+                }
+            },
+            None => return Err(ParseError::new("Missing end quote for string.")),
+        }
+    }
+
+    Ok(Token::String_(ss))
+}
+
+fn lex_paragraph_string(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError> {
+    // """                  //
+    // ^  paragraph string  //
+    // |  """?              //
+    // |     ^______________// to here ('?' = any chars or EOF)
+    // |____________________// current char
+
+    // consume 3 quotes (""")
+    iter.next();
+    iter.next();
+    iter.next();
+
+    if iter.look_ahead_equals(0, &'\n') {
+        iter.next();
+    } else if iter.look_ahead_equals(0, &'\r') && iter.look_ahead_equals(1, &'\n') {
+        iter.next();
+        iter.next();
+    } else {
+        return Err(ParseError::new(
+            "The text of paragraph string should start on a new line.",
+        ));
+    }
+
+    let leading_whitespaces = consume_leading_whitespaces(iter)?;
+    let mut ss = String::new();
+    let mut line_leading = String::new();
+
+    loop {
+        match iter.next() {
+            Some(curc) => {
+                match curc {
+                    '\n' => {
+                        ss.push('\n');
+                        line_leading.clear();
+                        skip_leading_whitespaces(iter, leading_whitespaces);
+                    }
+                    '\r' if iter.look_ahead_equals(0, &'\n') => {
+                        iter.next(); // consume '\n'
+
+                        ss.push_str("\r\n");
+                        line_leading.clear();
+                        skip_leading_whitespaces(iter, leading_whitespaces);
+                    }
+                    '"' if line_leading.trim().is_empty()
+                        && iter.look_ahead_equals(0, &'"')
+                        && iter.look_ahead_equals(1, &'"') =>
+                    {
+                        iter.next();
+                        iter.next();
+
+                        // only (""") which occupies a single line, is considered to be
+                        // the ending mark of a paragraph string.
+                        if iter.look_ahead_equals(0, &'\n') {
+                            iter.next();
+                            break;
+                        } else if iter.look_ahead_equals(0, &'\r')
+                            && iter.look_ahead_equals(1, &'\n')
+                        {
+                            iter.next();
+                            iter.next();
+                            break;
+                        } else {
+                            ss.push_str("\"\"\"");
+                        }
+                    }
+                    _ => {
+                        ss.push(curc);
+                        line_leading.push(curc);
+                    }
+                }
+            }
+            None => {
+                return Err(ParseError::new(
+                    "Missing the ending marker for the paragraph string.",
+                ))
+            }
+        }
+    }
+
+    Ok(Token::String_(ss.trim_end().to_owned()))
 }
 
 fn lex_bytes_data(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError> {
@@ -468,8 +665,8 @@ fn comsume_line_comment(iter: &mut PeekableIterator<char>) -> Result<(), ParseEr
     // ^          ^__// to here ('?' = any char or EOF)
     // |_____________// current char
 
-    iter.next(); // consume the char ';'
-    iter.next(); // consume the char ';'
+    iter.next(); // consume char ';'
+    iter.next(); // consume char ';'
 
     while let Some(curc) = iter.next() {
         // ignore all chars except '\n'
@@ -486,8 +683,8 @@ fn comsume_block_comment(iter: &mut PeekableIterator<char>) -> Result<(), ParseE
     // ^      ^__// to here
     // |_________// current char
 
-    iter.next(); // consume the char '('
-    iter.next(); // consume the char ';'
+    iter.next(); // consume char '('
+    iter.next(); // consume char ';'
 
     let mut pairs = 1;
 
@@ -525,8 +722,8 @@ fn comsume_node_comment(iter: &mut PeekableIterator<char>) -> Result<(), ParseEr
     // ^             ^__// to here
     // |________________// current char
 
-    iter.next(); // consume the char '#'
-    iter.next(); // consume the char '('
+    iter.next(); // consume char '#'
+    iter.next(); // consume char '('
 
     let mut pairs = 1;
 
@@ -631,6 +828,8 @@ impl Token {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use crate::{lexer::Token, peekable_iterator::PeekableIterator, ParseError};
 
     use super::lex;
@@ -710,42 +909,52 @@ mod tests {
     #[test]
     fn test_lex_number() {
         assert_eq!(
-            lex_from_str("(123)").unwrap(),
+            lex_from_str("(211)").unwrap(),
             vec![
                 Token::LeftParen,
-                Token::new_dec_number("123"),
+                Token::new_dec_number("211"),
                 Token::RightParen
             ]
         );
 
         assert_eq!(
-            lex_from_str("123").unwrap(),
-            vec![Token::new_dec_number("123")]
+            lex_from_str("211").unwrap(),
+            vec![Token::new_dec_number("211")]
         );
 
         assert_eq!(
-            lex_from_str("123.456").unwrap(),
-            vec![Token::new_dec_number("123.456")]
+            lex_from_str("3.14").unwrap(),
+            vec![Token::new_dec_number("3.14")]
         );
 
         assert_eq!(
-            lex_from_str("3.0e8").unwrap(),
-            vec![Token::new_dec_number("3.0e8")]
+            lex_from_str("2.998e8").unwrap(),
+            vec![Token::new_dec_number("2.998e8")]
         );
 
         assert_eq!(
-            lex_from_str("-1234").unwrap(),
-            vec![Token::new_dec_number("-1234")]
+            lex_from_str("6.626e-34").unwrap(),
+            vec![Token::new_dec_number("6.626e-34")]
         );
 
         assert_eq!(
-            lex_from_str("12_34_56").unwrap(),
-            vec![Token::new_dec_number("12_34_56")]
+            lex_from_str("+2017").unwrap(),
+            vec![Token::new_dec_number("2017")]
         );
 
         assert_eq!(
-            lex_from_str("123 456").unwrap(),
-            vec![Token::new_dec_number("123"), Token::new_dec_number("456")]
+            lex_from_str("-2027").unwrap(),
+            vec![Token::new_dec_number("-2027")]
+        );
+
+        assert_eq!(
+            lex_from_str("223_211").unwrap(),
+            vec![Token::new_dec_number("223_211")]
+        );
+
+        assert_eq!(
+            lex_from_str("223 211").unwrap(),
+            vec![Token::new_dec_number("223"), Token::new_dec_number("211")]
         );
 
         assert_eq!(
@@ -776,6 +985,18 @@ mod tests {
         // invalid char for decimal number
         assert!(matches!(
             lex_from_str("123-456"),
+            Err(ParseError { message: _ })
+        ));
+
+        // multiple points
+        assert!(matches!(
+            lex_from_str("1.23.456"),
+            Err(ParseError { message: _ })
+        ));
+
+        // multiple exps
+        assert!(matches!(
+            lex_from_str("1e2e3"),
             Err(ParseError { message: _ })
         ));
 
@@ -944,13 +1165,171 @@ mod tests {
     }
 
     #[test]
-    fn test_lex_law_string() {
-        todo!()
+    fn test_lex_multiple_line_string() {
+        assert_eq!(
+            lex_from_str("\"abc\ndef\n    uvw\r\n\t  \txyz\"").unwrap(),
+            vec![Token::new_string("abc\ndef\n    uvw\r\n\t  \txyz")]
+        );
+
+        assert_eq!(
+            lex_from_str("\"abc\\\ndef\\\n    uvw\\\r\n\t  \txyz\"").unwrap(),
+            vec![Token::new_string("abcdefuvwxyz")]
+        );
+
+        assert_eq!(
+            lex_from_str("\"\\\n  \t  \"").unwrap(),
+            vec![Token::new_string("")]
+        );
+
+        // missing right quote
+        assert!(matches!(
+            lex_from_str("\"abc\\\n    "),
+            Err(ParseError { message: _ })
+        ));
     }
 
     #[test]
-    fn test_lex_indented_string() {
-        todo!()
+    fn test_lex_law_string() {
+        assert_eq!(
+            lex_from_str(
+                "r\"abc\ndef\n    uvw\r\n\t escape: \\r\\n\\t\\\\ unicode: \\u{1234} xyz\""
+            )
+            .unwrap(),
+            vec![Token::new_string(
+                "abc\ndef\n    uvw\r\n\t escape: \\r\\n\\t\\\\ unicode: \\u{1234} xyz"
+            )]
+        );
+
+        // missing right quote
+        assert!(matches!(
+            lex_from_str("r\"abc    "),
+            Err(ParseError { message: _ })
+        ));
+    }
+
+    #[test]
+    fn test_lex_law_string2() {
+        assert_eq!(
+            lex_from_str(
+                "r#\"abc\ndef\n    uvw\r\n\t escape: \\r\\n\\t\\\\ unicode: \\u{1234} xyz quote: \"foo\"\"#"
+            )
+            .unwrap(),
+            vec![Token::new_string(
+                "abc\ndef\n    uvw\r\n\t escape: \\r\\n\\t\\\\ unicode: \\u{1234} xyz quote: \"foo\""
+            )]
+        );
+
+        // missing the ending marker
+        assert!(matches!(
+            lex_from_str("r#\"abc    "),
+            Err(ParseError { message: _ })
+        ));
+    }
+
+    #[test]
+    fn test_lex_paragraph_string() {
+        assert_eq!(
+            lex_from_str(
+                r#"
+            """
+            one
+              two
+                three
+            end
+            """
+            "#
+            )
+            .unwrap(),
+            vec![Token::new_string("one\n  two\n    three\nend")]
+        );
+
+        assert_eq!(
+            lex_from_str(
+                r#"
+            """
+            one
+          two
+        three
+            end
+            """
+            "#
+            )
+            .unwrap(),
+            vec![Token::new_string("one\ntwo\nthree\nend")]
+        );
+
+        assert_eq!(
+            lex_from_str(
+                r#"
+            """
+                one\\\"\t\r\n\u{1234}
+
+                end
+            """
+            "#
+            )
+            .unwrap(),
+            vec![Token::new_string("one\\\\\\\"\\t\\r\\n\\u{1234}\n\nend")]
+        );
+
+        assert_eq!(
+            lex_from_str(
+                r#"
+            """
+                one"""
+                """two
+                """"
+                end
+            """
+            "#
+            )
+            .unwrap(),
+            vec![Token::new_string("one\"\"\"\n\"\"\"two\n\"\"\"\"\nend")]
+        );
+
+        // the content does not start on a new line
+        assert!(matches!(
+            lex_from_str(
+                r#"
+            """hello"""
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
+        // ending marker does not start on a new line
+        assert!(matches!(
+            lex_from_str(
+                r#"
+        """
+        hello"""
+        "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
+        // ending marker does not occupy the whole line
+        assert!(matches!(
+            lex_from_str(
+                r#"
+            """
+            hello
+            """world
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
+        // missing ending marker
+        assert!(matches!(
+            lex_from_str(
+                r#"
+            """
+            hello
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
     }
 
     #[test]
@@ -1264,7 +1643,20 @@ mod tests {
     }
 
     #[test]
-    fn test_lex_assembly_source() {
+    fn test_lex_shebang() {
+        assert_eq!(
+            lex_from_str(
+                r#"#!/bin/ancl
+                name
+            "#
+            )
+            .unwrap(),
+            vec![Token::new_symbol("name"),]
+        );
+    }
+
+    #[test]
+    fn test_lex_assembly_text() {
         assert_eq!(
             lex_from_str(
                 r#"
@@ -1399,6 +1791,20 @@ mod tests {
                 Token::RightParen,
                 Token::RightParen,
                 Token::RightParen,
+                Token::RightParen,
+            ]
+        );
+
+        assert_eq!(
+            lex_from_str(
+                r#"#!/bin/ancl
+                (module)
+            "#
+            )
+            .unwrap(),
+            vec![
+                Token::LeftParen,
+                Token::new_symbol("module"),
                 Token::RightParen,
             ]
         );
