@@ -111,7 +111,12 @@ variants
 
 storing
 
-(data.store 64 $DATA_NAME OPTIONAL_OFFSET_NUMBER OPERAND_FOR_STORING)
+(data.store64 $DATA_NAME OPTIONAL_OFFSET_NUMBER:i16 OPERAND_FOR_STORING)
+
+- `data.store64`
+- `data.store32`
+- `data.store16`
+- `data.store8`
 
 ## data loading and storing with dynamical offset
 

@@ -8,6 +8,7 @@ use ancvm_binary::{
     bytecode_writer::BytecodeWriter,
     module_image::{
         data_name_section::DataNameEntry,
+        data_section::{InitedDataEntry, UninitDataEntry},
         external_func_name_section::ExternalFuncNameEntry,
         func_name_section::FuncNameEntry,
         func_section::FuncEntry,
@@ -15,13 +16,13 @@ use ancvm_binary::{
         type_section::TypeEntry,
     },
 };
-use ancvm_parser::ast::DataNode;
+use ancvm_parser::ast::{DataKindNode, DataNode};
 use ancvm_parser::ast::{
     FuncNode, ImmF32, ImmF64, Instruction, LocalNode, ModuleElementNode, ModuleNode, ParamNode,
 };
 use ancvm_types::{opcode::Opcode, DataType};
 
-use crate::{AssembleError, DataEntry, ModuleEntry};
+use crate::{AssembleError, ModuleEntry};
 
 struct NameBook<'a> {
     func_name_entries: &'a [FuncNameEntry],
@@ -191,16 +192,6 @@ pub fn assemble_module_node(module_node: &ModuleNode) -> Result<ModuleEntry, Ass
     let runtime_version_major = module_node.runtime_version_major;
     let runtime_version_minor = module_node.runtime_version_minor;
 
-    let func_name_entries = assemble_func_name_entries(module_node);
-    let data_name_entries = assemble_data_name_entries(module_node);
-    let external_func_name_entries = assemble_external_function_name_entries(module_node);
-
-    let name_book = NameBook::new(
-        &func_name_entries,
-        &data_name_entries,
-        &external_func_name_entries,
-    );
-
     let func_nodes = module_node
         .element_nodes
         .iter()
@@ -210,10 +201,68 @@ pub fn assemble_module_node(module_node: &ModuleNode) -> Result<ModuleEntry, Ass
         })
         .collect::<Vec<_>>();
 
+    let read_only_data_nodes = module_node
+        .element_nodes
+        .iter()
+        .filter_map(|node| match node {
+            ModuleElementNode::DataNode(data_node)
+                if matches!(data_node.data_kind, DataKindNode::ReadOnly(_)) =>
+            {
+                Some(data_node)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    let read_write_data_nodes = module_node
+        .element_nodes
+        .iter()
+        .filter_map(|node| match node {
+            ModuleElementNode::DataNode(data_node)
+                if matches!(data_node.data_kind, DataKindNode::ReadWrite(_)) =>
+            {
+                Some(data_node)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    let uninit_data_nodes = module_node
+        .element_nodes
+        .iter()
+        .filter_map(|node| match node {
+            ModuleElementNode::DataNode(data_node)
+                if matches!(data_node.data_kind, DataKindNode::Uninit(_)) =>
+            {
+                Some(data_node)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    let func_name_entries = assemble_func_name_entries(&func_nodes);
+    let data_name_entries = assemble_data_name_entries(
+        &read_only_data_nodes,
+        &read_write_data_nodes,
+        &uninit_data_nodes,
+    );
+    let external_func_name_entries = assemble_external_function_name_entries(module_node);
+
+    let name_book = NameBook::new(
+        &func_name_entries,
+        &data_name_entries,
+        &external_func_name_entries,
+    );
+
     let (type_entries, local_list_entries, func_entries) =
         assemble_func_nodes(&func_nodes, &name_book)?;
 
-    let data_entries = vec![]; // todo assemble_data_nodes()?;
+    let (read_only_data_entries, read_write_data_entries, uninit_data_entries) =
+        assemble_data_nodes(
+            &read_only_data_nodes,
+            &read_write_data_nodes,
+            &uninit_data_nodes,
+        )?;
 
     let module_entry = ModuleEntry {
         name,
@@ -222,7 +271,9 @@ pub fn assemble_module_node(module_node: &ModuleNode) -> Result<ModuleEntry, Ass
         type_entries,
         local_list_entries,
         func_entries,
-        data_entries,
+        read_only_data_entries,
+        read_write_data_entries,
+        uninit_data_entries,
         func_name_entries,
         data_name_entries,
         external_func_name_entries,
@@ -231,30 +282,71 @@ pub fn assemble_module_node(module_node: &ModuleNode) -> Result<ModuleEntry, Ass
     Ok(module_entry)
 }
 
-fn assemble_func_name_entries(module_node: &ModuleNode) -> Vec<FuncNameEntry> {
+fn assemble_func_name_entries(func_nodes: &[&FuncNode]) -> Vec<FuncNameEntry> {
     let mut func_name_entries = vec![];
 
-    // todo add names of imported functions
+    // todo:: add names of imported functions
 
     let imported_func_count: usize = 0; // todo
+    let mut func_pub_idx = imported_func_count;
 
-    for (idx, element_node) in module_node.element_nodes.iter().enumerate() {
-        if let ModuleElementNode::FuncNode(func_node) = element_node {
-            let entry = FuncNameEntry {
-                name: func_node.name.clone(),
-                func_pub_index: idx + imported_func_count,
-                exported: func_node.exported,
-            };
-            func_name_entries.push(entry);
-        }
+    for func_node in func_nodes {
+        let entry = FuncNameEntry {
+            name: func_node.name.clone(),
+            func_pub_index: func_pub_idx,
+            exported: func_node.exported,
+        };
+
+        func_name_entries.push(entry);
+        func_pub_idx += 1;
     }
 
     func_name_entries
 }
 
-fn assemble_data_name_entries(module_node: &ModuleNode) -> Vec<DataNameEntry> {
+fn assemble_data_name_entries(
+    ro_data_nodes: &[&DataNode],
+    rw_data_nodes: &[&DataNode],
+    uninit_data_nodes: &[&DataNode],
+) -> Vec<DataNameEntry> {
     let mut data_name_entries = vec![];
-    // todo
+
+    // todo:: add names of imported datas
+
+    let imported_data_count: usize = 0; // todo
+
+    let mut data_pub_idx = imported_data_count;
+
+    for data_node in ro_data_nodes {
+        let entry = DataNameEntry {
+            name: data_node.name.clone(),
+            data_pub_index: data_pub_idx,
+            exported: data_node.exported,
+        };
+        data_name_entries.push(entry);
+        data_pub_idx += 1;
+    }
+
+    for data_node in rw_data_nodes {
+        let entry = DataNameEntry {
+            name: data_node.name.clone(),
+            data_pub_index: data_pub_idx,
+            exported: data_node.exported,
+        };
+        data_name_entries.push(entry);
+        data_pub_idx += 1;
+    }
+
+    for data_node in uninit_data_nodes {
+        let entry = DataNameEntry {
+            name: data_node.name.clone(),
+            data_pub_index: data_pub_idx,
+            exported: data_node.exported,
+        };
+        data_name_entries.push(entry);
+        data_pub_idx += 1;
+    }
+
     data_name_entries
 }
 
@@ -272,7 +364,7 @@ fn assemble_func_nodes(
     let mut local_list_entries = vec![];
     let mut func_entries = vec![];
 
-    for (func_idx, func_node) in func_nodes.iter().enumerate() {
+    for (func_internal_idx, func_node) in func_nodes.iter().enumerate() {
         let type_index = find_existing_type_index_with_creating_when_not_found(
             &mut type_entries,
             &func_node.params,
@@ -285,7 +377,10 @@ fn assemble_func_nodes(
             &func_node.locals,
         );
 
-        let local_names = get_local_names(&func_node.params, &func_node.locals);
+        let local_names = get_current_level_local_names_with_combine_params_and_locals(
+            &func_node.params,
+            &func_node.locals,
+        );
 
         let mut flow_stack = FlowStack::new();
         flow_stack.push(0, FlowKind::Function, local_names);
@@ -381,7 +476,10 @@ fn find_existing_local_index_with_creating_when_not_found(
     }
 }
 
-fn get_local_names(param_nodes: &[ParamNode], local_nodes: &[LocalNode]) -> Vec<String> {
+fn get_current_level_local_names_with_combine_params_and_locals(
+    param_nodes: &[ParamNode],
+    local_nodes: &[LocalNode],
+) -> Vec<String> {
     let names_from_params = param_nodes
         .iter()
         .map(|node| node.name.clone())
@@ -896,6 +994,59 @@ fn assemble_instruction_kind_no_params(
     Ok(())
 }
 
-fn assemble_data_nodes(data_nodes: &[&DataNode]) -> Result<Vec<DataEntry>, AssembleError> {
-    todo!()
+fn assemble_data_nodes(
+    read_only_data_nodes: &[&DataNode],
+    read_write_data_nodes: &[&DataNode],
+    uninit_data_nodes: &[&DataNode],
+) -> Result<
+    (
+        Vec<InitedDataEntry>,
+        Vec<InitedDataEntry>,
+        Vec<UninitDataEntry>,
+    ),
+    AssembleError,
+> {
+    let read_only_data_entries = read_only_data_nodes
+        .iter()
+        .map(|node| match &node.data_kind {
+            DataKindNode::ReadOnly(src) => InitedDataEntry {
+                memory_data_type: src.memory_data_type,
+                data: src.value.clone(),
+                length: src.length,
+                align: src.align,
+            },
+            _ => unreachable!(),
+        })
+        .collect::<Vec<_>>();
+
+    let read_write_data_entries = read_write_data_nodes
+        .iter()
+        .map(|node| match &node.data_kind {
+            DataKindNode::ReadWrite(src) => InitedDataEntry {
+                memory_data_type: src.memory_data_type,
+                data: src.value.clone(),
+                length: src.length,
+                align: src.align,
+            },
+            _ => unreachable!(),
+        })
+        .collect::<Vec<_>>();
+
+    let uninit_data_entries = uninit_data_nodes
+        .iter()
+        .map(|node| match &node.data_kind {
+            DataKindNode::ReadOnly(src) => UninitDataEntry {
+                memory_data_type: src.memory_data_type,
+                length: src.length,
+                align: src.align,
+            },
+            _ => unreachable!(),
+        })
+        .collect::<Vec<_>>();
+
+    Ok((
+        read_only_data_entries,
+        read_write_data_entries,
+        uninit_data_entries,
+    ))
 }

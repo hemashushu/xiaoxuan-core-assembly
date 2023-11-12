@@ -189,7 +189,6 @@ pub enum Instruction {
     // - block_alt (param type_index:i32, local_list_index:i32, alt_inst_offset:i32)
     // - break (param reversed_index:i16, next_inst_offset:i32)
     If {
-        // params: Vec<ParamNode>,
         results: Vec<DataType>,
         locals: Vec<LocalNode>,
         test: Box<Instruction>,
@@ -202,7 +201,6 @@ pub enum Instruction {
     // - block_nez (param local_list_index:i32, next_inst_offset:i32)
     // - break (param reversed_index:i16, next_inst_offset:i32)
     Branch {
-        // params: Vec<ParamNode>,
         results: Vec<DataType>,
         locals: Vec<LocalNode>,
         cases: Vec<BranchCase>,
@@ -306,7 +304,7 @@ pub enum DataKindNode {
 #[derive(Debug, PartialEq)]
 pub struct InitedData {
     pub memory_data_type: MemoryDataType,
-    pub data_length: u32,
+    pub length: u32,
 
     // if the data is a byte array (includes string), the value should be 1,
     // if the data is a struct, the value should be the max one of the length of its fields.
@@ -318,7 +316,7 @@ pub struct InitedData {
 #[derive(Debug, PartialEq)]
 pub struct UninitData {
     pub memory_data_type: MemoryDataType,
-    pub data_length: u32,
+    pub length: u32,
 
     // if the data is a byte array (includes string), the value should be 1,
     // if the data is a struct, the value should be the max one of the length of its fields.

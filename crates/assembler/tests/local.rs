@@ -16,7 +16,34 @@ use crate::utils::assemble_single_module;
 
 #[test]
 fn test_assemble_local_load_store() {
+    // args index (also local var):     0       1
+    // data type:                       f32     f64
+    //
+    //       |low address                                                              high address|
+    // local |                                                                                     |
+    // index |2                                  3      4      5                         6         |
+    //  type |bytes-------------------|         |f32|  |f64|  |i64------------------|   |i32-------|
+    //
+    //  data 11 13 17 19 c0 d0    e0 f0         f32    f64    11 13 17 19 c0 d0 e0 f0    11 12 17 19
+    //       |           |        |  |          |      |      ^                          ^
+    //       |store32    |store16 |  |          |sf32  |sf64  |                          |
+    //        step0       step1   |  |          |step5 |step4 |                          |
+    //                      store8|  |          |      |      |                          |
+    //       |              step2    |store8    |      |      |store64                   |store32
+    //       |                        step3     |      |      |                          |
+    //       \----->--load64-->---------------------------->--/-->-------------------->--/
+    //
+    //       11 13 17 19 c0 d0    e0 f0         f32    f64    11 13 17 19 c0 d0 e0 f0    11 12 17 19
+    //       |           |        |  |load8u    |      |      |                          |
+    //       |           |        |  |load8s  loadf32  |      |                          |
+    //       |           |        |                  loadf64  |                          |
+    //       |           |        |load16u                    |                          |
+    //       |           |        |load16s                 load64                      load32
+    //       |           |
+    //       |load64     |load32
+    //
     // (f32, f64) -> (i64,i32,i32,i32,i32,i32, f32,f64 ,i64,i32)
+
     let module_binaries = assemble_single_module(
         r#"
         (module $app
@@ -106,6 +133,29 @@ fn test_assemble_local_load_store() {
 
 #[test]
 fn test_assemble_local_long_load_and_store() {
+    //       |low address                                 high address|
+    //       |                                                        |
+    // index |0                                  1                    |
+    //  type |bytes-------------------|         |bytes----------------|
+    //
+    //  data 11 13 17 19 c0 d0    e0 f0         11 13 17 19 c0 d0 e0 f0
+    //       |           |        |  |          ^
+    //       |store32    |store16 |  |          |
+    //        step0       step1   |  |          |
+    //                      store8|  |          |
+    //       |              step2    |store8    |store64
+    //       |                        step3     |
+    //       \----->--load64-->-----------------/
+    //
+    //       11 13 17 19 c0 d0    e0 f0         11 13 17 19 c0 d0 e0 f0
+    //       |           |        |  |load8u    |
+    //       |           |        |  |load8s    |load64
+    //       |           |        |             |load32
+    //       |           |        |load16u      |load16u
+    //       |           |        |load16s      |load8u
+    //       |           |
+    //       |load64     |load32
+    //
     // () -> (i64,i32,i32,i32,i32,i32, i64,i32,i32,i32)
     let module_binaries = assemble_single_module(
         r#"

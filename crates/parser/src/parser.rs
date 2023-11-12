@@ -1455,7 +1455,7 @@ fn parse_data_kind_node_uninit(
     let (memory_data_type, data_length, align) = parse_memory_data_type(iter)?;
     let inited_data = UninitData {
         memory_data_type,
-        data_length,
+        length: data_length,
         align,
     };
     consume_right_paren(iter)?;
@@ -1483,7 +1483,7 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
 
                 InitedData {
                     memory_data_type: MemoryDataType::I32,
-                    data_length: 4,
+                    length: 4,
                     align: 4,
                     value: bytes,
                 }
@@ -1495,7 +1495,7 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
 
                 InitedData {
                     memory_data_type: MemoryDataType::I64,
-                    data_length: 8,
+                    length: 8,
                     align: 8,
                     value: bytes,
                 }
@@ -1510,7 +1510,7 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
 
                 InitedData {
                     memory_data_type: MemoryDataType::F32,
-                    data_length: 4,
+                    length: 4,
                     align: 4,
                     value: bytes,
                 }
@@ -1525,7 +1525,7 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
 
                 InitedData {
                     memory_data_type: MemoryDataType::F64,
-                    data_length: 8,
+                    length: 8,
                     align: 8,
                     value: bytes,
                 }
@@ -1535,7 +1535,7 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
                 let bytes = value.as_bytes().to_vec();
                 InitedData {
                     memory_data_type: MemoryDataType::BYTES,
-                    data_length: bytes.len() as u32,
+                    length: bytes.len() as u32,
                     align: 1,
                     value: bytes,
                 }
@@ -1547,7 +1547,7 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
 
                 InitedData {
                     memory_data_type: MemoryDataType::BYTES,
-                    data_length: bytes.len() as u32,
+                    length: bytes.len() as u32,
                     align: 1,
                     value: bytes,
                 }
@@ -1575,7 +1575,7 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
 
             InitedData {
                 memory_data_type: MemoryDataType::BYTES,
-                data_length: bytes.len() as u32,
+                length: bytes.len() as u32,
                 align,
                 value: bytes,
             }
@@ -1728,26 +1728,16 @@ fn expect_identifier(
     }
 }
 
-fn expect_identifier_optional(iter: &mut PeekableIterator<Token>) -> Option<String> {
-    match iter.peek(0) {
-        // Some(token) => {
-        //     if let Token::Identifier(s) = token {
-        //         let cs = s.clone();
-        //         iter.next().unwrap();
-        //         Some(cs)
-        //     } else {
-        //         None
-        //     }
-        // }
-        // None => None,
-        Some(Token::Identifier(s)) => {
-            let id = s.clone();
-            iter.next();
-            Some(id)
-        }
-        _ => None,
-    }
-}
+// fn expect_identifier_optional(iter: &mut PeekableIterator<Token>) -> Option<String> {
+//     match iter.peek(0) {
+//         Some(Token::Identifier(s)) => {
+//             let id = s.clone();
+//             iter.next();
+//             Some(id)
+//         }
+//         _ => None,
+//     }
+// }
 
 fn exist_child_node(iter: &mut PeekableIterator<Token>, child_node_name: &str) -> bool {
     if let Some(Token::LeftParen) = iter.peek(0) {
@@ -2600,7 +2590,6 @@ mod tests {
             "#
             ),
             Box::new(Instruction::Code(vec![Instruction::If {
-                // params: vec![],
                 results: vec![],
                 locals: vec![],
                 test: Box::new(Instruction::BinaryOp {
@@ -2643,16 +2632,6 @@ mod tests {
                 name: "i".to_owned(),
                 offset: 0,
                 value: Box::new(Instruction::If {
-                    // params: vec![
-                    //     ParamNode {
-                    //         name: "m".to_owned(),
-                    //         data_type: DataType::I32
-                    //     },
-                    //     ParamNode {
-                    //         name: "n".to_owned(),
-                    //         data_type: DataType::I32
-                    //     },
-                    // ],
                     results: vec![DataType::I32],
                     locals: vec![LocalNode {
                         name: "x".to_owned(),
@@ -2726,10 +2705,6 @@ mod tests {
             "#
             ),
             Box::new(Instruction::Code(vec![Instruction::Branch {
-                // params: vec![ParamNode {
-                //     name: "x".to_owned(),
-                //     data_type: DataType::I32
-                // }],
                 results: vec![DataType::I32],
                 locals: vec![LocalNode {
                     name: "temp".to_owned(),
@@ -2837,7 +2812,6 @@ mod tests {
                         })
                     },
                     Instruction::If {
-                        // params: vec![],
                         results: vec![],
                         locals: vec![],
                         test: Box::new(Instruction::BinaryOp {
@@ -2964,7 +2938,6 @@ mod tests {
                             })
                         },
                         Instruction::If {
-                            // params: vec![],
                             results: vec![],
                             locals: vec![],
                             test: Box::new(Instruction::BinaryOp {
@@ -3136,7 +3109,7 @@ mod tests {
                         exported: false,
                         data_kind: DataKindNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::I32,
-                            data_length: 4,
+                            length: 4,
                             align: 4,
                             value: 123u32.to_le_bytes().to_vec()
                         })
@@ -3146,7 +3119,7 @@ mod tests {
                         exported: false,
                         data_kind: DataKindNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::I64,
-                            data_length: 8,
+                            length: 8,
                             align: 8,
                             value: 123_456u64.to_le_bytes().to_vec()
                         })
@@ -3156,7 +3129,7 @@ mod tests {
                         exported: false,
                         data_kind: DataKindNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::F32,
-                            data_length: 4,
+                            length: 4,
                             align: 4,
                             value: std::f32::consts::PI.to_le_bytes().to_vec()
                         })
@@ -3166,7 +3139,7 @@ mod tests {
                         exported: false,
                         data_kind: DataKindNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::F64,
-                            data_length: 8,
+                            length: 8,
                             align: 8,
                             value: std::f64::consts::E.to_le_bytes().to_vec()
                         })
@@ -3176,7 +3149,7 @@ mod tests {
                         exported: false,
                         data_kind: DataKindNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::I32,
-                            data_length: 4,
+                            length: 4,
                             align: 4,
                             value: 0xaabb_ccddu32.to_le_bytes().to_vec()
                         })
@@ -3186,7 +3159,7 @@ mod tests {
                         exported: false,
                         data_kind: DataKindNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::F32,
-                            data_length: 4,
+                            length: 4,
                             align: 4,
                             value: std::f32::consts::PI.to_le_bytes().to_vec()
                         })
@@ -3196,7 +3169,7 @@ mod tests {
                         exported: false,
                         data_kind: DataKindNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::I32,
-                            data_length: 4,
+                            length: 4,
                             align: 4,
                             value: 0b1010_0101u32.to_le_bytes().to_vec()
                         })
@@ -3227,7 +3200,7 @@ mod tests {
                         exported: false,
                         data_kind: DataKindNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::BYTES,
-                            data_length: 13,
+                            length: 13,
                             align: 1,
                             value: "Hello, World!".as_bytes().to_vec()
                         })
@@ -3237,7 +3210,7 @@ mod tests {
                         exported: false,
                         data_kind: DataKindNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::BYTES,
-                            data_length: 14,
+                            length: 14,
                             align: 1,
                             value: "Hello, World!\0".as_bytes().to_vec()
                         })
@@ -3247,7 +3220,7 @@ mod tests {
                         exported: false,
                         data_kind: DataKindNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::BYTES,
-                            data_length: 4,
+                            length: 4,
                             align: 2,
                             value: [0x11, 0x13, 0x17, 0x19].to_vec()
                         })
@@ -3277,7 +3250,7 @@ mod tests {
                         exported: true,
                         data_kind: DataKindNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::I32,
-                            data_length: 4,
+                            length: 4,
                             align: 4,
                             value: 123u32.to_le_bytes().to_vec()
                         })
@@ -3287,7 +3260,7 @@ mod tests {
                         exported: true,
                         data_kind: DataKindNode::ReadWrite(InitedData {
                             memory_data_type: MemoryDataType::I32,
-                            data_length: 4,
+                            length: 4,
                             align: 4,
                             value: 456u32.to_le_bytes().to_vec()
                         })
@@ -3375,7 +3348,7 @@ mod tests {
                         exported: false,
                         data_kind: DataKindNode::Uninit(UninitData {
                             memory_data_type: MemoryDataType::I32,
-                            data_length: 4,
+                            length: 4,
                             align: 4,
                         })
                     }),
@@ -3384,7 +3357,7 @@ mod tests {
                         exported: false,
                         data_kind: DataKindNode::Uninit(UninitData {
                             memory_data_type: MemoryDataType::I64,
-                            data_length: 8,
+                            length: 8,
                             align: 8,
                         })
                     }),
@@ -3393,7 +3366,7 @@ mod tests {
                         exported: false,
                         data_kind: DataKindNode::Uninit(UninitData {
                             memory_data_type: MemoryDataType::F32,
-                            data_length: 4,
+                            length: 4,
                             align: 4,
                         })
                     }),
@@ -3402,7 +3375,7 @@ mod tests {
                         exported: false,
                         data_kind: DataKindNode::Uninit(UninitData {
                             memory_data_type: MemoryDataType::F64,
-                            data_length: 8,
+                            length: 8,
                             align: 8,
                         })
                     }),
@@ -3411,7 +3384,7 @@ mod tests {
                         exported: false,
                         data_kind: DataKindNode::Uninit(UninitData {
                             memory_data_type: MemoryDataType::BYTES,
-                            data_length: 12,
+                            length: 12,
                             align: 4,
                         })
                     }),
@@ -3440,7 +3413,7 @@ mod tests {
                         exported: true,
                         data_kind: DataKindNode::Uninit(UninitData {
                             memory_data_type: MemoryDataType::I32,
-                            data_length: 4,
+                            length: 4,
                             align: 4,
                         })
                     }),
@@ -3449,7 +3422,7 @@ mod tests {
                         exported: true,
                         data_kind: DataKindNode::Uninit(UninitData {
                             memory_data_type: MemoryDataType::I64,
-                            data_length: 8,
+                            length: 8,
                             align: 8,
                         })
                     }),

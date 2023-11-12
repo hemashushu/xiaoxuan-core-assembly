@@ -5,7 +5,8 @@
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
 use ancvm_binary::module_image::{
-    data_index_section::{DataIndexEntry, DataIndexModuleEntry},
+    data_index_section::{self, DataIndexEntry, DataIndexModuleEntry, DataIndexSection},
+    data_section::{ReadOnlyDataSection, ReadWriteDataSection, UninitDataSection},
     func_index_section::{FuncIndexEntry, FuncIndexModuleEntry, FuncIndexSection},
     func_section::FuncSection,
     local_variable_section::LocalVariableSection,
@@ -15,7 +16,7 @@ use ancvm_binary::module_image::{
 use ancvm_program::program_settings::ProgramSettings;
 use ancvm_types::DataSectionType;
 
-use crate::{AssembleError, DataEntry, IndexEntry, ModuleEntry};
+use crate::{AssembleError, IndexEntry, ModuleEntry};
 
 pub fn generate_image_binaries(
     module_entries: &[ModuleEntry],
@@ -26,7 +27,7 @@ pub fn generate_image_binaries(
     let mut image_binaries = vec![];
 
     for module_entry in module_entries {
-        // type, local, func sections
+        // type, local, func, data sections
         let (type_items, type_data) = TypeSection::convert_from_entries(&module_entry.type_entries);
         let type_section = TypeSection {
             items: &type_items,
@@ -46,7 +47,27 @@ pub fn generate_image_binaries(
             codes_data: &func_data,
         };
 
-        // func index, data index sections
+        let (read_only_data_items, read_only_data) =
+            ReadOnlyDataSection::convert_from_entries(&module_entry.read_only_data_entries);
+        let read_only_data_section = ReadOnlyDataSection {
+            items: &read_only_data_items,
+            datas_data: &read_only_data,
+        };
+
+        let (read_write_data_items, read_write_data) =
+            ReadWriteDataSection::convert_from_entries(&module_entry.read_write_data_entries);
+        let read_write_data_section = ReadWriteDataSection {
+            items: &read_write_data_items,
+            datas_data: &read_write_data,
+        };
+
+        let uninit_data_items =
+            UninitDataSection::convert_from_entries(&module_entry.uninit_data_entries);
+        let uninit_data_section = UninitDataSection {
+            items: &uninit_data_items,
+        };
+
+        // func, data index section
 
         let (func_index_range_items, func_index_items) =
             FuncIndexSection::convert_from_entries(&module_index_entry.func_index_module_entries);
@@ -55,12 +76,23 @@ pub fn generate_image_binaries(
             items: &func_index_items,
         };
 
+        let (data_index_range_items, data_index_items) =
+            DataIndexSection::convert_from_entries(&module_index_entry.data_index_module_entries);
+        let data_index_section = DataIndexSection {
+            ranges: &data_index_range_items,
+            items: &data_index_items,
+        };
+
         // build ModuleImage instance
         let section_entries: Vec<&dyn SectionEntry> = vec![
             &type_section,
             &local_variable_section,
             &func_section,
+            &read_only_data_section,
+            &read_write_data_section,
+            &uninit_data_section,
             &func_index_section,
+            &data_index_section,
         ];
 
         let (section_items, sections_data) = ModuleImage::convert_from_entries(&section_entries);
@@ -105,28 +137,47 @@ pub fn link(
         .collect::<Vec<_>>();
 
     // TEMPORARY, NO LINKING
+    // note that data internal index is section relevant.
     let data_index_module_entries = module_entries
         .iter()
         .enumerate()
         .map(|(module_index, module_entry)| {
-            let entries = module_entry
-                .data_entries
-                .iter()
-                .enumerate()
-                .map(|(data_pub_index, data_entry)| {
-                    let data_section_type = match data_entry {
-                        DataEntry::ReadOnly(_) => DataSectionType::ReadOnly,
-                        DataEntry::ReadWrite(_) => DataSectionType::ReadWrite,
-                        DataEntry::Uninit(_) => DataSectionType::Uninit,
-                    };
-                    DataIndexEntry::new(
-                        data_pub_index,
-                        module_index,
-                        data_pub_index,
-                        data_section_type,
-                    )
-                })
-                .collect::<Vec<_>>();
+            let mut data_pub_index = 0;
+            let mut entries = vec![];
+
+            for (data_internal_idx, _) in module_entry.read_only_data_entries.iter().enumerate() {
+                entries.push(DataIndexEntry::new(
+                    data_pub_index,
+                    module_index,
+                    data_internal_idx,
+                    DataSectionType::ReadOnly,
+                ));
+
+                data_pub_index += 1;
+            }
+
+            for (data_internal_idx, _) in module_entry.read_write_data_entries.iter().enumerate() {
+                entries.push(DataIndexEntry::new(
+                    data_pub_index,
+                    module_index,
+                    data_internal_idx,
+                    DataSectionType::ReadWrite,
+                ));
+
+                data_pub_index += 1;
+            }
+
+            for (data_internal_idx, _) in module_entry.uninit_data_entries.iter().enumerate() {
+                entries.push(DataIndexEntry::new(
+                    data_pub_index,
+                    module_index,
+                    data_internal_idx,
+                    DataSectionType::Uninit,
+                ));
+
+                data_pub_index += 1;
+            }
+
             DataIndexModuleEntry::new(entries)
         })
         .collect::<Vec<_>>();
