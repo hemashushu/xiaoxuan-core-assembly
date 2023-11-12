@@ -183,10 +183,14 @@ fn init_instruction_kind_table_internal() {
     // 'i32.imm', 'i64.imm', 'f32.imm', 'f64.imm' are replaced with pesudo instructions
 
     // load variables
-    add("local.load", InstructionKind::LocalLoad(Opcode::local_load));
+    add("local.load64_i64", InstructionKind::LocalLoad(Opcode::local_load64_i64));
     add(
-        "local.load32",
-        InstructionKind::LocalLoad(Opcode::local_load32),
+        "local.load64_f64",
+        InstructionKind::LocalLoad(Opcode::local_load64_f64),
+    );
+    add(
+        "local.load32_i32",
+        InstructionKind::LocalLoad(Opcode::local_load32_i32),
     );
     add(
         "local.load32_i16_s",
@@ -205,16 +209,12 @@ fn init_instruction_kind_table_internal() {
         InstructionKind::LocalLoad(Opcode::local_load32_i8_u),
     );
     add(
-        "local.load_f64",
-        InstructionKind::LocalLoad(Opcode::local_load_f64),
-    );
-    add(
         "local.load32_f32",
         InstructionKind::LocalLoad(Opcode::local_load32_f32),
     );
     add(
-        "local.store",
-        InstructionKind::LocalStore(Opcode::local_store),
+        "local.store64",
+        InstructionKind::LocalStore(Opcode::local_store64),
     );
     add(
         "local.store32",
@@ -230,12 +230,16 @@ fn init_instruction_kind_table_internal() {
     );
 
     add(
-        "local.long_load",
-        InstructionKind::LocalLongLoad(Opcode::local_long_load),
+        "local.long_load64_i64",
+        InstructionKind::LocalLongLoad(Opcode::local_long_load64_i64),
     );
     add(
-        "local.long_load32",
-        InstructionKind::LocalLongLoad(Opcode::local_long_load32),
+        "local.long_load64_f64",
+        InstructionKind::LocalLongLoad(Opcode::local_long_load64_f64),
+    );
+    add(
+        "local.long_load32_i32",
+        InstructionKind::LocalLongLoad(Opcode::local_long_load32_i32),
     );
     add(
         "local.long_load32_i16_s",
@@ -254,16 +258,12 @@ fn init_instruction_kind_table_internal() {
         InstructionKind::LocalLongLoad(Opcode::local_long_load32_i8_u),
     );
     add(
-        "local.long_load_f64",
-        InstructionKind::LocalLongLoad(Opcode::local_long_load_f64),
-    );
-    add(
         "local.long_load32_f32",
         InstructionKind::LocalLongLoad(Opcode::local_long_load32_f32),
     );
     add(
-        "local.long_store",
-        InstructionKind::LocalLongStore(Opcode::local_long_store),
+        "local.long_store64",
+        InstructionKind::LocalLongStore(Opcode::local_long_store64),
     );
     add(
         "local.long_store32",
@@ -279,10 +279,14 @@ fn init_instruction_kind_table_internal() {
     );
 
     // data
-    add("data.load", InstructionKind::DataLoad(Opcode::data_load));
+    add("data.load64_i64", InstructionKind::DataLoad(Opcode::data_load64_i64));
     add(
-        "data.load32",
-        InstructionKind::DataLoad(Opcode::data_load32),
+        "data.load64_f64",
+        InstructionKind::DataLoad(Opcode::data_load64_f64),
+    );
+    add(
+        "data.load32_i32",
+        InstructionKind::DataLoad(Opcode::data_load32_i32),
     );
     add(
         "data.load32_i16_s",
@@ -301,14 +305,10 @@ fn init_instruction_kind_table_internal() {
         InstructionKind::DataLoad(Opcode::data_load32_i8_u),
     );
     add(
-        "data.load_f64",
-        InstructionKind::DataLoad(Opcode::data_load_f64),
-    );
-    add(
         "data.load32_f32",
         InstructionKind::DataLoad(Opcode::data_load32_f32),
     );
-    add("data.store", InstructionKind::DataStore(Opcode::data_store));
+    add("data.store64", InstructionKind::DataStore(Opcode::data_store64));
     add(
         "data.store32",
         InstructionKind::DataStore(Opcode::data_store32),
@@ -323,12 +323,16 @@ fn init_instruction_kind_table_internal() {
     );
 
     add(
-        "data.long_load",
-        InstructionKind::DataLongLoad(Opcode::data_long_load),
+        "data.long_load64_i64",
+        InstructionKind::DataLongLoad(Opcode::data_long_load64_i64),
     );
     add(
-        "data.long_load32",
-        InstructionKind::DataLongLoad(Opcode::data_long_load32),
+        "data.long_load64_f64",
+        InstructionKind::DataLongLoad(Opcode::data_long_load64_f64),
+    );
+    add(
+        "data.long_load32_i32",
+        InstructionKind::DataLongLoad(Opcode::data_long_load32_i32),
     );
     add(
         "data.long_load32_i16_s",
@@ -347,16 +351,12 @@ fn init_instruction_kind_table_internal() {
         InstructionKind::DataLongLoad(Opcode::data_long_load32_i8_u),
     );
     add(
-        "data.long_load_f64",
-        InstructionKind::DataLongLoad(Opcode::data_long_load_f64),
-    );
-    add(
         "data.long_load32_f32",
         InstructionKind::DataLongLoad(Opcode::data_long_load32_f32),
     );
     add(
-        "data.long_store",
-        InstructionKind::DataLongStore(Opcode::data_long_store),
+        "data.long_store64",
+        InstructionKind::DataLongStore(Opcode::data_long_store64),
     );
     add(
         "data.long_store32",
@@ -372,10 +372,14 @@ fn init_instruction_kind_table_internal() {
     );
 
     // heap
-    add("heap.load", InstructionKind::HeapLoad(Opcode::heap_load));
+    add("heap.load64_i64", InstructionKind::HeapLoad(Opcode::heap_load64_i64));
     add(
-        "heap.load32",
-        InstructionKind::HeapLoad(Opcode::heap_load32),
+        "heap.load64_f64",
+        InstructionKind::HeapLoad(Opcode::heap_load64_f64),
+    );
+    add(
+        "heap.load32_i32",
+        InstructionKind::HeapLoad(Opcode::heap_load32_i32),
     );
     add(
         "heap.load32_i16_s",
@@ -394,14 +398,10 @@ fn init_instruction_kind_table_internal() {
         InstructionKind::HeapLoad(Opcode::heap_load32_i8_u),
     );
     add(
-        "heap.load_f64",
-        InstructionKind::HeapLoad(Opcode::heap_load_f64),
-    );
-    add(
         "heap.load32_f32",
         InstructionKind::HeapLoad(Opcode::heap_load32_f32),
     );
-    add("heap.store", InstructionKind::HeapStore(Opcode::heap_store));
+    add("heap.store64", InstructionKind::HeapStore(Opcode::heap_store64));
     add(
         "heap.store32",
         InstructionKind::HeapStore(Opcode::heap_store32),

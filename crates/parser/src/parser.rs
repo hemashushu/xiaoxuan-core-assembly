@@ -19,10 +19,10 @@
 //    tree structure. e.g.
 //
 //    ```clojure
-//    (fn $id (param $lhs i32) (param $rhs i32) (result i32)
+//    (fn $name (param $lhs i32) (param $rhs i32) (result i32)
 //        (code
 //            (i32.add
-//                (local.load32 $lhs) (local.load32 $rhs)
+//                (local.load32_i32 $lhs) (local.load32_i32 $rhs)
 //            )
 //        )
 //    )
@@ -36,7 +36,7 @@
 // 5. some of the parameters can be omitted, in this case, the parameters must
 //    still be in their original order. e.g.
 //
-//   `(local.load32 $db (offset 0))` == `(local.load32 $db)`
+//   `(local.load32_i32 $db (offset 0))` == `(local.load32_i32 $db)`
 //   ;; the child node '(offset ...)' above can be omitted.
 
 // the instruction syntax
@@ -56,8 +56,8 @@
 //
 // 3. instructions WITH parameters must be written with parentheses, e.g.
 //    '(i32.imm 0x1133)'
-//    '(local.load $abc)'
-//    '(local.load $abc 8)  ;; 8 is an optional parameter'
+//    '(local.load64_i64 $abc)'
+//    '(local.load64_i64 $abc 8)  ;; 8 is an optional parameter'
 //
 // 4. instructions that HAVE BOTH parameters and operands must be written
 //    with parentheses, and the operands must be written after the parameters, e.g.
@@ -75,8 +75,8 @@ use ancvm_types::{opcode::Opcode, DataType, MemoryDataType};
 
 use crate::{
     ast::{
-        BranchCase, FuncNode, ImmF32, ImmF64, Instruction, LocalNode, ModuleElementNode,
-        ModuleNode, ParamNode,
+        BranchCase, DataKindNode, DataNode, FuncNode, ImmF32, ImmF64, InitedData, Instruction,
+        LocalNode, ModuleElementNode, ModuleNode, ParamNode, UninitData,
     },
     instruction_kind::{InstructionKind, INSTRUCTION_KIND_TABLE},
     lexer::{NumberToken, Token},
@@ -100,7 +100,6 @@ pub fn parse_module_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleNod
     // (module $name (runtime_version "1.0")
     //                                          ;; optional parameters
     //      (constructor $func_name)            ;; similar to GCC '__attribute__((constructor))', run before main()
-    //      (entry $func_name)                  ;; similar to 'fn main()'
     //      (destructor $func_name)             ;; similar to GCC '__attribute__((destructor))', run after main()
     //      ...
     // )
@@ -115,9 +114,7 @@ pub fn parse_module_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleNod
     if exist_child_node(iter, "constructor") {
         todo!()
     }
-    if exist_child_node(iter, "entry") {
-        todo!()
-    }
+
     if exist_child_node(iter, "destructor") {
         todo!()
     }
@@ -129,6 +126,7 @@ pub fn parse_module_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleNod
         if let Some(Token::Symbol(child_node_name)) = iter.peek(1) {
             let element_node = match child_node_name.as_str() {
                 "fn" => parse_func_node(iter)?,
+                "data" => parse_data_node(iter)?,
                 _ => {
                     return Err(ParseError::new(&format!(
                         "Unknown module element: {}",
@@ -193,10 +191,18 @@ fn parse_module_runtime_version_node(
 
 fn parse_func_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNode, ParseError> {
     // (fn ...) ...  //
-    // ^              ^____// to here
-    // |___________________// current token
+    // ^        ^____// to here
+    // |_____________// current token
 
     // the node 'fn' syntax:
+    //
+    // (fn $name (param $param_0 DATA_TYPE) ...
+    //           (result DATA_TYPE) ...
+    //           (local $local_variable_name LOCAL_DATA_TYPE) ...
+    //           (code ...)
+    //)
+
+    // e.g.
     //
     // (fn $add (param $lhs i32) (param $rhs i32) (result i32) ...)     ;; signature
     // (fn $add (param $lhs i32) (result i32) (result i32) ...)         ;; signature with multiple return values
@@ -210,12 +216,13 @@ fn parse_func_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNo
     // (fn $add
     //     (code ...)                   ;; the function body, the instructions sequence, sholud be written inside the node '(code)'
     // )
-    //
-    // (fn $add exported ...)           ;; function with 'exported' property
+
+    // function with 'exported' annotation
+    // (fn $add exported ...)
 
     consume_left_paren(iter, "fn")?;
     consume_symbol(iter, "fn")?;
-    let name = expect_identifier_optional(iter);
+    let name = expect_identifier(iter, "fn")?;
     let exported = expect_specified_symbol_optional(iter, "exported");
     let (params, results) = parse_optional_signature(iter)?;
     let locals: Vec<LocalNode> = parse_optional_local_variables(iter)?;
@@ -270,6 +277,34 @@ fn parse_optional_signature(
     }
 
     Ok((params, results))
+}
+
+fn parse_optional_results(iter: &mut PeekableIterator<Token>) -> Result<Vec<DataType>, ParseError> {
+    // (result|results ...){0,} ...  //
+    // ^                        ^____// to here
+    // |_____________________________// current token
+
+    let mut results: Vec<DataType> = vec![];
+
+    while iter.look_ahead_equals(0, &Token::LeftParen) {
+        if let Some(Token::Symbol(child_node_name)) = iter.peek(1) {
+            match child_node_name.as_str() {
+                "result" => {
+                    let data_type = parse_result_node(iter)?;
+                    results.push(data_type);
+                }
+                "results" => {
+                    let mut data_types = parse_results_node(iter)?;
+                    results.append(&mut data_types);
+                }
+                _ => break,
+            }
+        } else {
+            break;
+        }
+    }
+
+    Ok(results)
 }
 
 fn parse_param_node(iter: &mut PeekableIterator<Token>) -> Result<ParamNode, ParseError> {
@@ -373,15 +408,13 @@ fn parse_local_node(iter: &mut PeekableIterator<Token>) -> Result<LocalNode, Par
     // ^                 ^____// to here
     // |______________________// current token
 
+    // also
+    // (local $name (bytes DATA_LENGTH_NUMBER:i32 ALIGN_NUMBER:i16))
+
     consume_left_paren(iter, "local")?;
     consume_symbol(iter, "local")?;
     let name = expect_identifier(iter, "local")?;
-
-    let (memory_data_type, data_length, align) = if iter.look_ahead_equals(0, &Token::LeftParen) {
-        parse_memory_data_type_bytes(iter)?
-    } else {
-        parse_memory_data_type_primitive(iter)?
-    };
+    let (memory_data_type, data_length, align) = parse_memory_data_type(iter)?;
 
     consume_right_paren(iter)?;
 
@@ -391,6 +424,24 @@ fn parse_local_node(iter: &mut PeekableIterator<Token>) -> Result<LocalNode, Par
         data_length,
         align,
     })
+}
+
+// return '(MemoryDataType, data length, align)'
+fn parse_memory_data_type(
+    iter: &mut PeekableIterator<Token>,
+) -> Result<(MemoryDataType, u32, u16), ParseError> {
+    // (local $name i32) ...  //
+    //              ^  ^______// to here
+    //              |_________// current token
+
+    // also
+    // (local $name (bytes DATA_LENGTH_NUMBER:i32 ALIGN_NUMBER:i16))
+
+    if iter.look_ahead_equals(0, &Token::LeftParen) {
+        parse_memory_data_type_bytes(iter)
+    } else {
+        parse_memory_data_type_primitive(iter)
+    }
 }
 
 // return '(MemoryDataType, data length, align)'
@@ -425,13 +476,9 @@ fn parse_memory_data_type_primitive(
 fn parse_memory_data_type_bytes(
     iter: &mut PeekableIterator<Token>,
 ) -> Result<(MemoryDataType, u32, u16), ParseError> {
-    // (bytes 12 8)) ...  //
-    // ^             ^____// to here
-    // |__________________// current token
-
-    // the node 'bytes' syntax:
-    //
-    // (bytes length align)
+    // (bytes DATA_LENGTH_NUMBER:i32 ALIGN_NUMBER:i16)) ...  //
+    // ^                                                ^____// to here
+    // |_____________________________________________________// current token
 
     consume_left_paren(iter, "bytes")?;
     consume_symbol(iter, "bytes")?;
@@ -787,29 +834,8 @@ fn parse_instruction_kind_imm_f32(
     let number_token = expect_number(iter, "f32.imm")?;
     consume_right_paren(iter)?;
 
-    let e = ParseError::new(&format!(
-        "\"{:?}\" is not a valid float number.",
-        number_token
-    ));
-
-    let fp = match number_token {
-        NumberToken::Hex(mut ns) => {
-            ns.retain(|c| c != '_'); // remove underscores
-            let value = u32::from_str_radix(&ns, 16).map_err(|_| e)?;
-            ImmF32::Hex(value)
-        }
-        NumberToken::Binary(mut ns) => {
-            ns.retain(|c| c != '_');
-            let value = u32::from_str_radix(&ns, 2).map_err(|_| e)?;
-            ImmF32::Hex(value)
-        }
-        NumberToken::Decimal(ns) => {
-            let value = ns.as_str().parse::<f32>().map_err(|_| e)?;
-            ImmF32::Float(value)
-        }
-    };
-
-    Ok(Instruction::ImmF32(fp))
+    let imm_f32 = parse_f32_string(&number_token)?;
+    Ok(Instruction::ImmF32(imm_f32))
 }
 
 fn parse_instruction_kind_imm_f64(
@@ -829,29 +855,8 @@ fn parse_instruction_kind_imm_f64(
     let number_token = expect_number(iter, "f64.imm")?;
     consume_right_paren(iter)?;
 
-    let e = ParseError::new(&format!(
-        "\"{:?}\" is not a valid float number.",
-        number_token
-    ));
-
-    let fp = match number_token {
-        NumberToken::Hex(mut ns) => {
-            ns.retain(|c| c != '_'); // remove underscores
-            let value = u64::from_str_radix(&ns, 16).map_err(|_| e)?;
-            ImmF64::Hex(value)
-        }
-        NumberToken::Binary(mut ns) => {
-            ns.retain(|c| c != '_');
-            let value = u64::from_str_radix(&ns, 2).map_err(|_| e)?;
-            ImmF64::Hex(value)
-        }
-        NumberToken::Decimal(ns) => {
-            let value = ns.as_str().parse::<f64>().map_err(|_| e)?;
-            ImmF64::Float(value)
-        }
-    };
-
-    Ok(Instruction::ImmF64(fp))
+    let imm_f64 = parse_f64_string(&number_token)?;
+    Ok(Instruction::ImmF64(imm_f64))
 }
 
 fn parse_instruction_kind_local_load(
@@ -860,12 +865,12 @@ fn parse_instruction_kind_local_load(
     opcode: Opcode,
     is_local: bool,
 ) -> Result<Instruction, ParseError> {
-    // (local.load $id) ... //
-    // ^                ^___// to here
-    // |____________________// current token
+    // (local.load64_i64 $name) ... //
+    // ^                        ^___// to here
+    // |____________________________// current token
     //
     // also:
-    // (local.load $id 8)
+    // (local.load64_i64 $name OFFSET_NUMBER:i16)
 
     consume_left_paren(iter, "instruction")?;
     consume_symbol(iter, inst_name)?;
@@ -898,12 +903,12 @@ fn parse_instruction_kind_local_store(
     opcode: Opcode,
     is_local: bool,
 ) -> Result<Instruction, ParseError> {
-    // (local.store $id OPERAND) ... //
-    // ^                         ^___// to here
-    // |_____________________________// current token
+    // (local.store $name OPERAND) ... //
+    // ^                           ^___// to here
+    // |_______________________________// current token
     //
     // also:
-    // (local.store $id 8 OPERAND)
+    // (local.store $name OFFSET_NUMBER:i16 OPERAND)
 
     consume_left_paren(iter, "instruction")?;
     consume_symbol(iter, inst_name)?;
@@ -940,9 +945,9 @@ fn parse_instruction_kind_local_long_load(
     opcode: Opcode,
     is_local: bool,
 ) -> Result<Instruction, ParseError> {
-    // (local.long_load $id OPERAND_FOR_OFFSET) ... //
-    // ^                                        ^___// to here
-    // |____________________________________________// current token
+    // (local.long_load $name OPERAND_FOR_OFFSET:i32) ... //
+    // ^                                              ^___// to here
+    // |__________________________________________________// current token
 
     consume_left_paren(iter, "instruction")?;
     consume_symbol(iter, inst_name)?;
@@ -971,9 +976,9 @@ fn parse_instruction_kind_local_long_store(
     opcode: Opcode,
     is_local: bool,
 ) -> Result<Instruction, ParseError> {
-    // (local.long_store $id OPERAND_FOR_OFFSET OPERAND) ... //
-    // ^                                                 ^___// to here
-    // |_____________________________________________________// current token
+    // (local.long_store $name OPERAND_FOR_OFFSET:i32 OPERAND) ... //
+    // ^                                                       ^___// to here
+    // |___________________________________________________________// current token
 
     consume_left_paren(iter, "instruction")?;
     consume_symbol(iter, inst_name)?;
@@ -1009,7 +1014,7 @@ fn parse_instruction_kind_heap_load(
     // |________________________________// current token
     //
     // also:
-    // (heap.load offset OPERAND_FOR_ADDR)
+    // (heap.load OFFSET_NUMBER:i16 OPERAND_FOR_ADDR)
 
     consume_left_paren(iter, "instruction")?;
     consume_symbol(iter, inst_name)?;
@@ -1040,7 +1045,7 @@ fn parse_instruction_kind_heap_store(
     // |_________________________________________// current token
     //
     // also:
-    // (heap.store offset OPERAND_FOR_ADDR OPERAND)
+    // (heap.store OFFSET_NUMBER:i16 OPERAND_FOR_ADDR OPERAND)
 
     consume_left_paren(iter, "instruction")?;
     consume_symbol(iter, inst_name)?;
@@ -1089,9 +1094,9 @@ fn parse_instruction_kind_unary_op_param_i16(
     inst_name: &str,
     opcode: Opcode,
 ) -> Result<Instruction, ParseError> {
-    // (i32.inc num OPERAND) ... //
-    // ^                     ^___// to here
-    // |_________________________// current token
+    // (i32.inc NUM:i16 OPERAND) ... //
+    // ^                         ^___// to here
+    // |_____________________________// current token
 
     consume_left_paren(iter, "instruction")?;
     consume_symbol(iter, inst_name)?;
@@ -1132,14 +1137,14 @@ fn parse_instruction_kind_binary_op(
 fn parse_instruction_kind_when(
     iter: &mut PeekableIterator<Token>,
 ) -> Result<Instruction, ParseError> {
-    // (when (local...) TEST CONSEQUENT) ... //
+    // (when TEST (local...) CONSEQUENT) ... //
     // ^                                 ^___// to here
     // |_____________________________________// current token
 
     consume_left_paren(iter, "when")?;
     consume_symbol(iter, "when")?;
-    let locals = parse_optional_local_variables(iter)?;
     let test = parse_next_instruction_operand(iter, "when (test)")?;
+    let locals = parse_optional_local_variables(iter)?;
     let consequent = parse_next_instruction_operand(iter, "when (consequent)")?;
     consume_right_paren(iter)?;
 
@@ -1153,22 +1158,22 @@ fn parse_instruction_kind_when(
 fn parse_instruction_kind_if(
     iter: &mut PeekableIterator<Token>,
 ) -> Result<Instruction, ParseError> {
-    // (if (param...) (result...) (local...)
-    //            TEST CONSEQUENT ALTERNATE) ... //
-    // ^                                     ^___// to here
-    // |_________________________________________// current token
+    // (if TEST (result...) (local...)
+    //          CONSEQUENT ALTERNATE) ... //
+    // ^                              ^___// to here
+    // |__________________________________// current token
 
     consume_left_paren(iter, "if")?;
     consume_symbol(iter, "if")?;
-    let (params, results) = parse_optional_signature(iter)?;
-    let locals = parse_optional_local_variables(iter)?;
     let test = parse_next_instruction_operand(iter, "if (test)")?;
+    let results = parse_optional_results(iter)?;
+    let locals = parse_optional_local_variables(iter)?;
     let consequent = parse_next_instruction_operand(iter, "if (consequent)")?;
     let alternate = parse_next_instruction_operand(iter, "if (alternate)")?;
     consume_right_paren(iter)?;
 
     Ok(Instruction::If {
-        params,
+        // params,
         results,
         locals,
         test: Box::new(test),
@@ -1180,7 +1185,7 @@ fn parse_instruction_kind_if(
 fn parse_instruction_kind_branch(
     iter: &mut PeekableIterator<Token>,
 ) -> Result<Instruction, ParseError> {
-    // (branch (param...) (result...) (local...)
+    // (branch (result...) (local...)
     //     (case TEST_0 CONSEQUENT_0)
     //     ...
     //     (case TEST_N CONSEQUENT_N)
@@ -1191,7 +1196,7 @@ fn parse_instruction_kind_branch(
 
     consume_left_paren(iter, "branch")?;
     consume_symbol(iter, "branch")?;
-    let (params, results) = parse_optional_signature(iter)?;
+    let results = parse_optional_results(iter)?;
     let locals = parse_optional_local_variables(iter)?;
     let mut cases = vec![];
 
@@ -1221,7 +1226,7 @@ fn parse_instruction_kind_branch(
     consume_right_paren(iter)?;
 
     Ok(Instruction::Branch {
-        params,
+        // params,
         results,
         locals,
         cases,
@@ -1335,6 +1340,252 @@ fn parse_instruction_kind_call_by_operand_num(
     })
 }
 
+fn parse_data_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNode, ParseError> {
+    // (data $name (read_only i32 123)) ...  //
+    // ^                                ^____// to here
+    // |_____________________________________// current token
+
+    // also
+    // (data $name (read_only string "Hello, World!"))    ;; UTF-8 encoding string
+    // (data $name (read_only cstring "Hello, World!"))   ;; type `cstring` will append '\0' at the end of string
+    // (data $name (read_only (bytes 2) d"11-13-17-19"))
+
+    // other sections than 'read_only'
+    //
+    // read-write section:
+    // (data $name (read_write i32 123))
+    //
+    // uninitialized section:
+    // (data $name (uninit i32))
+    // (data $name (uninit (bytes 12 4)))
+
+    // with 'exported' annotation
+    // (data $name exported (read_only i32 123))
+
+    consume_left_paren(iter, "data")?;
+    consume_symbol(iter, "data")?;
+
+    let name = expect_identifier(iter, "data")?;
+    let exported = expect_specified_symbol_optional(iter, "exported");
+    let data_kind = parse_data_kind_node(iter)?;
+
+    consume_right_paren(iter)?;
+
+    let data_node = DataNode {
+        name,
+        exported,
+        data_kind,
+    };
+
+    Ok(ModuleElementNode::DataNode(data_node))
+}
+
+fn parse_data_kind_node(iter: &mut PeekableIterator<Token>) -> Result<DataKindNode, ParseError> {
+    match iter.peek(1) {
+        Some(Token::Symbol(kind)) => match kind.as_str() {
+            "read_only" => parse_data_kind_node_read_only(iter),
+            "read_write" => parse_data_kind_node_read_write(iter),
+            "uninit" => parse_data_kind_node_uninit(iter),
+            _ => Err(ParseError::new(&format!(
+                "Unknown data kind: {}, only supports \"read_only\", \"read_write\", \"uninit\"",
+                kind
+            ))),
+        },
+        _ => Err(ParseError::new("Missing data kind node")),
+    }
+}
+
+fn parse_data_kind_node_read_only(
+    iter: &mut PeekableIterator<Token>,
+) -> Result<DataKindNode, ParseError> {
+    // (read_only i32 123) ...  //
+    // ^                   ^____// to here
+    // |________________________// current token
+
+    // also
+    // (read_only string "Hello, World!")    ;; UTF-8 encoding string
+    // (read_only cstring "Hello, World!")   ;; type `cstring` will append '\0' at the end of string
+    // (read_only (bytes ALIGN_NUMBER:i16) d"11-13-17-19")
+
+    consume_left_paren(iter, "read_only")?;
+    consume_symbol(iter, "read_only")?;
+
+    let inited_data = parse_inited_data(iter)?;
+    consume_right_paren(iter)?;
+
+    let data_kind_node = DataKindNode::ReadOnly(inited_data);
+    Ok(data_kind_node)
+}
+
+fn parse_data_kind_node_read_write(
+    iter: &mut PeekableIterator<Token>,
+) -> Result<DataKindNode, ParseError> {
+    // (read_write i32 123) ...  //
+    // ^                    ^____// to here
+    // |_________________________// current token
+
+    // also
+    // (read_write string "Hello, World!")    ;; UTF-8 encoding string
+    // (read_write cstring "Hello, World!")   ;; type `cstring` will append '\0' at the end of string
+    // (read_write (bytes ALIGN_NUMBER:i16) d"11-13-17-19")
+
+    consume_left_paren(iter, "read_write")?;
+    consume_symbol(iter, "read_write")?;
+
+    let inited_data = parse_inited_data(iter)?;
+    consume_right_paren(iter)?;
+
+    let data_kind_node = DataKindNode::ReadWrite(inited_data);
+    Ok(data_kind_node)
+}
+
+fn parse_data_kind_node_uninit(
+    iter: &mut PeekableIterator<Token>,
+) -> Result<DataKindNode, ParseError> {
+    // (uninit i32) ... //
+    // ^            ^___// to here
+    // |________________// current token
+
+    // also
+    // (uninit (bytes 12 4))
+
+    consume_left_paren(iter, "uninit")?;
+    consume_symbol(iter, "uninit")?;
+
+    let (memory_data_type, data_length, align) = parse_memory_data_type(iter)?;
+    let inited_data = UninitData {
+        memory_data_type,
+        data_length,
+        align,
+    };
+    consume_right_paren(iter)?;
+
+    let data_kind_node = DataKindNode::Uninit(inited_data);
+    Ok(data_kind_node)
+}
+
+fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, ParseError> {
+    // (read_only i32 123) ...  //
+    //            ^      ^______// to here
+    //            |_____________// current token
+
+    // also
+    // (read_write string "Hello, World!")    ;; UTF-8 encoding string
+    // (read_write cstring "Hello, World!")   ;; type `cstring` will append '\0' at the end of string
+    // (read_write (bytes ALIGN_NUMBER:i16) d"11-13-17-19")
+
+    let inited_data = match iter.next() {
+        Some(Token::Symbol(inited_data_type)) => match inited_data_type.as_str() {
+            "i32" => {
+                let value_token = expect_number(iter, "data")?;
+                let value = parse_u32_string(&value_token)?;
+                let bytes = value.to_le_bytes().to_vec();
+
+                InitedData {
+                    memory_data_type: MemoryDataType::I32,
+                    data_length: 4,
+                    align: 4,
+                    value: bytes,
+                }
+            }
+            "i64" => {
+                let value_token = expect_number(iter, "data")?;
+                let value = parse_u64_string(&value_token)?;
+                let bytes = value.to_le_bytes().to_vec();
+
+                InitedData {
+                    memory_data_type: MemoryDataType::I64,
+                    data_length: 8,
+                    align: 8,
+                    value: bytes,
+                }
+            }
+            "f32" => {
+                let value_token = expect_number(iter, "data")?;
+                let value_imm = parse_f32_string(&value_token)?;
+                let bytes = match value_imm {
+                    ImmF32::Float(value) => value.to_le_bytes().to_vec(),
+                    ImmF32::Hex(value) => value.to_be_bytes().to_vec(),
+                };
+
+                InitedData {
+                    memory_data_type: MemoryDataType::F32,
+                    data_length: 4,
+                    align: 4,
+                    value: bytes,
+                }
+            }
+            "f64" => {
+                let value_token = expect_number(iter, "data")?;
+                let value_imm = parse_f64_string(&value_token)?;
+                let bytes = match value_imm {
+                    ImmF64::Float(value) => value.to_le_bytes().to_vec(),
+                    ImmF64::Hex(value) => value.to_be_bytes().to_vec(),
+                };
+
+                InitedData {
+                    memory_data_type: MemoryDataType::F64,
+                    data_length: 8,
+                    align: 8,
+                    value: bytes,
+                }
+            }
+            "string" => {
+                let value = expect_string(iter, "data")?;
+                let bytes = value.as_bytes().to_vec();
+                InitedData {
+                    memory_data_type: MemoryDataType::BYTES,
+                    data_length: bytes.len() as u32,
+                    align: 1,
+                    value: bytes,
+                }
+            }
+            "cstring" => {
+                let value = expect_string(iter, "data")?;
+                let mut bytes = value.as_bytes().to_vec();
+                bytes.push(0); // append '\0'
+
+                InitedData {
+                    memory_data_type: MemoryDataType::BYTES,
+                    data_length: bytes.len() as u32,
+                    align: 1,
+                    value: bytes,
+                }
+            }
+            _ => {
+                return Err(ParseError::new(&format!(
+                    "Unknown data type \"{}\" for the data item",
+                    inited_data_type
+                )))
+            }
+        },
+        Some(Token::LeftParen)
+            if iter.look_ahead_equals(0, &Token::Symbol("bytes".to_string())) =>
+        {
+            // (bytes ALIGH_NUMBER:i16) DATA ...  //
+            //  ^                            ^____//
+            //  |_________________________________//
+
+            consume_symbol(iter, "bytes")?;
+            let align_token = expect_number(iter, "bytes")?;
+            let align = parse_u16_string(&align_token)?;
+            consume_right_paren(iter)?;
+
+            let bytes = expect_bytes(iter, "data")?;
+
+            InitedData {
+                memory_data_type: MemoryDataType::BYTES,
+                data_length: bytes.len() as u32,
+                align,
+                value: bytes,
+            }
+        }
+        _ => return Err(ParseError::new("Missing the value of data item")),
+    };
+
+    Ok(inited_data)
+}
+
 // helper functions
 
 fn consume_token(
@@ -1421,6 +1672,13 @@ fn expect_string(iter: &mut PeekableIterator<Token>, for_what: &str) -> Result<S
             "Expect a string for {}",
             for_what
         ))),
+    }
+}
+
+fn expect_bytes(iter: &mut PeekableIterator<Token>, for_what: &str) -> Result<Vec<u8>, ParseError> {
+    match iter.next() {
+        Some(Token::ByteData(s)) => Ok(s),
+        _ => Err(ParseError::new(&format!("Expect a bytes for {}", for_what))),
     }
 }
 
@@ -1590,6 +1848,66 @@ fn parse_u64_string(number_token: &NumberToken) -> Result<u64, ParseError> {
     Ok(num)
 }
 
+fn parse_f32_string(number_token: &NumberToken) -> Result<ImmF32, ParseError> {
+    let e = ParseError::new(&format!(
+        "\"{:?}\" is not a valid float number.",
+        number_token
+    ));
+
+    let imm_f32 = match number_token {
+        NumberToken::Hex(ns_ref) => {
+            let mut ns = ns_ref.to_owned();
+            ns.retain(|c| c != '_'); // remove underscores
+            let value = u32::from_str_radix(&ns, 16).map_err(|_| e)?;
+            ImmF32::Hex(value)
+        }
+        NumberToken::Binary(ns_ref) => {
+            let mut ns = ns_ref.to_owned();
+            ns.retain(|c| c != '_');
+            let value = u32::from_str_radix(&ns, 2).map_err(|_| e)?;
+            ImmF32::Hex(value)
+        }
+        NumberToken::Decimal(ns_ref) => {
+            let mut ns = ns_ref.to_owned();
+            ns.retain(|c| c != '_');
+            let value = ns.as_str().parse::<f32>().map_err(|_| e)?;
+            ImmF32::Float(value)
+        }
+    };
+
+    Ok(imm_f32)
+}
+
+fn parse_f64_string(number_token: &NumberToken) -> Result<ImmF64, ParseError> {
+    let e = ParseError::new(&format!(
+        "\"{:?}\" is not a valid float number.",
+        number_token
+    ));
+
+    let imm_f64 = match number_token {
+        NumberToken::Hex(ns_ref) => {
+            let mut ns = ns_ref.to_owned();
+            ns.retain(|c| c != '_'); // remove underscores
+            let value = u64::from_str_radix(&ns, 16).map_err(|_| e)?;
+            ImmF64::Hex(value)
+        }
+        NumberToken::Binary(ns_ref) => {
+            let mut ns = ns_ref.to_owned();
+            ns.retain(|c| c != '_');
+            let value = u64::from_str_radix(&ns, 2).map_err(|_| e)?;
+            ImmF64::Hex(value)
+        }
+        NumberToken::Decimal(ns_ref) => {
+            let mut ns = ns_ref.to_owned();
+            ns.retain(|c| c != '_');
+            let value = ns.as_str().parse::<f64>().map_err(|_| e)?;
+            ImmF64::Float(value)
+        }
+    };
+
+    Ok(imm_f64)
+}
+
 #[cfg(test)]
 mod tests {
     use std::vec;
@@ -1600,8 +1918,8 @@ mod tests {
 
     use crate::{
         ast::{
-            BranchCase, FuncNode, ImmF32, ImmF64, Instruction, LocalNode, ModuleElementNode,
-            ModuleNode, ParamNode,
+            BranchCase, DataKindNode, DataNode, FuncNode, ImmF32, ImmF64, InitedData, Instruction,
+            LocalNode, ModuleElementNode, ModuleNode, ParamNode, UninitData,
         },
         instruction_kind::init_instruction_kind_table,
         lexer::lex,
@@ -1662,7 +1980,7 @@ mod tests {
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
                 element_nodes: vec![ModuleElementNode::FuncNode(FuncNode {
-                    name: Some("add".to_owned()),
+                    name: "add".to_owned(),
                     exported: false,
                     params: vec![
                         ParamNode {
@@ -1681,7 +1999,7 @@ mod tests {
             }
         );
 
-        // test multiple results
+        // test multiple return values
 
         assert_eq!(
             parse_from_str(
@@ -1701,7 +2019,7 @@ mod tests {
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
                 element_nodes: vec![ModuleElementNode::FuncNode(FuncNode {
-                    name: Some("add".to_owned()),
+                    name: "add".to_owned(),
                     exported: false,
                     params: vec![
                         ParamNode {
@@ -1714,33 +2032,6 @@ mod tests {
                         }
                     ],
                     results: vec![DataType::I32, DataType::I64, DataType::F32, DataType::F64],
-                    locals: vec![],
-                    code: Box::new(Instruction::Code(vec![]))
-                })]
-            }
-        );
-
-        // test no function name
-
-        assert_eq!(
-            parse_from_str(
-                r#"
-            (module $app
-                (runtime_version "1.0")
-                (fn (code))
-            )
-            "#
-            )
-            .unwrap(),
-            ModuleNode {
-                name: "app".to_owned(),
-                runtime_version_major: 1,
-                runtime_version_minor: 0,
-                element_nodes: vec![ModuleElementNode::FuncNode(FuncNode {
-                    name: None,
-                    exported: false,
-                    params: vec![],
-                    results: vec![],
                     locals: vec![],
                     code: Box::new(Instruction::Code(vec![]))
                 })]
@@ -1764,7 +2055,7 @@ mod tests {
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
                 element_nodes: vec![ModuleElementNode::FuncNode(FuncNode {
-                    name: Some("add".to_owned()),
+                    name: "add".to_owned(),
                     exported: true,
                     params: vec![],
                     results: vec![],
@@ -1773,6 +2064,32 @@ mod tests {
                 })]
             }
         );
+
+        // no function name
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (fn (code))
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
+        // no function body
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (fn $add)
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
     }
 
     #[test]
@@ -1796,7 +2113,7 @@ mod tests {
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
                 element_nodes: vec![ModuleElementNode::FuncNode(FuncNode {
-                    name: Some("add".to_owned()),
+                    name: "add".to_owned(),
                     exported: false,
                     params: vec![],
                     results: vec![],
@@ -2019,12 +2336,12 @@ mod tests {
                 (fn $test
                     (code
                         ;; note that test syntax only here
-                        (local.load32 $sum)
-                        (local.load $count 4)
+                        (local.load32_i32 $sum)
+                        (local.load64_i64 $count 4)
                         (local.store32 $left (i32.imm 11))
-                        (local.store $right 8 (i64.imm 13))
-                        (local.long_load $foo (i32.imm 17))
-                        (local.long_store $bar (i32.imm 19) (i64.imm 23))
+                        (local.store64 $right 8 (i64.imm 13))
+                        (local.long_load64_i64 $foo (i32.imm 17))
+                        (local.long_store64 $bar (i32.imm 19) (i64.imm 23))
                     )
                 )
             )
@@ -2032,12 +2349,12 @@ mod tests {
             ),
             Box::new(Instruction::Code(vec![
                 Instruction::LocalLoad {
-                    opcode: Opcode::local_load32,
+                    opcode: Opcode::local_load32_i32,
                     name: "sum".to_owned(),
                     offset: 0
                 },
                 Instruction::LocalLoad {
-                    opcode: Opcode::local_load,
+                    opcode: Opcode::local_load64_i64,
                     name: "count".to_owned(),
                     offset: 4
                 },
@@ -2050,20 +2367,20 @@ mod tests {
                 },
                 //
                 Instruction::LocalStore {
-                    opcode: Opcode::local_store,
+                    opcode: Opcode::local_store64,
                     name: "right".to_owned(),
                     offset: 8,
                     value: Box::new(Instruction::ImmI64(13))
                 },
                 //
                 Instruction::LocalLongLoad {
-                    opcode: Opcode::local_long_load,
+                    opcode: Opcode::local_long_load64_i64,
                     name: "foo".to_owned(),
                     offset: Box::new(Instruction::ImmI32(17))
                 },
                 //
                 Instruction::LocalLongStore {
-                    opcode: Opcode::local_long_store,
+                    opcode: Opcode::local_long_store64,
                     name: "bar".to_owned(),
                     offset: Box::new(Instruction::ImmI32(19)),
                     value: Box::new(Instruction::ImmI64(23))
@@ -2079,12 +2396,12 @@ mod tests {
                 (fn $test
                     (code
                         ;; note that test syntax only here
-                        (data.load32 $sum)
-                        (data.load $count 4)
+                        (data.load32_i32 $sum)
+                        (data.load64_i64 $count 4)
                         (data.store32 $left (i32.imm 11))
-                        (data.store $right 8 (i64.imm 13))
-                        (data.long_load $foo (i32.imm 17))
-                        (data.long_store $bar (i32.imm 19) (i64.imm 23))
+                        (data.store64 $right 8 (i64.imm 13))
+                        (data.long_load64_i64 $foo (i32.imm 17))
+                        (data.long_store64 $bar (i32.imm 19) (i64.imm 23))
                     )
                 )
             )
@@ -2092,12 +2409,12 @@ mod tests {
             ),
             Box::new(Instruction::Code(vec![
                 Instruction::DataLoad {
-                    opcode: Opcode::data_load32,
+                    opcode: Opcode::data_load32_i32,
                     name: "sum".to_owned(),
                     offset: 0
                 },
                 Instruction::DataLoad {
-                    opcode: Opcode::data_load,
+                    opcode: Opcode::data_load64_i64,
                     name: "count".to_owned(),
                     offset: 4
                 },
@@ -2110,20 +2427,20 @@ mod tests {
                 },
                 //
                 Instruction::DataStore {
-                    opcode: Opcode::data_store,
+                    opcode: Opcode::data_store64,
                     name: "right".to_owned(),
                     offset: 8,
                     value: Box::new(Instruction::ImmI64(13))
                 },
                 //
                 Instruction::DataLongLoad {
-                    opcode: Opcode::data_long_load,
+                    opcode: Opcode::data_long_load64_i64,
                     name: "foo".to_owned(),
                     offset: Box::new(Instruction::ImmI32(17))
                 },
                 //
                 Instruction::DataLongStore {
-                    opcode: Opcode::data_long_store,
+                    opcode: Opcode::data_long_store64,
                     name: "bar".to_owned(),
                     offset: Box::new(Instruction::ImmI32(19)),
                     value: Box::new(Instruction::ImmI64(23))
@@ -2142,10 +2459,10 @@ mod tests {
                 (fn $test
                     (code
                         ;; note that test syntax only here
-                        (heap.load32 (i32.imm 11))
-                        (heap.load 4 (i32.imm 13))
+                        (heap.load32_i32 (i32.imm 11))
+                        (heap.load64_i64 4 (i32.imm 13))
                         (heap.store32 (i32.imm 17) (i32.imm 19))
-                        (heap.store 8 (i32.imm 23) (i32.imm 29))
+                        (heap.store64 8 (i32.imm 23) (i32.imm 29))
                     )
                 )
             )
@@ -2153,12 +2470,12 @@ mod tests {
             ),
             Box::new(Instruction::Code(vec![
                 Instruction::HeapLoad {
-                    opcode: Opcode::heap_load32,
+                    opcode: Opcode::heap_load32_i32,
                     offset: 0,
                     addr: Box::new(Instruction::ImmI32(11))
                 },
                 Instruction::HeapLoad {
-                    opcode: Opcode::heap_load,
+                    opcode: Opcode::heap_load64_i64,
                     offset: 4,
                     addr: Box::new(Instruction::ImmI32(13))
                 },
@@ -2171,7 +2488,7 @@ mod tests {
                 },
                 //
                 Instruction::HeapStore {
-                    opcode: Opcode::heap_store,
+                    opcode: Opcode::heap_store64,
                     offset: 8,
                     addr: Box::new(Instruction::ImmI32(23)),
                     value: Box::new(Instruction::ImmI32(29))
@@ -2220,9 +2537,10 @@ mod tests {
                 (fn $test
                     (code
                         ;; note that test syntax only here
-                        (when (local $abc i32) (local $xyz i32)
+                        (when
                             zero
-                            (do (local.load32 $abc) (local.load32 $xyz))
+                            (local $abc i32) (local $xyz i32)
+                            (do (local.load32_i32 $abc) (local.load32_i32 $xyz))
                         )
                     )
                 )
@@ -2247,12 +2565,12 @@ mod tests {
                 test: Box::new(noparams_nooperands(Opcode::zero)),
                 consequent: Box::new(Instruction::Do(vec![
                     Instruction::LocalLoad {
-                        opcode: Opcode::local_load32,
+                        opcode: Opcode::local_load32_i32,
                         name: "abc".to_owned(),
                         offset: 0
                     },
                     Instruction::LocalLoad {
-                        opcode: Opcode::local_load32,
+                        opcode: Opcode::local_load32_i32,
                         name: "xyz".to_owned(),
                         offset: 0
                     }
@@ -2282,7 +2600,7 @@ mod tests {
             "#
             ),
             Box::new(Instruction::Code(vec![Instruction::If {
-                params: vec![],
+                // params: vec![],
                 results: vec![],
                 locals: vec![],
                 test: Box::new(Instruction::BinaryOp {
@@ -2307,11 +2625,12 @@ mod tests {
                         ;; note that test syntax only here
                         (local.store32 $i
                             (if
-                                (param $m i32) (param $n i32) (result i32)
+                                (i32.eq (local.load32_i32 $m) (local.load32_i32 $n))
+                                ;; (param $m i32) (param $n i32)
+                                (result i32)
                                 (local $x i32)
-                                (i32.eq (local.load32 $m) (local.load32 $n))
-                                (i32.add (i32.imm 11) (local.load32 $x))
-                                (i32.mul (i32.imm 13) (local.load32 $x))
+                                (i32.add (i32.imm 11) (local.load32_i32 $x))
+                                (i32.mul (i32.imm 13) (local.load32_i32 $x))
                             )
                         )
                     )
@@ -2324,16 +2643,16 @@ mod tests {
                 name: "i".to_owned(),
                 offset: 0,
                 value: Box::new(Instruction::If {
-                    params: vec![
-                        ParamNode {
-                            name: "m".to_owned(),
-                            data_type: DataType::I32
-                        },
-                        ParamNode {
-                            name: "n".to_owned(),
-                            data_type: DataType::I32
-                        },
-                    ],
+                    // params: vec![
+                    //     ParamNode {
+                    //         name: "m".to_owned(),
+                    //         data_type: DataType::I32
+                    //     },
+                    //     ParamNode {
+                    //         name: "n".to_owned(),
+                    //         data_type: DataType::I32
+                    //     },
+                    // ],
                     results: vec![DataType::I32],
                     locals: vec![LocalNode {
                         name: "x".to_owned(),
@@ -2344,12 +2663,12 @@ mod tests {
                     test: Box::new(Instruction::BinaryOp {
                         opcode: Opcode::i32_eq,
                         left: Box::new(Instruction::LocalLoad {
-                            opcode: Opcode::local_load32,
+                            opcode: Opcode::local_load32_i32,
                             name: "m".to_owned(),
                             offset: 0
                         }),
                         right: Box::new(Instruction::LocalLoad {
-                            opcode: Opcode::local_load32,
+                            opcode: Opcode::local_load32_i32,
                             name: "n".to_owned(),
                             offset: 0
                         })
@@ -2358,7 +2677,7 @@ mod tests {
                         opcode: Opcode::i32_add,
                         left: Box::new(Instruction::ImmI32(11)),
                         right: Box::new(Instruction::LocalLoad {
-                            opcode: Opcode::local_load32,
+                            opcode: Opcode::local_load32_i32,
                             name: "x".to_owned(),
                             offset: 0
                         })
@@ -2367,7 +2686,7 @@ mod tests {
                         opcode: Opcode::i32_mul,
                         left: Box::new(Instruction::ImmI32(13)),
                         right: Box::new(Instruction::LocalLoad {
-                            opcode: Opcode::local_load32,
+                            opcode: Opcode::local_load32_i32,
                             name: "x".to_owned(),
                             offset: 0
                         })
@@ -2387,9 +2706,10 @@ mod tests {
                 (fn $test
                     (code
                         ;; note that test syntax only here
-                        (branch (param $x i32) (result i32) (local $temp i32)
+                        (branch ;; (param $x i32)
+                            (result i32) (local $temp i32)
                             (case
-                                (i32.gt_s (local.load32 $x) (i32.imm 11))
+                                (i32.gt_s (local.load32_i32 $x) (i32.imm 11))
                                 (i32.imm 13)
                             )
                             (case
@@ -2406,10 +2726,10 @@ mod tests {
             "#
             ),
             Box::new(Instruction::Code(vec![Instruction::Branch {
-                params: vec![ParamNode {
-                    name: "x".to_owned(),
-                    data_type: DataType::I32
-                }],
+                // params: vec![ParamNode {
+                //     name: "x".to_owned(),
+                //     data_type: DataType::I32
+                // }],
                 results: vec![DataType::I32],
                 locals: vec![LocalNode {
                     name: "temp".to_owned(),
@@ -2422,7 +2742,7 @@ mod tests {
                         test: Box::new(Instruction::BinaryOp {
                             opcode: Opcode::i32_gt_s,
                             left: Box::new(Instruction::LocalLoad {
-                                opcode: Opcode::local_load32,
+                                opcode: Opcode::local_load32_i32,
                                 name: "x".to_owned(),
                                 offset: 0
                             }),
@@ -2456,23 +2776,23 @@ mod tests {
                         (for (param $sum i32) (param $n i32) (result i32) (local $temp i32)
                             (do
                                 ;; n = n - 1
-                                (local.store32 $n (i32.dec 1 (local.load32 $n)))
+                                (local.store32 $n (i32.dec 1 (local.load32_i32 $n)))
                                 (if
                                     ;; if n == 0
-                                    (i32.eq (local.load32 $n) zero)
+                                    (i32.eq (local.load32_i32 $n) zero)
                                     ;; then
-                                    (break (local.load32 $sum))
+                                    (break (local.load32_i32 $sum))
                                     ;; else
                                     (do
                                         ;; sum = sum + n
                                         (local.store32 $sum (i32.add
-                                            (local.load32 $sum)
-                                            (local.load32 $n)
+                                            (local.load32_i32 $sum)
+                                            (local.load32_i32 $n)
                                         ))
                                         ;; recur (sum,n)
                                         (recur
-                                            (local.load32 $sum)
-                                            (local.load32 $n)
+                                            (local.load32_i32 $sum)
+                                            (local.load32_i32 $n)
                                         )
                                     )
                                 )
@@ -2510,27 +2830,27 @@ mod tests {
                             opcode: Opcode::i32_dec,
                             amount: 1,
                             number: Box::new(Instruction::LocalLoad {
-                                opcode: Opcode::local_load32,
+                                opcode: Opcode::local_load32_i32,
                                 name: "n".to_owned(),
                                 offset: 0
                             })
                         })
                     },
                     Instruction::If {
-                        params: vec![],
+                        // params: vec![],
                         results: vec![],
                         locals: vec![],
                         test: Box::new(Instruction::BinaryOp {
                             opcode: Opcode::i32_eq,
                             left: Box::new(Instruction::LocalLoad {
-                                opcode: Opcode::local_load32,
+                                opcode: Opcode::local_load32_i32,
                                 name: "n".to_owned(),
                                 offset: 0
                             }),
                             right: Box::new(noparams_nooperands(Opcode::zero))
                         }),
                         consequent: Box::new(Instruction::Break(vec![Instruction::LocalLoad {
-                            opcode: Opcode::local_load32,
+                            opcode: Opcode::local_load32_i32,
                             name: "sum".to_owned(),
                             offset: 0
                         }])),
@@ -2542,12 +2862,12 @@ mod tests {
                                 value: Box::new(Instruction::BinaryOp {
                                     opcode: Opcode::i32_add,
                                     left: Box::new(Instruction::LocalLoad {
-                                        opcode: Opcode::local_load32,
+                                        opcode: Opcode::local_load32_i32,
                                         name: "sum".to_owned(),
                                         offset: 0
                                     }),
                                     right: Box::new(Instruction::LocalLoad {
-                                        opcode: Opcode::local_load32,
+                                        opcode: Opcode::local_load32_i32,
                                         name: "n".to_owned(),
                                         offset: 0
                                     })
@@ -2555,12 +2875,12 @@ mod tests {
                             },
                             Instruction::Recur(vec![
                                 Instruction::LocalLoad {
-                                    opcode: Opcode::local_load32,
+                                    opcode: Opcode::local_load32_i32,
                                     name: "sum".to_owned(),
                                     offset: 0
                                 },
                                 Instruction::LocalLoad {
-                                    opcode: Opcode::local_load32,
+                                    opcode: Opcode::local_load32_i32,
                                     name: "n".to_owned(),
                                     offset: 0
                                 }
@@ -2583,23 +2903,23 @@ mod tests {
                     (code
                         ;; note that test syntax only here
                         ;; n = n - 1
-                        (local.store32 $n (i32.dec 1 (local.load32 $n)))
+                        (local.store32 $n (i32.dec 1 (local.load32_i32 $n)))
                         (if
                             ;; if n == 0
-                            (i32.eq (local.load32 $n) zero)
+                            (i32.eq (local.load32_i32 $n) zero)
                             ;; then
-                            (return (local.load32 $sum))
+                            (return (local.load32_i32 $sum))
                             ;; else
                             (do
                                 ;; sum = sum + n
                                 (local.store32 $sum (i32.add
-                                    (local.load32 $sum)
-                                    (local.load32 $n)
+                                    (local.load32_i32 $sum)
+                                    (local.load32_i32 $n)
                                 ))
                                 ;; recur (sum,n)
                                 (tailcall
-                                    (local.load32 $sum)
-                                    (local.load32 $n)
+                                    (local.load32_i32 $sum)
+                                    (local.load32_i32 $n)
                                 )
                             )
                         )
@@ -2614,7 +2934,7 @@ mod tests {
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
                 element_nodes: vec![ModuleElementNode::FuncNode(FuncNode {
-                    name: Some("test".to_owned()),
+                    name: "test".to_owned(),
                     exported: false,
                     params: vec![
                         ParamNode {
@@ -2637,20 +2957,20 @@ mod tests {
                                 opcode: Opcode::i32_dec,
                                 amount: 1,
                                 number: Box::new(Instruction::LocalLoad {
-                                    opcode: Opcode::local_load32,
+                                    opcode: Opcode::local_load32_i32,
                                     name: "n".to_owned(),
                                     offset: 0
                                 })
                             })
                         },
                         Instruction::If {
-                            params: vec![],
+                            // params: vec![],
                             results: vec![],
                             locals: vec![],
                             test: Box::new(Instruction::BinaryOp {
                                 opcode: Opcode::i32_eq,
                                 left: Box::new(Instruction::LocalLoad {
-                                    opcode: Opcode::local_load32,
+                                    opcode: Opcode::local_load32_i32,
                                     name: "n".to_owned(),
                                     offset: 0
                                 }),
@@ -2658,7 +2978,7 @@ mod tests {
                             }),
                             consequent: Box::new(Instruction::Return(vec![
                                 Instruction::LocalLoad {
-                                    opcode: Opcode::local_load32,
+                                    opcode: Opcode::local_load32_i32,
                                     name: "sum".to_owned(),
                                     offset: 0
                                 }
@@ -2671,12 +2991,12 @@ mod tests {
                                     value: Box::new(Instruction::BinaryOp {
                                         opcode: Opcode::i32_add,
                                         left: Box::new(Instruction::LocalLoad {
-                                            opcode: Opcode::local_load32,
+                                            opcode: Opcode::local_load32_i32,
                                             name: "sum".to_owned(),
                                             offset: 0
                                         }),
                                         right: Box::new(Instruction::LocalLoad {
-                                            opcode: Opcode::local_load32,
+                                            opcode: Opcode::local_load32_i32,
                                             name: "n".to_owned(),
                                             offset: 0
                                         })
@@ -2684,12 +3004,12 @@ mod tests {
                                 },
                                 Instruction::TailCall(vec![
                                     Instruction::LocalLoad {
-                                        opcode: Opcode::local_load32,
+                                        opcode: Opcode::local_load32_i32,
                                         name: "sum".to_owned(),
                                         offset: 0
                                     },
                                     Instruction::LocalLoad {
-                                        opcode: Opcode::local_load32,
+                                        opcode: Opcode::local_load32_i32,
                                         name: "n".to_owned(),
                                         offset: 0
                                     }
@@ -2717,16 +3037,16 @@ mod tests {
                         (call $add (i32.imm 11) (i32.imm 13))
 
                         ;; dyncall: filter(data)
-                        (dyncall (local.load32 $filter) (local.load $data))
+                        (dyncall (local.load32_i32 $filter) (local.load64_i64 $data))
 
                         ;; envcall: runtime_name(buf)
-                        (envcall 0x100 (local.load $buf))
+                        (envcall 0x100 (local.load64_i64 $buf))
 
                         ;; syscall: write(1, msg, 7)
-                        (syscall 2 (i32.imm 1) (local.load $msg) (i32.imm 7))
+                        (syscall 2 (i32.imm 1) (local.load64_i64 $msg) (i32.imm 7))
 
                         ;; extcall: format(str, values)
-                        (extcall $format (local.load $str) (local.load $values))
+                        (extcall $format (local.load64_i64 $str) (local.load64_i64 $values))
                     )
                 )
             )
@@ -2739,12 +3059,12 @@ mod tests {
                 },
                 Instruction::DynCall {
                     num: Box::new(Instruction::LocalLoad {
-                        opcode: Opcode::local_load32,
+                        opcode: Opcode::local_load32_i32,
                         name: "filter".to_owned(),
                         offset: 0
                     }),
                     args: vec![Instruction::LocalLoad {
-                        opcode: Opcode::local_load,
+                        opcode: Opcode::local_load64_i64,
                         name: "data".to_owned(),
                         offset: 0
                     }]
@@ -2752,7 +3072,7 @@ mod tests {
                 Instruction::EnvCall {
                     num: 0x100,
                     args: vec![Instruction::LocalLoad {
-                        opcode: Opcode::local_load,
+                        opcode: Opcode::local_load64_i64,
                         name: "buf".to_owned(),
                         offset: 0
                     }]
@@ -2762,7 +3082,7 @@ mod tests {
                     args: vec![
                         Instruction::ImmI32(1),
                         Instruction::LocalLoad {
-                            opcode: Opcode::local_load,
+                            opcode: Opcode::local_load64_i64,
                             name: "msg".to_owned(),
                             offset: 0
                         },
@@ -2773,12 +3093,12 @@ mod tests {
                     name: "format".to_owned(),
                     args: vec![
                         Instruction::LocalLoad {
-                            opcode: Opcode::local_load,
+                            opcode: Opcode::local_load64_i64,
                             name: "str".to_owned(),
                             offset: 0
                         },
                         Instruction::LocalLoad {
-                            opcode: Opcode::local_load,
+                            opcode: Opcode::local_load64_i64,
                             name: "values".to_owned(),
                             offset: 0
                         }
@@ -2786,5 +3106,381 @@ mod tests {
                 }
             ]))
         );
+    }
+
+    #[test]
+    fn test_parse_data_node_inited() {
+        assert_eq!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (data $d0 (read_only i32 123))
+                (data $d1 (read_only i64 123_456))
+                (data $d2 (read_only f32 3.1415927))
+                (data $d3 (read_only f64 2.718281828459045))
+                (data $d4 (read_only i32 0xaabb_ccdd))
+                (data $d5 (read_only f32 0xdb0f_4940))
+                (data $d6 (read_only i32 0b1010_0101))
+            )
+            "#
+            )
+            .unwrap(),
+            ModuleNode {
+                name: "app".to_owned(),
+                runtime_version_major: 1,
+                runtime_version_minor: 0,
+                element_nodes: vec![
+                    ModuleElementNode::DataNode(DataNode {
+                        name: "d0".to_owned(),
+                        exported: false,
+                        data_kind: DataKindNode::ReadOnly(InitedData {
+                            memory_data_type: MemoryDataType::I32,
+                            data_length: 4,
+                            align: 4,
+                            value: 123u32.to_le_bytes().to_vec()
+                        })
+                    }),
+                    ModuleElementNode::DataNode(DataNode {
+                        name: "d1".to_owned(),
+                        exported: false,
+                        data_kind: DataKindNode::ReadOnly(InitedData {
+                            memory_data_type: MemoryDataType::I64,
+                            data_length: 8,
+                            align: 8,
+                            value: 123_456u64.to_le_bytes().to_vec()
+                        })
+                    }),
+                    ModuleElementNode::DataNode(DataNode {
+                        name: "d2".to_owned(),
+                        exported: false,
+                        data_kind: DataKindNode::ReadOnly(InitedData {
+                            memory_data_type: MemoryDataType::F32,
+                            data_length: 4,
+                            align: 4,
+                            value: std::f32::consts::PI.to_le_bytes().to_vec()
+                        })
+                    }),
+                    ModuleElementNode::DataNode(DataNode {
+                        name: "d3".to_owned(),
+                        exported: false,
+                        data_kind: DataKindNode::ReadOnly(InitedData {
+                            memory_data_type: MemoryDataType::F64,
+                            data_length: 8,
+                            align: 8,
+                            value: std::f64::consts::E.to_le_bytes().to_vec()
+                        })
+                    }),
+                    ModuleElementNode::DataNode(DataNode {
+                        name: "d4".to_owned(),
+                        exported: false,
+                        data_kind: DataKindNode::ReadOnly(InitedData {
+                            memory_data_type: MemoryDataType::I32,
+                            data_length: 4,
+                            align: 4,
+                            value: 0xaabb_ccddu32.to_le_bytes().to_vec()
+                        })
+                    }),
+                    ModuleElementNode::DataNode(DataNode {
+                        name: "d5".to_owned(),
+                        exported: false,
+                        data_kind: DataKindNode::ReadOnly(InitedData {
+                            memory_data_type: MemoryDataType::F32,
+                            data_length: 4,
+                            align: 4,
+                            value: std::f32::consts::PI.to_le_bytes().to_vec()
+                        })
+                    }),
+                    ModuleElementNode::DataNode(DataNode {
+                        name: "d6".to_owned(),
+                        exported: false,
+                        data_kind: DataKindNode::ReadOnly(InitedData {
+                            memory_data_type: MemoryDataType::I32,
+                            data_length: 4,
+                            align: 4,
+                            value: 0b1010_0101u32.to_le_bytes().to_vec()
+                        })
+                    }),
+                ]
+            }
+        );
+
+        assert_eq!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (data $d0 (read_only string "Hello, World!"))
+                (data $d1 (read_only cstring "Hello, World!"))
+                (data $d2 (read_only (bytes 2) d"11-13-17-19"))
+            )
+            "#
+            )
+            .unwrap(),
+            ModuleNode {
+                name: "app".to_owned(),
+                runtime_version_major: 1,
+                runtime_version_minor: 0,
+                element_nodes: vec![
+                    ModuleElementNode::DataNode(DataNode {
+                        name: "d0".to_owned(),
+                        exported: false,
+                        data_kind: DataKindNode::ReadOnly(InitedData {
+                            memory_data_type: MemoryDataType::BYTES,
+                            data_length: 13,
+                            align: 1,
+                            value: "Hello, World!".as_bytes().to_vec()
+                        })
+                    }),
+                    ModuleElementNode::DataNode(DataNode {
+                        name: "d1".to_owned(),
+                        exported: false,
+                        data_kind: DataKindNode::ReadOnly(InitedData {
+                            memory_data_type: MemoryDataType::BYTES,
+                            data_length: 14,
+                            align: 1,
+                            value: "Hello, World!\0".as_bytes().to_vec()
+                        })
+                    }),
+                    ModuleElementNode::DataNode(DataNode {
+                        name: "d2".to_owned(),
+                        exported: false,
+                        data_kind: DataKindNode::ReadOnly(InitedData {
+                            memory_data_type: MemoryDataType::BYTES,
+                            data_length: 4,
+                            align: 2,
+                            value: [0x11, 0x13, 0x17, 0x19].to_vec()
+                        })
+                    }),
+                ]
+            }
+        );
+
+        assert_eq!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (data $d0 exported (read_only i32 123))
+                (data $d1 exported (read_write i32 456))
+            )
+            "#
+            )
+            .unwrap(),
+            ModuleNode {
+                name: "app".to_owned(),
+                runtime_version_major: 1,
+                runtime_version_minor: 0,
+                element_nodes: vec![
+                    ModuleElementNode::DataNode(DataNode {
+                        name: "d0".to_owned(),
+                        exported: true,
+                        data_kind: DataKindNode::ReadOnly(InitedData {
+                            memory_data_type: MemoryDataType::I32,
+                            data_length: 4,
+                            align: 4,
+                            value: 123u32.to_le_bytes().to_vec()
+                        })
+                    }),
+                    ModuleElementNode::DataNode(DataNode {
+                        name: "d1".to_owned(),
+                        exported: true,
+                        data_kind: DataKindNode::ReadWrite(InitedData {
+                            memory_data_type: MemoryDataType::I32,
+                            data_length: 4,
+                            align: 4,
+                            value: 456u32.to_le_bytes().to_vec()
+                        })
+                    }),
+                ]
+            }
+        );
+
+        // unknown data kind
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (data $d0 (write_only i32 123))
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
+        // missing value
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (data $d0 (read_only i32))
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
+        // 'bytes' should be written as a node
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (data $d0 (read_only bytes 2 d"11-13-17-19"))
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
+        // missing align
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (data $d0 (read_only (bytes) d"11-13-17-19"))
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+    }
+
+    #[test]
+    fn test_parse_data_node_uninit() {
+        assert_eq!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (data $d0 (uninit i32))
+                (data $d1 (uninit i64))
+                (data $d2 (uninit f32))
+                (data $d3 (uninit f64))
+                (data $d4 (uninit (bytes 12 4)))
+            )
+            "#
+            )
+            .unwrap(),
+            ModuleNode {
+                name: "app".to_owned(),
+                runtime_version_major: 1,
+                runtime_version_minor: 0,
+                element_nodes: vec![
+                    ModuleElementNode::DataNode(DataNode {
+                        name: "d0".to_owned(),
+                        exported: false,
+                        data_kind: DataKindNode::Uninit(UninitData {
+                            memory_data_type: MemoryDataType::I32,
+                            data_length: 4,
+                            align: 4,
+                        })
+                    }),
+                    ModuleElementNode::DataNode(DataNode {
+                        name: "d1".to_owned(),
+                        exported: false,
+                        data_kind: DataKindNode::Uninit(UninitData {
+                            memory_data_type: MemoryDataType::I64,
+                            data_length: 8,
+                            align: 8,
+                        })
+                    }),
+                    ModuleElementNode::DataNode(DataNode {
+                        name: "d2".to_owned(),
+                        exported: false,
+                        data_kind: DataKindNode::Uninit(UninitData {
+                            memory_data_type: MemoryDataType::F32,
+                            data_length: 4,
+                            align: 4,
+                        })
+                    }),
+                    ModuleElementNode::DataNode(DataNode {
+                        name: "d3".to_owned(),
+                        exported: false,
+                        data_kind: DataKindNode::Uninit(UninitData {
+                            memory_data_type: MemoryDataType::F64,
+                            data_length: 8,
+                            align: 8,
+                        })
+                    }),
+                    ModuleElementNode::DataNode(DataNode {
+                        name: "d4".to_owned(),
+                        exported: false,
+                        data_kind: DataKindNode::Uninit(UninitData {
+                            memory_data_type: MemoryDataType::BYTES,
+                            data_length: 12,
+                            align: 4,
+                        })
+                    }),
+                ]
+            }
+        );
+
+        assert_eq!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (data $d0 exported (uninit i32))
+                (data $d1 exported (uninit i64))
+            )
+            "#
+            )
+            .unwrap(),
+            ModuleNode {
+                name: "app".to_owned(),
+                runtime_version_major: 1,
+                runtime_version_minor: 0,
+                element_nodes: vec![
+                    ModuleElementNode::DataNode(DataNode {
+                        name: "d0".to_owned(),
+                        exported: true,
+                        data_kind: DataKindNode::Uninit(UninitData {
+                            memory_data_type: MemoryDataType::I32,
+                            data_length: 4,
+                            align: 4,
+                        })
+                    }),
+                    ModuleElementNode::DataNode(DataNode {
+                        name: "d1".to_owned(),
+                        exported: true,
+                        data_kind: DataKindNode::Uninit(UninitData {
+                            memory_data_type: MemoryDataType::I64,
+                            data_length: 8,
+                            align: 8,
+                        })
+                    }),
+                ]
+            }
+        );
+
+        // contains value
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (data $d0 (uninit i32 123))
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
+        // missing align
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (data $d0 (uninit (bytes 12)))
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
     }
 }

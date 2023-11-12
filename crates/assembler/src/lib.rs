@@ -7,7 +7,9 @@
 use std::{any::Any, fmt::Display};
 
 use ancvm_binary::module_image::{
+    data_index_section::{DataIndexEntry, DataIndexModuleEntry},
     data_name_section::DataNameEntry,
+    data_section::{InitedDataEntry, UninitDataEntry},
     external_func_name_section::ExternalFuncNameEntry,
     func_index_section::{FuncIndexEntry, FuncIndexItem, FuncIndexModuleEntry},
     func_name_section::FuncNameEntry,
@@ -29,6 +31,9 @@ pub struct ModuleEntry {
     pub local_list_entries: Vec<LocalListEntry>,
     pub func_entries: Vec<FuncEntry>,
 
+    // sorted by 'read-only', 'read-write' and 'uninit'
+    pub data_entries: Vec<DataEntry>,
+
     pub func_name_entries: Vec<FuncNameEntry>,
     pub data_name_entries: Vec<DataNameEntry>,
     pub external_func_name_entries: Vec<ExternalFuncNameEntry>,
@@ -38,7 +43,13 @@ pub struct IndexEntry {
     // essential
     pub func_index_module_entries: Vec<FuncIndexModuleEntry>,
     // optional
-    // pub data_index_items: Vec<DataIndexItem>,
+    pub data_index_module_entries: Vec<DataIndexModuleEntry>,
+}
+
+pub enum DataEntry {
+    ReadOnly(InitedDataEntry),
+    ReadWrite(InitedDataEntry),
+    Uninit(UninitDataEntry),
 }
 
 #[derive(Debug)]

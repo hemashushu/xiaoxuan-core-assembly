@@ -5,7 +5,7 @@
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
 use ancvm_assembler::{assembler::assemble_module_node, linker::generate_image_binaries};
-use ancvm_assembly_parser::{
+use ancvm_parser::{
     instruction_kind::init_instruction_kind_table, lexer::lex, parser::parse,
     peekable_iterator::PeekableIterator,
 };

@@ -5,6 +5,7 @@
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
 use ancvm_binary::module_image::{
+    data_index_section::{DataIndexEntry, DataIndexModuleEntry},
     func_index_section::{FuncIndexEntry, FuncIndexModuleEntry, FuncIndexSection},
     func_section::FuncSection,
     local_variable_section::LocalVariableSection,
@@ -12,8 +13,9 @@ use ancvm_binary::module_image::{
     ModuleImage, SectionEntry,
 };
 use ancvm_program::program_settings::ProgramSettings;
+use ancvm_types::DataSectionType;
 
-use crate::{AssembleError, IndexEntry, ModuleEntry};
+use crate::{AssembleError, DataEntry, IndexEntry, ModuleEntry};
 
 pub fn generate_image_binaries(
     module_entries: &[ModuleEntry],
@@ -102,14 +104,42 @@ pub fn link(
         })
         .collect::<Vec<_>>();
 
+    // TEMPORARY, NO LINKING
+    let data_index_module_entries = module_entries
+        .iter()
+        .enumerate()
+        .map(|(module_index, module_entry)| {
+            let entries = module_entry
+                .data_entries
+                .iter()
+                .enumerate()
+                .map(|(data_pub_index, data_entry)| {
+                    let data_section_type = match data_entry {
+                        DataEntry::ReadOnly(_) => DataSectionType::ReadOnly,
+                        DataEntry::ReadWrite(_) => DataSectionType::ReadWrite,
+                        DataEntry::Uninit(_) => DataSectionType::Uninit,
+                    };
+                    DataIndexEntry::new(
+                        data_pub_index,
+                        module_index,
+                        data_pub_index,
+                        data_section_type,
+                    )
+                })
+                .collect::<Vec<_>>();
+            DataIndexModuleEntry::new(entries)
+        })
+        .collect::<Vec<_>>();
+
     Ok(IndexEntry {
         func_index_module_entries,
+        data_index_module_entries,
     })
 }
 
 #[cfg(test)]
 mod tests {
-    use ancvm_assembly_parser::{
+    use ancvm_parser::{
         instruction_kind::init_instruction_kind_table, lexer::lex, parser::parse,
         peekable_iterator::PeekableIterator,
     };
@@ -147,8 +177,8 @@ mod tests {
                 (param $a i32) (param $b i32)
                 (results i32 i32)
                 (code
-                    (local.load32 $a)
-                    (local.load32 $b)
+                    (local.load32_i32 $a)
+                    (local.load32_i32 $b)
                 )
             )
         )

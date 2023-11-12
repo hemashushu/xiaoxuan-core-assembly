@@ -4,9 +4,6 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancvm_assembly_parser::ast::{
-    FuncNode, ImmF32, ImmF64, Instruction, LocalNode, ModuleElementNode, ModuleNode, ParamNode,
-};
 use ancvm_binary::{
     bytecode_writer::BytecodeWriter,
     module_image::{
@@ -18,9 +15,13 @@ use ancvm_binary::{
         type_section::TypeEntry,
     },
 };
+use ancvm_parser::ast::DataNode;
+use ancvm_parser::ast::{
+    FuncNode, ImmF32, ImmF64, Instruction, LocalNode, ModuleElementNode, ModuleNode, ParamNode,
+};
 use ancvm_types::{opcode::Opcode, DataType};
 
-use crate::{AssembleError, ModuleEntry};
+use crate::{AssembleError, DataEntry, ModuleEntry};
 
 struct NameBook<'a> {
     func_name_entries: &'a [FuncNameEntry],
@@ -212,6 +213,8 @@ pub fn assemble_module_node(module_node: &ModuleNode) -> Result<ModuleEntry, Ass
     let (type_entries, local_list_entries, func_entries) =
         assemble_func_nodes(&func_nodes, &name_book)?;
 
+    let data_entries = vec![]; // todo assemble_data_nodes()?;
+
     let module_entry = ModuleEntry {
         name,
         runtime_version_major,
@@ -219,6 +222,7 @@ pub fn assemble_module_node(module_node: &ModuleNode) -> Result<ModuleEntry, Ass
         type_entries,
         local_list_entries,
         func_entries,
+        data_entries,
         func_name_entries,
         data_name_entries,
         external_func_name_entries,
@@ -236,14 +240,12 @@ fn assemble_func_name_entries(module_node: &ModuleNode) -> Vec<FuncNameEntry> {
 
     for (idx, element_node) in module_node.element_nodes.iter().enumerate() {
         if let ModuleElementNode::FuncNode(func_node) = element_node {
-            if let Some(func_name) = &func_node.name {
-                let entry = FuncNameEntry {
-                    name: func_name.clone(),
-                    func_pub_index: idx + imported_func_count,
-                    exported: func_node.exported,
-                };
-                func_name_entries.push(entry);
-            }
+            let entry = FuncNameEntry {
+                name: func_node.name.clone(),
+                func_pub_index: idx + imported_func_count,
+                exported: func_node.exported,
+            };
+            func_name_entries.push(entry);
         }
     }
 
@@ -300,7 +302,7 @@ fn assemble_func_nodes(
         if flow_stack.flow_items.len() != 1 {
             return Err(AssembleError::new(&format!(
                 "There is a control flow error in the function \"{}\"",
-                func_node.name.clone().unwrap_or(func_idx.to_string())
+                func_node.name
             )));
         }
 
@@ -759,7 +761,7 @@ fn assemble_instruction(
             // |-------------------|-------------------|--------------------|
         }
         Instruction::If {
-            params,
+            // params,
             results,
             locals,
             test,
@@ -792,7 +794,7 @@ fn assemble_instruction(
             // |                   | ----------------- | ------------------ |
         }
         Instruction::Branch {
-            params,
+            // params,
             results,
             locals,
             cases,
@@ -892,4 +894,8 @@ fn assemble_instruction_kind_no_params(
     bytecode_writer.write_opcode(*opcode);
 
     Ok(())
+}
+
+fn assemble_data_nodes(data_nodes: &[&DataNode]) -> Result<Vec<DataEntry>, AssembleError> {
+    todo!()
 }
