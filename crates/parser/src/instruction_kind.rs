@@ -428,8 +428,8 @@ fn init_instruction_kind_table_internal() {
 
     // conversion
     add(
-        "i32.trunc_i64",
-        InstructionKind::UnaryOp(Opcode::i32_trunc_i64),
+        "i32.truncate_i64",
+        InstructionKind::UnaryOp(Opcode::i32_truncate_i64),
     );
     add(
         "i64.extend_i32_s",

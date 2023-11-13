@@ -4,13 +4,13 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
+mod utils;
+
 use ancvm_program::program_source::ProgramSource;
 use ancvm_runtime::{
     in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
 };
 use ancvm_types::ForeignValue;
-
-mod utils;
 
 use crate::utils::assemble_single_module;
 
