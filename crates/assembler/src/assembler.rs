@@ -1035,7 +1035,7 @@ fn assemble_data_nodes(
     let uninit_data_entries = uninit_data_nodes
         .iter()
         .map(|node| match &node.data_kind {
-            DataKindNode::ReadOnly(src) => UninitDataEntry {
+            DataKindNode::Uninit(src) => UninitDataEntry {
                 memory_data_type: src.memory_data_type,
                 length: src.length,
                 align: src.align,
