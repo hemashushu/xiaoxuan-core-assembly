@@ -1,20 +1,43 @@
-# XiaoXuan Core Assembly Module
+# XiaoXuan Core Assembly Instructions
 
 <!-- @import "[TOC]" {cmd="toc" depthFrom=1 depthTo=6 orderedList=false} -->
 
 <!-- code_chunk_output -->
 
-- [XiaoXuan Core Assembly Module](#xiaoxuan-core-assembly-module)
+- [XiaoXuan Core Assembly Instructions](#xiaoxuan-core-assembly-instructions)
   - [Fundamnetal](#fundamnetal)
-  - [local variable loading and storing](#local-variable-loading-and-storing)
-  - [local variable loading and storing with dynamical offset](#local-variable-loading-and-storing-with-dynamical-offset)
-  - [data loading and storing](#data-loading-and-storing)
-  - [data loading and storing with dynamical offset](#data-loading-and-storing-with-dynamical-offset)
-  - [heap loading and storing](#heap-loading-and-storing)
-  - [heap memory](#heap-memory)
+  - [Local variable](#local-variable)
+    - [local variable loading and storing](#local-variable-loading-and-storing)
+    - [local variable loading and storing with dynamical offset](#local-variable-loading-and-storing-with-dynamical-offset)
+  - [Data](#data)
+    - [data loading and storing](#data-loading-and-storing)
+    - [data loading and storing with dynamical offset](#data-loading-and-storing-with-dynamical-offset)
+  - [Heap](#heap)
+    - [heap loading and storing](#heap-loading-and-storing)
+    - [heap memory](#heap-memory)
+  - [Conversion](#conversion)
+    - [extend and truncate](#extend-and-truncate)
+    - [demote and promote](#demote-and-promote)
+    - [floating point to integer](#floating-point-to-integer)
+    - [integer to floating point](#integer-to-floating-point)
+  - [Comparison](#comparison)
+    - [i32](#i32)
+    - [i64](#i64)
+    - [f32](#f32)
+    - [f64](#f64)
+  - [Arithmetic](#arithmetic)
+    - [i32](#i32-1)
+    - [i64](#i64-1)
+    - [f32](#f32-1)
+    - [f64](#f64-1)
+  - [Bitwise](#bitwise)
+    - [i32](#i32-2)
+    - [i64](#i64-2)
+  - [Math](#math)
+    - [f32](#f32-2)
+    - [f64](#f64-2)
 
 <!-- /code_chunk_output -->
-
 
 ## Fundamnetal
 
@@ -44,7 +67,9 @@ immediate number
 
 both INTEGER_NUMBER and FLOATING_POINT_NUMBER can be decimal, dexadecimal, binary.
 
-## local variable loading and storing
+## Local variable
+
+### local variable loading and storing
 
 (local.load64_i64 $VARIABLE_NAME OPTIONAL_OFFSET_NUMBER:i16)
 
@@ -70,7 +95,7 @@ variants:
 - `local.store16`
 - `local.store8`
 
-## local variable loading and storing with dynamical offset
+### local variable loading and storing with dynamical offset
 
 (local.load64_i64 $VARIABLE_NAME OPERAND_FOR_OFFSET:i32)
 
@@ -94,7 +119,9 @@ storing
 - `local.long_store16`
 - `local.long_store8`
 
-## data loading and storing
+## Data
+
+### data loading and storing
 
 (data.load64_i64 $DATA_NAME OPTIONAL_OFFSET_NUMBER:i16)
 
@@ -118,7 +145,7 @@ storing
 - `data.store16`
 - `data.store8`
 
-## data loading and storing with dynamical offset
+### data loading and storing with dynamical offset
 
 (data.long_load64_i64 $DATA_NAME OPERAND_FOR_OFFSET:i32)
 
@@ -144,7 +171,9 @@ variants:
 - `data.long_store16`
 - `data.long_store8`
 
-## heap loading and storing
+## Heap
+
+### heap loading and storing
 
 (heap.load64_i64 OPTIONAL_OFFSET_NUMBER:i16 OPERAND_FOR_ADDR)
 
@@ -170,7 +199,7 @@ variants:
 - `heap.store16`
 - `heap.store8`
 
-## heap memory
+### heap memory
 
 (heap.fill
     OPERAND_FOR_ADDR:i64
@@ -185,3 +214,229 @@ variants:
 heap.capacity
 
 (heap.resize OPERAND_FOR_PAGES)
+
+## Conversion
+
+### extend and truncate
+
+(i64.extend_i32_s OPERAND:i32)
+(i64.extend_i32_u OPERAND:i32)
+(i32.truncate_i64 OPERAND:i64)
+
+### demote and promote
+
+(f64.promote_f32 OPERAND:f32)
+(f32.demote_f64 OPERAND:f64)
+
+### floating point to integer
+
+(i32.convert_f32_s OPERAND)
+(i32.convert_f32_u OPERAND)
+(i32.convert_f64_s OPERAND)
+(i32.convert_f64_u OPERAND)
+
+(i64.convert_f32_s OPERAND)
+(i64.convert_f32_u OPERAND)
+(i64.convert_f64_s OPERAND)
+(i64.convert_f64_u OPERAND)
+
+### integer to floating point
+
+(f32.convert_i32_s OPERAND)
+(f32.convert_i32_u OPERAND)
+(f32.convert_i64_s OPERAND)
+(f32.convert_i64_u OPERAND)
+
+(f64.convert_i64_s OPERAND)
+(f64.convert_i64_u OPERAND)
+(f64.convert_i32_s OPERAND)
+(f64.convert_i32_u OPERAND)
+
+## Comparison
+
+### i32
+
+(i32.eqz OPERAND)
+(i32.nez OPERAND)
+
+(i32.eq OPERAND_LEFT OPERAND_RIGHT)
+(i32.ne OPERAND_LEFT OPERAND_RIGHT)
+(i32.lt_s OPERAND_LEFT OPERAND_RIGHT)
+(i32.lt_u OPERAND_LEFT OPERAND_RIGHT)
+(i32.gt_s OPERAND_LEFT OPERAND_RIGHT)
+(i32.gt_u OPERAND_LEFT OPERAND_RIGHT)
+(i32.le_s OPERAND_LEFT OPERAND_RIGHT)
+(i32.le_u OPERAND_LEFT OPERAND_RIGHT)
+(i32.ge_s OPERAND_LEFT OPERAND_RIGHT)
+(i32.ge_u OPERAND_LEFT OPERAND_RIGHT)
+
+### i64
+
+(i64.eqz OPERAND)
+(i64.nez OPERAND)
+
+(i64.eq OPERAND_LEFT OPERAND_RIGHT)
+(i64.ne OPERAND_LEFT OPERAND_RIGHT)
+(i64.lt_s OPERAND_LEFT OPERAND_RIGHT)
+(i64.lt_u OPERAND_LEFT OPERAND_RIGHT)
+(i64.gt_s OPERAND_LEFT OPERAND_RIGHT)
+(i64.gt_u OPERAND_LEFT OPERAND_RIGHT)
+(i64.le_s OPERAND_LEFT OPERAND_RIGHT)
+(i64.le_u OPERAND_LEFT OPERAND_RIGHT)
+(i64.ge_s OPERAND_LEFT OPERAND_RIGHT)
+(i64.ge_u OPERAND_LEFT OPERAND_RIGHT)
+
+### f32
+
+(f32.eq OPERAND_LEFT OPERAND_RIGHT)
+(f32.ne OPERAND_LEFT OPERAND_RIGHT)
+(f32.lt OPERAND_LEFT OPERAND_RIGHT)
+(f32.gt OPERAND_LEFT OPERAND_RIGHT)
+(f32.le OPERAND_LEFT OPERAND_RIGHT)
+(f32.ge OPERAND_LEFT OPERAND_RIGHT)
+
+### f64
+
+(f64.eq OPERAND_LEFT OPERAND_RIGHT)
+(f64.ne OPERAND_LEFT OPERAND_RIGHT)
+(f64.lt OPERAND_LEFT OPERAND_RIGHT)
+(f64.gt OPERAND_LEFT OPERAND_RIGHT)
+(f64.le OPERAND_LEFT OPERAND_RIGHT)
+(f64.ge OPERAND_LEFT OPERAND_RIGHT)
+
+## Arithmetic
+
+### i32
+(i32.add OPERAND_LEFT OPERAND_RIGHT)
+wrapping add, e.g. 0xffff_ffff + 2 = 1 (-1 + 2 = 1)
+
+(i32.sub OPERAND_LEFT OPERAND_RIGHT)
+wrapping sub, e.g. 11 - 211 = -200
+
+(i32.mul OPERAND_LEFT OPERAND_RIGHT)
+wrapping mul, e.g. 0xf0e0d0c0 * 2 = 0xf0e0d0c0 << 1
+
+(i32.div_s OPERAND_LEFT OPERAND_RIGHT)
+(i32.div_u OPERAND_LEFT OPERAND_RIGHT)
+(i32.rem_s OPERAND_LEFT OPERAND_RIGHT)
+(i32.rem_u OPERAND_LEFT OPERAND_RIGHT)
+
+(i32.inc AMOUNT_NUMBER:i16 OPERAND)
+wrapping inc, e.g. 0xffff_ffff inc 2 = 1
+
+(i32.dec AMOUNT_NUMBER:i16 OPERAND)
+wrapping dec, e.g. 0x1 dec 2 = 0xffff_ffff
+
+### i64
+
+(i64.add OPERAND_LEFT OPERAND_RIGHT)
+(i64.sub OPERAND_LEFT OPERAND_RIGHT)
+(i64.mul OPERAND_LEFT OPERAND_RIGHT)
+(i64.div_s OPERAND_LEFT OPERAND_RIGHT)
+(i64.div_u OPERAND_LEFT OPERAND_RIGHT)
+(i64.rem_s OPERAND_LEFT OPERAND_RIGHT)
+(i64.rem_u OPERAND_LEFT OPERAND_RIGHT)
+
+(i64.inc AMOUNT_NUMBER:i16 OPERAND)
+(i64.dec AMOUNT_NUMBER:i16 OPERAND)
+
+### f32
+
+(f32.add OPERAND_LEFT OPERAND_RIGHT)
+(f32.sub OPERAND_LEFT OPERAND_RIGHT)
+(f32.mul OPERAND_LEFT OPERAND_RIGHT)
+(f32.div OPERAND_LEFT OPERAND_RIGHT)
+
+### f64
+
+(f64.add OPERAND_LEFT OPERAND_RIGHT)
+(f64.sub OPERAND_LEFT OPERAND_RIGHT)
+(f64.mul OPERAND_LEFT OPERAND_RIGHT)
+(f64.div OPERAND_LEFT OPERAND_RIGHT)
+
+## Bitwise
+
+### i32
+
+(i32.and OPERAND_LEFT OPERAND_RIGHT)
+(i32.or OPERAND_LEFT OPERAND_RIGHT)
+(i32.xor OPERAND_LEFT OPERAND_RIGHT)
+(i32.shift_left OPERAND_LEFT OPERAND_RIGHT)
+(i32.shift_right_s OPERAND_LEFT OPERAND_RIGHT)
+(i32.shift_right_u OPERAND_LEFT OPERAND_RIGHT)
+(i32.rotate_left OPERAND_LEFT OPERAND_RIGHT)
+(i32.rotate_right OPERAND_LEFT OPERAND_RIGHT)
+
+(i32.not OPERAND)
+(i32.leading_zeros OPERAND)
+(i32.trailing_zeros OPERAND)
+(i32.count_ones OPERAND)
+
+### i64
+
+(i64.and OPERAND_LEFT OPERAND_RIGHT)
+(i64.or OPERAND_LEFT OPERAND_RIGHT)
+(i64.xor OPERAND_LEFT OPERAND_RIGHT)
+(i64.shift_left OPERAND_LEFT OPERAND_RIGHT)
+(i64.shift_right_s OPERAND_LEFT OPERAND_RIGHT)
+(i64.shift_right_u OPERAND_LEFT OPERAND_RIGHT)
+(i64.rotate_left OPERAND_LEFT OPERAND_RIGHT)
+(i64.rotate_right OPERAND_LEFT OPERAND_RIGHT)
+
+(i64.not OPERAND)
+(i64.leading_zeros OPERAND)
+(i64.trailing_zeros OPERAND)
+(i64.count_ones OPERAND)
+
+## Math
+
+### f32
+
+(f32.abs OPERAND)
+(f32.neg OPERAND)
+(f32.ceil OPERAND)
+(f32.floor OPERAND)
+(f32.round_half_away_from_zero OPERAND)
+(f32.trunc OPERAND)
+(f32.fract OPERAND)
+(f32.sqrt OPERAND)
+(f32.cbrt OPERAND)
+(f32.exp OPERAND)
+(f32.exp2 OPERAND)
+(f32.ln OPERAND)
+(f32.log2 OPERAND)
+(f32.log10 OPERAND)
+(f32.sin OPERAND)
+(f32.cos OPERAND)
+(f32.tan OPERAND)
+(f32.asin OPERAND)
+(f32.acos OPERAND)
+(f32.atan OPERAND)
+(f32.pow OPERAND_LEFT OPERAND_RIGHT)
+(f32.log OPERAND_LEFT OPERAND_RIGHT)
+
+### f64
+
+(f64.abs OPERAND)
+(f64.neg OPERAND)
+(f64.ceil OPERAND)
+(f64.floor OPERAND)
+(f64.round_half_away_from_zero OPERAND)
+(f64.trunc OPERAND)
+(f64.fract OPERAND)
+(f64.sqrt OPERAND)
+(f64.cbrt OPERAND)
+(f64.exp OPERAND)
+(f64.exp2 OPERAND)
+(f64.ln OPERAND)
+(f64.log2 OPERAND)
+(f64.log10 OPERAND)
+(f64.sin OPERAND)
+(f64.cos OPERAND)
+(f64.tan OPERAND)
+(f64.asin OPERAND)
+(f64.acos OPERAND)
+(f64.atan OPERAND)
+
+(f64.pow OPERAND_LEFT OPERAND_RIGHT)
+(f64.log OPERAND_LEFT OPERAND_RIGHT)

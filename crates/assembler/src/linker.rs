@@ -224,7 +224,7 @@ mod tests {
             r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main
+            (func $main
                 (param $a i32) (param $b i32)
                 (results i32 i32)
                 (code

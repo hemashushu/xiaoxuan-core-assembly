@@ -183,7 +183,10 @@ fn init_instruction_kind_table_internal() {
     // 'i32.imm', 'i64.imm', 'f32.imm', 'f64.imm' are replaced with pesudo instructions
 
     // load variables
-    add("local.load64_i64", InstructionKind::LocalLoad(Opcode::local_load64_i64));
+    add(
+        "local.load64_i64",
+        InstructionKind::LocalLoad(Opcode::local_load64_i64),
+    );
     add(
         "local.load64_f64",
         InstructionKind::LocalLoad(Opcode::local_load64_f64),
@@ -279,7 +282,10 @@ fn init_instruction_kind_table_internal() {
     );
 
     // data
-    add("data.load64_i64", InstructionKind::DataLoad(Opcode::data_load64_i64));
+    add(
+        "data.load64_i64",
+        InstructionKind::DataLoad(Opcode::data_load64_i64),
+    );
     add(
         "data.load64_f64",
         InstructionKind::DataLoad(Opcode::data_load64_f64),
@@ -308,7 +314,10 @@ fn init_instruction_kind_table_internal() {
         "data.load32_f32",
         InstructionKind::DataLoad(Opcode::data_load32_f32),
     );
-    add("data.store64", InstructionKind::DataStore(Opcode::data_store64));
+    add(
+        "data.store64",
+        InstructionKind::DataStore(Opcode::data_store64),
+    );
     add(
         "data.store32",
         InstructionKind::DataStore(Opcode::data_store32),
@@ -372,7 +381,10 @@ fn init_instruction_kind_table_internal() {
     );
 
     // heap
-    add("heap.load64_i64", InstructionKind::HeapLoad(Opcode::heap_load64_i64));
+    add(
+        "heap.load64_i64",
+        InstructionKind::HeapLoad(Opcode::heap_load64_i64),
+    );
     add(
         "heap.load64_f64",
         InstructionKind::HeapLoad(Opcode::heap_load64_f64),
@@ -401,7 +413,10 @@ fn init_instruction_kind_table_internal() {
         "heap.load32_f32",
         InstructionKind::HeapLoad(Opcode::heap_load32_f32),
     );
-    add("heap.store64", InstructionKind::HeapStore(Opcode::heap_store64));
+    add(
+        "heap.store64",
+        InstructionKind::HeapStore(Opcode::heap_store64),
+    );
     add(
         "heap.store32",
         InstructionKind::HeapStore(Opcode::heap_store32),
@@ -590,19 +605,6 @@ fn init_instruction_kind_table_internal() {
     add("i32.and", InstructionKind::BinaryOp(Opcode::i32_and));
     add("i32.or", InstructionKind::BinaryOp(Opcode::i32_or));
     add("i32.xor", InstructionKind::BinaryOp(Opcode::i32_xor));
-    add("i32.not", InstructionKind::UnaryOp(Opcode::i32_not)); // UnaryOp
-    add(
-        "i32.leading_zeros",
-        InstructionKind::UnaryOp(Opcode::i32_leading_zeros),
-    ); // UnaryOp
-    add(
-        "i32.trailing_zeros",
-        InstructionKind::UnaryOp(Opcode::i32_trailing_zeros),
-    ); // UnaryOp
-    add(
-        "i32.count_ones",
-        InstructionKind::UnaryOp(Opcode::i32_count_ones),
-    ); // UnaryOp
     add(
         "i32.shift_left",
         InstructionKind::BinaryOp(Opcode::i32_shift_left),
@@ -623,23 +625,23 @@ fn init_instruction_kind_table_internal() {
         "i32.rotate_right",
         InstructionKind::BinaryOp(Opcode::i32_rotate_right),
     );
+    add("i32.not", InstructionKind::UnaryOp(Opcode::i32_not)); // UnaryOp
+    add(
+        "i32.leading_zeros",
+        InstructionKind::UnaryOp(Opcode::i32_leading_zeros),
+    ); // UnaryOp
+    add(
+        "i32.trailing_zeros",
+        InstructionKind::UnaryOp(Opcode::i32_trailing_zeros),
+    ); // UnaryOp
+    add(
+        "i32.count_ones",
+        InstructionKind::UnaryOp(Opcode::i32_count_ones),
+    ); // UnaryOp
 
     add("i64.and", InstructionKind::BinaryOp(Opcode::i64_and));
     add("i64.or", InstructionKind::BinaryOp(Opcode::i64_or));
     add("i64.xor", InstructionKind::BinaryOp(Opcode::i64_xor));
-    add("i64.not", InstructionKind::UnaryOp(Opcode::i64_not)); // UnaryOp
-    add(
-        "i64.leading_zeros",
-        InstructionKind::UnaryOp(Opcode::i64_leading_zeros),
-    ); // UnaryOp
-    add(
-        "i64.trailing_zeros",
-        InstructionKind::UnaryOp(Opcode::i64_trailing_zeros),
-    ); // UnaryOp
-    add(
-        "i64.count_ones",
-        InstructionKind::UnaryOp(Opcode::i64_count_ones),
-    ); // UnaryOp
     add(
         "i64.shift_left",
         InstructionKind::BinaryOp(Opcode::i64_shift_left),
@@ -660,6 +662,19 @@ fn init_instruction_kind_table_internal() {
         "i64.rotate_right",
         InstructionKind::BinaryOp(Opcode::i64_rotate_right),
     );
+    add("i64.not", InstructionKind::UnaryOp(Opcode::i64_not)); // UnaryOp
+    add(
+        "i64.leading_zeros",
+        InstructionKind::UnaryOp(Opcode::i64_leading_zeros),
+    ); // UnaryOp
+    add(
+        "i64.trailing_zeros",
+        InstructionKind::UnaryOp(Opcode::i64_trailing_zeros),
+    ); // UnaryOp
+    add(
+        "i64.count_ones",
+        InstructionKind::UnaryOp(Opcode::i64_count_ones),
+    ); // UnaryOp
 
     // math
     add("f32.abs", InstructionKind::UnaryOp(Opcode::f32_abs));
@@ -674,11 +689,9 @@ fn init_instruction_kind_table_internal() {
     add("f32.fract", InstructionKind::UnaryOp(Opcode::f32_fract));
     add("f32.sqrt", InstructionKind::UnaryOp(Opcode::f32_sqrt));
     add("f32.cbrt", InstructionKind::UnaryOp(Opcode::f32_cbrt));
-    add("f32.pow", InstructionKind::BinaryOp(Opcode::f32_pow)); // BinaryOp
     add("f32.exp", InstructionKind::UnaryOp(Opcode::f32_exp));
     add("f32.exp2", InstructionKind::UnaryOp(Opcode::f32_exp2));
     add("f32.ln", InstructionKind::UnaryOp(Opcode::f32_ln));
-    add("f32.log", InstructionKind::BinaryOp(Opcode::f32_log)); // BinaryOp
     add("f32.log2", InstructionKind::UnaryOp(Opcode::f32_log2));
     add("f32.log10", InstructionKind::UnaryOp(Opcode::f32_log10));
     add("f32.sin", InstructionKind::UnaryOp(Opcode::f32_sin));
@@ -687,6 +700,8 @@ fn init_instruction_kind_table_internal() {
     add("f32.asin", InstructionKind::UnaryOp(Opcode::f32_asin));
     add("f32.acos", InstructionKind::UnaryOp(Opcode::f32_acos));
     add("f32.atan", InstructionKind::UnaryOp(Opcode::f32_atan));
+    add("f32.pow", InstructionKind::BinaryOp(Opcode::f32_pow)); // BinaryOp
+    add("f32.log", InstructionKind::BinaryOp(Opcode::f32_log)); // BinaryOp
 
     add("f64.abs", InstructionKind::UnaryOp(Opcode::f64_abs));
     add("f64.neg", InstructionKind::UnaryOp(Opcode::f64_neg));
@@ -700,11 +715,9 @@ fn init_instruction_kind_table_internal() {
     add("f64.fract", InstructionKind::UnaryOp(Opcode::f64_fract));
     add("f64.sqrt", InstructionKind::UnaryOp(Opcode::f64_sqrt));
     add("f64.cbrt", InstructionKind::UnaryOp(Opcode::f64_cbrt));
-    add("f64.pow", InstructionKind::BinaryOp(Opcode::f64_pow)); // BinaryOp
     add("f64.exp", InstructionKind::UnaryOp(Opcode::f64_exp));
     add("f64.exp2", InstructionKind::UnaryOp(Opcode::f64_exp2));
     add("f64.ln", InstructionKind::UnaryOp(Opcode::f64_ln));
-    add("f64.log", InstructionKind::BinaryOp(Opcode::f64_log)); // BinaryOp
     add("f64.log2", InstructionKind::UnaryOp(Opcode::f64_log2));
     add("f64.log10", InstructionKind::UnaryOp(Opcode::f64_log10));
     add("f64.sin", InstructionKind::UnaryOp(Opcode::f64_sin));
@@ -713,6 +726,8 @@ fn init_instruction_kind_table_internal() {
     add("f64.asin", InstructionKind::UnaryOp(Opcode::f64_asin));
     add("f64.acos", InstructionKind::UnaryOp(Opcode::f64_acos));
     add("f64.atan", InstructionKind::UnaryOp(Opcode::f64_atan));
+    add("f64.pow", InstructionKind::BinaryOp(Opcode::f64_pow)); // BinaryOp
+    add("f64.log", InstructionKind::BinaryOp(Opcode::f64_log)); // BinaryOp
 
     // control flow
     // note: all instructions in this catalog are replaced with pesudo instructions
@@ -723,6 +738,7 @@ fn init_instruction_kind_table_internal() {
     // host
     add("nop", InstructionKind::NoParams(Opcode::nop, 0));
     add("panic", InstructionKind::NoParams(Opcode::panic, 0));
+    add("unreachable", InstructionKind::NoParams(Opcode::unreachable, 0));
     add("debug", InstructionKind::NoParams(Opcode::debug, 1));
 
     add(
@@ -745,7 +761,10 @@ fn init_instruction_kind_table_internal() {
         "host_addr_heap",
         InstructionKind::HeapLoad(Opcode::host_addr_heap),
     );
-
+    add(
+        "host.addr_func",
+        InstructionKind::NoParams(Opcode::host_addr_func, 1),
+    );
     add(
         "host.copy_from_heap",
         InstructionKind::NoParams(Opcode::host_copy_from_heap, 3),
@@ -754,11 +773,6 @@ fn init_instruction_kind_table_internal() {
     add(
         "host.copy_to_heap",
         InstructionKind::NoParams(Opcode::host_copy_to_heap, 3),
-    );
-
-    add(
-        "host.addr_func",
-        InstructionKind::NoParams(Opcode::host_addr_func, 1),
     );
 
     // pesudo instructions

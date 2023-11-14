@@ -14,6 +14,8 @@ use ancvm_types::ForeignValue;
 
 use crate::utils::assemble_single_module;
 
+use pretty_assertions::assert_eq;
+
 #[test]
 fn test_assemble_heap_capacity() {
     // () -> (i64, i64, i64, i64, i64)
@@ -22,7 +24,7 @@ fn test_assemble_heap_capacity() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main
+            (func $main
                 (results i64 i64 i64 i64 i64)
                 (code
                     ;; get the capacity
@@ -93,7 +95,7 @@ fn test_assemble_heap_load_and_store() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main
+            (func $main
                 (param $a0 f32)
                 (param $a1 f64)
                 (results

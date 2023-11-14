@@ -27,7 +27,7 @@ An assembly text file can only define one module, so the content of an assembly 
 ```clojure
 (module $app
     (runtime_version "1.0")
-    (fn $main (result i32)
+    (func $main (result i32)
         (code
             (i32.imm 42)
         )
@@ -60,15 +60,15 @@ The following is an example that uses these parameters:
     (constructor $init)
     (destructor $exit)
 
-    (fn $init ...)
-    (fn $main ...)
-    (fn $exit ...)
+    (func $init ...)
+    (func $main ...)
+    (func $exit ...)
 )
 ```
 
 ## The `fn` Node
 
-(fn $name (param $p0 i32) (param $p1 i32) (result i32)
+(func $name (param $p0 i32) (param $p1 i32) (result i32)
     (code ...)
 )
 
@@ -81,31 +81,31 @@ parameters and results data type:
 
 no parameters
 
-(fn $name (result i32)
+(func $name (result i32)
     (code ...)
 )
 
 no return values
 
-(fn $name
+(func $name
     (code ...)
 )
 
 multiple return values
 
-(fn $name (result i32) (result i32)
+(func $name (result i32) (result i32)
     (code ...)
 )
 
 or
 
-(fn $name (results i32 i32)
+(func $name (results i32 i32)
     (code ...)
 )
 
 ### local variables
 
-(fn $func_name
+(func $func_name
     (local $local_variable_name_0 i32)
     (local $local_variable_name_1 i32)
     (code ...)
@@ -125,7 +125,7 @@ bytes syntax:
 
 e.g.
 
-(fn $func_name
+(func $func_name
     (local $buf (bytes 12 4))
     (code ...)
 )
@@ -134,7 +134,7 @@ e.g.
 
 add 'exported' annotation after the function name.
 
-(fn $name exported ...)
+(func $name exported ...)
 
 ## The `data` node
 

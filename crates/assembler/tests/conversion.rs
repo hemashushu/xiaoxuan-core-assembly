@@ -14,6 +14,8 @@ use ancvm_types::ForeignValue;
 
 use crate::utils::assemble_single_module;
 
+use pretty_assertions::assert_eq;
+
 #[test]
 fn test_assemble_conversion_extend_and_truncate() {
     // (i64, i32)  ->  (i64, i64, i32)
@@ -26,7 +28,7 @@ fn test_assemble_conversion_extend_and_truncate() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main
+            (func $main
                 (param $a0 i64)
                 (param $a1 i32)
                 (results i64 i64 i32)
@@ -75,7 +77,7 @@ fn test_assemble_conversion_demote_and_promote() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main
+            (func $main
                 (param $a0 f64)
                 (param $a1 f32)
                 (results f64 f32)
@@ -125,7 +127,7 @@ fn test_assemble_conversion_float_to_int() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main
+            (func $main
                 (param $a0 f32)
                 (param $a1 f64)
                 (param $a2 f32)
@@ -219,7 +221,7 @@ fn test_assemble_conversion_int_to_float() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main
+            (func $main
                 (param $a0 i32)
                 (param $a1 i64)
                 (param $a2 i32)

@@ -19,7 +19,7 @@
 //    tree structure. e.g.
 //
 //    ```clojure
-//    (fn $name (param $lhs i32) (param $rhs i32) (result i32)
+//    (func $name (param $lhs i32) (param $rhs i32) (result i32)
 //        (code
 //            (i32.add
 //                (local.load32_i32 $lhs) (local.load32_i32 $rhs)
@@ -125,7 +125,7 @@ pub fn parse_module_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleNod
     while iter.look_ahead_equals(0, &Token::LeftParen) {
         if let Some(Token::Symbol(child_node_name)) = iter.peek(1) {
             let element_node = match child_node_name.as_str() {
-                "fn" => parse_func_node(iter)?,
+                "func" => parse_func_node(iter)?,
                 "data" => parse_data_node(iter)?,
                 _ => {
                     return Err(ParseError::new(&format!(
@@ -190,13 +190,13 @@ fn parse_module_runtime_version_node(
 }
 
 fn parse_func_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNode, ParseError> {
-    // (fn ...) ...  //
+    // (func ...) ...  //
     // ^        ^____// to here
     // |_____________// current token
 
     // the node 'fn' syntax:
     //
-    // (fn $name (param $param_0 DATA_TYPE) ...
+    // (func $name (param $param_0 DATA_TYPE) ...
     //           (result DATA_TYPE) ...
     //           (local $local_variable_name LOCAL_DATA_TYPE) ...
     //           (code ...)
@@ -204,25 +204,25 @@ fn parse_func_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNo
 
     // e.g.
     //
-    // (fn $add (param $lhs i32) (param $rhs i32) (result i32) ...)     ;; signature
-    // (fn $add (param $lhs i32) (result i32) (result i32) ...)         ;; signature with multiple return values
-    // (fn $add (param $lhs i32) (results i32 i32) ...)                 ;; signature with multiple return values
-    // (fn $add
+    // (func $add (param $lhs i32) (param $rhs i32) (result i32) ...)     ;; signature
+    // (func $add (param $lhs i32) (result i32) (result i32) ...)         ;; signature with multiple return values
+    // (func $add (param $lhs i32) (results i32 i32) ...)                 ;; signature with multiple return values
+    // (func $add
     //     (local $sum i32)             ;; local variable with identifier and data type
     //     (local $db (bytes 12 4))     ;; bytes-type local variable
     //     ...
     // )
     //
-    // (fn $add
+    // (func $add
     //     (code ...)                   ;; the function body, the instructions sequence, sholud be written inside the node '(code)'
     // )
 
     // function with 'exported' annotation
-    // (fn $add exported ...)
+    // (func $add exported ...)
 
-    consume_left_paren(iter, "fn")?;
-    consume_symbol(iter, "fn")?;
-    let name = expect_identifier(iter, "fn")?;
+    consume_left_paren(iter, "func")?;
+    consume_symbol(iter, "func")?;
+    let name = expect_identifier(iter, "func")?;
     let exported = expect_specified_symbol_optional(iter, "exported");
     let (params, results) = parse_optional_signature(iter)?;
     let locals: Vec<LocalNode> = parse_optional_local_variables(iter)?;
@@ -1957,7 +1957,7 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (fn $add (param $lhs i32) (param $rhs i64) (result i32) (result i64)
+                (func $add (param $lhs i32) (param $rhs i64) (result i32) (result i64)
                     ;; no local variables
                     (code)
                 )
@@ -1996,7 +1996,7 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (fn $add (param $lhs i32) (param $rhs i64) (results i32 i64) (result f32) (result f64)
+                (func $add (param $lhs i32) (param $rhs i64) (results i32 i64) (result f32) (result f64)
                     ;; no local variables
                     (code)
                 )
@@ -2035,7 +2035,7 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (fn $add exported (code))
+                (func $add exported (code))
             )
             "#
             )
@@ -2061,7 +2061,7 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (fn (code))
+                (func (code))
             )
             "#
             ),
@@ -2074,7 +2074,7 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (fn $add)
+                (func $add)
             )
             "#
             ),
@@ -2089,7 +2089,7 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (fn $add
+                (func $add
                     ;; no params and results
                     (local $sum i32) (local $count i64) (local $db (bytes 12 8)) (local $average f32)
                     (code)
@@ -2162,7 +2162,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (func $test
                     (code
                         nop
                         (drop zero)
@@ -2185,7 +2185,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (func $test
                     (code
                         (i32.imm 11)
                         (i32.imm 0x13)
@@ -2233,7 +2233,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (func $test
                     (code
                         (f32.imm 3.1415927)
                         (f32.imm 0x40490fdb)
@@ -2267,7 +2267,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (func $test
                     (code
                         (i32.eqz (i32.imm 11))
                         (i32.inc 1 (i32.imm 13))
@@ -2323,7 +2323,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (func $test
                     (code
                         ;; note that test syntax only here
                         (local.load32_i32 $sum)
@@ -2383,7 +2383,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (func $test
                     (code
                         ;; note that test syntax only here
                         (data.load32_i32 $sum)
@@ -2446,7 +2446,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (func $test
                     (code
                         ;; note that test syntax only here
                         (heap.load32_i32 (i32.imm 11))
@@ -2494,7 +2494,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (func $test
                     (code
                         ;; note that test syntax only here
                         (when
@@ -2524,7 +2524,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (func $test
                     (code
                         ;; note that test syntax only here
                         (when
@@ -2576,7 +2576,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (func $test
                     (code
                         ;; note that test syntax only here
                         (if
@@ -2609,7 +2609,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (func $test
                     (code
                         ;; note that test syntax only here
                         (local.store32 $i
@@ -2682,7 +2682,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (func $test
                     (code
                         ;; note that test syntax only here
                         (branch ;; (param $x i32)
@@ -2745,7 +2745,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (func $test
                     (code
                         ;; note that test syntax only here
                         (for (param $sum i32) (param $n i32) (result i32) (local $temp i32)
@@ -2873,7 +2873,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test (param $sum i32) (param $n i32) (result i32)
+                (func $test (param $sum i32) (param $n i32) (result i32)
                     (code
                         ;; note that test syntax only here
                         ;; n = n - 1
@@ -3003,7 +3003,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (func $test
                     (code
                         ;; note that test syntax only here
                         ;; call: add(11, 13)

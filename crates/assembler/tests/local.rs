@@ -14,6 +14,8 @@ use ancvm_types::ForeignValue;
 
 use crate::utils::assemble_single_module;
 
+use pretty_assertions::assert_eq;
+
 #[test]
 fn test_assemble_local_load_store() {
     // args index (also local var):     0       1
@@ -48,7 +50,7 @@ fn test_assemble_local_load_store() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main
+            (func $main
                 (param $a0 f32) (param $a1 f64)
                 (results
                         i64 i32 i32 i32 i32 i32 ;; group 0
@@ -161,7 +163,7 @@ fn test_assemble_local_long_load_and_store() {
         r#"
     (module $app
         (runtime_version "1.0")
-        (fn $main
+        (func $main
             (results
                     i64 i32 i32 i32 i32 i32 ;; group 0
                     i64 i32 i32 i32         ;; group 1
