@@ -193,12 +193,12 @@ fn lex_number_decimal(iter: &mut PeekableIterator<char>) -> Result<Token, ParseE
                 num_string.push(*curc);
                 iter.next();
             }
-            '.' if found_point == false => {
+            '.' if !found_point => {
                 found_point = true;
                 num_string.push(*curc);
                 iter.next();
             }
-            'e' if found_e == false => {
+            'e' if !found_e => {
                 found_e = true;
                 if iter.look_ahead_equals(1, &'-') {
                     num_string.push_str("e-");

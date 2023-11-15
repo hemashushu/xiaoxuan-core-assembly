@@ -5,7 +5,7 @@
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
 use ancvm_binary::module_image::{
-    data_index_section::{self, DataIndexEntry, DataIndexModuleEntry, DataIndexSection},
+    data_index_section::{DataIndexEntry, DataIndexModuleEntry, DataIndexSection},
     data_section::{ReadOnlyDataSection, ReadWriteDataSection, UninitDataSection},
     func_index_section::{FuncIndexEntry, FuncIndexModuleEntry, FuncIndexSection},
     func_section::FuncSection,
@@ -114,7 +114,7 @@ pub fn generate_image_binaries(
 
 pub fn link(
     module_entries: &[ModuleEntry],
-    program_settings: &ProgramSettings,
+    _program_settings: &ProgramSettings,
 ) -> Result<IndexEntry, AssembleError> {
     // todo
     // load shared modules
@@ -128,7 +128,7 @@ pub fn link(
                 .func_entries
                 .iter()
                 .enumerate()
-                .map(|(func_pub_index, func_entry)| {
+                .map(|(func_pub_index, _func_entry)| {
                     FuncIndexEntry::new(func_pub_index, module_index, func_pub_index)
                 })
                 .collect::<Vec<_>>();
@@ -145,7 +145,9 @@ pub fn link(
             let mut data_pub_index = 0;
             let mut entries = vec![];
 
-            for (data_internal_idx, _) in module_entry.read_only_data_entries.iter().enumerate() {
+            for (data_internal_idx, _read_only_data_entry) in
+                module_entry.read_only_data_entries.iter().enumerate()
+            {
                 entries.push(DataIndexEntry::new(
                     data_pub_index,
                     module_index,
@@ -156,7 +158,9 @@ pub fn link(
                 data_pub_index += 1;
             }
 
-            for (data_internal_idx, _) in module_entry.read_write_data_entries.iter().enumerate() {
+            for (data_internal_idx, _read_write_data_entry) in
+                module_entry.read_write_data_entries.iter().enumerate()
+            {
                 entries.push(DataIndexEntry::new(
                     data_pub_index,
                     module_index,
@@ -167,7 +171,9 @@ pub fn link(
                 data_pub_index += 1;
             }
 
-            for (data_internal_idx, _) in module_entry.uninit_data_entries.iter().enumerate() {
+            for (data_internal_idx, _uninit_data_entry) in
+                module_entry.uninit_data_entries.iter().enumerate()
+            {
                 entries.push(DataIndexEntry::new(
                     data_pub_index,
                     module_index,

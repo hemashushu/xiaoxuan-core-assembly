@@ -34,7 +34,7 @@ pub struct FuncNode {
     pub params: Vec<ParamNode>,
     pub results: Vec<DataType>,
     pub locals: Vec<LocalNode>,
-    pub code: Box<Instruction>,
+    pub code: Vec<Instruction>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -178,9 +178,8 @@ pub enum Instruction {
     // bytecode:
     // - block_nez (param local_list_index:i32, next_inst_offset:i32)
     When {
-        // structure 'when' has NO params and NO results, however,
-        // can contains local variables.
-        locals: Vec<LocalNode>,
+        // structure 'when' has NO params and NO results, NO local variables.
+        // locals: Vec<LocalNode>,
         test: Box<Instruction>,
         consequent: Box<Instruction>,
     },
@@ -189,8 +188,10 @@ pub enum Instruction {
     // - block_alt (param type_index:i32, local_list_index:i32, alt_inst_offset:i32)
     // - break (param reversed_index:i16, next_inst_offset:i32)
     If {
+        // structure 'If' has NO params, NO local variables,
+        // but can return values.
         results: Vec<DataType>,
-        locals: Vec<LocalNode>,
+        // locals: Vec<LocalNode>,
         test: Box<Instruction>,
         consequent: Box<Instruction>,
         alternate: Box<Instruction>,
@@ -201,8 +202,10 @@ pub enum Instruction {
     // - block_nez (param local_list_index:i32, next_inst_offset:i32)
     // - break (param reversed_index:i16, next_inst_offset:i32)
     Branch {
+        // structure 'Branch' has NO params, NO local variables,
+        // but can return values.
         results: Vec<DataType>,
-        locals: Vec<LocalNode>,
+        // locals: Vec<LocalNode>,
         cases: Vec<BranchCase>,
 
         // the branch 'default' is optional, but for the structure 'branch' with
@@ -221,9 +224,11 @@ pub enum Instruction {
         code: Box<Instruction>,
     },
 
-    Code(Vec<Instruction>),
+    // Code(Vec<Instruction>),
     Do(Vec<Instruction>),
 
+    // to break the nearest 'for' structure
+    //
     // bytecode: break (param reversed_index:i16, next_inst_offset:i32)
     Break(Vec<Instruction>),
 

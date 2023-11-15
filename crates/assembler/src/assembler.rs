@@ -24,13 +24,14 @@ use ancvm_types::{opcode::Opcode, DataType};
 
 use crate::{AssembleError, ModuleEntry};
 
-struct NameBook<'a> {
+// the names of functions and datas
+struct SymbolNameBook<'a> {
     func_name_entries: &'a [FuncNameEntry],
     data_name_entries: &'a [DataNameEntry],
     external_func_name_entries: &'a [ExternalFuncNameEntry],
 }
 
-impl<'a> NameBook<'a> {
+impl<'a> SymbolNameBook<'a> {
     pub fn new(
         func_name_entries: &'a [FuncNameEntry],
         data_name_entries: &'a [DataNameEntry],
@@ -74,62 +75,66 @@ impl<'a> NameBook<'a> {
     }
 }
 
-enum FlowKind {
-    Function,
-
-    // for structure: 'branch', 'for'
-    Block,
-
-    // for structure: 'when', 'case'
-    //
-    // opcode:u16, padding:u16,
-    // local_list_index:u32,
-    // next_inst_offset:u32
-    BlockNez,
-
-    // for structure: 'if'
-    //
-    // opcode:u16, padding:u16,
-    // type_index:u32,
-    // local_list_index:u32,
-    // alt_inst_offset:u32
-    BlockAlt,
+// the stack for the control flows of a function.
+// used to stub out instructions such as 'block', 'block?' and 'break'.
+//
+// - call FlowStack::push() when entering a block
+//   (includes instruction 'block', 'block_nez', 'blocl_alt')
+// - call FlowStack::add_break() when encounting instruction 'break'
+// - call FlowStack::pop() when leaving a block
+//   i.e. the instruction 'end', and fill all stubs.
+//
+// note that instruction 'recur' doesn't need to stub,
+// because in the XiaoXuan Core Assembly, it only exists in
+// the direct or indirect child nodes of node 'block', and
+// the address of the 'block' is known at compile time.
+struct FlowStack {
+    flow_items: Vec<FlowItem>,
 }
 
 struct FlowItem {
     addr: usize, // the address of instruction
-    kind: FlowKind,
-
-    // opcode:u16, param reversed_index:u16,
-    // next_inst_offset:i32
-    //
-    // push this stub to stack ONLY if the break target is a block
-    // not a function.
-    // and the instruction break may come from another blocks, e.g.
-    // the 'break reversed-index:1' in child blocks.
-    breaks: Vec<BreakItem>,
-
+    flow_kind: FlowKind,
+    break_items: Vec<BreakItem>,
     local_names: Vec<String>,
 }
 
-// instruction 'break' only exists in node 'block_nez' and 'block_alt',
-// the value of 'reversed_index' is:
-// - 0, when in node 'block_alt'
-// - 1, when in node 'block_nez'
-struct BreakItem {
-    addr: usize,
-    reversed_index: usize,
+#[derive(Debug, PartialEq)]
+enum FlowKind {
+    Function,
+
+    // for structure: 'branch', 'for'
+    // bytecode:
+    // (opcode:u16 padding:u16 type_index:i32, local_list_index:i32)
+    Block,
+
+    // for structure: 'when', 'case'
+    //
+    // bytecode:
+    // (opcode:u16 padding:u16 local_list_index:u32 next_inst_offset:u32)
+    //
+    // stub:
+    // - next_inst_offset:u32
+    BlockNez,
+
+    // for structure: 'if'
+    //
+    // bytecode:
+    // (opcode:u16 padding:u16 type_index:u32 local_list_index:u32 alt_inst_offset:u32)
+    //
+    // stub:
+    // - alt_inst_offset:u32
+    BlockAlt,
 }
 
-// the stack of control flow
+// bytecode:
+// (opcode:u16 param reversed_index:u16 next_inst_offset:i32)
 //
-// note that instruction 'recur' doesn't need the stub stack, it
-// only exists in the direct or indirect child nodes of node 'block'.
-// the value of 'reversed_index' of 'recur' is:
-// - 0, when in direct child node of 'block'
-// - 1, when in indirect child node of 'block'
-struct FlowStack {
-    flow_items: Vec<FlowItem>,
+// stub:
+// - next_inst_offset:i32
+struct BreakItem {
+    // the address of instruction 'break'
+    addr: usize,
 }
 
 impl FlowStack {
@@ -137,31 +142,52 @@ impl FlowStack {
         Self { flow_items: vec![] }
     }
 
-    pub fn push(&mut self, addr: usize, kind: FlowKind, local_names: Vec<String>) {
+    pub fn push(&mut self, addr: usize, flow_kind: FlowKind, local_names: Vec<String>) {
         let stub_item = FlowItem {
             addr,
-            kind,
-            breaks: vec![],
+            flow_kind,
+            break_items: vec![],
             local_names,
         };
         self.flow_items.push(stub_item);
     }
 
-    pub fn pop(&mut self) -> Option<FlowItem> {
-        self.flow_items.pop()
+    pub fn pop(&mut self) -> FlowItem {
+        self.flow_items.pop().unwrap()
     }
 
     pub fn add_break(&mut self, addr: usize, reversed_index: usize) {
-        let flow_item = self.get_flow_item(reversed_index);
-        flow_item.breaks.push(BreakItem {
-            addr,
-            reversed_index,
-        });
+        let flow_item = self.get_flow_item_by_reversed_index(reversed_index);
+
+        if flow_item.flow_kind == FlowKind::Function {
+            // the instruction 'break' does not need to stub when the
+            // target is a function.
+            // because the param 'next_inst_offset' of 'break' is ignored
+            // (where can be set to '0') when the target block is the function itself.
+        } else {
+            flow_item.break_items.push(BreakItem { addr });
+        }
     }
 
-    pub fn get_flow_item(&mut self, reversed_index: usize) -> &mut FlowItem {
-        let index = self.flow_items.len() - reversed_index - 1;
-        &mut self.flow_items[index]
+    fn get_flow_item_by_reversed_index(&mut self, reversed_index: usize) -> &mut FlowItem {
+        let idx = self.flow_items.len() - reversed_index - 1;
+        &mut self.flow_items[idx]
+    }
+
+    pub fn get_block_addr(&self, reversed_index: usize) -> usize {
+        let idx = self.flow_items.len() - reversed_index - 1;
+        self.flow_items[idx].addr
+    }
+
+    pub fn get_reversed_index_to_function(&self) -> usize {
+        self.flow_items.len() - 1
+    }
+
+    pub fn get_reversed_index_to_nearest_block(&self) -> usize {
+        self.flow_items
+            .iter()
+            .rposition(|item| item.flow_kind == FlowKind::Block)
+            .expect("Can't find \"block\" on the control flow stack.")
     }
 
     /// return (reversed_index, variable_index)
@@ -248,14 +274,14 @@ pub fn assemble_module_node(module_node: &ModuleNode) -> Result<ModuleEntry, Ass
     );
     let external_func_name_entries = assemble_external_function_name_entries(module_node);
 
-    let name_book = NameBook::new(
+    let symbol_name_book = SymbolNameBook::new(
         &func_name_entries,
         &data_name_entries,
         &external_func_name_entries,
     );
 
     let (type_entries, local_list_entries, func_entries) =
-        assemble_func_nodes(&func_nodes, &name_book)?;
+        assemble_func_nodes(&func_nodes, &symbol_name_book)?;
 
     let (read_only_data_entries, read_write_data_entries, uninit_data_entries) =
         assemble_data_nodes(
@@ -350,21 +376,26 @@ fn assemble_data_name_entries(
     data_name_entries
 }
 
-fn assemble_external_function_name_entries(module_node: &ModuleNode) -> Vec<ExternalFuncNameEntry> {
-    let mut external_func_name_entries = vec![];
+fn assemble_external_function_name_entries(
+    _module_node: &ModuleNode,
+) -> Vec<ExternalFuncNameEntry> {
+    // let mut external_func_name_entries = vec![];
     // todo
-    external_func_name_entries
+    // external_func_name_entries
+    vec![]
 }
+
+type AssembleResultForFuncNode = (Vec<TypeEntry>, Vec<LocalListEntry>, Vec<FuncEntry>);
 
 fn assemble_func_nodes(
     func_nodes: &[&FuncNode],
-    name_book: &NameBook,
-) -> Result<(Vec<TypeEntry>, Vec<LocalListEntry>, Vec<FuncEntry>), AssembleError> {
+    symbol_name_book: &SymbolNameBook,
+) -> Result<AssembleResultForFuncNode, AssembleError> {
     let mut type_entries = vec![];
     let mut local_list_entries = vec![];
     let mut func_entries = vec![];
 
-    for (func_internal_idx, func_node) in func_nodes.iter().enumerate() {
+    for func_node in func_nodes {
         let type_index = find_existing_type_index_with_creating_when_not_found(
             &mut type_entries,
             &func_node.params,
@@ -377,32 +408,18 @@ fn assemble_func_nodes(
             &func_node.locals,
         );
 
-        let local_names = get_current_level_local_names_with_combine_params_and_locals(
-            &func_node.params,
-            &func_node.locals,
-        );
-
-        let mut flow_stack = FlowStack::new();
-        flow_stack.push(0, FlowKind::Function, local_names);
+        let local_names =
+            get_local_names_with_params_and_locals(&func_node.params, &func_node.locals);
 
         let code = assemble_func_code(
+            &func_node.name,
+            local_names,
             &func_node.code,
-            name_book,
+            symbol_name_book,
             &mut type_entries,
             &mut local_list_entries,
-            &mut flow_stack,
+            // &mut flow_stack,
         )?;
-
-        // check control flow stack
-        if flow_stack.flow_items.len() != 1 {
-            return Err(AssembleError::new(&format!(
-                "There is a control flow error in the function \"{}\"",
-                func_node.name
-            )));
-        }
-
-        // clear flow stack
-        flow_stack.pop();
 
         func_entries.push(FuncEntry {
             type_index,
@@ -476,7 +493,7 @@ fn find_existing_local_index_with_creating_when_not_found(
     }
 }
 
-fn get_current_level_local_names_with_combine_params_and_locals(
+fn get_local_names_with_params_and_locals(
     param_nodes: &[ParamNode],
     local_nodes: &[LocalNode],
 ) -> Vec<String> {
@@ -498,40 +515,53 @@ fn get_current_level_local_names_with_combine_params_and_locals(
 }
 
 fn assemble_func_code(
-    code: &Instruction,
-    name_book: &NameBook,
-    type_entries: &mut [TypeEntry],
-    local_list_entries: &mut [LocalListEntry],
-    flow_stack: &mut FlowStack,
+    func_name: &str,
+    local_names: Vec<String>,
+    instructions: &[Instruction],
+    symbol_name_book: &SymbolNameBook,
+    type_entries: &mut Vec<TypeEntry>,
+    local_list_entries: &mut Vec<LocalListEntry>,
+    // flow_stack: &mut FlowStack,
 ) -> Result<Vec<u8>, AssembleError> {
-    if let Instruction::Code(instructions) = code {
-        let mut bytecode_writer = BytecodeWriter::new();
+    let mut bytecode_writer = BytecodeWriter::new();
 
-        for instruction in instructions {
-            assemble_instruction(
-                instruction,
-                name_book,
-                type_entries,
-                local_list_entries,
-                flow_stack,
-                &mut bytecode_writer,
-            )?;
-        }
+    // push flow stack
+    let mut flow_stack = FlowStack::new();
+    flow_stack.push(0, FlowKind::Function, local_names);
 
-        // write the implied instruction 'end'
-        bytecode_writer.write_opcode(Opcode::end);
-
-        Ok(bytecode_writer.to_bytes())
-    } else {
-        Err(AssembleError::new("Expect function code."))
+    for instruction in instructions {
+        assemble_instruction(
+            instruction,
+            symbol_name_book,
+            type_entries,
+            local_list_entries,
+            &mut flow_stack,
+            &mut bytecode_writer,
+        )?;
     }
+
+    // write the implied instruction 'end'
+    bytecode_writer.write_opcode(Opcode::end);
+
+    // pop flow stack
+    flow_stack.pop();
+
+    // check control flow stack
+    if !flow_stack.flow_items.is_empty() {
+        return Err(AssembleError::new(&format!(
+            "Control flow does not end in the function \"{}\"",
+            func_name
+        )));
+    }
+
+    Ok(bytecode_writer.to_bytes())
 }
 
 fn assemble_instruction(
     instruction: &Instruction,
-    name_book: &NameBook,
-    type_entries: &mut [TypeEntry],
-    local_list_entries: &mut [LocalListEntry],
+    symbol_name_book: &SymbolNameBook,
+    type_entries: &mut Vec<TypeEntry>,
+    local_list_entries: &mut Vec<LocalListEntry>,
     flow_stack: &mut FlowStack,
     bytecode_writer: &mut BytecodeWriter,
 ) -> Result<(), AssembleError> {
@@ -539,7 +569,7 @@ fn assemble_instruction(
         Instruction::NoParams { opcode, operands } => assemble_instruction_kind_no_params(
             opcode,
             operands,
-            name_book,
+            symbol_name_book,
             type_entries,
             local_list_entries,
             flow_stack,
@@ -591,7 +621,7 @@ fn assemble_instruction(
         } => {
             assemble_instruction(
                 value,
-                name_book,
+                symbol_name_book,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -616,7 +646,7 @@ fn assemble_instruction(
         } => {
             assemble_instruction(
                 offset,
-                name_book,
+                symbol_name_book,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -642,7 +672,7 @@ fn assemble_instruction(
             // assemble 'offset' first, then 'value'
             assemble_instruction(
                 offset,
-                name_book,
+                symbol_name_book,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -651,7 +681,7 @@ fn assemble_instruction(
 
             assemble_instruction(
                 value,
-                name_book,
+                symbol_name_book,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -673,7 +703,7 @@ fn assemble_instruction(
             name,
             offset,
         } => {
-            let data_pub_index = name_book.get_data_pub_index(name)?;
+            let data_pub_index = symbol_name_book.get_data_pub_index(name)?;
 
             // bytecode: (param offset_bytes:i16 data_public_index:i32)
             bytecode_writer.write_opcode_i16_i32(*opcode, *offset, data_pub_index as u32);
@@ -686,14 +716,14 @@ fn assemble_instruction(
         } => {
             assemble_instruction(
                 value,
-                name_book,
+                symbol_name_book,
                 type_entries,
                 local_list_entries,
                 flow_stack,
                 bytecode_writer,
             )?;
 
-            let data_pub_index = name_book.get_data_pub_index(name)?;
+            let data_pub_index = symbol_name_book.get_data_pub_index(name)?;
 
             // bytecode: (param offset_bytes:i16 data_public_index:i32)
             bytecode_writer.write_opcode_i16_i32(*opcode, *offset, data_pub_index as u32);
@@ -705,14 +735,14 @@ fn assemble_instruction(
         } => {
             assemble_instruction(
                 offset,
-                name_book,
+                symbol_name_book,
                 type_entries,
                 local_list_entries,
                 flow_stack,
                 bytecode_writer,
             )?;
 
-            let data_pub_index = name_book.get_data_pub_index(name)?;
+            let data_pub_index = symbol_name_book.get_data_pub_index(name)?;
 
             // bytecode: (param data_public_index:i32)
             bytecode_writer.write_opcode_i32(*opcode, data_pub_index as u32);
@@ -725,7 +755,7 @@ fn assemble_instruction(
         } => {
             assemble_instruction(
                 offset,
-                name_book,
+                symbol_name_book,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -734,14 +764,14 @@ fn assemble_instruction(
 
             assemble_instruction(
                 value,
-                name_book,
+                symbol_name_book,
                 type_entries,
                 local_list_entries,
                 flow_stack,
                 bytecode_writer,
             )?;
 
-            let data_pub_index = name_book.get_data_pub_index(name)?;
+            let data_pub_index = symbol_name_book.get_data_pub_index(name)?;
 
             // bytecode: (param data_public_index:i32)
             bytecode_writer.write_opcode_i32(*opcode, data_pub_index as u32);
@@ -753,7 +783,7 @@ fn assemble_instruction(
         } => {
             assemble_instruction(
                 addr,
-                name_book,
+                symbol_name_book,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -771,7 +801,7 @@ fn assemble_instruction(
         } => {
             assemble_instruction(
                 addr,
-                name_book,
+                symbol_name_book,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -780,7 +810,7 @@ fn assemble_instruction(
 
             assemble_instruction(
                 value,
-                name_book,
+                symbol_name_book,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -793,7 +823,7 @@ fn assemble_instruction(
         Instruction::UnaryOp { opcode, number } => {
             assemble_instruction(
                 number,
-                name_book,
+                symbol_name_book,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -809,7 +839,7 @@ fn assemble_instruction(
         } => {
             assemble_instruction(
                 number,
-                name_book,
+                symbol_name_book,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -826,7 +856,7 @@ fn assemble_instruction(
             // assemble 'left' first, then 'right'
             assemble_instruction(
                 left,
-                name_book,
+                symbol_name_book,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -835,7 +865,7 @@ fn assemble_instruction(
 
             assemble_instruction(
                 right,
-                name_book,
+                symbol_name_book,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -845,7 +875,7 @@ fn assemble_instruction(
             bytecode_writer.write_opcode(*opcode);
         }
         Instruction::When {
-            locals,
+            // locals,
             test,
             consequent,
         } => {
@@ -857,11 +887,61 @@ fn assemble_instruction(
             // | }                 | )                 | end        |       |
             // |                   |                   | ...    <---/       |
             // |-------------------|-------------------|--------------------|
+
+            // bytecode:
+            // - block_nez (param local_list_index:i32, next_inst_offset:i32)
+
+            // assemble node 'test'
+            assemble_instruction(
+                test,
+                symbol_name_book,
+                type_entries,
+                local_list_entries,
+                flow_stack,
+                bytecode_writer,
+            )?;
+
+            // local index and names
+            let local_list_index = find_existing_local_index_with_creating_when_not_found(
+                local_list_entries,
+                &[],
+                &[],
+            );
+
+            // push flow stack
+            let addr_of_block_nez = bytecode_writer.get_addr();
+            flow_stack.push(addr_of_block_nez, FlowKind::BlockNez, vec![]);
+
+            // write inst 'block_nez'
+            bytecode_writer.write_opcode_i32_i32(
+                Opcode::block_nez,
+                local_list_index as u32,
+                0, // stub for 'next_inst_offset'
+            );
+
+            // assemble node 'consequent'
+            assemble_instruction(
+                consequent,
+                symbol_name_book,
+                type_entries,
+                local_list_entries,
+                flow_stack,
+                bytecode_writer,
+            )?;
+
+            // write inst 'end'
+            bytecode_writer.write_opcode(Opcode::end);
+            let addr_of_next_to_end = bytecode_writer.get_addr();
+
+            // pop flow stck
+            let flow_item = flow_stack.pop();
+
+            // fill stubs
+            fill_stubs_for_block_end(&flow_item, bytecode_writer, addr_of_next_to_end);
         }
         Instruction::If {
-            // params,
             results,
-            locals,
+            // locals,
             test,
             consequent,
             alternate,
@@ -890,11 +970,92 @@ fn assemble_instruction(
             // |                   |                   | ...        <-----/ |
             // |                   |                   |                    |
             // |                   | ----------------- | ------------------ |
+
+            // bytecode:
+            // - block_alt (param type_index:i32, local_list_index:i32, alt_inst_offset:i32)
+            // - break (param reversed_index:i16, next_inst_offset:i32)
+
+            // assemble node 'test'
+            assemble_instruction(
+                test,
+                symbol_name_book,
+                type_entries,
+                local_list_entries,
+                flow_stack,
+                bytecode_writer,
+            )?;
+
+            // type index
+            let type_index =
+                find_existing_type_index_with_creating_when_not_found(type_entries, &[], results);
+
+            // local index
+            let local_list_index = find_existing_local_index_with_creating_when_not_found(
+                local_list_entries,
+                &[],
+                &[],
+            );
+
+            // push flow stack
+            let addr_of_block_alt = bytecode_writer.get_addr();
+            flow_stack.push(addr_of_block_alt, FlowKind::BlockAlt, vec![]);
+
+            // write inst 'block_alt'
+            bytecode_writer.write_opcode_i32_i32_i32(
+                Opcode::block_alt,
+                type_index as u32,
+                local_list_index as u32,
+                0, // stub for 'alt_inst_offset'
+            );
+
+            // assemble node 'consequent'
+            assemble_instruction(
+                consequent,
+                symbol_name_book,
+                type_entries,
+                local_list_entries,
+                flow_stack,
+                bytecode_writer,
+            )?;
+
+            // write inst 'break'
+            let addr_of_break = bytecode_writer.get_addr();
+            bytecode_writer.write_opcode_i16_i32(
+                Opcode::break_,
+                0, // reversed_index
+                0, // next_inst_offset
+            );
+            let addr_of_next_to_break = bytecode_writer.get_addr();
+
+            // fill the stub of inst 'block_alt'
+            bytecode_writer.fill_block_alt_stub(addr_of_block_alt, addr_of_next_to_break as u32);
+
+            // add break item
+            flow_stack.add_break(addr_of_break, 0);
+
+            // assemble node 'alternate'
+            assemble_instruction(
+                alternate,
+                symbol_name_book,
+                type_entries,
+                local_list_entries,
+                flow_stack,
+                bytecode_writer,
+            )?;
+
+            // write inst 'end'
+            bytecode_writer.write_opcode(Opcode::end);
+            let addr_of_next_to_end = bytecode_writer.get_addr();
+
+            // pop flow stck
+            let flow_item = flow_stack.pop();
+
+            // fill stubs
+            fill_stubs_for_block_end(&flow_item, bytecode_writer, addr_of_next_to_end);
         }
         Instruction::Branch {
-            // params,
             results,
-            locals,
+            // locals,
             cases,
             default,
         } => {
@@ -916,6 +1077,121 @@ fn assemble_instruction(
             // |                   |                   | end             |  |
             // |                   |                   | ...        <----/  |
             // |-------------------|-------------------|--------------------|
+
+            // bytecode:
+            // - block (param type_index:i32, local_list_index:i32)
+            // - block_nez (param local_list_index:i32, next_inst_offset:i32)
+            // - break (param reversed_index:i16, next_inst_offset:i32)
+
+            // type index
+            let type_index =
+                find_existing_type_index_with_creating_when_not_found(type_entries, &[], results);
+
+            // local index and names
+            let local_list_index = find_existing_local_index_with_creating_when_not_found(
+                local_list_entries,
+                &[],
+                &[],
+            );
+
+            // push flow stack
+            let addr_of_block = bytecode_writer.get_addr();
+            flow_stack.push(addr_of_block, FlowKind::Block, vec![]);
+
+            // write inst 'block'
+            bytecode_writer.write_opcode_i32_i32(
+                Opcode::block,
+                type_index as u32,
+                local_list_index as u32,
+            );
+
+            // write branches
+            for case in cases {
+                // assemble node 'test'
+                assemble_instruction(
+                    &case.test,
+                    symbol_name_book,
+                    type_entries,
+                    local_list_entries,
+                    flow_stack,
+                    bytecode_writer,
+                )?;
+
+                // local index and names
+                let case_local_list_index = find_existing_local_index_with_creating_when_not_found(
+                    local_list_entries,
+                    &[],
+                    &[],
+                );
+
+                // push flow stack
+                let addr_of_block_nez = bytecode_writer.get_addr();
+                flow_stack.push(addr_of_block_nez, FlowKind::BlockNez, vec![]);
+
+                // write inst 'block_nez'
+                bytecode_writer.write_opcode_i32_i32(
+                    Opcode::block_nez,
+                    case_local_list_index as u32,
+                    0, // stub for 'next_inst_offset'
+                );
+
+                // assemble node 'consequent'
+                assemble_instruction(
+                    &case.consequent,
+                    symbol_name_book,
+                    type_entries,
+                    local_list_entries,
+                    flow_stack,
+                    bytecode_writer,
+                )?;
+
+                // write inst 'break 1'
+                let addr_of_break = bytecode_writer.get_addr();
+                bytecode_writer.write_opcode_i16_i32(
+                    Opcode::break_,
+                    1,
+                    0, // stub for 'next_inst_offset'
+                );
+
+                // add 'break' item to control flow stack
+                flow_stack.add_break(addr_of_break, 1);
+
+                // write inst 'end'
+                bytecode_writer.write_opcode(Opcode::end);
+                let addr_of_next_to_end = bytecode_writer.get_addr();
+
+                // pop flow stck
+                let flow_item = flow_stack.pop();
+
+                // fill stubs
+                fill_stubs_for_block_end(&flow_item, bytecode_writer, addr_of_next_to_end);
+            }
+
+            // write node 'default'
+            if let Some(default_instruction) = default {
+                // assemble node 'consequent'
+                assemble_instruction(
+                    default_instruction,
+                    symbol_name_book,
+                    type_entries,
+                    local_list_entries,
+                    flow_stack,
+                    bytecode_writer,
+                )?;
+            } else {
+                // write the inst 'unreachable'
+                bytecode_writer.write_opcode(Opcode::unreachable);
+            }
+
+            // write inst 'end'
+            bytecode_writer.write_opcode(Opcode::end);
+            let addr_of_next_to_end = bytecode_writer.get_addr();
+
+            // pop flow stack
+            let flow_item = flow_stack.pop();
+
+            // fill stubs
+            fill_stubs_for_block_end(&flow_item, bytecode_writer, addr_of_next_to_end);
         }
         Instruction::For {
             params,
@@ -952,36 +1228,217 @@ fn assemble_instruction(
             // |                   |                   |                    |
             // |                   |                   |                    |
             // |-------------------|-------------------|--------------------|
+
+            // bytecode:
+            // - block (param type_index:i32, local_list_index:i32)
+            // - recur (param reversed_index:i16, start_inst_offset:i32)
+
+            // type index
+            let type_index =
+                find_existing_type_index_with_creating_when_not_found(type_entries, &[], results);
+
+            // local index
+            let local_list_index = find_existing_local_index_with_creating_when_not_found(
+                local_list_entries,
+                params,
+                locals,
+            );
+
+            // local names
+            let local_names = get_local_names_with_params_and_locals(params, locals);
+
+            // push flow stack
+            let addr_of_block = bytecode_writer.get_addr();
+            flow_stack.push(addr_of_block, FlowKind::Block, local_names);
+
+            // write inst 'block'
+            bytecode_writer.write_opcode_i32_i32(
+                Opcode::block,
+                type_index as u32,
+                local_list_index as u32,
+            );
+
+            // assemble node 'consequent'
+            assemble_instruction(
+                code,
+                symbol_name_book,
+                type_entries,
+                local_list_entries,
+                flow_stack,
+                bytecode_writer,
+            )?;
+
+            // write inst 'end'
+            bytecode_writer.write_opcode(Opcode::end);
+            let addr_of_next_to_end = bytecode_writer.get_addr();
+
+            // pop flow stack
+            let flow_item = flow_stack.pop();
+
+            // fill stubs
+            fill_stubs_for_block_end(&flow_item, bytecode_writer, addr_of_next_to_end);
         }
-        Instruction::Code(_) => todo!(),
-        Instruction::Do(_) => todo!(),
-        Instruction::Break(_) => todo!(),
-        Instruction::Recur(_) => todo!(),
-        Instruction::Return(_) => todo!(),
-        Instruction::TailCall(_) => todo!(),
-        Instruction::Call { name, args } => todo!(),
-        Instruction::DynCall { num, args } => todo!(),
-        Instruction::EnvCall { num, args } => todo!(),
-        Instruction::SysCall { num, args } => todo!(),
-        Instruction::ExtCall { name, args } => todo!(),
+        // Instruction::Code(_) => {
+        //     unreachable!("Only node \"function\" can have child node \"code\".")
+        // },
+        Instruction::Do(instructions) => {
+            for instruction in instructions {
+                assemble_instruction(
+                    instruction,
+                    symbol_name_book,
+                    type_entries,
+                    local_list_entries,
+                    flow_stack,
+                    bytecode_writer,
+                )?;
+            }
+        }
+        Instruction::Break(instructions) => {
+            // note that the statement 'break' is not the same as the instruction 'break',
+            // the statement 'break' only break the nearest instruction 'block'.
+
+            for instruction in instructions {
+                assemble_instruction(
+                    instruction,
+                    symbol_name_book,
+                    type_entries,
+                    local_list_entries,
+                    flow_stack,
+                    bytecode_writer,
+                )?;
+            }
+
+            let addr_of_break = bytecode_writer.get_addr();
+            let reversed_index = flow_stack.get_reversed_index_to_nearest_block();
+
+            // write inst 'break'
+            bytecode_writer.write_opcode_i16_i32(
+                Opcode::break_,
+                reversed_index as u16,
+                0, // stub for 'next_inst_offset'
+            );
+
+            flow_stack.add_break(addr_of_break, reversed_index);
+        }
+        Instruction::Recur(instructions) => {
+            // note that the statement 'recur' is not the same as the instruction 'recur',
+            // the statement 'recur' only recur to the nearest instruction 'block'.
+
+            for instruction in instructions {
+                assemble_instruction(
+                    instruction,
+                    symbol_name_book,
+                    type_entries,
+                    local_list_entries,
+                    flow_stack,
+                    bytecode_writer,
+                )?;
+            }
+
+            let addr_of_recur = bytecode_writer.get_addr();
+            let reversed_index = flow_stack.get_reversed_index_to_nearest_block();
+            let addr_of_block = flow_stack.get_block_addr(reversed_index);
+
+            let start_inst_offset = (addr_of_recur - addr_of_block) as u32;
+
+            // write inst 'recur'
+            bytecode_writer.write_opcode_i16_i32(
+                Opcode::recur,
+                reversed_index as u16,
+                start_inst_offset,
+            );
+        }
+        Instruction::Return(instructions) => {
+            // break to the function
+            for instruction in instructions {
+                assemble_instruction(
+                    instruction,
+                    symbol_name_book,
+                    type_entries,
+                    local_list_entries,
+                    flow_stack,
+                    bytecode_writer,
+                )?;
+            }
+
+            let reversed_index = flow_stack.get_reversed_index_to_function();
+
+            // write inst 'break'
+            bytecode_writer.write_opcode_i16_i32(
+                Opcode::break_,
+                reversed_index as u16,
+                0, // 'next_inst_offset' is ignored when the target is the function
+            );
+        }
+        Instruction::TailCall(instructions) => {
+            // recur to the function
+
+            for instruction in instructions {
+                assemble_instruction(
+                    instruction,
+                    symbol_name_book,
+                    type_entries,
+                    local_list_entries,
+                    flow_stack,
+                    bytecode_writer,
+                )?;
+            }
+
+            let reversed_index = flow_stack.get_reversed_index_to_function();
+
+            // write inst 'recur'
+            bytecode_writer.write_opcode_i16_i32(
+                Opcode::recur,
+                reversed_index as u16,
+                0, // 'start_inst_offset' is ignored when the target is function
+            );
+        }
+        Instruction::Call { name: _, args: _ } => todo!(),
+        Instruction::DynCall { num: _, args: _ } => todo!(),
+        Instruction::EnvCall { num: _, args: _ } => todo!(),
+        Instruction::SysCall { num: _, args: _ } => todo!(),
+        Instruction::ExtCall { name: _, args: _ } => todo!(),
     }
 
     Ok(())
 }
 
+fn fill_stubs_for_block_end(
+    flow_item: &FlowItem,
+    bytecode_writer: &mut BytecodeWriter,
+    addr_of_next_to_end: usize,
+) {
+    let addr_of_block = flow_item.addr;
+    let next_inst_offset = (addr_of_next_to_end - addr_of_block) as u32;
+
+    match flow_item.flow_kind {
+        FlowKind::BlockNez => {
+            bytecode_writer.fill_block_nez_stub(addr_of_block, next_inst_offset);
+        }
+        _ => {
+            // only inst 'block_nez' has stub 'next_inst_offset'.
+        }
+    }
+
+    // fill stubs of insts 'break'
+    for break_item in &flow_item.break_items {
+        bytecode_writer.fill_break_stub(break_item.addr, next_inst_offset);
+    }
+}
+
 fn assemble_instruction_kind_no_params(
     opcode: &Opcode,
     operands: &[Instruction],
-    name_book: &NameBook,
-    type_entries: &mut [TypeEntry],
-    local_list_entries: &mut [LocalListEntry],
+    symbol_name_book: &SymbolNameBook,
+    type_entries: &mut Vec<TypeEntry>,
+    local_list_entries: &mut Vec<LocalListEntry>,
     flow_stack: &mut FlowStack,
     bytecode_writer: &mut BytecodeWriter,
 ) -> Result<(), AssembleError> {
     for instruction in operands {
         assemble_instruction(
             instruction,
-            name_book,
+            symbol_name_book,
             type_entries,
             local_list_entries,
             flow_stack,
@@ -994,18 +1451,17 @@ fn assemble_instruction_kind_no_params(
     Ok(())
 }
 
+type AssembleResultForDataNodes = (
+    Vec<InitedDataEntry>,
+    Vec<InitedDataEntry>,
+    Vec<UninitDataEntry>,
+);
+
 fn assemble_data_nodes(
     read_only_data_nodes: &[&DataNode],
     read_write_data_nodes: &[&DataNode],
     uninit_data_nodes: &[&DataNode],
-) -> Result<
-    (
-        Vec<InitedDataEntry>,
-        Vec<InitedDataEntry>,
-        Vec<UninitDataEntry>,
-    ),
-    AssembleError,
-> {
+) -> Result<AssembleResultForDataNodes, AssembleError> {
     let read_only_data_entries = read_only_data_nodes
         .iter()
         .map(|node| match &node.data_kind {

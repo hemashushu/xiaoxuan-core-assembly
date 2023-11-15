@@ -787,7 +787,7 @@ fn init_instruction_kind_table_internal() {
     add("for", InstructionKind::For);
 
     add("do", InstructionKind::Sequence("do"));
-    add("code", InstructionKind::Sequence("code"));
+    // add("code", InstructionKind::Sequence("code"));
     add("break", InstructionKind::Sequence("break"));
     add("return", InstructionKind::Sequence("return"));
     add("recur", InstructionKind::Sequence("recur"));
