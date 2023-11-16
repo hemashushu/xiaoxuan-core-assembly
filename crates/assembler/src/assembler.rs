@@ -184,10 +184,12 @@ impl FlowStack {
     }
 
     pub fn get_reversed_index_to_nearest_block(&self) -> usize {
-        self.flow_items
+        let idx = self
+            .flow_items
             .iter()
             .rposition(|item| item.flow_kind == FlowKind::Block)
-            .expect("Can't find \"block\" on the control flow stack.")
+            .expect("Can't find \"block\" on the control flow stack.");
+        self.flow_items.len() - idx - 1
     }
 
     /// return (reversed_index, variable_index)
@@ -908,16 +910,15 @@ fn assemble_instruction(
                 &[],
             );
 
-            // push flow stack
-            let addr_of_block_nez = bytecode_writer.get_addr();
-            flow_stack.push(addr_of_block_nez, FlowKind::BlockNez, vec![]);
-
             // write inst 'block_nez'
-            bytecode_writer.write_opcode_i32_i32(
+            let addr_of_block_nez = bytecode_writer.write_opcode_i32_i32(
                 Opcode::block_nez,
                 local_list_index as u32,
                 0, // stub for 'next_inst_offset'
             );
+
+            // push flow stack
+            flow_stack.push(addr_of_block_nez, FlowKind::BlockNez, vec![]);
 
             // assemble node 'consequent'
             assemble_instruction(
@@ -996,17 +997,16 @@ fn assemble_instruction(
                 &[],
             );
 
-            // push flow stack
-            let addr_of_block_alt = bytecode_writer.get_addr();
-            flow_stack.push(addr_of_block_alt, FlowKind::BlockAlt, vec![]);
-
             // write inst 'block_alt'
-            bytecode_writer.write_opcode_i32_i32_i32(
+            let addr_of_block_alt = bytecode_writer.write_opcode_i32_i32_i32(
                 Opcode::block_alt,
                 type_index as u32,
                 local_list_index as u32,
                 0, // stub for 'alt_inst_offset'
             );
+
+            // push flow stack
+            flow_stack.push(addr_of_block_alt, FlowKind::BlockAlt, vec![]);
 
             // assemble node 'consequent'
             assemble_instruction(
@@ -1019,8 +1019,7 @@ fn assemble_instruction(
             )?;
 
             // write inst 'break'
-            let addr_of_break = bytecode_writer.get_addr();
-            bytecode_writer.write_opcode_i16_i32(
+            let addr_of_break = bytecode_writer.write_opcode_i16_i32(
                 Opcode::break_,
                 0, // reversed_index
                 0, // next_inst_offset
@@ -1094,16 +1093,15 @@ fn assemble_instruction(
                 &[],
             );
 
-            // push flow stack
-            let addr_of_block = bytecode_writer.get_addr();
-            flow_stack.push(addr_of_block, FlowKind::Block, vec![]);
-
             // write inst 'block'
-            bytecode_writer.write_opcode_i32_i32(
+            let addr_of_block = bytecode_writer.write_opcode_i32_i32(
                 Opcode::block,
                 type_index as u32,
                 local_list_index as u32,
             );
+
+            // push flow stack
+            flow_stack.push(addr_of_block, FlowKind::Block, vec![]);
 
             // write branches
             for case in cases {
@@ -1124,16 +1122,15 @@ fn assemble_instruction(
                     &[],
                 );
 
-                // push flow stack
-                let addr_of_block_nez = bytecode_writer.get_addr();
-                flow_stack.push(addr_of_block_nez, FlowKind::BlockNez, vec![]);
-
                 // write inst 'block_nez'
-                bytecode_writer.write_opcode_i32_i32(
+                let addr_of_block_nez = bytecode_writer.write_opcode_i32_i32(
                     Opcode::block_nez,
                     case_local_list_index as u32,
                     0, // stub for 'next_inst_offset'
                 );
+
+                // push flow stack
+                flow_stack.push(addr_of_block_nez, FlowKind::BlockNez, vec![]);
 
                 // assemble node 'consequent'
                 assemble_instruction(
@@ -1146,8 +1143,8 @@ fn assemble_instruction(
                 )?;
 
                 // write inst 'break 1'
-                let addr_of_break = bytecode_writer.get_addr();
-                bytecode_writer.write_opcode_i16_i32(
+
+                let addr_of_break = bytecode_writer.write_opcode_i16_i32(
                     Opcode::break_,
                     1,
                     0, // stub for 'next_inst_offset'
@@ -1234,8 +1231,11 @@ fn assemble_instruction(
             // - recur (param reversed_index:i16, start_inst_offset:i32)
 
             // type index
-            let type_index =
-                find_existing_type_index_with_creating_when_not_found(type_entries, &[], results);
+            let type_index = find_existing_type_index_with_creating_when_not_found(
+                type_entries,
+                params,
+                results,
+            );
 
             // local index
             let local_list_index = find_existing_local_index_with_creating_when_not_found(
@@ -1247,16 +1247,15 @@ fn assemble_instruction(
             // local names
             let local_names = get_local_names_with_params_and_locals(params, locals);
 
-            // push flow stack
-            let addr_of_block = bytecode_writer.get_addr();
-            flow_stack.push(addr_of_block, FlowKind::Block, local_names);
-
             // write inst 'block'
-            bytecode_writer.write_opcode_i32_i32(
+            let addr_of_block = bytecode_writer.write_opcode_i32_i32(
                 Opcode::block,
                 type_index as u32,
                 local_list_index as u32,
             );
+
+            // push flow stack
+            flow_stack.push(addr_of_block, FlowKind::Block, local_names);
 
             // assemble node 'consequent'
             assemble_instruction(
@@ -1308,11 +1307,10 @@ fn assemble_instruction(
                 )?;
             }
 
-            let addr_of_break = bytecode_writer.get_addr();
             let reversed_index = flow_stack.get_reversed_index_to_nearest_block();
 
             // write inst 'break'
-            bytecode_writer.write_opcode_i16_i32(
+            let addr_of_break = bytecode_writer.write_opcode_i16_i32(
                 Opcode::break_,
                 reversed_index as u16,
                 0, // stub for 'next_inst_offset'
@@ -1335,18 +1333,18 @@ fn assemble_instruction(
                 )?;
             }
 
-            let addr_of_recur = bytecode_writer.get_addr();
             let reversed_index = flow_stack.get_reversed_index_to_nearest_block();
-            let addr_of_block = flow_stack.get_block_addr(reversed_index);
-
-            let start_inst_offset = (addr_of_recur - addr_of_block) as u32;
 
             // write inst 'recur'
-            bytecode_writer.write_opcode_i16_i32(
+            let addr_of_recur = bytecode_writer.write_opcode_i16_i32(
                 Opcode::recur,
                 reversed_index as u16,
-                start_inst_offset,
+                0, // stub for 'start_inst_offset'
             );
+
+            let addr_of_block = flow_stack.get_block_addr(reversed_index);
+            let start_inst_offset = (addr_of_recur - addr_of_block) as u32;
+            bytecode_writer.fill_recur_stub(addr_of_recur, start_inst_offset);
         }
         Instruction::Return(instructions) => {
             // break to the function
@@ -1409,11 +1407,11 @@ fn fill_stubs_for_block_end(
     addr_of_next_to_end: usize,
 ) {
     let addr_of_block = flow_item.addr;
-    let next_inst_offset = (addr_of_next_to_end - addr_of_block) as u32;
+    let next_inst_offset_of_block = (addr_of_next_to_end - addr_of_block) as u32;
 
     match flow_item.flow_kind {
         FlowKind::BlockNez => {
-            bytecode_writer.fill_block_nez_stub(addr_of_block, next_inst_offset);
+            bytecode_writer.fill_block_nez_stub(addr_of_block, next_inst_offset_of_block);
         }
         _ => {
             // only inst 'block_nez' has stub 'next_inst_offset'.
@@ -1422,7 +1420,9 @@ fn fill_stubs_for_block_end(
 
     // fill stubs of insts 'break'
     for break_item in &flow_item.break_items {
-        bytecode_writer.fill_break_stub(break_item.addr, next_inst_offset);
+        let addr_of_break = break_item.addr;
+        let next_inst_offset_of_break = (addr_of_next_to_end - addr_of_break) as u32;
+        bytecode_writer.fill_break_stub(break_item.addr, next_inst_offset_of_break);
     }
 }
 

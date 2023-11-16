@@ -196,6 +196,13 @@ pub fn link(
 
 #[cfg(test)]
 mod tests {
+    use ancvm_binary::{
+        bytecode_reader::print_bytecode_as_text,
+        module_image::{
+            local_variable_section::{LocalListEntry, LocalVariableEntry},
+            type_section::TypeEntry,
+        },
+    };
     use ancvm_parser::{
         instruction_kind::init_instruction_kind_table, lexer::lex, parser::parse,
         peekable_iterator::PeekableIterator,
@@ -204,7 +211,7 @@ mod tests {
     use ancvm_runtime::{
         in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
     };
-    use ancvm_types::ForeignValue;
+    use ancvm_types::{DataType, ForeignValue, MemoryDataType};
 
     use crate::assembler::assemble_module_node;
 
@@ -232,10 +239,16 @@ mod tests {
             (runtime_version "1.0")
             (func $main
                 (param $a i32) (param $b i32)
-                (results i32 i32)
+                (results i32)
+                (local $c i32)
                 (code
-                    (local.load32_i32 $a)
-                    (local.load32_i32 $b)
+                    (local.store32 $c
+                        (i32.add
+                            (local.load32_i32 $a)
+                            (local.load32_i32 $b)
+                        )
+                    )
+                    (local.load32_i32 $c)
                 )
             )
         )
@@ -244,6 +257,69 @@ mod tests {
 
         let program_source0 = InMemoryProgramSource::new(module_binaries);
         let program0 = program_source0.build_program().unwrap();
+
+        let func_entry = program0.module_images[0]
+            .get_func_section()
+            .get_func_entry(0);
+
+        let bytecode_text = print_bytecode_as_text(&func_entry.code);
+
+        // println!("{}", bytecode_text);
+
+        assert_eq!(
+            "\
+0x0000  02 02 00 00  00 00 00 00    local.load32_i32  rev:0   off:0x00  idx:0
+0x0008  02 02 00 00  00 00 01 00    local.load32_i32  rev:0   off:0x00  idx:1
+0x0010  00 07                       i32.add
+0x0012  09 02 00 00  00 00 02 00    local.store32     rev:0   off:0x00  idx:2
+0x001a  02 02 00 00  00 00 02 00    local.load32_i32  rev:0   off:0x00  idx:2
+0x0022  00 0a                       end",
+            bytecode_text
+        );
+
+        assert_eq!(func_entry.type_index, 0);
+
+        let type_entry = program0.module_images[0]
+            .get_type_section()
+            .get_type_entry(func_entry.type_index);
+
+        assert_eq!(
+            type_entry,
+            TypeEntry {
+                params: vec![DataType::I32, DataType::I32],
+                results: vec![DataType::I32]
+            }
+        );
+
+        assert_eq!(func_entry.local_list_index, 0);
+
+        let local_list_entry = program0.module_images[0]
+            .get_local_variable_section()
+            .get_local_list_entry(func_entry.local_list_index);
+
+        assert_eq!(
+            local_list_entry,
+            LocalListEntry {
+                variable_entries: vec![
+                    LocalVariableEntry {
+                        memory_data_type: MemoryDataType::I32,
+                        length: 4,
+                        align: 4
+                    },
+                    LocalVariableEntry {
+                        memory_data_type: MemoryDataType::I32,
+                        length: 4,
+                        align: 4
+                    },
+                    LocalVariableEntry {
+                        memory_data_type: MemoryDataType::I32,
+                        length: 4,
+                        align: 4
+                    }
+                ]
+            }
+        );
+
         let mut thread_context0 = program0.create_thread_context();
 
         let result0 = process_function(
@@ -252,9 +328,7 @@ mod tests {
             0,
             &[ForeignValue::UInt32(11), ForeignValue::UInt32(13)],
         );
-        assert_eq!(
-            result0.unwrap(),
-            vec![ForeignValue::UInt32(11), ForeignValue::UInt32(13),]
-        );
+
+        assert_eq!(result0.unwrap(), vec![ForeignValue::UInt32(24)]);
     }
 }
