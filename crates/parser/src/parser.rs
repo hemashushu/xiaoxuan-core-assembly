@@ -19,7 +19,7 @@
 //    tree structure. e.g.
 //
 //    ```clojure
-//    (func $name (param $lhs i32) (param $rhs i32) (result i32)
+//    (fn $name (param $lhs i32) (param $rhs i32) (result i32)
 //        (code
 //            (i32.add
 //                (local.load32_i32 $lhs) (local.load32_i32 $rhs)
@@ -125,7 +125,7 @@ pub fn parse_module_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleNod
     while iter.look_ahead_equals(0, &Token::LeftParen) {
         if let Some(Token::Symbol(child_node_name)) = iter.peek(1) {
             let element_node = match child_node_name.as_str() {
-                "func" => parse_func_node(iter)?,
+                "fn" => parse_fn_node(iter)?,
                 "data" => parse_data_node(iter)?,
                 _ => {
                     return Err(ParseError::new(&format!(
@@ -189,14 +189,14 @@ fn parse_module_runtime_version_node(
     Ok((major, minor))
 }
 
-fn parse_func_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNode, ParseError> {
-    // (func ...) ...  //
+fn parse_fn_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNode, ParseError> {
+    // (fn ...) ...  //
     // ^        ^____// to here
     // |_____________// current token
 
     // the node 'fn' syntax:
     //
-    // (func $name (param $param_0 DATA_TYPE) ...
+    // (fn $name (param $param_0 DATA_TYPE) ...
     //           (result DATA_TYPE) ...
     //           (local $local_variable_name LOCAL_DATA_TYPE) ...
     //           (code ...)
@@ -204,25 +204,25 @@ fn parse_func_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNo
 
     // e.g.
     //
-    // (func $add (param $lhs i32) (param $rhs i32) (result i32) ...)     ;; signature
-    // (func $add (param $lhs i32) (result i32) (result i32) ...)         ;; signature with multiple return values
-    // (func $add (param $lhs i32) (results i32 i32) ...)                 ;; signature with multiple return values
-    // (func $add
+    // (fn $add (param $lhs i32) (param $rhs i32) (result i32) ...)     ;; signature
+    // (fn $add (param $lhs i32) (result i32) (result i32) ...)         ;; signature with multiple return values
+    // (fn $add (param $lhs i32) (results i32 i32) ...)                 ;; signature with multiple return values
+    // (fn $add
     //     (local $sum i32)             ;; local variable with identifier and data type
     //     (local $db (bytes 12 4))     ;; bytes-type local variable
     //     ...
     // )
     //
-    // (func $add
+    // (fn $add
     //     (code ...)                   ;; the function body, the instructions sequence, sholud be written inside the node '(code)'
     // )
 
     // function with 'exported' annotation
-    // (func $add exported ...)
+    // (fn $add exported ...)
 
-    consume_left_paren(iter, "func")?;
-    consume_symbol(iter, "func")?;
-    let name = expect_identifier(iter, "func")?;
+    consume_left_paren(iter, "fn")?;
+    consume_symbol(iter, "fn")?;
+    let name = expect_identifier(iter, "fn")?;
     let exported = expect_specified_symbol_optional(iter, "exported");
     let (params, results) = parse_optional_signature(iter)?;
     let locals: Vec<LocalNode> = parse_optional_local_variables(iter)?;
@@ -541,7 +541,7 @@ fn parse_instruction_sequence_node(
     // other sequence nodes:
     //
     // - (recur ...)
-    // - (tailcall ...)
+    // - (rerun ...)
     // - (break ...)
     // - (return ...)
 
@@ -561,7 +561,7 @@ fn parse_instruction_sequence_node(
         "break" => Instruction::Break(instructions),
         "recur" => Instruction::Recur(instructions),
         "return" => Instruction::Return(instructions),
-        "tailcall" => Instruction::TailCall(instructions),
+        "rerun" => Instruction::Rerun(instructions),
         _ => unreachable!(),
     };
     Ok(instruction)
@@ -761,7 +761,7 @@ fn parse_instruction_without_parentheses(
                 }
             }
             _ => Err(ParseError::new(&format!(
-                "Instruction \"{}\" should have parameters.",
+                "Instruction \"{}\" should be written with parentheses.",
                 inst_name
             ))),
         }
@@ -1989,7 +1989,7 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (func $add (param $lhs i32) (param $rhs i64) (result i32) (result i64)
+                (fn $add (param $lhs i32) (param $rhs i64) (result i32) (result i64)
                     ;; no local variables
                     (code)
                 )
@@ -2028,7 +2028,7 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (func $add (param $lhs i32) (param $rhs i64) (results i32 i64) (result f32) (result f64)
+                (fn $add (param $lhs i32) (param $rhs i64) (results i32 i64) (result f32) (result f64)
                     ;; no local variables
                     (code)
                 )
@@ -2067,7 +2067,7 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (func $add exported (code))
+                (fn $add exported (code))
             )
             "#
             )
@@ -2093,7 +2093,7 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (func (code))
+                (fn (code))
             )
             "#
             ),
@@ -2106,7 +2106,7 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (func $add)
+                (fn $add)
             )
             "#
             ),
@@ -2121,7 +2121,7 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (func $add
+                (fn $add
                     ;; no params and results
                     (local $sum i32) (local $count i64) (local $db (bytes 12 8)) (local $average f32)
                     (code)
@@ -2178,7 +2178,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (func $test
+                (fn $test
                     (code
                         nop
                         (drop zero)
@@ -2201,7 +2201,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (func $test
+                (fn $test
                     (code
                         (i32.imm 11)
                         (i32.imm 0x13)
@@ -2249,7 +2249,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (func $test
+                (fn $test
                     (code
                         (f32.imm 3.1415927)
                         (f32.imm 0x40490fdb)
@@ -2283,7 +2283,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (func $test
+                (fn $test
                     (code
                         (i32.eqz (i32.imm 11))
                         (i32.inc 1 (i32.imm 13))
@@ -2339,7 +2339,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (func $test
+                (fn $test
                     (code
                         (local.load32_i32 $sum)
                         (local.load64_i64 $count 4)
@@ -2398,7 +2398,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (func $test
+                (fn $test
                     (code
                         (data.load32_i32 $sum)
                         (data.load64_i64 $count 4)
@@ -2460,7 +2460,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (func $test
+                (fn $test
                     (code
                         (heap.load32_i32 (i32.imm 11))
                         (heap.load64_i64 4 (i32.imm 13))
@@ -2507,7 +2507,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (func $test
+                (fn $test
                     (code
                         (when
                             (i32.eq (i32.imm 11) (i32.imm 13))
@@ -2534,7 +2534,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (func $test
+                (fn $test
                     (code
                         (when
                             zero
@@ -2568,7 +2568,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (func $test
+                (fn $test
                     (code
                         (when (param $a i32) zero zero)
                     )
@@ -2585,7 +2585,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (func $test
+                (fn $test
                     (code
                         (when (result i32) zero zero)
                     )
@@ -2602,7 +2602,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (func $test
+                (fn $test
                     (code
                         (when (local $a i32) zero zero)
                     )
@@ -2621,7 +2621,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (func $test
+                (fn $test
                     (code
                         (if
                             (i32.eq (i32.imm 11) (i32.imm 13))
@@ -2650,7 +2650,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (func $test
+                (fn $test
                     (code
                         (if
                             (result i32)
@@ -2705,7 +2705,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (func $test
+                (fn $test
                     (code
                         (if
                             (param $a i32)
@@ -2725,7 +2725,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (func $test
+                (fn $test
                     (code
                         (if
                             (local $a i32)
@@ -2747,7 +2747,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (func $test
+                (fn $test
                     (code
                         (branch
                             (result i32)
@@ -2801,7 +2801,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (func $test
+                (fn $test
                     (code
                         (branch
                             (param $a i32)
@@ -2821,7 +2821,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (func $test
+                (fn $test
                     (code
                         (branch
                             (local $a i32)
@@ -2843,7 +2843,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (func $test
+                (fn $test
                     (code
                         (for (param $sum i32) (param $n i32) (result i32) (local $temp i32)
                             (do
@@ -2963,13 +2963,13 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_instructions_return_and_tailcall() {
+    fn test_parse_instructions_return_and_rerun() {
         assert_eq!(
             parse_from_str(
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (func $test (param $sum i32) (param $n i32) (result i32)
+                (fn $test (param $sum i32) (param $n i32) (result i32)
                     (code
                         ;; n = n - 1
                         (local.store32 $n (i32.dec 1 (local.load32_i32 $n)))
@@ -2986,7 +2986,7 @@ mod tests {
                                     (local.load32_i32 $n)
                                 ))
                                 ;; recur (sum,n)
-                                (tailcall
+                                (rerun
                                     (local.load32_i32 $sum)
                                     (local.load32_i32 $n)
                                 )
@@ -3069,7 +3069,7 @@ mod tests {
                                         })
                                     })
                                 },
-                                Instruction::TailCall(vec![
+                                Instruction::Rerun(vec![
                                     Instruction::LocalLoad {
                                         opcode: Opcode::local_load32_i32,
                                         name: "sum".to_owned(),
@@ -3097,7 +3097,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (func $test
+                (fn $test
                     (code
                         ;; call: add(11, 13)
                         (call $add (i32.imm 11) (i32.imm 13))

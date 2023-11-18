@@ -137,7 +137,7 @@ pub enum InstructionKind {
     // - 'break', for break recur
     // - 'recur', for recur
     // - 'return', for exit function
-    // - 'tailcall', for recur function
+    // - 'rerun', for recur function
     Sequence(&'static str),
 
     // (call $name OPERAND_0 ... OPERAND_N)
@@ -791,7 +791,7 @@ fn init_instruction_kind_table_internal() {
     add("break", InstructionKind::Sequence("break"));
     add("return", InstructionKind::Sequence("return"));
     add("recur", InstructionKind::Sequence("recur"));
-    add("tailcall", InstructionKind::Sequence("tailcall"));
+    add("rerun", InstructionKind::Sequence("rerun"));
 
     add("call", InstructionKind::Call);
     add("dyncall", InstructionKind::DynCall);

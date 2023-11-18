@@ -72,7 +72,7 @@ fn test_assemble_data_load_and_store_initialized() {
             (data $d4 (read_write f64 2.718281828459045))
             (data $d5 (read_write i64 0))
             (data $d6 (read_write i32 0))
-            (func $main
+            (fn $main
                 (results
                         i64 i32 i32 i32 i32 i32 ;; group 0
                         f32 f64                 ;; group 1
@@ -207,7 +207,7 @@ fn test_assemble_data_load_and_store_uninitialized() {
             (data $d4 (uninit f64))
             (data $d5 (uninit i64))
             (data $d6 (uninit i32))
-            (func $main
+            (fn $main
                 (param $a0 f32)
                 (param $a1 f64)
                 (results
@@ -331,7 +331,7 @@ fn test_assemble_data_long_load_and_store() {
             (runtime_version "1.0")
             (data $d0 (uninit (bytes 8 4)))
             (data $d1 (uninit (bytes 8 4)))
-            (func $main
+            (fn $main
                 (results
                         i64 i32 i32 i32 i32 i32 ;; group 0
                         i64 i32 i32 i32         ;; group 1

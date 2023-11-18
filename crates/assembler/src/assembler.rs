@@ -22,7 +22,7 @@ use ancvm_parser::ast::{
 };
 use ancvm_types::{opcode::Opcode, DataType};
 
-use crate::{AssembleError, ModuleEntry};
+use crate::{AssembleError, ModuleEntry, UNREACHABLE_CODE_NO_DEFAULT_ARM};
 
 // the names of functions and datas
 struct SymbolNameBook<'a> {
@@ -93,8 +93,12 @@ struct FlowStack {
 }
 
 struct FlowItem {
-    addr: usize, // the address of instruction
+    // the address of instruction
+    addr: usize,
     flow_kind: FlowKind,
+
+    // all 'break' instructions which require a stub to be filled when
+    // the current control flow reach the instruction 'end'.
     break_items: Vec<BreakItem>,
     local_names: Vec<String>,
 }
@@ -156,6 +160,34 @@ impl FlowStack {
         self.flow_items.pop().unwrap()
     }
 
+    pub fn pop_and_fill_stubs(
+        &mut self,
+        bytecode_writer: &mut BytecodeWriter,
+        addr_of_next_to_end: usize,
+    ) {
+        // pop flow stack
+        let flow_item = self.pop();
+
+        // fill stubs of 'block_nez'
+        match flow_item.flow_kind {
+            FlowKind::BlockNez => {
+                let addr_of_block = flow_item.addr;
+                let next_inst_offset = (addr_of_next_to_end - addr_of_block) as u32;
+                bytecode_writer.fill_block_nez_stub(addr_of_block, next_inst_offset);
+            }
+            _ => {
+                // only inst 'block_nez' has stub 'next_inst_offset'.
+            }
+        }
+
+        // fill stubs of insts 'break'
+        for break_item in &flow_item.break_items {
+            let addr_of_break = break_item.addr;
+            let next_inst_offset = (addr_of_next_to_end - addr_of_break) as u32;
+            bytecode_writer.fill_break_stub(break_item.addr, next_inst_offset);
+        }
+    }
+
     pub fn add_break(&mut self, addr: usize, reversed_index: usize) {
         let flow_item = self.get_flow_item_by_reversed_index(reversed_index);
 
@@ -192,11 +224,29 @@ impl FlowStack {
         self.flow_items.len() - idx - 1
     }
 
-    /// return (reversed_index, variable_index)
+    // return (reversed_index, variable_index)
+    //
+    // within a function, all local variables, including the parameters
+    // of function and all parameters and local varialbes within all blocks,
+    // must not have duplicate names in the valid scope. e.g.
+    //
+    // {
+    //     let abc = 0
+    //     {
+    //         let abc = 1     // invalid
+    //         let xyz = 2     // valid
+    //     }
+    //
+    //     {
+    //         let xyz = 3     // valid
+    //     }
+    // }
     pub fn get_local_variable_reversed_index_and_variable_index(
         &self,
         local_variable_name: &str,
     ) -> Result<(usize, usize), AssembleError> {
+        let mut result: Option<(usize, usize)> = None;
+
         for (level_index, flow_item) in self.flow_items.iter().enumerate() {
             if let Some(variable_index) = flow_item
                 .local_names
@@ -204,14 +254,26 @@ impl FlowStack {
                 .position(|name| name == local_variable_name)
             {
                 let reversed_index = self.flow_items.len() - level_index - 1;
-                return Ok((reversed_index, variable_index));
+
+                if result.is_none() {
+                    result.replace((reversed_index, variable_index));
+                } else {
+                    return Err(AssembleError::new(&format!(
+                        "Local variable with duplicate name found: {}",
+                        local_variable_name
+                    )));
+                }
             }
         }
 
-        Err(AssembleError::new(&format!(
-            "Can not find the local variable: {}",
-            local_variable_name
-        )))
+        if let Some(val) = result {
+            Ok(val)
+        } else {
+            Err(AssembleError::new(&format!(
+                "Can not find the local variable: {}",
+                local_variable_name
+            )))
+        }
     }
 }
 
@@ -934,11 +996,8 @@ fn assemble_instruction(
             bytecode_writer.write_opcode(Opcode::end);
             let addr_of_next_to_end = bytecode_writer.get_addr();
 
-            // pop flow stck
-            let flow_item = flow_stack.pop();
-
-            // fill stubs
-            fill_stubs_for_block_end(&flow_item, bytecode_writer, addr_of_next_to_end);
+            // pop flow stck and fill stubs
+            flow_stack.pop_and_fill_stubs(bytecode_writer, addr_of_next_to_end);
         }
         Instruction::If {
             results,
@@ -1025,9 +1084,10 @@ fn assemble_instruction(
                 0, // next_inst_offset
             );
             let addr_of_next_to_break = bytecode_writer.get_addr();
+            let alt_inst_offset = (addr_of_next_to_break - addr_of_block_alt) as u32;
 
             // fill the stub of inst 'block_alt'
-            bytecode_writer.fill_block_alt_stub(addr_of_block_alt, addr_of_next_to_break as u32);
+            bytecode_writer.fill_block_alt_stub(addr_of_block_alt, alt_inst_offset);
 
             // add break item
             flow_stack.add_break(addr_of_break, 0);
@@ -1046,11 +1106,8 @@ fn assemble_instruction(
             bytecode_writer.write_opcode(Opcode::end);
             let addr_of_next_to_end = bytecode_writer.get_addr();
 
-            // pop flow stck
-            let flow_item = flow_stack.pop();
-
-            // fill stubs
-            fill_stubs_for_block_end(&flow_item, bytecode_writer, addr_of_next_to_end);
+            // pop flow stack and fill stubs
+            flow_stack.pop_and_fill_stubs(bytecode_writer, addr_of_next_to_end);
         }
         Instruction::Branch {
             results,
@@ -1157,11 +1214,8 @@ fn assemble_instruction(
                 bytecode_writer.write_opcode(Opcode::end);
                 let addr_of_next_to_end = bytecode_writer.get_addr();
 
-                // pop flow stck
-                let flow_item = flow_stack.pop();
-
-                // fill stubs
-                fill_stubs_for_block_end(&flow_item, bytecode_writer, addr_of_next_to_end);
+                // pop flow stack and fill stubs
+                flow_stack.pop_and_fill_stubs(bytecode_writer, addr_of_next_to_end);
             }
 
             // write node 'default'
@@ -1177,18 +1231,16 @@ fn assemble_instruction(
                 )?;
             } else {
                 // write the inst 'unreachable'
-                bytecode_writer.write_opcode(Opcode::unreachable);
+                bytecode_writer
+                    .write_opcode_i32(Opcode::unreachable, UNREACHABLE_CODE_NO_DEFAULT_ARM);
             }
 
             // write inst 'end'
             bytecode_writer.write_opcode(Opcode::end);
             let addr_of_next_to_end = bytecode_writer.get_addr();
 
-            // pop flow stack
-            let flow_item = flow_stack.pop();
-
-            // fill stubs
-            fill_stubs_for_block_end(&flow_item, bytecode_writer, addr_of_next_to_end);
+            // pop flow stack and fill stubs
+            flow_stack.pop_and_fill_stubs(bytecode_writer, addr_of_next_to_end);
         }
         Instruction::For {
             params,
@@ -1271,15 +1323,9 @@ fn assemble_instruction(
             bytecode_writer.write_opcode(Opcode::end);
             let addr_of_next_to_end = bytecode_writer.get_addr();
 
-            // pop flow stack
-            let flow_item = flow_stack.pop();
-
-            // fill stubs
-            fill_stubs_for_block_end(&flow_item, bytecode_writer, addr_of_next_to_end);
+            // pop flow stack and fill stubs
+            flow_stack.pop_and_fill_stubs(bytecode_writer, addr_of_next_to_end);
         }
-        // Instruction::Code(_) => {
-        //     unreachable!("Only node \"function\" can have child node \"code\".")
-        // },
         Instruction::Do(instructions) => {
             for instruction in instructions {
                 assemble_instruction(
@@ -1343,7 +1389,10 @@ fn assemble_instruction(
             );
 
             let addr_of_block = flow_stack.get_block_addr(reversed_index);
-            let start_inst_offset = (addr_of_recur - addr_of_block) as u32;
+
+            // the length of inst 'block' is 12 bytes
+            let addr_of_next_to_block = addr_of_block + 12;
+            let start_inst_offset = (addr_of_recur - addr_of_next_to_block) as u32;
             bytecode_writer.fill_recur_stub(addr_of_recur, start_inst_offset);
         }
         Instruction::Return(instructions) => {
@@ -1368,7 +1417,7 @@ fn assemble_instruction(
                 0, // 'next_inst_offset' is ignored when the target is the function
             );
         }
-        Instruction::TailCall(instructions) => {
+        Instruction::Rerun(instructions) => {
             // recur to the function
 
             for instruction in instructions {
@@ -1399,31 +1448,6 @@ fn assemble_instruction(
     }
 
     Ok(())
-}
-
-fn fill_stubs_for_block_end(
-    flow_item: &FlowItem,
-    bytecode_writer: &mut BytecodeWriter,
-    addr_of_next_to_end: usize,
-) {
-    let addr_of_block = flow_item.addr;
-    let next_inst_offset_of_block = (addr_of_next_to_end - addr_of_block) as u32;
-
-    match flow_item.flow_kind {
-        FlowKind::BlockNez => {
-            bytecode_writer.fill_block_nez_stub(addr_of_block, next_inst_offset_of_block);
-        }
-        _ => {
-            // only inst 'block_nez' has stub 'next_inst_offset'.
-        }
-    }
-
-    // fill stubs of insts 'break'
-    for break_item in &flow_item.break_items {
-        let addr_of_break = break_item.addr;
-        let next_inst_offset_of_break = (addr_of_next_to_end - addr_of_break) as u32;
-        bytecode_writer.fill_break_stub(break_item.addr, next_inst_offset_of_break);
-    }
 }
 
 fn assemble_instruction_kind_no_params(

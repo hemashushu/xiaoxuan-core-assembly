@@ -47,6 +47,8 @@ pub struct IndexEntry {
     pub data_index_module_entries: Vec<DataIndexModuleEntry>,
 }
 
+pub const UNREACHABLE_CODE_NO_DEFAULT_ARM: u32 = 0x100;
+
 #[derive(Debug)]
 pub struct AssembleError {
     pub message: String,

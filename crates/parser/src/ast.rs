@@ -239,7 +239,7 @@ pub enum Instruction {
     Return(Vec<Instruction>),
 
     // bytecode: recur (param reversed_index:i16, start_inst_offset:i32)
-    TailCall(Vec<Instruction>),
+    Rerun(Vec<Instruction>),
 
     // bytecode: (param func_pub_index:i32)
     Call {
