@@ -97,7 +97,7 @@ variants:
 
 ### local variable loading and storing with dynamical offset
 
-(local.load64_i64 $VARIABLE_NAME OPERAND_FOR_OFFSET:i32)
+(local.long_load64_i64 $VARIABLE_NAME OPERAND_FOR_OFFSET:i32)
 
 variants:
 
@@ -112,7 +112,7 @@ variants:
 
 storing
 
-(local.load64_i64 $VARIABLE_NAME OPERAND_FOR_OFFSET:i32 OPERAND_FOR_STORING)
+(local.long_store64 $VARIABLE_NAME OPERAND_FOR_OFFSET:i32 OPERAND_FOR_STORING)
 
 - `local.long_store64`
 - `local.long_store32`
@@ -440,3 +440,33 @@ wrapping dec, e.g. 0x1 dec 2 = 0xffff_ffff
 
 (f64.pow OPERAND_LEFT OPERAND_RIGHT)
 (f64.log OPERAND_LEFT OPERAND_RIGHT)
+
+## Function Calling
+
+(call $name OPERAND_FOR_ARGS...)
+(dyncall OPERAND_FOR_FUNC_PUBLIC_INDEX:i32 OPERAND_FOR_ARGS...)
+(envcall ENV_CALL_NUMBER:i32 OPERAND_FOR_ARGS...)
+(syscall SYS_CALL_NUMBER:i32 OPERAND_FOR_ARGS...)
+(extcall $name OPERAND_FOR_ARGS...)
+
+## Host
+
+(nop)
+(panic)
+(unreachable CODE_NUMBER:i32)
+(debug CODE_NUMBER:i32)
+(host.addr_local $VARIABLE_NAME OPTIONAL_OFFSET_NUMBER:i16)
+(host.addr_local_long $VARIABLE_NAME OPERAND_FOR_OFFSET:i32)
+(host.addr_data $DATA_NAME OPTIONAL_OFFSET_NUMBER:i16)
+(host.addr_data_long $DATA_NAME OPERAND_FOR_OFFSET:i32)
+(host.addr_heap OPTIONAL_OFFSET_NUMBER:i16 OPERAND_FOR_ADDR)
+(host.addr_func $name)
+(host.copy_from_heap
+    OPERAND_FOR_dst_pointer:i64
+    OPERAND_FOR_src_offset:i64
+    OPERAND_FOR_length_in_bytes:i64)
+
+(host.copy_to_heap
+    OPERAND_FOR_dst_offset:i64
+    OPERAND_FOR_src_pointer:i64
+    OPERAND_FOR_length_in_bytes:i64)

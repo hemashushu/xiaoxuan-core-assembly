@@ -265,11 +265,20 @@ pub enum Instruction {
         args: Vec<Instruction>,
     },
 
-    // bytecode: ()
+    // bytecode: (param external_func_idx:i32)
     ExtCall {
         name: String,
         args: Vec<Instruction>,
     },
+
+    // macro.get_func_pub_index
+    //
+    // for obtaining the public index of the specified function
+    GetFuncPubIndex(/* identifier */ String),
+
+    Debug(/* code */ u32),
+    Unreachable(/* code */ u32),
+    HostAddrFunc(/* name */ String)
 }
 
 #[derive(Debug, PartialEq, Clone)]

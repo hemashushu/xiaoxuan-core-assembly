@@ -154,6 +154,14 @@ pub enum InstructionKind {
 
     // (extcall $name OPERAND_0 ... OPERAND_N)
     ExtCall,
+
+    // (macro.get_func_pub_index $name)
+    GetFuncPubIndex,
+
+    //
+    Debug,
+    Unreachable,
+    HostAddrFunc
 }
 
 pub fn init_instruction_kind_table() {
@@ -738,32 +746,32 @@ fn init_instruction_kind_table_internal() {
     // host
     add("nop", InstructionKind::NoParams(Opcode::nop, 0));
     add("panic", InstructionKind::NoParams(Opcode::panic, 0));
-    add("unreachable", InstructionKind::NoParams(Opcode::unreachable, 0));
-    add("debug", InstructionKind::NoParams(Opcode::debug, 1));
+    add("unreachable", InstructionKind::Unreachable);
+    add("debug", InstructionKind::Debug);
 
     add(
-        "host_addr_local",
+        "host.addr_local",
         InstructionKind::LocalLoad(Opcode::host_addr_local),
     );
     add(
-        "host_addr_local_long",
+        "host.addr_local_long",
         InstructionKind::LocalLongLoad(Opcode::host_addr_local_long),
     );
     add(
-        "host_addr_data",
+        "host.addr_data",
         InstructionKind::DataLoad(Opcode::host_addr_data),
     );
     add(
-        "host_addr_data_long",
+        "host.addr_data_long",
         InstructionKind::DataLongLoad(Opcode::host_addr_data_long),
     );
     add(
-        "host_addr_heap",
+        "host.addr_heap",
         InstructionKind::HeapLoad(Opcode::host_addr_heap),
     );
     add(
         "host.addr_func",
-        InstructionKind::NoParams(Opcode::host_addr_func, 1),
+        InstructionKind::HostAddrFunc,
     );
     add(
         "host.copy_from_heap",
@@ -787,7 +795,6 @@ fn init_instruction_kind_table_internal() {
     add("for", InstructionKind::For);
 
     add("do", InstructionKind::Sequence("do"));
-    // add("code", InstructionKind::Sequence("code"));
     add("break", InstructionKind::Sequence("break"));
     add("return", InstructionKind::Sequence("return"));
     add("recur", InstructionKind::Sequence("recur"));
@@ -798,6 +805,9 @@ fn init_instruction_kind_table_internal() {
     add("envcall", InstructionKind::EnvCall);
     add("syscall", InstructionKind::SysCall);
     add("extcall", InstructionKind::ExtCall);
+
+    // macros
+    add("macro.get_func_pub_index", InstructionKind::GetFuncPubIndex);
 
     unsafe { INSTRUCTION_KIND_TABLE = Some(table) };
 }

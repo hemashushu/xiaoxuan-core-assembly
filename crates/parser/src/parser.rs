@@ -125,7 +125,7 @@ pub fn parse_module_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleNod
     while iter.look_ahead_equals(0, &Token::LeftParen) {
         if let Some(Token::Symbol(child_node_name)) = iter.peek(1) {
             let element_node = match child_node_name.as_str() {
-                "fn" => parse_fn_node(iter)?,
+                "fn" => parse_func_node(iter)?,
                 "data" => parse_data_node(iter)?,
                 _ => {
                     return Err(ParseError::new(&format!(
@@ -189,7 +189,7 @@ fn parse_module_runtime_version_node(
     Ok((major, minor))
 }
 
-fn parse_fn_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNode, ParseError> {
+fn parse_func_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNode, ParseError> {
     // (fn ...) ...  //
     // ^        ^____// to here
     // |_____________// current token
@@ -556,7 +556,6 @@ fn parse_instruction_sequence_node(
     consume_right_paren(iter)?;
 
     let instruction = match node_name {
-        // "code" => Instruction::Code(instructions),
         "do" => Instruction::Do(instructions),
         "break" => Instruction::Break(instructions),
         "recur" => Instruction::Recur(instructions),
@@ -715,6 +714,13 @@ fn parse_instruction_with_parentheses(
                 InstructionKind::ExtCall => {
                     parse_instruction_kind_call_by_name(iter, "extcall", false)?
                 }
+                // macro
+                InstructionKind::GetFuncPubIndex => {
+                    parse_instruction_kind_get_func_pub_index(iter)?
+                }
+                InstructionKind::Debug => parse_instruction_kind_debug(iter)?,
+                InstructionKind::Unreachable => parse_instruction_kind_unreachable(iter)?,
+                InstructionKind::HostAddrFunc => parse_instruction_kind_host_addr_func(iter)?,
             }
         } else {
             return Err(ParseError::new(&format!(
@@ -1354,6 +1360,68 @@ fn parse_instruction_kind_call_by_operand_num(
         num: Box::new(num),
         args,
     })
+}
+
+fn parse_instruction_kind_get_func_pub_index(
+    iter: &mut PeekableIterator<Token>,
+) -> Result<Instruction, ParseError> {
+    // (macro.get_func_pub_index name ...) ...  //
+    // ^                                   ^____// to here
+    // _________________________________________// current token
+
+    consume_left_paren(iter, "macro.get_func_pub_index")?;
+    consume_symbol(iter, "macro.get_func_pub_index")?;
+    let name = expect_identifier(iter, "macro.get_func_pub_index")?;
+    consume_right_paren(iter)?;
+
+    Ok(Instruction::GetFuncPubIndex(name))
+}
+
+fn parse_instruction_kind_debug(
+    iter: &mut PeekableIterator<Token>,
+) -> Result<Instruction, ParseError> {
+    // (debug num ...) ...  //
+    // ^               ^____// to here
+    // _____________________// current token
+
+    consume_left_paren(iter, "debug")?;
+    consume_symbol(iter, "debug")?;
+    let number_token = expect_number(iter, "debug")?;
+    let num = parse_u32_string(&number_token)?;
+    consume_right_paren(iter)?;
+
+    Ok(Instruction::Debug(num))
+}
+
+fn parse_instruction_kind_unreachable(
+    iter: &mut PeekableIterator<Token>,
+) -> Result<Instruction, ParseError> {
+    // (unreachable num ...) ...  //
+    // ^                     ^____// to here
+    // ___________________________// current token
+
+    consume_left_paren(iter, "unreachable")?;
+    consume_symbol(iter, "unreachable")?;
+    let number_token = expect_number(iter, "unreachable")?;
+    let num = parse_u32_string(&number_token)?;
+    consume_right_paren(iter)?;
+
+    Ok(Instruction::Unreachable(num))
+}
+
+fn parse_instruction_kind_host_addr_func(
+    iter: &mut PeekableIterator<Token>,
+) -> Result<Instruction, ParseError> {
+    // (host.addr_func name ...) ...  //
+    // ^                         ^____// to here
+    // _______________________________// current token
+
+    consume_left_paren(iter, "host.addr_func")?;
+    consume_symbol(iter, "host.addr_func")?;
+    let name = expect_identifier(iter, "host.addr_func")?;
+    consume_right_paren(iter)?;
+
+    Ok(Instruction::HostAddrFunc(name))
 }
 
 fn parse_data_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNode, ParseError> {
@@ -2172,7 +2240,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_instructions_base() {
+    fn test_parse_instructions_fundanmental() {
         assert_eq!(
             parse_instructions_from_str(
                 r#"
@@ -2180,19 +2248,43 @@ mod tests {
                 (runtime_version "1.0")
                 (fn $test
                     (code
-                        nop
+                        zero
                         (drop zero)
+                        (duplicate zero)
+                        (swap zero zero)
+                        (select_nez zero zero zero)
                     )
                 )
             )
             "#
             ),
             vec![
-                noparams_nooperands(Opcode::nop),
+                noparams_nooperands(Opcode::zero),
                 Instruction::NoParams {
                     opcode: Opcode::drop,
                     operands: vec![noparams_nooperands(Opcode::zero),]
                 },
+                Instruction::NoParams {
+                    opcode: Opcode::duplicate,
+                    operands: vec![
+                        noparams_nooperands(Opcode::zero),
+                    ]
+                },
+                Instruction::NoParams {
+                    opcode: Opcode::swap,
+                    operands: vec![
+                        noparams_nooperands(Opcode::zero),
+                        noparams_nooperands(Opcode::zero)
+                    ]
+                },
+                Instruction::NoParams {
+                    opcode: Opcode::select_nez,
+                    operands: vec![
+                        noparams_nooperands(Opcode::zero),
+                        noparams_nooperands(Opcode::zero),
+                        noparams_nooperands(Opcode::zero),
+                    ]
+                }
             ]
         );
 
@@ -2277,7 +2369,10 @@ mod tests {
                 Instruction::ImmF64(ImmF64::Hex(0x4005bf0a8b145769)),
             ]
         );
+    }
 
+    #[test]
+    fn test_parse_instructions_unaryop_and_binaryop() {
         assert_eq!(
             parse_instructions_from_str(
                 r#"
@@ -2333,7 +2428,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_instructions_local_and_data() {
+    fn test_parse_instructions_local() {
         assert_eq!(
             parse_instructions_from_str(
                 r#"
@@ -2392,7 +2487,10 @@ mod tests {
                 },
             ]
         );
+    }
 
+    #[test]
+    fn test_parse_instructions_data() {
         assert_eq!(
             parse_instructions_from_str(
                 r#"
@@ -3113,6 +3211,9 @@ mod tests {
 
                         ;; extcall: format(str, values)
                         (extcall $format (local.load64_i64 $str) (local.load64_i64 $values))
+
+                        ;; get the public index of the specified function
+                        (macro.get_func_pub_index $add)
                     )
                 )
             )
@@ -3169,7 +3270,93 @@ mod tests {
                             offset: 0
                         }
                     ]
-                }
+                },
+                Instruction::GetFuncPubIndex("add".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_instructions_host() {
+        assert_eq!(
+            parse_instructions_from_str(
+                r#"
+            (module $lib
+                (runtime_version "1.0")
+                (fn $test
+                    (code
+                        nop
+                        panic
+                        (unreachable 0x11)
+                        (debug 0x13)
+                        (host.addr_local $num 0x17)
+                        (host.addr_local_long $sum (i32.imm 0x19))
+                        (host.addr_data $msg 0x23)
+                        (host.addr_data_long $title (i32.imm 0x29))
+                        (host.addr_heap 0x31 (i32.imm 0x37))
+                        (host.addr_func $add)
+                        (host.copy_from_heap
+                            (i32.imm 0x41)
+                            (i32.imm 0x43)
+                            (i32.imm 0x47)
+                        )
+                        (host.copy_to_heap
+                            (i32.imm 0x53)
+                            (i32.imm 0x59)
+                            (i32.imm 0x61)
+                        )
+                    )
+                )
+            )
+            "#
+            ),
+            vec![
+                noparams_nooperands(Opcode::nop),
+                noparams_nooperands(Opcode::panic),
+                Instruction::Unreachable(0x11),
+                Instruction::Debug(0x13),
+                Instruction::LocalLoad {
+                    opcode: Opcode::host_addr_local,
+                    name: "num".to_owned(),
+                    offset: 0x17
+                },
+                Instruction::LocalLongLoad {
+                    opcode: Opcode::host_addr_local_long,
+                    name: "sum".to_owned(),
+                    offset: Box::new(Instruction::ImmI32(0x19)),
+                },
+                Instruction::DataLoad {
+                    opcode: Opcode::host_addr_data,
+                    name: "msg".to_owned(),
+                    offset: 0x23,
+                },
+                Instruction::DataLongLoad {
+                    opcode: Opcode::host_addr_data_long,
+                    name: "title".to_owned(),
+                    offset: Box::new(Instruction::ImmI32(0x29)),
+                },
+                Instruction::HeapLoad {
+                    opcode: Opcode::host_addr_heap,
+                    offset: 0x31,
+                    addr: Box::new(Instruction::ImmI32(0x37)),
+                },
+                Instruction::HostAddrFunc("add".to_owned(),),
+                Instruction::NoParams {
+                    opcode: Opcode::host_copy_from_heap,
+                    operands: vec![
+                        Instruction::ImmI32(0x41),
+                        Instruction::ImmI32(0x43),
+                        Instruction::ImmI32(0x47),
+                    ],
+                },
+                Instruction::NoParams {
+                    opcode: Opcode::host_copy_to_heap,
+                    operands: vec![
+                        Instruction::ImmI32(0x53),
+                        Instruction::ImmI32(0x59),
+                        Instruction::ImmI32(0x61),
+                    ],
+                },
             ]
         );
     }

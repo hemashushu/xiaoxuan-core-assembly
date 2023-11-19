@@ -1440,11 +1440,105 @@ fn assemble_instruction(
                 0, // 'start_inst_offset' is ignored when the target is function
             );
         }
-        Instruction::Call { name: _, args: _ } => todo!(),
-        Instruction::DynCall { num: _, args: _ } => todo!(),
-        Instruction::EnvCall { num: _, args: _ } => todo!(),
-        Instruction::SysCall { num: _, args: _ } => todo!(),
-        Instruction::ExtCall { name: _, args: _ } => todo!(),
+        Instruction::Call { name, args } => {
+            for instruction in args {
+                assemble_instruction(
+                    instruction,
+                    symbol_name_book,
+                    type_entries,
+                    local_list_entries,
+                    flow_stack,
+                    bytecode_writer,
+                )?;
+            }
+
+            let func_pub_idx = symbol_name_book.get_func_pub_index(name)?;
+            bytecode_writer.write_opcode_i32(Opcode::call, func_pub_idx as u32);
+        }
+        Instruction::DynCall { num, args } => {
+            for instruction in args {
+                assemble_instruction(
+                    instruction,
+                    symbol_name_book,
+                    type_entries,
+                    local_list_entries,
+                    flow_stack,
+                    bytecode_writer,
+                )?;
+            }
+
+            // assemble the function public index operand
+            assemble_instruction(
+                num,
+                symbol_name_book,
+                type_entries,
+                local_list_entries,
+                flow_stack,
+                bytecode_writer,
+            )?;
+
+            bytecode_writer.write_opcode(Opcode::dyncall);
+        }
+        Instruction::EnvCall { num, args } => {
+            for instruction in args {
+                assemble_instruction(
+                    instruction,
+                    symbol_name_book,
+                    type_entries,
+                    local_list_entries,
+                    flow_stack,
+                    bytecode_writer,
+                )?;
+            }
+
+            bytecode_writer.write_opcode_i32(Opcode::envcall, *num);
+        }
+        Instruction::SysCall { num, args } => {
+            for instruction in args {
+                assemble_instruction(
+                    instruction,
+                    symbol_name_book,
+                    type_entries,
+                    local_list_entries,
+                    flow_stack,
+                    bytecode_writer,
+                )?;
+            }
+
+            bytecode_writer.write_opcode_i32(Opcode::i32_imm, *num);
+            bytecode_writer.write_opcode_i32(Opcode::i32_imm, args.len() as u32);
+            bytecode_writer.write_opcode(Opcode::syscall);
+        }
+        Instruction::ExtCall { name, args } => {
+            for instruction in args {
+                assemble_instruction(
+                    instruction,
+                    symbol_name_book,
+                    type_entries,
+                    local_list_entries,
+                    flow_stack,
+                    bytecode_writer,
+                )?;
+            }
+
+            let external_func_idx = symbol_name_book.get_external_func_index(name)?;
+            bytecode_writer.write_opcode_i32(Opcode::extcall, external_func_idx as u32);
+        }
+        // macro
+        Instruction::GetFuncPubIndex(name) => {
+            let func_pub_idx = symbol_name_book.get_func_pub_index(name)?;
+            bytecode_writer.write_opcode_i32(Opcode::i32_imm, func_pub_idx as u32);
+        }
+        Instruction::Debug(code) => {
+            bytecode_writer.write_opcode_i32(Opcode::debug, *code);
+        }
+        Instruction::Unreachable(code) => {
+            bytecode_writer.write_opcode_i32(Opcode::unreachable, *code);
+        }
+        Instruction::HostAddrFunc(name) => {
+            let func_pub_idx = symbol_name_book.get_func_pub_index(name)?;
+            bytecode_writer.write_opcode_i32(Opcode::host_addr_func, func_pub_idx as u32);
+        }
     }
 
     Ok(())
