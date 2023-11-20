@@ -168,3 +168,18 @@ uninitialized section:
 
 with 'exported' annotation
 (data $name exported (read_only i32 123))
+
+## The 'extern' node
+
+(extern (library shared "math.so.1")
+        (fn $add "add" (param i32) (param i32) (result i32))
+)
+
+the parameters can be writtern as compact mode:
+
+(fn $add "add" (params i32 i32) (result i32))
+
+library type:
+- (library shared "math.so.1")
+- (library system "libc.so.6")
+- (library user "lib-test-0.so.1")

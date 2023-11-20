@@ -161,7 +161,7 @@ pub enum InstructionKind {
     //
     Debug,
     Unreachable,
-    HostAddrFunc
+    HostAddrFunc,
 }
 
 pub fn init_instruction_kind_table() {
@@ -178,6 +178,7 @@ fn init_instruction_kind_table_internal() {
     };
 
     // fundamental
+    add("nop", InstructionKind::NoParams(Opcode::nop, 0));
     add("zero", InstructionKind::NoParams(Opcode::zero, 0));
     add("drop", InstructionKind::NoParams(Opcode::drop, 1));
     add("duplicate", InstructionKind::NoParams(Opcode::duplicate, 1));
@@ -744,7 +745,6 @@ fn init_instruction_kind_table_internal() {
     // note: all instructions in this catalog are replaced with pesudo instructions
 
     // host
-    add("nop", InstructionKind::NoParams(Opcode::nop, 0));
     add("panic", InstructionKind::NoParams(Opcode::panic, 0));
     add("unreachable", InstructionKind::Unreachable);
     add("debug", InstructionKind::Debug);
@@ -769,10 +769,7 @@ fn init_instruction_kind_table_internal() {
         "host.addr_heap",
         InstructionKind::HeapLoad(Opcode::host_addr_heap),
     );
-    add(
-        "host.addr_func",
-        InstructionKind::HostAddrFunc,
-    );
+    add("host.addr_func", InstructionKind::HostAddrFunc);
     add(
         "host.copy_from_heap",
         InstructionKind::NoParams(Opcode::host_copy_from_heap, 3),

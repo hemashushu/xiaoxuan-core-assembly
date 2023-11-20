@@ -4,7 +4,7 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancvm_types::{opcode::Opcode, DataType, MemoryDataType};
+use ancvm_types::{opcode::Opcode, DataType, ExternalLibraryType, MemoryDataType};
 
 #[derive(Debug, PartialEq)]
 pub struct ModuleNode {
@@ -21,6 +21,7 @@ pub struct ModuleNode {
 pub enum ModuleElementNode {
     FuncNode(FuncNode),
     DataNode(DataNode),
+    ExternNode(ExternNode),
     TODONode,
 }
 
@@ -58,6 +59,31 @@ pub struct LocalNode {
     // if the data is a struct, the value should be the max one of the length of its fields.
     // currently the MAX value of align is 8, MIN value is 1.
     pub align: u16,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct ExternNode {
+    pub external_library_node: ExternalLibraryNode,
+    pub external_items: Vec<ExternalItem>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum ExternalItem {
+    ExternalFunc(ExternalFuncNode),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct ExternalLibraryNode {
+    pub external_library_type: ExternalLibraryType,
+    pub name: String,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct ExternalFuncNode {
+    pub name: String,          // the identifier of the external function
+    pub symbol: String,        // the original exported name
+    pub params: Vec<DataType>, // the parameters of external functions have no identifier
+    pub results: Vec<DataType>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -278,7 +304,7 @@ pub enum Instruction {
 
     Debug(/* code */ u32),
     Unreachable(/* code */ u32),
-    HostAddrFunc(/* name */ String)
+    HostAddrFunc(/* name */ String),
 }
 
 #[derive(Debug, PartialEq, Clone)]

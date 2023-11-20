@@ -10,13 +10,15 @@ use ancvm_binary::{
         data_name_section::DataNameEntry,
         data_section::{InitedDataEntry, UninitDataEntry},
         external_func_name_section::ExternalFuncNameEntry,
+        external_func_section::ExternalFuncEntry,
+        external_library_section::ExternalLibraryEntry,
         func_name_section::FuncNameEntry,
         func_section::FuncEntry,
         local_variable_section::{LocalListEntry, LocalVariableEntry},
         type_section::TypeEntry,
     },
 };
-use ancvm_parser::ast::{DataKindNode, DataNode};
+use ancvm_parser::ast::{DataKindNode, DataNode, ExternNode, ExternalItem};
 use ancvm_parser::ast::{
     FuncNode, ImmF32, ImmF64, Instruction, LocalNode, ModuleElementNode, ModuleNode, ParamNode,
 };
@@ -65,7 +67,7 @@ impl<'a> SymbolNameBook<'a> {
     }
 
     pub fn get_external_func_index(&self, name: &str) -> Result<usize, AssembleError> {
-        self.func_name_entries
+        self.external_func_name_entries
             .iter()
             .position(|entry| entry.name == name)
             .ok_or(AssembleError::new(&format!(
@@ -330,13 +332,60 @@ pub fn assemble_module_node(module_node: &ModuleNode) -> Result<ModuleEntry, Ass
         })
         .collect::<Vec<_>>();
 
+    // remove the duplicate external items and group by external library
+    let original_extern_nodes = module_node
+        .element_nodes
+        .iter()
+        .filter_map(|node| match node {
+            ModuleElementNode::ExternNode(extern_node) => Some(extern_node),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    let mut extern_nodes: Vec<ExternNode> = vec![];
+
+    for original_extern_node in original_extern_nodes {
+        let node_idx_opt = extern_nodes.iter().position(|node| {
+            node.external_library_node == original_extern_node.external_library_node
+        });
+
+        let node_idx = if let Some(idx) = node_idx_opt {
+            idx
+        } else {
+            let idx = extern_nodes.len();
+            let extern_node = ExternNode {
+                external_library_node: original_extern_node.external_library_node.clone(),
+                external_items: vec![],
+            };
+
+            extern_nodes.push(extern_node);
+            idx
+        };
+
+        let extern_node = &mut extern_nodes[node_idx];
+
+        for original_extern_item in &original_extern_node.external_items {
+            let item_idx_opt = extern_node
+                .external_items
+                .iter()
+                .position(|exists_external_item| exists_external_item == original_extern_item);
+
+            // add extern item only if not exists
+            if item_idx_opt.is_none() {
+                extern_node
+                    .external_items
+                    .push(original_extern_item.clone());
+            }
+        }
+    }
+
     let func_name_entries = assemble_func_name_entries(&func_nodes);
     let data_name_entries = assemble_data_name_entries(
         &read_only_data_nodes,
         &read_write_data_nodes,
         &uninit_data_nodes,
     );
-    let external_func_name_entries = assemble_external_function_name_entries(module_node);
+    let external_func_name_entries = assemble_external_function_name_entries(&extern_nodes);
 
     let symbol_name_book = SymbolNameBook::new(
         &func_name_entries,
@@ -344,7 +393,7 @@ pub fn assemble_module_node(module_node: &ModuleNode) -> Result<ModuleEntry, Ass
         &external_func_name_entries,
     );
 
-    let (type_entries, local_list_entries, func_entries) =
+    let (mut type_entries, local_list_entries, func_entries) =
         assemble_func_nodes(&func_nodes, &symbol_name_book)?;
 
     let (read_only_data_entries, read_write_data_entries, uninit_data_entries) =
@@ -354,16 +403,24 @@ pub fn assemble_module_node(module_node: &ModuleNode) -> Result<ModuleEntry, Ass
             &uninit_data_nodes,
         )?;
 
+    let (external_library_entries, external_func_entries) =
+        assemble_extern_nodes(&extern_nodes, &mut type_entries)?;
+
     let module_entry = ModuleEntry {
         name,
         runtime_version_major,
         runtime_version_minor,
+        //
         type_entries,
         local_list_entries,
         func_entries,
         read_only_data_entries,
         read_write_data_entries,
         uninit_data_entries,
+        //
+        external_library_entries,
+        external_func_entries,
+        //
         func_name_entries,
         data_name_entries,
         external_func_name_entries,
@@ -441,12 +498,24 @@ fn assemble_data_name_entries(
 }
 
 fn assemble_external_function_name_entries(
-    _module_node: &ModuleNode,
+    extern_nodes: &[ExternNode],
 ) -> Vec<ExternalFuncNameEntry> {
-    // let mut external_func_name_entries = vec![];
-    // todo
-    // external_func_name_entries
-    vec![]
+    let mut external_func_name_entries = vec![];
+
+    let mut idx: usize = 0;
+
+    for extern_node in extern_nodes {
+        for external_item in &extern_node.external_items {
+            let ExternalItem::ExternalFunc(external_func) = external_item;
+            external_func_name_entries.push(ExternalFuncNameEntry {
+                name: external_func.name.clone(),
+                external_func_index: idx,
+            });
+            idx += 1;
+        }
+    }
+
+    external_func_name_entries
 }
 
 type AssembleResultForFuncNode = (Vec<TypeEntry>, Vec<LocalListEntry>, Vec<FuncEntry>);
@@ -460,7 +529,7 @@ fn assemble_func_nodes(
     let mut func_entries = vec![];
 
     for func_node in func_nodes {
-        let type_index = find_existing_type_index_with_creating_when_not_found(
+        let type_index = find_existing_type_index_with_creating_when_not_found_by_param_nodes(
             &mut type_entries,
             &func_node.params,
             &func_node.results,
@@ -495,7 +564,7 @@ fn assemble_func_nodes(
     Ok((type_entries, local_list_entries, func_entries))
 }
 
-fn find_existing_type_index_with_creating_when_not_found(
+fn find_existing_type_index_with_creating_when_not_found_by_param_nodes(
     type_entries: &mut Vec<TypeEntry>,
     param_nodes: &[ParamNode],
     results: &[DataType],
@@ -504,7 +573,16 @@ fn find_existing_type_index_with_creating_when_not_found(
         .iter()
         .map(|node| node.data_type)
         .collect::<Vec<_>>();
+    find_existing_type_index_with_creating_when_not_found(type_entries, &params, results)
+}
 
+// type = params + results
+// local = params + local vars
+fn find_existing_type_index_with_creating_when_not_found(
+    type_entries: &mut Vec<TypeEntry>,
+    params: &[DataType],
+    results: &[DataType],
+) -> usize {
     let opt_idx = type_entries
         .iter()
         .position(|entry| entry.params == params && entry.results == results);
@@ -514,7 +592,7 @@ fn find_existing_type_index_with_creating_when_not_found(
     } else {
         let idx = type_entries.len();
         type_entries.push(TypeEntry {
-            params,
+            params: params.to_vec(),
             results: results.to_vec(),
         });
         idx
@@ -1283,7 +1361,7 @@ fn assemble_instruction(
             // - recur (param reversed_index:i16, start_inst_offset:i32)
 
             // type index
-            let type_index = find_existing_type_index_with_creating_when_not_found(
+            let type_index = find_existing_type_index_with_creating_when_not_found_by_param_nodes(
                 type_entries,
                 params,
                 results,
@@ -1623,4 +1701,47 @@ fn assemble_data_nodes(
         read_write_data_entries,
         uninit_data_entries,
     ))
+}
+
+type AssembleResultForExternNode = (Vec<ExternalLibraryEntry>, Vec<ExternalFuncEntry>);
+
+fn assemble_extern_nodes(
+    extern_nodes: &[ExternNode],
+    type_entries: &mut Vec<TypeEntry>,
+) -> Result<AssembleResultForExternNode, AssembleError> {
+    let mut external_library_entries: Vec<ExternalLibraryEntry> = vec![];
+    let mut external_func_entries: Vec<ExternalFuncEntry> = vec![];
+
+    for extern_node in extern_nodes {
+        // build ExternalLibraryEntry
+        let external_library_node = &extern_node.external_library_node;
+        let external_library_entry = ExternalLibraryEntry {
+            name: external_library_node.name.clone(),
+            external_library_type: external_library_node.external_library_type,
+        };
+        let external_library_index = external_func_entries.len();
+        external_library_entries.push(external_library_entry);
+
+        for extern_item in &extern_node.external_items {
+            let ExternalItem::ExternalFunc(external_func) = extern_item;
+
+            // get type index
+            let type_index = find_existing_type_index_with_creating_when_not_found(
+                type_entries,
+                &external_func.params,
+                &external_func.results,
+            );
+
+            // build ExternalFuncEntry
+            let external_func_entry = ExternalFuncEntry {
+                name: external_func.symbol.clone(),
+                external_library_index,
+                type_index,
+            };
+
+            external_func_entries.push(external_func_entry);
+        }
+    }
+
+    Ok((external_library_entries, external_func_entries))
 }

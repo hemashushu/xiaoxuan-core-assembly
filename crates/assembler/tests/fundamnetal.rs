@@ -17,6 +17,32 @@ use crate::utils::assemble_single_module;
 use pretty_assertions::assert_eq;
 
 #[test]
+fn test_assemble_fundamental_nop() {
+    // () -> (i32)
+    let module_binaries = assemble_single_module(
+        r#"
+        (module $app
+            (runtime_version "1.0")
+            (fn $main
+                (param $a i32)
+                (result i32)
+                (code
+                    nop
+                )
+            )
+        )
+        "#,
+    );
+
+    let program_source0 = InMemoryProgramSource::new(module_binaries);
+    let program0 = program_source0.build_program().unwrap();
+    let mut thread_context0 = program0.create_thread_context();
+
+    let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(11)]);
+    assert_eq!(result0.unwrap(), vec![ForeignValue::UInt32(11)]);
+}
+
+#[test]
 fn test_assemble_fundamental_zero() {
     // () -> (i32)
     let module_binaries = assemble_single_module(

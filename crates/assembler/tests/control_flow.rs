@@ -82,7 +82,7 @@ fn test_assemble_control_flow_block_equ_structure_for() {
 0x001c  80 01 00 00  11 00 00 00    i32.imm           0x00000011
 0x0024  80 01 00 00  13 00 00 00    i32.imm           0x00000013
 0x002c  00 0a                       end
-0x002e  00 0c                       nop
+0x002e  00 01                       nop
 0x0030  80 01 00 00  17 00 00 00    i32.imm           0x00000017
 0x0038  80 01 00 00  1d 00 00 00    i32.imm           0x0000001d
 0x0040  00 0a                       end"
@@ -646,7 +646,7 @@ fn test_assemble_control_flow_break_block_equ_statement_break() {
 0x0034  80 01 00 00  17 00 00 00    i32.imm           0x00000017
 0x003c  80 01 00 00  1d 00 00 00    i32.imm           0x0000001d
 0x0044  00 0a                       end
-0x0046  00 0c                       nop
+0x0046  00 01                       nop
 0x0048  80 01 00 00  1f 00 00 00    i32.imm           0x0000001f
 0x0050  80 01 00 00  25 00 00 00    i32.imm           0x00000025
 0x0058  00 0a                       end"
@@ -735,7 +735,7 @@ fn test_assemble_control_flow_break_block_to_function_equ_statement_return() {
 0x0034  80 01 00 00  17 00 00 00    i32.imm           0x00000017
 0x003c  80 01 00 00  1d 00 00 00    i32.imm           0x0000001d
 0x0044  00 0a                       end
-0x0046  00 0c                       nop
+0x0046  00 01                       nop
 0x0048  80 01 00 00  1f 00 00 00    i32.imm           0x0000001f
 0x0050  80 01 00 00  25 00 00 00    i32.imm           0x00000025
 0x0058  00 0a                       end"
@@ -815,7 +815,7 @@ fn test_assemble_control_flow_structure_when() {
 0x0010  02 02 00 00  00 00 00 00    local.load32_i32  rev:0   off:0x00  idx:0
 0x0018  02 02 00 00  00 00 01 00    local.load32_i32  rev:0   off:0x00  idx:1
 0x0020  05 06                       i32.lt_u
-0x0022  00 0c                       nop
+0x0022  00 01                       nop
 0x0024  04 0a 00 00  01 00 00 00    block_nez         local:1   off:0x1e
         1e 00 00 00
 0x0030  02 02 01 00  00 00 01 00    local.load32_i32  rev:1   off:0x00  idx:1
@@ -939,11 +939,11 @@ fn test_assemble_control_flow_break_block_crossing_equ_statement_break() {
 0x0058  80 01 00 00  1f 00 00 00    i32.imm           0x0000001f
 0x0060  80 01 00 00  25 00 00 00    i32.imm           0x00000025
 0x0068  00 0a                       end
-0x006a  00 0c                       nop
+0x006a  00 01                       nop
 0x006c  80 01 00 00  29 00 00 00    i32.imm           0x00000029
 0x0074  80 01 00 00  2b 00 00 00    i32.imm           0x0000002b
 0x007c  00 0a                       end
-0x007e  00 0c                       nop
+0x007e  00 01                       nop
 0x0080  80 01 00 00  33 00 00 00    i32.imm           0x00000033
 0x0088  80 01 00 00  35 00 00 00    i32.imm           0x00000035
 0x0090  00 0a                       end"
@@ -1030,7 +1030,7 @@ fn test_assemble_control_flow_structure_if() {
 0x0000  02 02 00 00  00 00 00 00    local.load32_i32  rev:0   off:0x00  idx:0
 0x0008  02 02 00 00  00 00 01 00    local.load32_i32  rev:0   off:0x00  idx:1
 0x0010  07 06                       i32.gt_u
-0x0012  00 0c                       nop
+0x0012  00 01                       nop
 0x0014  05 0a 00 00  01 00 00 00    block_alt         type:1   local:1   off:0x20
         01 00 00 00  20 00 00 00
 0x0024  02 02 01 00  00 00 00 00    local.load32_i32  rev:1   off:0x00  idx:0
@@ -1148,7 +1148,7 @@ fn test_assemble_control_flow_structure_if_nested() {
 0x0000  02 02 00 00  00 00 00 00    local.load32_i32  rev:0   off:0x00  idx:0
 0x0008  80 01 00 00  55 00 00 00    i32.imm           0x00000055
 0x0010  07 06                       i32.gt_u
-0x0012  00 0c                       nop
+0x0012  00 01                       nop
 0x0014  05 0a 00 00  01 00 00 00    block_alt         type:1   local:1   off:0x20
         01 00 00 00  20 00 00 00
 0x0024  80 01 00 00  41 00 00 00    i32.imm           0x00000041
@@ -1156,7 +1156,7 @@ fn test_assemble_control_flow_structure_if_nested() {
 0x0034  02 02 01 00  00 00 00 00    local.load32_i32  rev:1   off:0x00  idx:0
 0x003c  80 01 00 00  46 00 00 00    i32.imm           0x00000046
 0x0044  07 06                       i32.gt_u
-0x0046  00 0c                       nop
+0x0046  00 01                       nop
 0x0048  05 0a 00 00  01 00 00 00    block_alt         type:1   local:1   off:0x20
         01 00 00 00  20 00 00 00
 0x0058  80 01 00 00  42 00 00 00    i32.imm           0x00000042
@@ -1164,7 +1164,7 @@ fn test_assemble_control_flow_structure_if_nested() {
 0x0068  02 02 02 00  00 00 00 00    local.load32_i32  rev:2   off:0x00  idx:0
 0x0070  80 01 00 00  37 00 00 00    i32.imm           0x00000037
 0x0078  07 06                       i32.gt_u
-0x007a  00 0c                       nop
+0x007a  00 01                       nop
 0x007c  05 0a 00 00  01 00 00 00    block_alt         type:1   local:1   off:0x20
         01 00 00 00  20 00 00 00
 0x008c  80 01 00 00  43 00 00 00    i32.imm           0x00000043
@@ -1296,33 +1296,33 @@ fn test_assemble_control_flow_structure_branch() {
 0x000c  02 02 01 00  00 00 00 00    local.load32_i32  rev:1   off:0x00  idx:0
 0x0014  80 01 00 00  55 00 00 00    i32.imm           0x00000055
 0x001c  07 06                       i32.gt_u
-0x001e  00 0c                       nop
+0x001e  00 01                       nop
 0x0020  04 0a 00 00  01 00 00 00    block_nez         local:1   off:0x1e
         1e 00 00 00
 0x002c  80 01 00 00  41 00 00 00    i32.imm           0x00000041
 0x0034  02 0a 01 00  7e 00 00 00    break             rev:1   off:0x7e
 0x003c  00 0a                       end
 0x003e  02 02 01 00  00 00 00 00    local.load32_i32  rev:1   off:0x00  idx:0
-0x0046  00 0c                       nop
+0x0046  00 01                       nop
 0x0048  80 01 00 00  46 00 00 00    i32.imm           0x00000046
 0x0050  07 06                       i32.gt_u
-0x0052  00 0c                       nop
+0x0052  00 01                       nop
 0x0054  04 0a 00 00  01 00 00 00    block_nez         local:1   off:0x1e
         1e 00 00 00
 0x0060  80 01 00 00  42 00 00 00    i32.imm           0x00000042
 0x0068  02 0a 01 00  4a 00 00 00    break             rev:1   off:0x4a
 0x0070  00 0a                       end
 0x0072  02 02 01 00  00 00 00 00    local.load32_i32  rev:1   off:0x00  idx:0
-0x007a  00 0c                       nop
+0x007a  00 01                       nop
 0x007c  80 01 00 00  37 00 00 00    i32.imm           0x00000037
 0x0084  07 06                       i32.gt_u
-0x0086  00 0c                       nop
+0x0086  00 01                       nop
 0x0088  04 0a 00 00  01 00 00 00    block_nez         local:1   off:0x1e
         1e 00 00 00
 0x0094  80 01 00 00  43 00 00 00    i32.imm           0x00000043
 0x009c  02 0a 01 00  16 00 00 00    break             rev:1   off:0x16
 0x00a4  00 0a                       end
-0x00a6  00 0c                       nop
+0x00a6  00 01                       nop
 0x00a8  80 01 00 00  44 00 00 00    i32.imm           0x00000044
 0x00b0  00 0a                       end
 0x00b2  00 0a                       end"
@@ -1418,7 +1418,7 @@ fn test_assemble_control_flow_structure_branch_without_default_arm() {
         .get_func_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
-    println!("{}", bytecode_text);
+    // println!("{}", bytecode_text);
 
     assert_eq!(
         bytecode_text,
@@ -1428,24 +1428,24 @@ fn test_assemble_control_flow_structure_branch_without_default_arm() {
 0x000c  02 02 01 00  00 00 00 00    local.load32_i32  rev:1   off:0x00  idx:0
 0x0014  80 01 00 00  55 00 00 00    i32.imm           0x00000055
 0x001c  07 06                       i32.gt_u
-0x001e  00 0c                       nop
+0x001e  00 01                       nop
 0x0020  04 0a 00 00  01 00 00 00    block_nez         local:1   off:0x1e
         1e 00 00 00
 0x002c  80 01 00 00  41 00 00 00    i32.imm           0x00000041
 0x0034  02 0a 01 00  4a 00 00 00    break             rev:1   off:0x4a
 0x003c  00 0a                       end
 0x003e  02 02 01 00  00 00 00 00    local.load32_i32  rev:1   off:0x00  idx:0
-0x0046  00 0c                       nop
+0x0046  00 01                       nop
 0x0048  80 01 00 00  46 00 00 00    i32.imm           0x00000046
 0x0050  07 06                       i32.gt_u
-0x0052  00 0c                       nop
+0x0052  00 01                       nop
 0x0054  04 0a 00 00  01 00 00 00    block_nez         local:1   off:0x1e
         1e 00 00 00
 0x0060  80 01 00 00  42 00 00 00    i32.imm           0x00000042
 0x0068  02 0a 01 00  16 00 00 00    break             rev:1   off:0x16
 0x0070  00 0a                       end
-0x0072  00 0c                       nop
-0x0074  02 0c 00 00  00 01 00 00    unreachable       code:256
+0x0072  00 01                       nop
+0x0074  01 0c 00 00  00 01 00 00    unreachable       code:256
 0x007c  00 0a                       end
 0x007e  00 0a                       end"
     );
@@ -1458,15 +1458,17 @@ fn test_assemble_control_flow_structure_branch_without_default_arm() {
     let result1 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(80)]);
     assert_eq!(result1.unwrap(), vec![ForeignValue::UInt32(66)]);
 
+    let result2 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(70)]);
     assert!(matches!(
-        process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(70)]),
+        result2,
         Err(InterpreterError {
             error_type: InterpreterErrorType::Unreachable(0x100)
         })
     ));
 
+    let result3 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(60)]);
     assert!(matches!(
-        process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(60)]),
+        result3,
         Err(InterpreterError {
             error_type: InterpreterErrorType::Unreachable(0x100)
         })
@@ -1555,7 +1557,7 @@ fn test_assemble_control_flow_structure_loop() {
         01 00 00 00
 0x000c  02 02 01 00  00 00 00 00    local.load32_i32  rev:1   off:0x00  idx:0
 0x0014  00 06                       i32.eqz
-0x0016  00 0c                       nop
+0x0016  00 01                       nop
 0x0018  04 0a 00 00  01 00 00 00    block_nez         local:1   off:0x16
         16 00 00 00
 0x0024  02 0a 01 00  42 00 00 00    break             rev:1   off:0x42
@@ -1661,14 +1663,14 @@ fn test_assemble_control_flow_structure_loop_with_block_parameters() {
     assert_eq!(
         bytecode_text,
         "\
-0x0000  00 01                       zero
+0x0000  01 01                       zero
 0x0002  02 02 00 00  00 00 00 00    local.load32_i32  rev:0   off:0x00  idx:0
-0x000a  00 0c                       nop
+0x000a  00 01                       nop
 0x000c  01 0a 00 00  01 00 00 00    block             type:1   local:1
         01 00 00 00
 0x0018  02 02 00 00  00 00 01 00    local.load32_i32  rev:0   off:0x00  idx:1
 0x0020  00 06                       i32.eqz
-0x0022  00 0c                       nop
+0x0022  00 01                       nop
 0x0024  04 0a 00 00  02 00 00 00    block_nez         local:2   off:0x1e
         1e 00 00 00
 0x0030  02 02 01 00  00 00 00 00    local.load32_i32  rev:1   off:0x00  idx:0
@@ -1772,14 +1774,14 @@ fn test_assemble_control_flow_structure_loop_with_if() {
     assert_eq!(
         bytecode_text,
         "\
-0x0000  00 01                       zero
+0x0000  01 01                       zero
 0x0002  02 02 00 00  00 00 00 00    local.load32_i32  rev:0   off:0x00  idx:0
-0x000a  00 0c                       nop
+0x000a  00 01                       nop
 0x000c  01 0a 00 00  01 00 00 00    block             type:1   local:1
         01 00 00 00
 0x0018  02 02 00 00  00 00 01 00    local.load32_i32  rev:0   off:0x00  idx:1
 0x0020  00 06                       i32.eqz
-0x0022  00 0c                       nop
+0x0022  00 01                       nop
 0x0024  05 0a 00 00  02 00 00 00    block_alt         type:2   local:2   off:0x28
         02 00 00 00  28 00 00 00
 0x0034  02 02 01 00  00 00 00 00    local.load32_i32  rev:1   off:0x00  idx:0
@@ -1790,7 +1792,7 @@ fn test_assemble_control_flow_structure_loop_with_if() {
 0x005c  00 07                       i32.add
 0x005e  02 02 01 00  00 00 01 00    local.load32_i32  rev:1   off:0x00  idx:1
 0x0066  08 07 01 00                 i32.dec           1
-0x006a  00 0c                       nop
+0x006a  00 01                       nop
 0x006c  03 0a 01 00  54 00 00 00    recur             rev:1   off:0x54
 0x0074  00 0a                       end
 0x0076  00 0a                       end
@@ -1891,9 +1893,9 @@ fn test_assemble_control_flow_function_tail_call() {
 0x0022  08 07 01 00                 i32.dec           1
 0x0026  09 02 00 00  00 00 01 00    local.store32     rev:0   off:0x00  idx:1
 0x002e  02 02 00 00  00 00 01 00    local.load32_i32  rev:0   off:0x00  idx:1
-0x0036  00 01                       zero
+0x0036  01 01                       zero
 0x0038  07 06                       i32.gt_u
-0x003a  00 0c                       nop
+0x003a  00 01                       nop
 0x003c  04 0a 00 00  01 00 00 00    block_nez         local:1   off:0x26
         26 00 00 00
 0x0048  02 02 01 00  00 00 00 00    local.load32_i32  rev:1   off:0x00  idx:0
@@ -1992,7 +1994,7 @@ fn test_assemble_control_flow_function_tail_call_with_if() {
         "\
 0x0000  02 02 00 00  00 00 01 00    local.load32_i32  rev:0   off:0x00  idx:1
 0x0008  00 06                       i32.eqz
-0x000a  00 0c                       nop
+0x000a  00 01                       nop
 0x000c  05 0a 00 00  01 00 00 00    block_alt         type:1   local:1   off:0x20
         01 00 00 00  20 00 00 00
 0x001c  02 02 01 00  00 00 00 00    local.load32_i32  rev:1   off:0x00  idx:0
@@ -2002,7 +2004,7 @@ fn test_assemble_control_flow_function_tail_call_with_if() {
 0x003c  00 07                       i32.add
 0x003e  02 02 01 00  00 00 01 00    local.load32_i32  rev:1   off:0x00  idx:1
 0x0046  08 07 01 00                 i32.dec           1
-0x004a  00 0c                       nop
+0x004a  00 01                       nop
 0x004c  03 0a 01 00  00 00 00 00    recur             rev:1   off:0x00
 0x0054  00 0a                       end
 0x0056  00 0a                       end"

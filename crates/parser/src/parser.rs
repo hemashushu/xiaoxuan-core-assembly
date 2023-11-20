@@ -71,12 +71,13 @@
 //    )
 //    ```
 
-use ancvm_types::{opcode::Opcode, DataType, MemoryDataType};
+use ancvm_types::{opcode::Opcode, DataType, ExternalLibraryType, MemoryDataType};
 
 use crate::{
     ast::{
-        BranchCase, DataKindNode, DataNode, FuncNode, ImmF32, ImmF64, InitedData, Instruction,
-        LocalNode, ModuleElementNode, ModuleNode, ParamNode, UninitData,
+        BranchCase, DataKindNode, DataNode, ExternNode, ExternalFuncNode, ExternalItem,
+        ExternalLibraryNode, FuncNode, ImmF32, ImmF64, InitedData, Instruction, LocalNode,
+        ModuleElementNode, ModuleNode, ParamNode, UninitData,
     },
     instruction_kind::{InstructionKind, INSTRUCTION_KIND_TABLE},
     lexer::{NumberToken, Token},
@@ -127,6 +128,7 @@ pub fn parse_module_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleNod
             let element_node = match child_node_name.as_str() {
                 "fn" => parse_func_node(iter)?,
                 "data" => parse_data_node(iter)?,
+                "extern" => parse_extern_node(iter)?,
                 _ => {
                     return Err(ParseError::new(&format!(
                         "Unknown module element: {}",
@@ -279,7 +281,9 @@ fn parse_optional_signature(
     Ok((params, results))
 }
 
-fn parse_optional_results(iter: &mut PeekableIterator<Token>) -> Result<Vec<DataType>, ParseError> {
+fn parse_optional_signature_results_only(
+    iter: &mut PeekableIterator<Token>,
+) -> Result<Vec<DataType>, ParseError> {
     // (result|results ...){0,} ...  //
     // ^                        ^____// to here
     // |_____________________________// current token
@@ -1187,7 +1191,7 @@ fn parse_instruction_kind_if(
 
     consume_left_paren(iter, "if")?;
     consume_symbol(iter, "if")?;
-    let results = parse_optional_results(iter)?;
+    let results = parse_optional_signature_results_only(iter)?;
     let test = parse_next_instruction_operand(iter, "if.test")?;
     // let locals = parse_optional_local_variables(iter)?;
     let consequent = parse_next_instruction_operand(iter, "if.consequent")?;
@@ -1218,7 +1222,7 @@ fn parse_instruction_kind_branch(
 
     consume_left_paren(iter, "branch")?;
     consume_symbol(iter, "branch")?;
-    let results = parse_optional_results(iter)?;
+    let results = parse_optional_signature_results_only(iter)?;
     // let locals = parse_optional_local_variables(iter)?;
     let mut cases = vec![];
 
@@ -1670,6 +1674,183 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
     Ok(inited_data)
 }
 
+fn parse_extern_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNode, ParseError> {
+    // (extern
+    //     (library shared "math.so.1")
+    //     (fn $add "add" (param i32) (param i32) (result i32)
+    //     ) ...  //
+    // ^     ^____// to here
+    // |__________// current token
+
+    consume_left_paren(iter, "extern")?;
+    consume_symbol(iter, "extern")?;
+
+    let external_library_node = parse_external_library_node(iter)?;
+
+    let mut external_items: Vec<ExternalItem> = vec![];
+
+    // parse external items
+    while iter.look_ahead_equals(0, &Token::LeftParen) {
+        if let Some(Token::Symbol(child_node_name)) = iter.peek(1) {
+            let element_node = match child_node_name.as_str() {
+                "fn" => parse_external_func_node(iter)?,
+                _ => {
+                    return Err(ParseError::new(&format!(
+                        "Unknown external item: {}",
+                        child_node_name
+                    )))
+                }
+            };
+            external_items.push(element_node);
+        } else {
+            break;
+        }
+    }
+
+    consume_right_paren(iter)?;
+
+    let extern_node = ExternNode {
+        external_library_node,
+        external_items,
+    };
+
+    Ok(ModuleElementNode::ExternNode(extern_node))
+}
+
+fn parse_external_library_node(
+    iter: &mut PeekableIterator<Token>,
+) -> Result<ExternalLibraryNode, ParseError> {
+    // (library shared "math.so.1") ...  //
+    // ^                            ^____// to here
+    // |_________________________________// current token
+
+    // also:
+    // (library system "libc.so.6")
+    // (library user "lib-test-0.so.1")
+
+    consume_left_paren(iter, "library")?;
+    consume_symbol(iter, "library")?;
+
+    let external_library_type_str = expect_symbol(iter, "library")?;
+    let external_library_type = match external_library_type_str.as_str() {
+        "shared" => ExternalLibraryType::Shared,
+        "system" => ExternalLibraryType::System,
+        "user" => ExternalLibraryType::User,
+        _ => {
+            return Err(ParseError {
+                message: format!("Unknown share library type: {}", external_library_type_str),
+            })
+        }
+    };
+
+    let name = expect_string(iter, "library")?;
+    consume_right_paren(iter)?;
+
+    Ok(ExternalLibraryNode {
+        external_library_type,
+        name,
+    })
+}
+
+fn parse_external_func_node(
+    iter: &mut PeekableIterator<Token>,
+) -> Result<ExternalItem, ParseError> {
+    // (fn $add "add" (param i32) (param i32) (result i32)
+    // (fn $add "add" (params i32 i32) (result i32))
+    // parse_optional_external_signature
+
+    consume_left_paren(iter, "extern.fn)")?;
+    consume_symbol(iter, "fn")?;
+
+    let name = expect_identifier(iter, "extern.fn")?;
+    let symbol = expect_string(iter, "extern.fn")?;
+    let (params, results) = parse_optional_simplified_signature(iter)?;
+
+    consume_right_paren(iter)?;
+
+    Ok(ExternalItem::ExternalFunc(ExternalFuncNode {
+        name,
+        symbol,
+        params,
+        results,
+    }))
+}
+
+fn parse_optional_simplified_signature(
+    iter: &mut PeekableIterator<Token>,
+) -> Result<(Vec<DataType>, Vec<DataType>), ParseError> {
+    // (param|params|result|results ...){0,} ...  //
+    // ^                                     ^____// to here
+    // |__________________________________________// current token
+
+    let mut params: Vec<DataType> = vec![];
+    let mut results: Vec<DataType> = vec![];
+
+    while iter.look_ahead_equals(0, &Token::LeftParen) {
+        if let Some(Token::Symbol(child_node_name)) = iter.peek(1) {
+            match child_node_name.as_str() {
+                "param" => {
+                    let data_type = parse_simplified_param_node(iter)?;
+                    params.push(data_type);
+                }
+                "params" => {
+                    let mut data_types = parse_simplified_params_node(iter)?;
+                    params.append(&mut data_types);
+                }
+                "result" => {
+                    let data_type = parse_result_node(iter)?;
+                    results.push(data_type);
+                }
+                "results" => {
+                    let mut data_types = parse_results_node(iter)?;
+                    results.append(&mut data_types);
+                }
+                _ => break,
+            }
+        } else {
+            break;
+        }
+    }
+
+    Ok((params, results))
+}
+
+fn parse_simplified_param_node(iter: &mut PeekableIterator<Token>) -> Result<DataType, ParseError> {
+    // (param i32) ...  //
+    // ^           ^____// to here
+    // |________________// current token
+
+    // the simplified parameter has no identifier.
+
+    consume_left_paren(iter, "param")?;
+    consume_symbol(iter, "param")?;
+    let data_type = parse_data_type(iter)?;
+    consume_right_paren(iter)?;
+
+    Ok(data_type)
+}
+
+fn parse_simplified_params_node(
+    iter: &mut PeekableIterator<Token>,
+) -> Result<Vec<DataType>, ParseError> {
+    // (params i32 i32 i64) ...  //
+    // ^                    ^____// to here
+    // |_________________________// current token
+
+    let mut data_types: Vec<DataType> = vec![];
+
+    consume_left_paren(iter, "params")?;
+    consume_symbol(iter, "params")?;
+    while matches!(iter.peek(0), &Some(Token::Symbol(_))) {
+        let data_type = parse_data_type(iter)?;
+        data_types.push(data_type);
+    }
+
+    consume_right_paren(iter)?;
+
+    Ok(data_types)
+}
+
 // helper functions
 
 fn consume_token(
@@ -1988,12 +2169,13 @@ mod tests {
 
     use pretty_assertions::assert_eq;
 
-    use ancvm_types::{opcode::Opcode, DataType, MemoryDataType};
+    use ancvm_types::{opcode::Opcode, DataType, ExternalLibraryType, MemoryDataType};
 
     use crate::{
         ast::{
-            BranchCase, DataKindNode, DataNode, FuncNode, ImmF32, ImmF64, InitedData, Instruction,
-            LocalNode, ModuleElementNode, ModuleNode, ParamNode, UninitData,
+            BranchCase, DataKindNode, DataNode, ExternNode, ExternalFuncNode, ExternalItem,
+            ExternalLibraryNode, FuncNode, ImmF32, ImmF64, InitedData, Instruction, LocalNode,
+            ModuleElementNode, ModuleNode, ParamNode, UninitData,
         },
         instruction_kind::init_instruction_kind_table,
         lexer::lex,
@@ -2248,6 +2430,7 @@ mod tests {
                 (runtime_version "1.0")
                 (fn $test
                     (code
+                        nop
                         zero
                         (drop zero)
                         (duplicate zero)
@@ -2259,6 +2442,7 @@ mod tests {
             "#
             ),
             vec![
+                noparams_nooperands(Opcode::nop),
                 noparams_nooperands(Opcode::zero),
                 Instruction::NoParams {
                     opcode: Opcode::drop,
@@ -2266,9 +2450,7 @@ mod tests {
                 },
                 Instruction::NoParams {
                     opcode: Opcode::duplicate,
-                    operands: vec![
-                        noparams_nooperands(Opcode::zero),
-                    ]
+                    operands: vec![noparams_nooperands(Opcode::zero),]
                 },
                 Instruction::NoParams {
                     opcode: Opcode::swap,
@@ -3285,7 +3467,6 @@ mod tests {
                 (runtime_version "1.0")
                 (fn $test
                     (code
-                        nop
                         panic
                         (unreachable 0x11)
                         (debug 0x13)
@@ -3311,7 +3492,6 @@ mod tests {
             "#
             ),
             vec![
-                noparams_nooperands(Opcode::nop),
                 noparams_nooperands(Opcode::panic),
                 Instruction::Unreachable(0x11),
                 Instruction::Debug(0x13),
@@ -3730,6 +3910,145 @@ mod tests {
             (module $app
                 (runtime_version "1.0")
                 (data $d0 (uninit (bytes 12)))
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+    }
+
+    #[test]
+    fn test_parse_extern_node() {
+        assert_eq!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (extern (library shared "math.so.1")
+                    (fn $add "add" (param i32) (param i32) (result i32))
+                    (fn $sub_i32 "sub" (params i32 i32) (result i32))
+                    (fn $pause "pause_1s")
+                )
+                (extern (library system "libc.so.6")
+                    (fn $getuid "getuid" (result i32))
+                    (fn $getenv "getenv" (param (;name;) i64) (result i64))
+                )
+            )
+            "#
+            )
+            .unwrap(),
+            ModuleNode {
+                name: "app".to_owned(),
+                runtime_version_major: 1,
+                runtime_version_minor: 0,
+                element_nodes: vec![
+                    ModuleElementNode::ExternNode(ExternNode {
+                        external_library_node: ExternalLibraryNode {
+                            external_library_type: ExternalLibraryType::Shared,
+                            name: "math.so.1".to_owned()
+                        },
+                        external_items: vec![
+                            ExternalItem::ExternalFunc(ExternalFuncNode {
+                                name: "add".to_owned(),
+                                symbol: "add".to_owned(),
+                                params: vec![DataType::I32, DataType::I32,],
+                                results: vec![DataType::I32]
+                            }),
+                            ExternalItem::ExternalFunc(ExternalFuncNode {
+                                name: "sub_i32".to_owned(),
+                                symbol: "sub".to_owned(),
+                                params: vec![DataType::I32, DataType::I32,],
+                                results: vec![DataType::I32]
+                            }),
+                            ExternalItem::ExternalFunc(ExternalFuncNode {
+                                name: "pause".to_owned(),
+                                symbol: "pause_1s".to_owned(),
+                                params: vec![],
+                                results: vec![]
+                            })
+                        ]
+                    }),
+                    ModuleElementNode::ExternNode(ExternNode {
+                        external_library_node: ExternalLibraryNode {
+                            external_library_type: ExternalLibraryType::System,
+                            name: "libc.so.6".to_owned()
+                        },
+                        external_items: vec![
+                            ExternalItem::ExternalFunc(ExternalFuncNode {
+                                name: "getuid".to_owned(),
+                                symbol: "getuid".to_owned(),
+                                params: vec![],
+                                results: vec![DataType::I32]
+                            }),
+                            ExternalItem::ExternalFunc(ExternalFuncNode {
+                                name: "getenv".to_owned(),
+                                symbol: "getenv".to_owned(),
+                                params: vec![DataType::I64],
+                                results: vec![DataType::I64]
+                            })
+                        ]
+                    }),
+                ]
+            }
+        );
+
+        // missing library node
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (extern
+                    (fn $add "add")
+                )
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
+        // unsupported library type
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (extern
+                    (library custom "libabc.so")
+                    (fn $add "add")
+                )
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
+        // missing fn identifier
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (extern
+                    (library user "libabc.so")
+                    (fn "add")
+                )
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
+        // missing fn symbol
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (extern
+                    (library user "libabc.so")
+                    (fn $add)
+                )
             )
             "#
             ),

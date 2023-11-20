@@ -103,7 +103,7 @@ fn test_assemble_envcall_runtime_code_name() {
     assert_eq!(
         bytecode_text,
         "\
-0x0000  04 0c 00 00  00 00 00 00    host.addr_local   rev:0   off:0x00  idx:0
+0x0000  03 0c 00 00  00 00 00 00    host.addr_local   rev:0   off:0x00  idx:0
 0x0008  02 0b 00 00  00 01 00 00    envcall           idx:256
 0x0010  00 02 00 00  00 00 00 00    local.load64_i64  rev:0   off:0x00  idx:0
 0x0018  00 0a                       end"

@@ -12,9 +12,7 @@ use ancvm_runtime::{
     in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
 };
 use ancvm_syscall_util::{errno::Errno, number::SysCallNum};
-use ancvm_types::{
-    ForeignValue, RUNTIME_MAJOR_VERSION, RUNTIME_MINOR_VERSION, RUNTIME_PATCH_VERSION,
-};
+use ancvm_types::ForeignValue;
 
 use crate::utils::assemble_single_module;
 
