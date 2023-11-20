@@ -14,3 +14,4 @@ ancvm_runtime = { path = "../../../xiaoxuan-core-vm/crates/runtime" }
 
 [dev-dependencies]
 pretty_assertions = "1.4.0"
+ancvm_syscall_util = {path = "../../../xiaoxuan-core-vm/crates/syscall_util"}
