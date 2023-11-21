@@ -118,7 +118,16 @@ fn test_assemble_extcall_with_user_lib() {
     );
 
     let mut pwd = env::current_dir().unwrap();
+    if !pwd.ends_with("assembler") {
+        // in the VSCode `Debug` environment, the `current_dir()`
+        // the project root folder.
+        // while in both `$ cargo test` and VSCode `Run Test` environment
+        // the `current_dir()` return the current crate path.
+        pwd.push("crates");
+        pwd.push("assembler");
+    }
     pwd.push("tests");
+
     let program_source_path = pwd.to_str().unwrap();
 
     let program_source0 = InMemoryProgramSource::with_settings(

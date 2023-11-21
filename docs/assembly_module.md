@@ -35,7 +35,17 @@ An assembly text file can only define one module, so the content of an assembly 
 )
 ```
 
-In the above example, `$app` is an identifier that represents the name of the current module (note that the name must be immediately followed by the symbol `module`). The module name also expresses the module's namespace, for example, `std__math__complex` represents the namespace `std::math::complex`.
+In the above example, `$app` is an identifier that represents the name of the current module, i.e. the name of the application or library. Note that the valid characters of the name are `[a-zA-Z0-9_]` and `::`, and the name must be immediately followed by the symbol `module`.
+
+For an application or library with multiple source files, the main module file names are `main.anca` and `lib.anca`, and any other source files will be used as submodules. The names of submodules must contains the namespace paths. For example, consider a library call `draw` that has 3 source files:
+
+```text
+- lib.anca
+- circle.anca
+- rectangle.anca
+```
+
+Their module names should be `draw`, `draw::circle` and `draw::rectangle`.
 
 After the name is the child node `runtime_version`, it is a parameter of node `module`, which indicates the expected version of the runtime, followed by the nodes of user-defined data and functions.
 

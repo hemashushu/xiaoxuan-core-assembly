@@ -124,6 +124,11 @@ fn lex_identifier(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError
                 id_string.push(*curc);
                 iter.next();
             }
+            ':' if iter.look_ahead_equals(1, &':') => {
+                id_string.push_str("::");
+                iter.next();
+                iter.next();
+            }
             ' ' | '\t' | '\r' | '\n' | '(' | ')' | ';' | '#' => {
                 // terminator chars
                 break;
@@ -886,10 +891,23 @@ mod tests {
         );
 
         assert_eq!(
-            // "__" is used for namespace separator
             lex_from_str("$a__b__c").unwrap(),
             vec![
                 Token::new_identifier("a__b__c"),
+            ]
+        );
+
+        assert_eq!(
+            lex_from_str("$a::b").unwrap(),
+            vec![
+                Token::new_identifier("a::b"),
+            ]
+        );
+
+        assert_eq!(
+            lex_from_str("$a::b::c").unwrap(),
+            vec![
+                Token::new_identifier("a::b::c"),
             ]
         );
 
@@ -910,6 +928,12 @@ mod tests {
         // invalid char for identifier
         assert!(matches!(
             lex_from_str("$abc+xyz"),
+            Err(ParseError { message: _ })
+        ));
+
+        // single colon
+        assert!(matches!(
+            lex_from_str("$ab:c"),
             Err(ParseError { message: _ })
         ));
     }

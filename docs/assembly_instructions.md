@@ -36,6 +36,8 @@
   - [Math](#math)
     - [f32](#f32-2)
     - [f64](#f64-2)
+  - [Function Calling](#function-calling)
+  - [Host](#host)
 
 <!-- /code_chunk_output -->
 
@@ -135,6 +137,10 @@ variants
 - `data.load32_i8_s`
 - `data.load32_i8_u`
 - `data.load32_f32`
+
+> NOTE:
+> the data name should contains the full namespace path, e.g. `mylib::msg`, `mylib::utils::buf`.
+> The namespace path can also be omitted, in which case the instruction will access items within the current module.
 
 storing
 
@@ -448,6 +454,10 @@ wrapping dec, e.g. 0x1 dec 2 = 0xffff_ffff
 (envcall ENV_CALL_NUMBER:i32 OPERAND_FOR_ARGS...)
 (syscall SYS_CALL_NUMBER:i32 OPERAND_FOR_ARGS...)
 (extcall $name OPERAND_FOR_ARGS...)
+
+> NOTE:
+> the call name should contains the full namespace path, e.g. `mylib::msg`, `mylib::utils::buf`.
+> The namespace path can also be omitted, in which case the instruction will access items within the current module.
 
 ## Host
 

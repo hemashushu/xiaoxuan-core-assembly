@@ -52,11 +52,11 @@ Every node starts with a symbol. e.g.
 
 Identifiers are the names of user-defined objects, such as modules, functions and parameters.
 
-An identifier starts with a dollar sign `$` followed by the characters `[a-zA-Z0-9_]`. The name portion of an identifier cannot begin with a number either.
+An identifier starts with a dollar sign `$` followed by the characters `[a-zA-Z0-9_]` and `::`. The name portion of an identifier cannot begin with a number or `::` either.
 
 Example of valid identifiers:
 
-`$app`, `$main`, `$num`
+`$app`, `$main`, `$mylib::num`
 
 ## Number
 
