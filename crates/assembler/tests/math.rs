@@ -58,7 +58,7 @@ fn test_assemble_math_f32_part_a() {
         r#"
             (module $app
                 (runtime_version "1.0")
-                (fn $main
+                (fn $test
                     (param $a0 f32)
                     (param $a1 f32)
                     (param $a2 f32)
@@ -193,7 +193,7 @@ fn test_assemble_math_f32_part_b() {
         r#"
             (module $app
                 (runtime_version "1.0")
-                (fn $main
+                (fn $test
                     (param $a0 f32)
                     (param $a1 f32)
                     (param $a2 f32)
@@ -323,7 +323,7 @@ fn test_assemble_math_f64_part_a() {
         r#"
             (module $app
                 (runtime_version "1.0")
-                (fn $main
+                (fn $test
                     (param $a0 f64)
                     (param $a1 f64)
                     (param $a2 f64)
@@ -458,7 +458,7 @@ fn test_assemble_math_f64_part_b() {
         r#"
             (module $app
                 (runtime_version "1.0")
-                (fn $main
+                (fn $test
                     (param $a0 f64)
                     (param $a1 f64)
                     (param $a2 f64)

@@ -33,7 +33,7 @@ fn test_assemble_extcall_with_system_libc_getuid() {
             (extern (library system "libc.so.6")
                 (fn $getuid "getuid" (result i32))
             )
-            (fn $main (result i32)
+            (fn $test (result i32)
                 (code
                     (extcall $getuid)
                 )
@@ -67,7 +67,7 @@ fn test_assemble_extcall_with_system_libc_getenv() {
                 (fn $getenv "getenv" (param i64) (result i64))
             )
             (data $pwd (read_only cstring "PWD"))
-            (fn $main (result i64)
+            (fn $test (result i64)
                 (code
                     (extcall $getenv
                         (host.addr_data $pwd)
@@ -105,7 +105,7 @@ fn test_assemble_extcall_with_user_lib() {
             (extern (library user "lib-test-0.so.1")
                 (fn $add "add" (params i32 i32) (result i32))
             )
-            (fn $main (param $a i32) (param $b i32) (result i32)
+            (fn $test (param $a i32) (param $b i32) (result i32)
                 (code
                     (extcall $add
                         (local.load32_i32 $a)

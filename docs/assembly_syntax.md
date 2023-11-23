@@ -25,7 +25,7 @@ The text of _XiaoXuan Core Assembly_ is consists of symbols, identifiers, number
 ```clojure
 (module $app
     (runtime_version "1.0")
-    (fn $main (param $num i32) (result i32)
+    (fn $test (param $num i32) (result i32)
         (i32.add
             (local.load32 $num)
             (i32.imm 11)
@@ -181,7 +181,7 @@ Line comments start with symbol `;;` and continue until the end of the line, e.g
 ```clojure
 (module
     ;; this is a comment
-    (fn $main   ;; this is a comment also
+    (fn $test   ;; this is a comment also
     )
 )
 ```
@@ -192,7 +192,7 @@ Block comments start with the symbol `(;` and end with the symbol `;)`, and nest
 
 ```clojure
 (module
-    (fn $main
+    (fn $test
         (; this is a block comment ;)
         (; level one (; level two ;);)
     )
@@ -213,7 +213,7 @@ Adding the `#` sign before left parenthesis of a node will comment out that node
 
 ```clojure
 (module
-    #(fn $main
+    #(fn $test
         #(param $left i32) (param $right i32)
     )
 )
@@ -225,7 +225,7 @@ Node comments have the lowest priority, and block and line comments within node 
 
 ```clojure
 (module
-    #(fn $main
+    #(fn $test
         // this right paren ')' does not end the node comment
         (; this right paren ')' also does not end the node comment ;)
     )

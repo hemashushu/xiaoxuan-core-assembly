@@ -20,7 +20,7 @@ use pretty_assertions::assert_eq;
 
 #[test]
 fn test_assemble_syscall_without_args() {
-    // fn $main () -> (result:i64 errno:i32)
+    // fn $test () -> (result:i64 errno:i32)
 
     // syscall:
     // `pid_t getpid(void);`
@@ -29,7 +29,7 @@ fn test_assemble_syscall_without_args() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main (results i64 i32)
+            (fn $test (results i64 i32)
                 (code
                     (syscall {SYS_CALL_NUMBER_0})
                 )
@@ -71,7 +71,7 @@ fn test_assemble_syscall_without_args() {
 
 #[test]
 fn test_assemble_syscall_with_2_args() {
-    // fn $main (buf_addr:i64, buf_len:i32) -> (result:i64 errno:i32)
+    // fn $test (buf_addr:i64, buf_len:i32) -> (result:i64 errno:i32)
 
     // syscall:
     // `char *getcwd(char buf[.size], size_t size);`
@@ -80,7 +80,7 @@ fn test_assemble_syscall_with_2_args() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main
+            (fn $test
                 (param $buf_addr i64)
                 (param $buf_len i32)
                 (results i64 i32)
@@ -154,7 +154,7 @@ fn test_assemble_syscall_with_2_args() {
 
 #[test]
 fn test_assemble_syscall_error_no() {
-    // fn $main (file_path_buf_addr:i64) -> (result:i64 errno:i32)
+    // fn $test (file_path_buf_addr:i64) -> (result:i64 errno:i32)
 
     // syscall:
     // `int open(const char *pathname, int flags)`
@@ -163,7 +163,7 @@ fn test_assemble_syscall_error_no() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main
+            (fn $test
                 (param $file_path_buf_addr i64)
                 (results i64 i32)
                 (code

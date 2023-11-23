@@ -28,14 +28,14 @@ fn test_assemble_envcall_runtime_version() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main (result i64)
+            (fn $test (result i64)
                 (code
-                    (envcall {ENV_CALL_CODE_0})
+                    (envcall {ENV_CALL_CODE_RUNTIME_VERSION})
                 )
             )
         )
         "#,
-        ENV_CALL_CODE_0 = (EnvCallCode::runtime_version as u32)
+        ENV_CALL_CODE_RUNTIME_VERSION = (EnvCallCode::runtime_version as u32)
     ));
 
     let program_source0 = InMemoryProgramSource::new(module_binaries);
@@ -78,16 +78,16 @@ fn test_assemble_envcall_runtime_code_name() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main (results i32 i64)
+            (fn $test (results i32 i64)
                 (local $buf (bytes 8 8))
                 (code
-                    (envcall {ENV_CALL_CODE_0} (host.addr_local $buf))
+                    (envcall {ENV_CALL_CODE_RUNTIME_NAME} (host.addr_local $buf))
                     (local.load64_i64 $buf)
                 )
             )
         )
         "#,
-        ENV_CALL_CODE_0 = (EnvCallCode::runtime_name as u32)
+        ENV_CALL_CODE_RUNTIME_NAME = (EnvCallCode::runtime_name as u32)
     ));
 
     let program_source0 = InMemoryProgramSource::new(module_binaries);
@@ -113,16 +113,8 @@ fn test_assemble_envcall_runtime_code_name() {
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     let fvs1 = result0.unwrap();
-    let name_len = if let ForeignValue::UInt32(i) = fvs1[0] {
-        i
-    } else {
-        0
-    };
-    let name_u64 = if let ForeignValue::UInt64(i) = fvs1[1] {
-        i
-    } else {
-        0
-    };
+    let name_len = fvs1[0].as_u32();
+    let name_u64 = fvs1[1].as_u64();
 
     let name_data = name_u64.to_le_bytes();
     assert_eq!(&RUNTIME_CODE_NAME[..], &name_data[0..name_len as usize]);

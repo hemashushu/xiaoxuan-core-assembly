@@ -18,7 +18,7 @@ Both _XiaoXuan Core Applications_ and _XiaoXuan Core Shared Libraries_ consist o
 
 For _Shared Libraries_, multiple modules are not dependent on each other, and they provide accessible functions and data to the outside world on an equal basis.
 
-_Applications_ are similar to _Shared Libraries_, but applications have an additional function called `main` that provides the entry point for the application.
+_Applications_ are similar to _Shared Libraries_, but applications have an additional function called `entry` that provides the entry point for the application.
 
 ## The `module` Node
 
@@ -27,7 +27,7 @@ An assembly text file can only define one module, so the content of an assembly 
 ```clojure
 (module $app
     (runtime_version "1.0")
-    (fn $main (result i32)
+    (fn $test (result i32)
         (code
             (i32.imm 42)
         )
@@ -49,7 +49,7 @@ Their module names should be `draw`, `draw::circle` and `draw::rectangle`.
 
 After the name is the child node `runtime_version`, it is a parameter of node `module`, which indicates the expected version of the runtime, followed by the nodes of user-defined data and functions.
 
-A module should at least define one data or function node, otherwise it is useless (although it is a valid module). For an application, at least one function called "main" should be defined, otherwise it cannot pass the assembler check.
+A module should at least define one data or function node, otherwise it is useless (although it is a valid module). For an application, at least one function called "entry" should be defined, otherwise it cannot pass the assembler check.
 
 > Save the above assembly code to a file say "a.anc" and then execute the command `$ ancl a.anc; echo $?`, you should see the output "42".
 
@@ -57,9 +57,9 @@ A module should at least define one data or function node, otherwise it is usele
 
 The node `module` has some optional parameters:
 
-- `constructor`: A constructor function that is run after the application is loaded and before the main function. It usually performs some data initilization.
+- `constructor`: A constructor function that is run after the application is loaded and before the "entry" function. It usually performs some data initilization.
 
-- `destructor`: The destructor function, which is run after the main function and before the application exits. It is usually used to do some resource collection work.
+- `destructor`: The destructor function, which is run after the "entry" function and before the application exits. It is usually used to do some resource collection work.
 
 The following is an example that uses these parameters:
 
@@ -71,7 +71,7 @@ The following is an example that uses these parameters:
     (destructor $exit)
 
     (fn $init ...)
-    (fn $main ...)
+    (fn $test ...)
     (fn $exit ...)
 )
 ```

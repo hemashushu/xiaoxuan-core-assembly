@@ -23,7 +23,7 @@ fn test_assemble_fundamental_nop() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main
+            (fn $test
                 (param $a i32)
                 (result i32)
                 (code
@@ -49,7 +49,7 @@ fn test_assemble_fundamental_zero() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main (result i32)
+            (fn $test (result i32)
                 (code
                     zero
                 )
@@ -73,7 +73,7 @@ fn test_assemble_fundamental_drop() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main (result i32)
+            (fn $test (result i32)
                 (code
                     (i32.imm 13)
                     (drop
@@ -100,7 +100,7 @@ fn test_assemble_fundamental_duplicate() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main (results i32 i32)
+            (fn $test (results i32 i32)
                 (code
                     (duplicate
                         (i32.imm 19)
@@ -129,7 +129,7 @@ fn test_assemble_fundamental_swap() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main (results i32 i32)
+            (fn $test (results i32 i32)
                 (code
                     (swap
                         (i32.imm 211)
@@ -159,7 +159,7 @@ fn test_assemble_fundamental_select_nez_false() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main (result i32)
+            (fn $test (result i32)
                 (code
                     (select_nez
                         (i32.imm 11)    ;; when true
@@ -187,7 +187,7 @@ fn test_assemble_fundamental_select_nez_true() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main (result i32)
+            (fn $test (result i32)
                 (code
                     (select_nez
                         (i32.imm 11)    ;; when true
@@ -215,7 +215,7 @@ fn test_assemble_fundamental_immediate_int() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main (results i32 i64 i32 i64)
+            (fn $test (results i32 i64 i32 i64)
                 (code
                     (i32.imm 23)
                     (i64.imm 0x29313741_43475359)
@@ -250,7 +250,7 @@ fn test_assemble_fundamental_immediate_float() {
         r#"
             (module $app
                 (runtime_version "1.0")
-                (fn $main (results f32 f64 f32 f64)
+                (fn $test (results f32 f64 f32 f64)
                     (code
                         (f32.imm 3.14159265358979323846264338327950288)     ;; Pi
                         (f64.imm 1.41421356237309504880168872420969808)     ;; sqrt(2)
@@ -285,7 +285,7 @@ fn test_assemble_fundamental_immediate_float_hex() {
         r#"
             (module $app
                 (runtime_version "1.0")
-                (fn $main (results f32 f64 f32 f64)
+                (fn $test (results f32 f64 f32 f64)
                     (code
                         (f32.imm 0x40490fdb)            ;; Pi
                         (f64.imm 0x3ff6a09e_667f3bcd)   ;; sqrt(2)

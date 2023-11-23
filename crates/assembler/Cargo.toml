@@ -16,3 +16,4 @@ ancvm_runtime = { path = "../../../xiaoxuan-core-vm/crates/runtime" }
 pretty_assertions = "1.4.0"
 ancvm_syscall_util = { path = "../../../xiaoxuan-core-vm/crates/syscall_util" }
 ancvm_extfunc_util = { path = "../../../xiaoxuan-core-vm/crates/extfunc_util" }
+libc = "0.2"

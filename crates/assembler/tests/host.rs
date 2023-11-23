@@ -27,7 +27,7 @@ fn test_assemble_host_panic() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main
+            (fn $test
                 (code
                     nop
                     panic
@@ -60,7 +60,7 @@ fn test_assemble_host_debug() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main
+            (fn $test
                 (code
                     nop
                     (debug 0x101)
@@ -93,7 +93,7 @@ fn test_assemble_host_unreachable() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main
+            (fn $test
                 (code
                     nop
                     (unreachable 0x103)
@@ -181,7 +181,7 @@ fn test_assemble_host_address_of_data_and_local_vars() {
             (data $d3 (read_write i32 0xff))    ;; init data
             (data $d4 (uninit i32))
             (data $d5 (uninit i64))
-            (fn $main
+            (fn $test
                 (results i64 i64 i64 i64 i64 i64 i64 i64)
                 (local $reserved (bytes 64 8))
                 (local $n1 i32)
@@ -324,7 +324,7 @@ fn test_assemble_host_address_long_of_data_and_local_vars() {
             (runtime_version "1.0")
             (data $d0 (read_only (bytes 8) d"02-03-05-07"))
             (data $d1 (read_only (bytes 8) d"11-13-17-19"))
-            (fn $main
+            (fn $test
                 (results i64 i64 i64 i64 i64 i64 i64 i64)
                 (local $reserved (bytes 64 8))
                 (local $n1 (bytes 8 8))
@@ -426,7 +426,7 @@ fn test_assemble_host_address_heap() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main
+            (fn $test
                 (results i64 i64 i64 i64 i64)
                 (code
                     ;; init the heap size
@@ -532,7 +532,7 @@ fn test_assemble_host_heap_copy() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main
+            (fn $test
                 (param $src_ptr i64)
                 (param $dst_ptr i64)
                 (code
@@ -689,7 +689,7 @@ fn read_memory_i64(fv: ForeignValue) -> u64 {
         let ptr = addr as *const u64;
         unsafe { std::ptr::read(ptr) }
     } else {
-        0
+        panic!("The data type of the foreign value does not match.")
     }
 }
 
@@ -698,7 +698,7 @@ fn read_memory_i32(fv: ForeignValue) -> u32 {
         let ptr = addr as *const u32;
         unsafe { std::ptr::read(ptr) }
     } else {
-        0
+        panic!("The data type of the foreign value does not match.")
     }
 }
 
@@ -707,7 +707,7 @@ fn read_memory_i16(fv: ForeignValue) -> u16 {
         let ptr = addr as *const u16;
         unsafe { std::ptr::read(ptr) }
     } else {
-        0
+        panic!("The data type of the foreign value does not match.")
     }
 }
 
@@ -716,6 +716,6 @@ fn read_memory_i8(fv: ForeignValue) -> u8 {
         let ptr = addr as *const u8;
         unsafe { std::ptr::read(ptr) }
     } else {
-        0
+        panic!("The data type of the foreign value does not match.")
     }
 }

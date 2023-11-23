@@ -410,7 +410,7 @@ mod tests {
             r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main
+            (fn $test
                 (param $a i32) (param $b i32)
                 (results i32)
                 (local $c i32)

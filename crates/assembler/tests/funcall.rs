@@ -18,7 +18,7 @@ use pretty_assertions::assert_eq;
 
 #[test]
 fn test_assemble_function_call() {
-    // fn $main (i32) -> (i32)
+    // fn $test (i32) -> (i32)
     //     (call $sum_square)
     // end
     //
@@ -58,7 +58,7 @@ fn test_assemble_function_call() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main (param $count i32) (result i32)
+            (fn $test (param $count i32) (result i32)
                 (code
                     (call $sum_square (local.load32_i32 $count))
                 )
@@ -110,7 +110,7 @@ fn test_assemble_function_call() {
 
 #[test]
 fn test_assemble_function_call_dyncall() {
-    // fn $main () -> (i32, i32, i32, i32, i32)
+    // fn $test () -> (i32, i32, i32, i32, i32)
     //     (i32_imm 2)
     //     (dyncall)
     //     (i32_imm 4)
@@ -145,7 +145,7 @@ fn test_assemble_function_call_dyncall() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $main (results i32 i32 i32 i32 i32)
+            (fn $test (results i32 i32 i32 i32 i32)
                 (code
                     (dyncall (macro.get_func_pub_index $thirteen))
                     (dyncall (macro.get_func_pub_index $nineteen))
