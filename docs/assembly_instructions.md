@@ -125,7 +125,7 @@ storing
 
 ### data loading and storing
 
-(data.load64_i64 $DATA_NAME OPTIONAL_OFFSET_NUMBER:i16)
+(data.load64_i64 $DATA_NAME_PATH OPTIONAL_OFFSET_NUMBER:i16)
 
 variants
 
@@ -144,7 +144,7 @@ variants
 
 storing
 
-(data.store64 $DATA_NAME OPTIONAL_OFFSET_NUMBER:i16 OPERAND_FOR_STORING)
+(data.store64 $DATA_NAME_PATH OPTIONAL_OFFSET_NUMBER:i16 OPERAND_FOR_STORING)
 
 - `data.store64`
 - `data.store32`
@@ -153,7 +153,7 @@ storing
 
 ### data loading and storing with dynamical offset
 
-(data.long_load64_i64 $DATA_NAME OPERAND_FOR_OFFSET:i32)
+(data.long_load64_i64 $DATA_NAME_PATH OPERAND_FOR_OFFSET:i32)
 
 variants:
 
@@ -168,7 +168,7 @@ variants:
 
 storing
 
-(data.long_store64 $DATA_NAME OPERAND_FOR_OFFSET:i32 OPERAND_FOR_STORING)
+(data.long_store64 $DATA_NAME_PATH OPERAND_FOR_OFFSET:i32 OPERAND_FOR_STORING)
 
 variants:
 
@@ -449,15 +449,16 @@ wrapping dec, e.g. 0x1 dec 2 = 0xffff_ffff
 
 ## Function Calling
 
-(call $name OPERAND_FOR_ARGS...)
+(call $name_path OPERAND_FOR_ARGS...)
 (dyncall OPERAND_FOR_FUNC_PUBLIC_INDEX:i32 OPERAND_FOR_ARGS...)
 (envcall ENV_CALL_NUMBER:i32 OPERAND_FOR_ARGS...)
 (syscall SYS_CALL_NUMBER:i32 OPERAND_FOR_ARGS...)
 (extcall $name OPERAND_FOR_ARGS...)
 
 > NOTE:
-> the call name should contains the full namespace path, e.g. `mylib::msg`, `mylib::utils::buf`.
-> The namespace path can also be omitted, in which case the instruction will access items within the current module.
+> the `name_path` in the instructions `call`, data loading and data storing can be a full name path (a path that combined with the path of namespace and the identifier), e.g. `mylib::msg`, `mylib::utils::buf`.
+> When the name path is omitted, the instruction will access items within the current module.
+> These name path can be a relative path, e.g. `module::utils::buf`, `self::utils::buf`.
 
 ## Host
 
@@ -467,8 +468,8 @@ wrapping dec, e.g. 0x1 dec 2 = 0xffff_ffff
 (debug CODE_NUMBER:i32)
 (host.addr_local $VARIABLE_NAME OPTIONAL_OFFSET_NUMBER:i16)
 (host.addr_local_long $VARIABLE_NAME OPERAND_FOR_OFFSET:i32)
-(host.addr_data $DATA_NAME OPTIONAL_OFFSET_NUMBER:i16)
-(host.addr_data_long $DATA_NAME OPERAND_FOR_OFFSET:i32)
+(host.addr_data $DATA_NAME_PATH OPTIONAL_OFFSET_NUMBER:i16)
+(host.addr_data_long $DATA_NAME_PATH OPERAND_FOR_OFFSET:i32)
 (host.addr_heap OPTIONAL_OFFSET_NUMBER:i16 OPERAND_FOR_ADDR)
 (host.addr_func $name)
 (host.copy_from_heap

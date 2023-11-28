@@ -11,7 +11,6 @@ use ancvm_binary::module_image::{
     data_name_section::DataNameEntry,
     data_section::{InitedDataEntry, UninitDataEntry},
     external_func_index_section::ExternalFuncIndexModuleEntry,
-    external_func_name_section::ExternalFuncNameEntry,
     external_func_section::ExternalFuncEntry,
     external_library_section::ExternalLibraryEntry,
     func_index_section::FuncIndexModuleEntry,
@@ -26,6 +25,8 @@ use ancvm_types::VMError;
 
 pub mod assembler;
 pub mod linker;
+pub mod preprocessor;
+pub mod utils;
 
 pub struct ModuleEntry {
     pub name: String,
@@ -45,7 +46,7 @@ pub struct ModuleEntry {
 
     pub func_name_entries: Vec<FuncNameEntry>,
     pub data_name_entries: Vec<DataNameEntry>,
-    pub external_func_name_entries: Vec<ExternalFuncNameEntry>,
+    // pub external_func_name_entries: Vec<ExternalFuncNameEntry>,
 }
 
 pub struct IndexEntry {

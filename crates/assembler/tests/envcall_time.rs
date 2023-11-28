@@ -4,24 +4,21 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-mod utils;
+use std::time::Duration;
 
-use std::time::{Duration, Instant};
-
-use ancvm_program::program_source::ProgramSource;
-use ancvm_runtime::{
+use ancvm_assembler::utils::helper_generate_single_module_image_binary_from_assembly;
+use ancvm_process::{
     in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
 };
+use ancvm_program::program_source::ProgramSource;
 use ancvm_types::envcallcode::EnvCallCode;
 use libc::{clock_gettime, timespec, CLOCK_MONOTONIC};
-
-use crate::utils::assemble_single_module;
 
 #[test]
 fn test_assemble_envcall_time_now() {
     // () -> (i64)
 
-    let module_binaries = assemble_single_module(&format!(
+    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -57,37 +54,4 @@ fn test_assemble_envcall_time_now() {
 
     let dur = dur_after - dur_before;
     assert!(dur.as_millis() < 1000);
-}
-
-#[test]
-fn test_assemble_envcall_time_sleep() {
-    // () -> (i)
-
-    let module_binaries = assemble_single_module(&format!(
-        r#"
-        (module $app
-            (runtime_version "1.0")
-            (fn $test
-                (code
-                    (envcall {ENV_CALL_CODE_TIME_SLEEP}
-                        (i64.imm 1000)
-                    )
-                )
-            )
-        )
-        "#,
-        ENV_CALL_CODE_TIME_SLEEP = (EnvCallCode::time_sleep as u32)
-    ));
-
-    let program_source0 = InMemoryProgramSource::new(module_binaries);
-    let program0 = program_source0.build_program().unwrap();
-    let mut thread_context0 = program0.create_thread_context();
-
-    let before = Instant::now();
-    let _ = process_function(&mut thread_context0, 0, 0, &[]);
-    let after = Instant::now();
-
-    let duration = after.duration_since(before);
-    let ms = duration.as_millis() as u64;
-    assert!(ms > 500);
 }

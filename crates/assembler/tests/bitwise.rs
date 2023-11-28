@@ -4,15 +4,12 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-mod utils;
-
+use ancvm_assembler::utils::helper_generate_single_module_image_binary_from_assembly;
 use ancvm_program::program_source::ProgramSource;
-use ancvm_runtime::{
+use ancvm_process::{
     in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
 };
 use ancvm_types::ForeignValue;
-
-use crate::utils::assemble_single_module;
 
 use pretty_assertions::assert_eq;
 
@@ -49,7 +46,7 @@ fn test_assemble_bitwise_i32() {
     //
     // (i32 i32 i32 i32) -> (i32 i32 i32  i32 i32 i32  i32 i32 i32 i32  i32 i32 i32 i32)
 
-    let module_binaries = assemble_single_module(
+    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -160,7 +157,7 @@ fn test_assemble_bitwise_i64() {
     //
     // (i64 i64 i64 i64) -> (i64 i64 i64  i64 i64 i64  i64 i64 i64 i64  i64 i32 i32 i32)
 
-    let module_binaries = assemble_single_module(
+    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
         r#"
         (module $app
             (runtime_version "1.0")

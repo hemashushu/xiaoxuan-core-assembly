@@ -9,7 +9,7 @@ use ancvm_types::{opcode::Opcode, DataType, ExternalLibraryType, MemoryDataType}
 #[derive(Debug, PartialEq)]
 pub struct ModuleNode {
     // module names can not be duplicated
-    pub name: String,
+    pub name_path: String,
 
     pub runtime_version_major: u16,
     pub runtime_version_minor: u16,
@@ -139,14 +139,14 @@ pub enum Instruction {
     // bytecode: (param offset_bytes:i16 data_public_index:i32)
     DataLoad {
         opcode: Opcode,
-        name: String,
+        name_path: String,
         offset: u16,
     },
 
     // bytecode: (param offset_bytes:i16 data_public_index:i32)
     DataStore {
         opcode: Opcode,
-        name: String,
+        name_path: String,
         offset: u16,
         value: Box<Instruction>,
     },
@@ -154,14 +154,14 @@ pub enum Instruction {
     // bytecode: (param data_public_index:i32)
     DataLongLoad {
         opcode: Opcode,
-        name: String,
+        name_path: String,
         offset: Box<Instruction>,
     },
 
     // bytecode: (param data_public_index:i32)
     DataLongStore {
         opcode: Opcode,
-        name: String,
+        name_path: String,
         offset: Box<Instruction>,
         value: Box<Instruction>,
     },
@@ -269,7 +269,7 @@ pub enum Instruction {
 
     // bytecode: (param func_pub_index:i32)
     Call {
-        name: String,
+        name_path: String,
         args: Vec<Instruction>,
     },
 
@@ -297,14 +297,14 @@ pub enum Instruction {
         args: Vec<Instruction>,
     },
 
+    Debug(/* code */ u32),
+    Unreachable(/* code */ u32),
+    HostAddrFunc(/* name_path */ String),
+
     // macro.get_func_pub_index
     //
     // for obtaining the public index of the specified function
-    GetFuncPubIndex(/* identifier */ String),
-
-    Debug(/* code */ u32),
-    Unreachable(/* code */ u32),
-    HostAddrFunc(/* name */ String),
+    MacroGetFuncPubIndex(/* name_path */ String),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -334,14 +334,14 @@ pub struct DataNode {
     pub data_kind: DataKindNode,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum DataKindNode {
     ReadOnly(InitedData),
     ReadWrite(InitedData),
     Uninit(UninitData),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct InitedData {
     pub memory_data_type: MemoryDataType,
     pub length: u32,
@@ -353,7 +353,7 @@ pub struct InitedData {
     pub value: Vec<u8>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct UninitData {
     pub memory_data_type: MemoryDataType,
     pub length: u32,

@@ -11,7 +11,6 @@ use ancvm_binary::module_image::{
     external_func_index_section::{
         ExternalFuncIndexEntry, ExternalFuncIndexModuleEntry, ExternalFuncIndexSection,
     },
-    external_func_name_section::ExternalFuncNameSection,
     external_func_section::ExternalFuncSection,
     external_library_section::ExternalLibrarySection,
     func_index_section::{FuncIndexEntry, FuncIndexModuleEntry, FuncIndexSection},
@@ -112,13 +111,13 @@ pub fn generate_image_binaries(
             names_data: &data_name_data,
         };
 
-        // external function name section
-        let (external_func_name_items, external_func_name_data) =
-            ExternalFuncNameSection::convert_from_entries(&module_entry.external_func_name_entries);
-        let external_func_name_section = ExternalFuncNameSection {
-            items: &external_func_name_items,
-            names_data: &external_func_name_data,
-        };
+        // // external function name section
+        // let (external_func_name_items, external_func_name_data) =
+        //     ExternalFuncNameSection::convert_from_entries(&module_entry.external_func_name_entries);
+        // let external_func_name_section = ExternalFuncNameSection {
+        //     items: &external_func_name_items,
+        //     names_data: &external_func_name_data,
+        // };
 
         // link functions, datas, external functions
         let module_index_entry = link(module_entries, program_settings)?;
@@ -181,7 +180,7 @@ pub fn generate_image_binaries(
             &external_func_section,
             &func_name_section,
             &data_name_section,
-            &external_func_name_section,
+            // &external_func_name_section,
             //
             &func_index_section,
             &data_index_section,
@@ -376,37 +375,18 @@ mod tests {
         local_variable_section::{LocalListEntry, LocalVariableEntry},
         type_section::TypeEntry,
     };
-    use ancvm_parser::{
-        instruction_kind::init_instruction_kind_table, lexer::lex, parser::parse,
-        peekable_iterator::PeekableIterator,
-    };
-    use ancvm_program::{program_settings::ProgramSettings, program_source::ProgramSource};
-    use ancvm_runtime::{
+
+    use ancvm_process::{
         in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
     };
+    use ancvm_program::program_source::ProgramSource;
     use ancvm_types::{DataType, ForeignValue, MemoryDataType};
 
-    use crate::assembler::assemble_module_node;
-
-    use super::generate_image_binaries;
-
-    fn assemble_single_module(source: &str) -> Vec<Vec<u8>> {
-        init_instruction_kind_table();
-
-        let mut chars = source.chars();
-        let mut char_iter = PeekableIterator::new(&mut chars, 2);
-        let mut tokens = lex(&mut char_iter).unwrap().into_iter();
-        let mut token_iter = PeekableIterator::new(&mut tokens, 2);
-        let module_node = parse(&mut token_iter).unwrap();
-
-        let module_entry = assemble_module_node(&module_node).unwrap();
-        let program_settings = ProgramSettings::default();
-        generate_image_binaries(&vec![module_entry], &program_settings).unwrap()
-    }
+    use crate::utils::helper_generate_single_module_image_binary_from_assembly;
 
     #[test]
     fn test_assemble_function() {
-        let module_binaries = assemble_single_module(
+        let module_binaries = helper_generate_single_module_image_binary_from_assembly(
             r#"
         (module $app
             (runtime_version "1.0")

@@ -155,13 +155,13 @@ pub enum InstructionKind {
     // (extcall $name OPERAND_0 ... OPERAND_N)
     ExtCall,
 
-    // (macro.get_func_pub_index $name)
-    GetFuncPubIndex,
-
     //
     Debug,
     Unreachable,
     HostAddrFunc,
+
+    // (macro.get_func_pub_index $name)
+    MacroGetFuncPubIndex,
 }
 
 pub fn init_instruction_kind_table() {
@@ -804,7 +804,10 @@ fn init_instruction_kind_table_internal() {
     add("extcall", InstructionKind::ExtCall);
 
     // macros
-    add("macro.get_func_pub_index", InstructionKind::GetFuncPubIndex);
+    add(
+        "macro.get_func_pub_index",
+        InstructionKind::MacroGetFuncPubIndex,
+    );
 
     unsafe { INSTRUCTION_KIND_TABLE = Some(table) };
 }

@@ -4,11 +4,10 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-mod utils;
-
+use ancvm_assembler::utils::helper_generate_single_module_image_binary_from_assembly;
 use ancvm_binary::bytecode_reader::print_bytecode_as_text;
 use ancvm_program::program_source::ProgramSource;
-use ancvm_runtime::{
+use ancvm_process::{
     in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
 };
 use ancvm_types::{
@@ -16,15 +15,13 @@ use ancvm_types::{
     RUNTIME_MINOR_VERSION, RUNTIME_PATCH_VERSION,
 };
 
-use crate::utils::assemble_single_module;
-
 use pretty_assertions::assert_eq;
 
 #[test]
 fn test_assemble_envcall_runtime_version() {
     // () -> (i64)
 
-    let module_binaries = assemble_single_module(&format!(
+    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -74,7 +71,7 @@ fn test_assemble_envcall_runtime_code_name() {
     //        |    |name buffer (8 bytes)
     //        |name length
 
-    let module_binaries = assemble_single_module(&format!(
+    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
         r#"
         (module $app
             (runtime_version "1.0")

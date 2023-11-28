@@ -79,13 +79,16 @@ use crate::{
         ExternalLibraryNode, FuncNode, ImmF32, ImmF64, InitedData, Instruction, LocalNode,
         ModuleElementNode, ModuleNode, ParamNode, UninitData,
     },
-    instruction_kind::{InstructionKind, INSTRUCTION_KIND_TABLE},
+    instruction_kind::{init_instruction_kind_table, InstructionKind, INSTRUCTION_KIND_TABLE},
     lexer::{NumberToken, Token},
     peekable_iterator::PeekableIterator,
     ParseError,
 };
 
 pub fn parse(iter: &mut PeekableIterator<Token>) -> Result<ModuleNode, ParseError> {
+    // initialize the instruction kind table
+    init_instruction_kind_table();
+
     // there is only one node 'module' in a assembly text
     parse_module_node(iter)
 }
@@ -145,7 +148,7 @@ pub fn parse_module_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleNod
     consume_right_paren(iter)?;
 
     let module_node = ModuleNode {
-        name,
+        name_path: name,
         runtime_version_major,
         runtime_version_minor,
         element_nodes,
@@ -544,10 +547,10 @@ fn parse_instruction_sequence_node(
 
     // other sequence nodes:
     //
-    // - (recur ...)
-    // - (rerun ...)
     // - (break ...)
+    // - (recur ...)
     // - (return ...)
+    // - (rerun ...)
 
     consume_left_paren(iter, node_name)?;
     consume_symbol(iter, node_name)?;
@@ -719,7 +722,7 @@ fn parse_instruction_with_parentheses(
                     parse_instruction_kind_call_by_name(iter, "extcall", false)?
                 }
                 // macro
-                InstructionKind::GetFuncPubIndex => {
+                InstructionKind::MacroGetFuncPubIndex => {
                     parse_instruction_kind_get_func_pub_index(iter)?
                 }
                 InstructionKind::Debug => parse_instruction_kind_debug(iter)?,
@@ -918,7 +921,7 @@ fn parse_instruction_kind_local_load(
     } else {
         Ok(Instruction::DataLoad {
             opcode,
-            name,
+            name_path: name,
             offset,
         })
     }
@@ -959,7 +962,7 @@ fn parse_instruction_kind_local_store(
     } else {
         Ok(Instruction::DataStore {
             opcode,
-            name,
+            name_path: name,
             offset,
             value: Box::new(operand),
         })
@@ -991,7 +994,7 @@ fn parse_instruction_kind_local_long_load(
     } else {
         Ok(Instruction::DataLongLoad {
             opcode,
-            name,
+            name_path: name,
             offset: Box::new(offset),
         })
     }
@@ -1024,7 +1027,7 @@ fn parse_instruction_kind_local_long_store(
     } else {
         Ok(Instruction::DataLongStore {
             opcode,
-            name,
+            name_path: name,
             offset: Box::new(offset),
             value: Box::new(operand),
         })
@@ -1303,7 +1306,7 @@ fn parse_instruction_kind_call_by_name(
     consume_right_paren(iter)?;
 
     let instruction = if is_call {
-        Instruction::Call { name, args }
+        Instruction::Call { name_path: name, args }
     } else {
         Instruction::ExtCall { name, args }
     };
@@ -1378,7 +1381,7 @@ fn parse_instruction_kind_get_func_pub_index(
     let name = expect_identifier(iter, "macro.get_func_pub_index")?;
     consume_right_paren(iter)?;
 
-    Ok(Instruction::GetFuncPubIndex(name))
+    Ok(Instruction::MacroGetFuncPubIndex(name))
 }
 
 fn parse_instruction_kind_debug(
@@ -2177,7 +2180,6 @@ mod tests {
             ExternalLibraryNode, FuncNode, ImmF32, ImmF64, InitedData, Instruction, LocalNode,
             ModuleElementNode, ModuleNode, ParamNode, UninitData,
         },
-        instruction_kind::init_instruction_kind_table,
         lexer::lex,
         peekable_iterator::PeekableIterator,
         ParseError,
@@ -2186,8 +2188,6 @@ mod tests {
     use super::parse;
 
     fn parse_from_str(s: &str) -> Result<ModuleNode, ParseError> {
-        init_instruction_kind_table();
-
         let mut chars = s.chars();
         let mut char_iter = PeekableIterator::new(&mut chars, 3);
         let mut tokens = lex(&mut char_iter)?.into_iter();
@@ -2216,7 +2216,7 @@ mod tests {
         assert_eq!(
             parse_from_str(r#"(module $app (runtime_version "1.2"))"#).unwrap(),
             ModuleNode {
-                name: "app".to_owned(),
+                name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 2,
                 element_nodes: vec![]
@@ -2248,7 +2248,7 @@ mod tests {
             )
             .unwrap(),
             ModuleNode {
-                name: "app".to_owned(),
+                name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
                 element_nodes: vec![ModuleElementNode::FuncNode(FuncNode {
@@ -2287,7 +2287,7 @@ mod tests {
             )
             .unwrap(),
             ModuleNode {
-                name: "app".to_owned(),
+                name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
                 element_nodes: vec![ModuleElementNode::FuncNode(FuncNode {
@@ -2323,7 +2323,7 @@ mod tests {
             )
             .unwrap(),
             ModuleNode {
-                name: "app".to_owned(),
+                name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
                 element_nodes: vec![ModuleElementNode::FuncNode(FuncNode {
@@ -2381,7 +2381,7 @@ mod tests {
             )
             .unwrap(),
             ModuleNode {
-                name: "app".to_owned(),
+                name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
                 element_nodes: vec![ModuleElementNode::FuncNode(FuncNode {
@@ -2694,38 +2694,38 @@ mod tests {
             vec![
                 Instruction::DataLoad {
                     opcode: Opcode::data_load32_i32,
-                    name: "sum".to_owned(),
+                    name_path: "sum".to_owned(),
                     offset: 0
                 },
                 Instruction::DataLoad {
                     opcode: Opcode::data_load64_i64,
-                    name: "count".to_owned(),
+                    name_path: "count".to_owned(),
                     offset: 4
                 },
                 //
                 Instruction::DataStore {
                     opcode: Opcode::data_store32,
-                    name: "left".to_owned(),
+                    name_path: "left".to_owned(),
                     offset: 0,
                     value: Box::new(Instruction::ImmI32(11))
                 },
                 //
                 Instruction::DataStore {
                     opcode: Opcode::data_store64,
-                    name: "right".to_owned(),
+                    name_path: "right".to_owned(),
                     offset: 8,
                     value: Box::new(Instruction::ImmI64(13))
                 },
                 //
                 Instruction::DataLongLoad {
                     opcode: Opcode::data_long_load64_i64,
-                    name: "foo".to_owned(),
+                    name_path: "foo".to_owned(),
                     offset: Box::new(Instruction::ImmI32(17))
                 },
                 //
                 Instruction::DataLongStore {
                     opcode: Opcode::data_long_store64,
-                    name: "bar".to_owned(),
+                    name_path: "bar".to_owned(),
                     offset: Box::new(Instruction::ImmI32(19)),
                     value: Box::new(Instruction::ImmI64(23))
                 },
@@ -3279,7 +3279,7 @@ mod tests {
             )
             .unwrap(),
             ModuleNode {
-                name: "lib".to_owned(),
+                name_path: "lib".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
                 element_nodes: vec![ModuleElementNode::FuncNode(FuncNode {
@@ -3403,7 +3403,7 @@ mod tests {
             ),
             vec![
                 Instruction::Call {
-                    name: "add".to_owned(),
+                    name_path: "add".to_owned(),
                     args: vec![Instruction::ImmI32(11), Instruction::ImmI32(13),]
                 },
                 Instruction::DynCall {
@@ -3453,7 +3453,7 @@ mod tests {
                         }
                     ]
                 },
-                Instruction::GetFuncPubIndex("add".to_owned()),
+                Instruction::MacroGetFuncPubIndex("add".to_owned()),
             ]
         );
     }
@@ -3507,12 +3507,12 @@ mod tests {
                 },
                 Instruction::DataLoad {
                     opcode: Opcode::host_addr_data,
-                    name: "msg".to_owned(),
+                    name_path: "msg".to_owned(),
                     offset: 0x23,
                 },
                 Instruction::DataLongLoad {
                     opcode: Opcode::host_addr_data_long,
-                    name: "title".to_owned(),
+                    name_path: "title".to_owned(),
                     offset: Box::new(Instruction::ImmI32(0x29)),
                 },
                 Instruction::HeapLoad {
@@ -3560,7 +3560,7 @@ mod tests {
             )
             .unwrap(),
             ModuleNode {
-                name: "app".to_owned(),
+                name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
                 element_nodes: vec![
@@ -3651,7 +3651,7 @@ mod tests {
             )
             .unwrap(),
             ModuleNode {
-                name: "app".to_owned(),
+                name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
                 element_nodes: vec![
@@ -3701,7 +3701,7 @@ mod tests {
             )
             .unwrap(),
             ModuleNode {
-                name: "app".to_owned(),
+                name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
                 element_nodes: vec![
@@ -3799,7 +3799,7 @@ mod tests {
             )
             .unwrap(),
             ModuleNode {
-                name: "app".to_owned(),
+                name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
                 element_nodes: vec![
@@ -3864,7 +3864,7 @@ mod tests {
             )
             .unwrap(),
             ModuleNode {
-                name: "app".to_owned(),
+                name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
                 element_nodes: vec![
@@ -3938,7 +3938,7 @@ mod tests {
             )
             .unwrap(),
             ModuleNode {
-                name: "app".to_owned(),
+                name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
                 element_nodes: vec![

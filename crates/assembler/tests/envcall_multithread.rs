@@ -4,15 +4,14 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-mod utils;
+use std::time::Instant;
 
-use ancvm_runtime::{
+use ancvm_assembler::utils::helper_generate_single_module_image_binary_from_assembly;
+use ancvm_process::{
     in_memory_program_source::InMemoryProgramSource,
     multithread_program::run_program_in_multithread,
 };
 use ancvm_types::envcallcode::EnvCallCode;
-
-use crate::utils::assemble_single_module;
 
 use pretty_assertions::assert_eq;
 
@@ -21,7 +20,7 @@ fn test_assemble_multithread_run_program_in_multithread() {
     // the signature of 'thread start function' must be
     // () -> (i64)
 
-    let module_binaries = assemble_single_module(
+    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -46,7 +45,7 @@ fn test_assemble_multithread_thread_id() {
     // the signature of 'thread start function' must be
     // () -> (i64)
 
-    let module_binaries = assemble_single_module(&format!(
+    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -74,7 +73,7 @@ fn test_assemble_multithread_thread_create() {
     // the signature of 'thread start function' must be
     // () -> (i64)
 
-    let module_binaries = assemble_single_module(&format!(
+    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -132,7 +131,7 @@ fn test_assemble_multithread_thread_start_data() {
     //       |
     //       \---> exit code 0x19171311_37312923
 
-    let module_binaries = assemble_single_module(&format!(
+    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -201,7 +200,7 @@ fn test_assemble_multithread_thread_running_status() {
     // the signature of 'thread start function' must be
     // () -> (i64)
 
-    let module_binaries = assemble_single_module(&format!(
+    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -220,7 +219,7 @@ fn test_assemble_multithread_thread_running_status() {
                     )
 
                     ;; pause 500ms to ensure the child thread is running
-                    (envcall {ENV_CALL_CODE_TIME_SLEEP} (i64.imm 500))
+                    (envcall {ENV_CALL_CODE_THREAD_SLEEP} (i64.imm 500))
 
                     ;; get the runnting status
                     (local.store32 $last_status
@@ -244,7 +243,7 @@ fn test_assemble_multithread_thread_running_status() {
                     )
 
                     ;; pause 1000ms to ensure the child thread is finish
-                    (envcall {ENV_CALL_CODE_TIME_SLEEP} (i64.imm 1000))
+                    (envcall {ENV_CALL_CODE_THREAD_SLEEP} (i64.imm 1000))
 
                     ;; get the runnting status
                     (local.store32 $last_status
@@ -301,7 +300,7 @@ fn test_assemble_multithread_thread_running_status() {
             (fn $child (result i64)
                 (code
                     ;; sleep 1000ms
-                    (envcall {ENV_CALL_CODE_TIME_SLEEP} (i64.imm 1000))
+                    (envcall {ENV_CALL_CODE_THREAD_SLEEP} (i64.imm 1000))
 
                     ;; set thread_exit_code as 0x17
                     (i64.imm 0x17)
@@ -309,7 +308,7 @@ fn test_assemble_multithread_thread_running_status() {
             )
         )
         "#,
-        ENV_CALL_CODE_TIME_SLEEP = (EnvCallCode::time_sleep as u32),
+        ENV_CALL_CODE_THREAD_SLEEP = (EnvCallCode::thread_sleep as u32),
         ENV_CALL_CODE_THREAD_RUNNING_STATUS = (EnvCallCode::thread_running_status as u32),
         ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT = (EnvCallCode::thread_wait_and_collect as u32),
         ENV_CALL_CODE_THREAD_CREATE = (EnvCallCode::thread_create as u32)
@@ -325,7 +324,7 @@ fn test_assemble_multithread_thread_terminate() {
     // the signature of 'thread start function' must be
     // () -> (i64)
 
-    let module_binaries = assemble_single_module(&format!(
+    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -344,7 +343,7 @@ fn test_assemble_multithread_thread_terminate() {
                     )
 
                     ;; pause 500ms to ensure the child thread is running
-                    (envcall {ENV_CALL_CODE_TIME_SLEEP} (i64.imm 500))
+                    (envcall {ENV_CALL_CODE_THREAD_SLEEP} (i64.imm 500))
 
                     ;; get the runnting status
                     (local.store32 $last_status
@@ -412,7 +411,7 @@ fn test_assemble_multithread_thread_terminate() {
             (fn $child (result i64)
                 (code
                     ;; sleep 5000ms
-                    (envcall {ENV_CALL_CODE_TIME_SLEEP} (i64.imm 5000))
+                    (envcall {ENV_CALL_CODE_THREAD_SLEEP} (i64.imm 5000))
 
                     ;; set thread_exit_code as 0x19
                     (i64.imm 0x19)
@@ -420,7 +419,7 @@ fn test_assemble_multithread_thread_terminate() {
             )
         )
         "#,
-        ENV_CALL_CODE_TIME_SLEEP = (EnvCallCode::time_sleep as u32),
+        ENV_CALL_CODE_THREAD_SLEEP = (EnvCallCode::thread_sleep as u32),
         ENV_CALL_CODE_THREAD_TERMINATE = (EnvCallCode::thread_terminate as u32),
         ENV_CALL_CODE_THREAD_RUNNING_STATUS = (EnvCallCode::thread_running_status as u32),
         ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT = (EnvCallCode::thread_wait_and_collect as u32),
@@ -446,7 +445,7 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
     //              exit
     // 0x17        <----- 0x17
 
-    let module_binaries = assemble_single_module(&format!(
+    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -558,7 +557,7 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                     )
 
                     ;; the status of child thread is changing to 'finish', wait 500ms
-                    (envcall {ENV_CALL_CODE_TIME_SLEEP} (i64.imm 500))
+                    (envcall {ENV_CALL_CODE_THREAD_SLEEP} (i64.imm 500))
 
                     (local.store32 $last_status
                         (local.store32 $last_result
@@ -695,10 +694,213 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
             (EnvCallCode::thread_receive_msg_from_parent as u32),
         ENV_CALL_CODE_THREAD_RUNNING_STATUS = (EnvCallCode::thread_running_status as u32),
         ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT = (EnvCallCode::thread_wait_and_collect as u32),
-        ENV_CALL_CODE_TIME_SLEEP = (EnvCallCode::time_sleep as u32),
+        ENV_CALL_CODE_THREAD_SLEEP = (EnvCallCode::thread_sleep as u32),
     ));
 
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let result0 = run_program_in_multithread(program_source0, vec![]);
     assert_eq!(result0.unwrap(), 0x17);
+}
+
+#[test]
+fn test_assemble_multithread_thread_message_forward() {
+    // the signature of 'thread start function' must be
+    // () -> (i64)
+
+    // main thread      child thread 0      child thread 1
+    //
+    // 0x11   <------------0x11
+    //   |
+    //   \----------------------------------> 0x11
+    //
+    // 0x19
+    //   |
+    //   \-- exit code
+
+    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
+        r#"
+        (module $app
+            (runtime_version "1.0")
+            (fn $test (result i64)
+                (local $tid0 i32)
+                (local $tid1 i32)
+                (code
+                    ;; resize heap to 1 page, because the heap is required to send/receive the message.
+                    (drop
+                        (heap.resize (i32.imm 1))
+                    )
+
+                    ;; create child thread 0 (t0)
+                    (local.store32 $tid0
+                        (envcall {ENV_CALL_CODE_THREAD_CREATE}
+                            (macro.get_func_pub_index $child0)   ;; function pub index
+                            (i32.imm 0)         ;; thread_start_data_address
+                            (i32.imm 0)         ;; thread_start_data_length
+                        )
+                    )
+
+                    ;; create child thread 1 (t1)
+                    (local.store32 $tid1
+                        (envcall {ENV_CALL_CODE_THREAD_CREATE}
+                            (macro.get_func_pub_index $child1)   ;; function pub index
+                            (i32.imm 0)         ;; thread_start_data_address
+                            (i32.imm 0)         ;; thread_start_data_length
+                        )
+                    )
+
+                    ;; receive message from t0
+                    (envcall {ENV_CALL_CODE_THREAD_RECEIVE_MSG}
+                        (local.load32_i32 $tid0)
+                    )
+
+                    ;; read message to heap
+                    (envcall {ENV_CALL_CODE_THREAD_MSG_READ}
+                        (i32.imm 0)         ;; offset
+                        (i32.imm 4)         ;; length
+                        (i64.imm 0x100)     ;; dst address
+                    )
+
+                    ;; send message to t1
+                    (envcall {ENV_CALL_CODE_THREAD_SEND_MSG}
+                        (local.load32_i32 $tid1)    ;; child thread id
+                        (i64.imm 0x100)             ;; data src address
+                        (i32.imm 4)                 ;; data length
+                    )
+
+                    (when
+                        (i64.ne
+                            ;; collect t0
+                            (drop
+                                (envcall {ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT}
+                                    (local.load32_i32 $tid0)
+                                )
+                            )
+                            (i64.imm 0x13)
+                        )
+                        (debug 0)
+                    )
+
+
+                    (when
+                        (i64.ne
+                            ;; collect t1
+                            (drop
+                                (envcall {ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT}
+                                    (local.load32_i32 $tid1)
+                                )
+                            )
+                            (i64.imm 0x17)
+                        )
+                        (debug 0)
+                    )
+
+                    ;; exit code
+                    (i64.imm 0x19)
+                )
+            )
+
+            (fn $child0 (result i64)
+                (code
+                    ;; resize heap to 1 page, because the heap is required to send/receive the message.
+                    (drop
+                        (heap.resize (i32.imm 1))
+                    )
+
+                    ;; set the data to be sent
+                    (heap.store32 0
+                        (i64.imm 0x100)     ;; address
+                        (i32.imm 0x11)      ;; data
+                    )
+
+                    ;; send data to parent
+                    (envcall {ENV_CALL_CODE_THREAD_SEND_MSG_TO_PARENT}
+                        (i64.imm 0x100)
+                        (i32.imm 4)
+                    )
+
+                    ;; exit code 0
+                    (i64.imm 0x13)
+                )
+            )
+
+            (fn $child1 (result i64)
+                (code
+                    ;; resize heap to 1 page, because the heap is required to send/receive the message.
+                    (drop
+                        (heap.resize (i32.imm 1))
+                    )
+
+                    ;; receive data from parent
+                    (envcall {ENV_CALL_CODE_THREAD_RECEIVE_MSG_FROM_PARENT})
+
+                    (envcall {ENV_CALL_CODE_THREAD_MSG_READ}
+                        (i32.imm 0)         ;; offset
+                        (i32.imm 4)         ;; length
+                        (i64.imm 0x100)     ;; dst address
+                    )
+
+                    ;; check the received data
+                    (when
+                        (i32.ne
+                            (heap.load32_i32 0 (i64.imm 0x100))
+                            (i32.imm 0x11)
+                        )
+                        (debug 0)
+                    )
+
+                    ;; exit code 0
+                    (i64.imm 0x17)
+                )
+            )
+        )
+        "#,
+        ENV_CALL_CODE_THREAD_CREATE = (EnvCallCode::thread_create as u32),
+        ENV_CALL_CODE_THREAD_SEND_MSG = (EnvCallCode::thread_send_msg as u32),
+        ENV_CALL_CODE_THREAD_RECEIVE_MSG = (EnvCallCode::thread_receive_msg as u32),
+        ENV_CALL_CODE_THREAD_MSG_READ = (EnvCallCode::thread_msg_read as u32),
+        ENV_CALL_CODE_THREAD_SEND_MSG_TO_PARENT = (EnvCallCode::thread_send_msg_to_parent as u32),
+        ENV_CALL_CODE_THREAD_RECEIVE_MSG_FROM_PARENT =
+            (EnvCallCode::thread_receive_msg_from_parent as u32),
+        ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT = (EnvCallCode::thread_wait_and_collect as u32),
+    ));
+
+    let program_source0 = InMemoryProgramSource::new(module_binaries);
+    let result0 = run_program_in_multithread(program_source0, vec![]);
+    assert_eq!(result0.unwrap(), 0x19);
+}
+
+#[test]
+fn test_assemble_multithread_thread_sleep() {
+    // the signature of 'thread start function' must be
+    // () -> (i64)
+
+    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
+        r#"
+        (module $app
+            (runtime_version "1.0")
+            (fn $test
+                (result i64)
+                (code
+                    (envcall {ENV_CALL_CODE_THREAD_SLEEP}
+                        (i64.imm 1000)
+                    )
+                    ;; exit code
+                    (i64.imm 0x13)
+                )
+            )
+        )
+        "#,
+        ENV_CALL_CODE_THREAD_SLEEP = (EnvCallCode::thread_sleep as u32)
+    ));
+
+    let program_source0 = InMemoryProgramSource::new(module_binaries);
+
+    let before = Instant::now();
+    let result0 = run_program_in_multithread(program_source0, vec![]);
+    assert_eq!(result0.unwrap(), 0x13);
+    let after = Instant::now();
+
+    let duration = after.duration_since(before);
+    let ms = duration.as_millis() as u64;
+    assert!(ms > 500);
 }

@@ -35,23 +35,27 @@ An assembly text file can only define one module, so the content of an assembly 
 )
 ```
 
-In the above example, `$app` is an identifier that represents the name of the current module, i.e. the name of the application or library. Note that the valid characters of the name are `[a-zA-Z0-9_]` and `::`, and the name must be immediately followed by the symbol `module`.
+> Save the above assembly code to a file say "a.anc" and then execute the command `$ ancl a.anc; echo $?`, you should see the output "42".
 
-For an application or library with multiple source files, the main module file names are `main.anca` and `lib.anca`, and any other source files will be used as submodules. The names of submodules must contains the namespace paths. For example, consider a library call `draw` that has 3 source files:
+### Module Name
+
+In the above example, `$app` is an identifier that represents the name of the current module, i.e. the name of the application or library. The valid characters of the name are `[a-zA-Z0-9_]`, and the name must be immediately followed by the symbol `module`.
+
+For an application or library with multiple source files, the main module file names are `main.ancasm` and `lib.ancasm`, and any other source files will be used as submodules. The names of submodules must contains the namespace paths. For example, consider a library call `draw` that has 3 source files:
 
 ```text
-- lib.anca
-- circle.anca
-- rectangle.anca
+- lib.ancasm
+- circle.ancasm
+- rectangle.ancasm
 ```
 
 Their module names should be `draw`, `draw::circle` and `draw::rectangle`.
 
-After the name is the child node `runtime_version`, it is a parameter of node `module`, which indicates the expected version of the runtime, followed by the nodes of user-defined data and functions.
+### Runtime Version
 
-A module should at least define one data or function node, otherwise it is useless (although it is a valid module). For an application, at least one function called "entry" should be defined, otherwise it cannot pass the assembler check.
+A module node must contains the child node `runtime_version`, it is a parameter of node `module`, which indicates the expected version of the runtime.
 
-> Save the above assembly code to a file say "a.anc" and then execute the command `$ ancl a.anc; echo $?`, you should see the output "42".
+The node `runtime_version` is followed by the nodes of user-defined data and functions. A module should at least define one data or function node, otherwise it is useless (although it is a valid module). For an application, at least one function called "entry" should be defined, otherwise it cannot pass the assembler check.
 
 ### Module Optional Parameters
 
@@ -112,6 +116,9 @@ or
 (fn $name (results i32 i32)
     (code ...)
 )
+
+> the identifier of function can not contains the namespace path separator `::`.
+
 
 ### local variables
 

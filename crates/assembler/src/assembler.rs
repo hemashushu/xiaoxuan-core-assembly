@@ -9,7 +9,6 @@ use ancvm_binary::{
     module_image::{
         data_name_section::DataNameEntry,
         data_section::{InitedDataEntry, UninitDataEntry},
-        external_func_name_section::ExternalFuncNameEntry,
         external_func_section::ExternalFuncEntry,
         external_library_section::ExternalLibraryEntry,
         func_name_section::FuncNameEntry,
@@ -19,61 +18,118 @@ use ancvm_binary::{
     },
 };
 use ancvm_parser::ast::{DataKindNode, DataNode, ExternNode, ExternalItem};
-use ancvm_parser::ast::{
-    FuncNode, ImmF32, ImmF64, Instruction, LocalNode, ModuleElementNode, ModuleNode, ParamNode,
-};
+use ancvm_parser::ast::{FuncNode, ImmF32, ImmF64, Instruction, LocalNode, ParamNode};
 use ancvm_types::{opcode::Opcode, DataType};
 
-use crate::{AssembleError, ModuleEntry, UNREACHABLE_CODE_NO_DEFAULT_ARM};
+use crate::{
+    preprocessor::MergedModuleNode, AssembleError, ModuleEntry, UNREACHABLE_CODE_NO_DEFAULT_ARM,
+};
 
-// the names of functions and datas
-struct SymbolNameBook<'a> {
-    func_name_entries: &'a [FuncNameEntry],
-    data_name_entries: &'a [DataNameEntry],
-    external_func_name_entries: &'a [ExternalFuncNameEntry],
+// the identifier of functions and datas
+struct SymbolIdentifierLookupTable {
+    func_identifiers: Vec<IdentifierIndex>,
+    data_identifiers: Vec<IdentifierIndex>,
+    external_func_identifiers: Vec<IdentifierIndex>,
 }
 
-impl<'a> SymbolNameBook<'a> {
+struct IdentifierIndex {
+    identifier: String,
+    public_index: usize,
+}
+
+impl SymbolIdentifierLookupTable {
     pub fn new(
-        func_name_entries: &'a [FuncNameEntry],
-        data_name_entries: &'a [DataNameEntry],
-        external_func_name_entries: &'a [ExternalFuncNameEntry],
+        func_name_entries: &[FuncNameEntry],
+        data_name_entries: &[DataNameEntry],
+        extern_nodes: &[ExternNode],
     ) -> Self {
+        let func_identifiers = func_name_entries
+            .iter()
+            .map(|entry| IdentifierIndex {
+                identifier: entry.name.clone(),
+                public_index: entry.func_pub_index,
+            })
+            .collect::<Vec<_>>();
+
+        let data_identifiers = data_name_entries
+            .iter()
+            .map(|entry| IdentifierIndex {
+                identifier: entry.name.clone(),
+                public_index: entry.data_pub_index,
+            })
+            .collect::<Vec<_>>();
+
+        let external_func_identifiers =
+            SymbolIdentifierLookupTable::build_external_function_identifier_indices(extern_nodes);
+
         Self {
-            func_name_entries,
-            data_name_entries,
-            external_func_name_entries,
+            func_identifiers,
+            data_identifiers,
+            external_func_identifiers,
         }
     }
 
-    pub fn get_func_pub_index(&self, name: &str) -> Result<usize, AssembleError> {
-        self.func_name_entries
+    fn build_external_function_identifier_indices(
+        extern_nodes: &[ExternNode],
+    ) -> Vec<IdentifierIndex> {
+        let mut external_func_identifiers: Vec<IdentifierIndex> = vec![];
+
+        let mut idx: usize = 0;
+
+        for extern_node in extern_nodes {
+            for external_item in &extern_node.external_items {
+                let ExternalItem::ExternalFunc(external_func) = external_item;
+                external_func_identifiers.push(IdentifierIndex {
+                    identifier: external_func.name.clone(),
+                    public_index: idx,
+                });
+                idx += 1;
+            }
+        }
+
+        external_func_identifiers
+    }
+
+    pub fn get_func_pub_index(&self, identifier: &str) -> Result<usize, AssembleError> {
+        match self
+            .func_identifiers
             .iter()
-            .position(|entry| entry.name == name)
-            .ok_or(AssembleError::new(&format!(
+            .find(|entry| entry.identifier == identifier)
+        {
+            Some(ii) => Ok(ii.public_index),
+            None => Err(AssembleError::new(&format!(
                 "Can not find the function: {}",
-                name
-            )))
+                identifier
+            ))),
+        }
     }
 
-    pub fn get_data_pub_index(&self, name: &str) -> Result<usize, AssembleError> {
-        self.data_name_entries
+    pub fn get_data_pub_index(&self, identifier: &str) -> Result<usize, AssembleError> {
+        match self
+            .data_identifiers
             .iter()
-            .position(|entry| entry.name == name)
-            .ok_or(AssembleError::new(&format!(
+            .find(|entry| entry.identifier == identifier)
+        {
+            Some(ii) => Ok(ii.public_index),
+            None => Err(AssembleError::new(&format!(
                 "Can not find the data: {}",
-                name
-            )))
+                identifier
+            ))),
+        }
     }
 
-    pub fn get_external_func_index(&self, name: &str) -> Result<usize, AssembleError> {
-        self.external_func_name_entries
+    pub fn get_external_func_index(&self, identifier: &str) -> Result<usize, AssembleError> {
+        match self
+            .external_func_identifiers
             .iter()
-            .position(|entry| entry.name == name)
-            .ok_or(AssembleError::new(&format!(
+            .find(|entry| entry.identifier == identifier)
+        {
+            Some(ii) => Ok(ii.public_index),
+            None => Err(AssembleError::new(&format!(
                 "Can not find the external function: {}",
-                name
-            )))
+                identifier
+            ))),
+        }
     }
 }
 
@@ -91,10 +147,10 @@ impl<'a> SymbolNameBook<'a> {
 // the direct or indirect child nodes of node 'block', and
 // the address of the 'block' is known at compile time.
 struct FlowStack {
-    flow_items: Vec<FlowItem>,
+    items: Vec<FlowStackItem>,
 }
 
-struct FlowItem {
+struct FlowStackItem {
     // the address of instruction
     addr: usize,
     flow_kind: FlowKind,
@@ -145,21 +201,21 @@ struct BreakItem {
 
 impl FlowStack {
     pub fn new() -> Self {
-        Self { flow_items: vec![] }
+        Self { items: vec![] }
     }
 
     pub fn push(&mut self, addr: usize, flow_kind: FlowKind, local_names: Vec<String>) {
-        let stub_item = FlowItem {
+        let stub_item = FlowStackItem {
             addr,
             flow_kind,
             break_items: vec![],
             local_names,
         };
-        self.flow_items.push(stub_item);
+        self.items.push(stub_item);
     }
 
-    pub fn pop(&mut self) -> FlowItem {
-        self.flow_items.pop().unwrap()
+    pub fn pop(&mut self) -> FlowStackItem {
+        self.items.pop().unwrap()
     }
 
     pub fn pop_and_fill_stubs(
@@ -203,27 +259,27 @@ impl FlowStack {
         }
     }
 
-    fn get_flow_item_by_reversed_index(&mut self, reversed_index: usize) -> &mut FlowItem {
-        let idx = self.flow_items.len() - reversed_index - 1;
-        &mut self.flow_items[idx]
+    fn get_flow_item_by_reversed_index(&mut self, reversed_index: usize) -> &mut FlowStackItem {
+        let idx = self.items.len() - reversed_index - 1;
+        &mut self.items[idx]
     }
 
     pub fn get_block_addr(&self, reversed_index: usize) -> usize {
-        let idx = self.flow_items.len() - reversed_index - 1;
-        self.flow_items[idx].addr
+        let idx = self.items.len() - reversed_index - 1;
+        self.items[idx].addr
     }
 
     pub fn get_reversed_index_to_function(&self) -> usize {
-        self.flow_items.len() - 1
+        self.items.len() - 1
     }
 
     pub fn get_reversed_index_to_nearest_block(&self) -> usize {
         let idx = self
-            .flow_items
+            .items
             .iter()
             .rposition(|item| item.flow_kind == FlowKind::Block)
             .expect("Can't find \"block\" on the control flow stack.");
-        self.flow_items.len() - idx - 1
+        self.items.len() - idx - 1
     }
 
     // return (reversed_index, variable_index)
@@ -249,13 +305,13 @@ impl FlowStack {
     ) -> Result<(usize, usize), AssembleError> {
         let mut result: Option<(usize, usize)> = None;
 
-        for (level_index, flow_item) in self.flow_items.iter().enumerate() {
+        for (level_index, flow_item) in self.items.iter().enumerate() {
             if let Some(variable_index) = flow_item
                 .local_names
                 .iter()
                 .position(|name| name == local_variable_name)
             {
-                let reversed_index = self.flow_items.len() - level_index - 1;
+                let reversed_index = self.items.len() - level_index - 1;
 
                 if result.is_none() {
                     result.replace((reversed_index, variable_index));
@@ -279,132 +335,49 @@ impl FlowStack {
     }
 }
 
-pub fn assemble_module_node(module_node: &ModuleNode) -> Result<ModuleEntry, AssembleError> {
-    let name = module_node.name.clone();
-    let runtime_version_major = module_node.runtime_version_major;
-    let runtime_version_minor = module_node.runtime_version_minor;
+pub fn assemble_merged_module_node(
+    merged_module_node: &MergedModuleNode,
+) -> Result<ModuleEntry, AssembleError> {
+    let name = merged_module_node.name.clone();
+    let runtime_version_major = merged_module_node.runtime_version_major;
+    let runtime_version_minor = merged_module_node.runtime_version_minor;
 
-    let func_nodes = module_node
-        .element_nodes
-        .iter()
-        .filter_map(|node| match node {
-            ModuleElementNode::FuncNode(func_node) => Some(func_node),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let imported_func_count = 0;
+    let imported_ro_data_count = 0;
+    let imported_rw_data_count = 0;
+    let imported_uninit_data_count = 0;
 
-    let read_only_data_nodes = module_node
-        .element_nodes
-        .iter()
-        .filter_map(|node| match node {
-            ModuleElementNode::DataNode(data_node)
-                if matches!(data_node.data_kind, DataKindNode::ReadOnly(_)) =>
-            {
-                Some(data_node)
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-
-    let read_write_data_nodes = module_node
-        .element_nodes
-        .iter()
-        .filter_map(|node| match node {
-            ModuleElementNode::DataNode(data_node)
-                if matches!(data_node.data_kind, DataKindNode::ReadWrite(_)) =>
-            {
-                Some(data_node)
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-
-    let uninit_data_nodes = module_node
-        .element_nodes
-        .iter()
-        .filter_map(|node| match node {
-            ModuleElementNode::DataNode(data_node)
-                if matches!(data_node.data_kind, DataKindNode::Uninit(_)) =>
-            {
-                Some(data_node)
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-
-    // remove the duplicate external items and group by external library
-    let original_extern_nodes = module_node
-        .element_nodes
-        .iter()
-        .filter_map(|node| match node {
-            ModuleElementNode::ExternNode(extern_node) => Some(extern_node),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-
-    let mut extern_nodes: Vec<ExternNode> = vec![];
-
-    for original_extern_node in original_extern_nodes {
-        let node_idx_opt = extern_nodes.iter().position(|node| {
-            node.external_library_node == original_extern_node.external_library_node
-        });
-
-        let node_idx = if let Some(idx) = node_idx_opt {
-            idx
-        } else {
-            let idx = extern_nodes.len();
-            let extern_node = ExternNode {
-                external_library_node: original_extern_node.external_library_node.clone(),
-                external_items: vec![],
-            };
-
-            extern_nodes.push(extern_node);
-            idx
-        };
-
-        let extern_node = &mut extern_nodes[node_idx];
-
-        for original_extern_item in &original_extern_node.external_items {
-            let item_idx_opt = extern_node
-                .external_items
-                .iter()
-                .position(|exists_external_item| exists_external_item == original_extern_item);
-
-            // add extern item only if not exists
-            if item_idx_opt.is_none() {
-                extern_node
-                    .external_items
-                    .push(original_extern_item.clone());
-            }
-        }
-    }
-
-    let func_name_entries = assemble_func_name_entries(&func_nodes);
-    let data_name_entries = assemble_data_name_entries(
-        &read_only_data_nodes,
-        &read_write_data_nodes,
-        &uninit_data_nodes,
+    let func_name_entries =
+        build_func_name_entries(&merged_module_node.func_nodes, imported_func_count);
+    let data_name_entries = build_data_name_entries(
+        &merged_module_node.read_only_data_nodes,
+        &merged_module_node.read_write_data_nodes,
+        &merged_module_node.uninit_data_nodes,
+        imported_ro_data_count,
+        imported_rw_data_count,
+        imported_uninit_data_count,
     );
-    let external_func_name_entries = assemble_external_function_name_entries(&extern_nodes);
 
-    let symbol_name_book = SymbolNameBook::new(
+    let symbol_identifier_lookup_table = SymbolIdentifierLookupTable::new(
         &func_name_entries,
         &data_name_entries,
-        &external_func_name_entries,
+        &merged_module_node.extern_nodes,
     );
 
-    let (mut type_entries, local_list_entries, func_entries) =
-        assemble_func_nodes(&func_nodes, &symbol_name_book)?;
+    let (mut type_entries, local_list_entries, func_entries) = assemble_func_nodes(
+        &merged_module_node.func_nodes,
+        &symbol_identifier_lookup_table,
+    )?;
 
     let (read_only_data_entries, read_write_data_entries, uninit_data_entries) =
         assemble_data_nodes(
-            &read_only_data_nodes,
-            &read_write_data_nodes,
-            &uninit_data_nodes,
+            &merged_module_node.read_only_data_nodes,
+            &merged_module_node.read_write_data_nodes,
+            &merged_module_node.uninit_data_nodes,
         )?;
 
     let (external_library_entries, external_func_entries) =
-        assemble_extern_nodes(&extern_nodes, &mut type_entries)?;
+        assemble_extern_nodes(&merged_module_node.extern_nodes, &mut type_entries)?;
 
     let module_entry = ModuleEntry {
         name,
@@ -423,18 +396,16 @@ pub fn assemble_module_node(module_node: &ModuleNode) -> Result<ModuleEntry, Ass
         //
         func_name_entries,
         data_name_entries,
-        external_func_name_entries,
     };
 
     Ok(module_entry)
 }
 
-fn assemble_func_name_entries(func_nodes: &[&FuncNode]) -> Vec<FuncNameEntry> {
+fn build_func_name_entries(
+    func_nodes: &[FuncNode],
+    imported_func_count: usize,
+) -> Vec<FuncNameEntry> {
     let mut func_name_entries = vec![];
-
-    // todo:: add names of imported functions
-
-    let imported_func_count: usize = 0; // todo
     let mut func_pub_idx = imported_func_count;
 
     for func_node in func_nodes {
@@ -451,18 +422,18 @@ fn assemble_func_name_entries(func_nodes: &[&FuncNode]) -> Vec<FuncNameEntry> {
     func_name_entries
 }
 
-fn assemble_data_name_entries(
-    ro_data_nodes: &[&DataNode],
-    rw_data_nodes: &[&DataNode],
-    uninit_data_nodes: &[&DataNode],
+fn build_data_name_entries(
+    ro_data_nodes: &[DataNode],
+    rw_data_nodes: &[DataNode],
+    uninit_data_nodes: &[DataNode],
+    imported_ro_data_count: usize,
+    imported_rw_data_count: usize,
+    imported_uninit_data_count: usize,
 ) -> Vec<DataNameEntry> {
     let mut data_name_entries = vec![];
+    let mut data_pub_idx = 0;
 
-    // todo:: add names of imported datas
-
-    let imported_data_count: usize = 0; // todo
-
-    let mut data_pub_idx = imported_data_count;
+    data_pub_idx += imported_ro_data_count;
 
     for data_node in ro_data_nodes {
         let entry = DataNameEntry {
@@ -474,6 +445,8 @@ fn assemble_data_name_entries(
         data_pub_idx += 1;
     }
 
+    data_pub_idx += imported_rw_data_count;
+
     for data_node in rw_data_nodes {
         let entry = DataNameEntry {
             name: data_node.name.clone(),
@@ -483,6 +456,8 @@ fn assemble_data_name_entries(
         data_name_entries.push(entry);
         data_pub_idx += 1;
     }
+
+    data_pub_idx += imported_uninit_data_count;
 
     for data_node in uninit_data_nodes {
         let entry = DataNameEntry {
@@ -497,32 +472,11 @@ fn assemble_data_name_entries(
     data_name_entries
 }
 
-fn assemble_external_function_name_entries(
-    extern_nodes: &[ExternNode],
-) -> Vec<ExternalFuncNameEntry> {
-    let mut external_func_name_entries = vec![];
-
-    let mut idx: usize = 0;
-
-    for extern_node in extern_nodes {
-        for external_item in &extern_node.external_items {
-            let ExternalItem::ExternalFunc(external_func) = external_item;
-            external_func_name_entries.push(ExternalFuncNameEntry {
-                name: external_func.name.clone(),
-                external_func_index: idx,
-            });
-            idx += 1;
-        }
-    }
-
-    external_func_name_entries
-}
-
 type AssembleResultForFuncNode = (Vec<TypeEntry>, Vec<LocalListEntry>, Vec<FuncEntry>);
 
 fn assemble_func_nodes(
-    func_nodes: &[&FuncNode],
-    symbol_name_book: &SymbolNameBook,
+    func_nodes: &[FuncNode],
+    symbol_identifier_lookup_table: &SymbolIdentifierLookupTable,
 ) -> Result<AssembleResultForFuncNode, AssembleError> {
     let mut type_entries = vec![];
     let mut local_list_entries = vec![];
@@ -548,7 +502,7 @@ fn assemble_func_nodes(
             &func_node.name,
             local_names,
             &func_node.code,
-            symbol_name_book,
+            symbol_identifier_lookup_table,
             &mut type_entries,
             &mut local_list_entries,
             // &mut flow_stack,
@@ -660,7 +614,7 @@ fn assemble_func_code(
     func_name: &str,
     local_names: Vec<String>,
     instructions: &[Instruction],
-    symbol_name_book: &SymbolNameBook,
+    symbol_identifier_lookup_table: &SymbolIdentifierLookupTable,
     type_entries: &mut Vec<TypeEntry>,
     local_list_entries: &mut Vec<LocalListEntry>,
     // flow_stack: &mut FlowStack,
@@ -674,7 +628,7 @@ fn assemble_func_code(
     for instruction in instructions {
         assemble_instruction(
             instruction,
-            symbol_name_book,
+            symbol_identifier_lookup_table,
             type_entries,
             local_list_entries,
             &mut flow_stack,
@@ -689,7 +643,7 @@ fn assemble_func_code(
     flow_stack.pop();
 
     // check control flow stack
-    if !flow_stack.flow_items.is_empty() {
+    if !flow_stack.items.is_empty() {
         return Err(AssembleError::new(&format!(
             "Control flow does not end in the function \"{}\"",
             func_name
@@ -701,7 +655,7 @@ fn assemble_func_code(
 
 fn assemble_instruction(
     instruction: &Instruction,
-    symbol_name_book: &SymbolNameBook,
+    symbol_identifier_lookup_table: &SymbolIdentifierLookupTable,
     type_entries: &mut Vec<TypeEntry>,
     local_list_entries: &mut Vec<LocalListEntry>,
     flow_stack: &mut FlowStack,
@@ -711,7 +665,7 @@ fn assemble_instruction(
         Instruction::NoParams { opcode, operands } => assemble_instruction_kind_no_params(
             opcode,
             operands,
-            symbol_name_book,
+            symbol_identifier_lookup_table,
             type_entries,
             local_list_entries,
             flow_stack,
@@ -763,7 +717,7 @@ fn assemble_instruction(
         } => {
             assemble_instruction(
                 value,
-                symbol_name_book,
+                symbol_identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -788,7 +742,7 @@ fn assemble_instruction(
         } => {
             assemble_instruction(
                 offset,
-                symbol_name_book,
+                symbol_identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -814,7 +768,7 @@ fn assemble_instruction(
             // assemble 'offset' first, then 'value'
             assemble_instruction(
                 offset,
-                symbol_name_book,
+                symbol_identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -823,7 +777,7 @@ fn assemble_instruction(
 
             assemble_instruction(
                 value,
-                symbol_name_book,
+                symbol_identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -842,62 +796,62 @@ fn assemble_instruction(
         }
         Instruction::DataLoad {
             opcode,
-            name,
+            name_path: name,
             offset,
         } => {
-            let data_pub_index = symbol_name_book.get_data_pub_index(name)?;
+            let data_pub_index = symbol_identifier_lookup_table.get_data_pub_index(name)?;
 
             // bytecode: (param offset_bytes:i16 data_public_index:i32)
             bytecode_writer.write_opcode_i16_i32(*opcode, *offset, data_pub_index as u32);
         }
         Instruction::DataStore {
             opcode,
-            name,
+            name_path: name,
             offset,
             value,
         } => {
             assemble_instruction(
                 value,
-                symbol_name_book,
+                symbol_identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
                 bytecode_writer,
             )?;
 
-            let data_pub_index = symbol_name_book.get_data_pub_index(name)?;
+            let data_pub_index = symbol_identifier_lookup_table.get_data_pub_index(name)?;
 
             // bytecode: (param offset_bytes:i16 data_public_index:i32)
             bytecode_writer.write_opcode_i16_i32(*opcode, *offset, data_pub_index as u32);
         }
         Instruction::DataLongLoad {
             opcode,
-            name,
+            name_path: name,
             offset,
         } => {
             assemble_instruction(
                 offset,
-                symbol_name_book,
+                symbol_identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
                 bytecode_writer,
             )?;
 
-            let data_pub_index = symbol_name_book.get_data_pub_index(name)?;
+            let data_pub_index = symbol_identifier_lookup_table.get_data_pub_index(name)?;
 
             // bytecode: (param data_public_index:i32)
             bytecode_writer.write_opcode_i32(*opcode, data_pub_index as u32);
         }
         Instruction::DataLongStore {
             opcode,
-            name,
+            name_path: name,
             offset,
             value,
         } => {
             assemble_instruction(
                 offset,
-                symbol_name_book,
+                symbol_identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -906,14 +860,14 @@ fn assemble_instruction(
 
             assemble_instruction(
                 value,
-                symbol_name_book,
+                symbol_identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
                 bytecode_writer,
             )?;
 
-            let data_pub_index = symbol_name_book.get_data_pub_index(name)?;
+            let data_pub_index = symbol_identifier_lookup_table.get_data_pub_index(name)?;
 
             // bytecode: (param data_public_index:i32)
             bytecode_writer.write_opcode_i32(*opcode, data_pub_index as u32);
@@ -925,7 +879,7 @@ fn assemble_instruction(
         } => {
             assemble_instruction(
                 addr,
-                symbol_name_book,
+                symbol_identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -943,7 +897,7 @@ fn assemble_instruction(
         } => {
             assemble_instruction(
                 addr,
-                symbol_name_book,
+                symbol_identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -952,7 +906,7 @@ fn assemble_instruction(
 
             assemble_instruction(
                 value,
-                symbol_name_book,
+                symbol_identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -965,7 +919,7 @@ fn assemble_instruction(
         Instruction::UnaryOp { opcode, number } => {
             assemble_instruction(
                 number,
-                symbol_name_book,
+                symbol_identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -981,7 +935,7 @@ fn assemble_instruction(
         } => {
             assemble_instruction(
                 number,
-                symbol_name_book,
+                symbol_identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -998,7 +952,7 @@ fn assemble_instruction(
             // assemble 'left' first, then 'right'
             assemble_instruction(
                 left,
-                symbol_name_book,
+                symbol_identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -1007,7 +961,7 @@ fn assemble_instruction(
 
             assemble_instruction(
                 right,
-                symbol_name_book,
+                symbol_identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -1036,7 +990,7 @@ fn assemble_instruction(
             // assemble node 'test'
             assemble_instruction(
                 test,
-                symbol_name_book,
+                symbol_identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -1063,7 +1017,7 @@ fn assemble_instruction(
             // assemble node 'consequent'
             assemble_instruction(
                 consequent,
-                symbol_name_book,
+                symbol_identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -1116,7 +1070,7 @@ fn assemble_instruction(
             // assemble node 'test'
             assemble_instruction(
                 test,
-                symbol_name_book,
+                symbol_identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -1148,7 +1102,7 @@ fn assemble_instruction(
             // assemble node 'consequent'
             assemble_instruction(
                 consequent,
-                symbol_name_book,
+                symbol_identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -1173,7 +1127,7 @@ fn assemble_instruction(
             // assemble node 'alternate'
             assemble_instruction(
                 alternate,
-                symbol_name_book,
+                symbol_identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -1243,7 +1197,7 @@ fn assemble_instruction(
                 // assemble node 'test'
                 assemble_instruction(
                     &case.test,
-                    symbol_name_book,
+                    symbol_identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1270,7 +1224,7 @@ fn assemble_instruction(
                 // assemble node 'consequent'
                 assemble_instruction(
                     &case.consequent,
-                    symbol_name_book,
+                    symbol_identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1301,7 +1255,7 @@ fn assemble_instruction(
                 // assemble node 'consequent'
                 assemble_instruction(
                     default_instruction,
-                    symbol_name_book,
+                    symbol_identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1390,7 +1344,7 @@ fn assemble_instruction(
             // assemble node 'consequent'
             assemble_instruction(
                 code,
-                symbol_name_book,
+                symbol_identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -1408,7 +1362,7 @@ fn assemble_instruction(
             for instruction in instructions {
                 assemble_instruction(
                     instruction,
-                    symbol_name_book,
+                    symbol_identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1423,7 +1377,7 @@ fn assemble_instruction(
             for instruction in instructions {
                 assemble_instruction(
                     instruction,
-                    symbol_name_book,
+                    symbol_identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1449,7 +1403,7 @@ fn assemble_instruction(
             for instruction in instructions {
                 assemble_instruction(
                     instruction,
-                    symbol_name_book,
+                    symbol_identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1478,7 +1432,7 @@ fn assemble_instruction(
             for instruction in instructions {
                 assemble_instruction(
                     instruction,
-                    symbol_name_book,
+                    symbol_identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1501,7 +1455,7 @@ fn assemble_instruction(
             for instruction in instructions {
                 assemble_instruction(
                     instruction,
-                    symbol_name_book,
+                    symbol_identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1518,11 +1472,14 @@ fn assemble_instruction(
                 0, // 'start_inst_offset' is ignored when the target is function
             );
         }
-        Instruction::Call { name, args } => {
+        Instruction::Call {
+            name_path: name,
+            args,
+        } => {
             for instruction in args {
                 assemble_instruction(
                     instruction,
-                    symbol_name_book,
+                    symbol_identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1530,14 +1487,14 @@ fn assemble_instruction(
                 )?;
             }
 
-            let func_pub_idx = symbol_name_book.get_func_pub_index(name)?;
+            let func_pub_idx = symbol_identifier_lookup_table.get_func_pub_index(name)?;
             bytecode_writer.write_opcode_i32(Opcode::call, func_pub_idx as u32);
         }
         Instruction::DynCall { num, args } => {
             for instruction in args {
                 assemble_instruction(
                     instruction,
-                    symbol_name_book,
+                    symbol_identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1548,7 +1505,7 @@ fn assemble_instruction(
             // assemble the function public index operand
             assemble_instruction(
                 num,
-                symbol_name_book,
+                symbol_identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -1561,7 +1518,7 @@ fn assemble_instruction(
             for instruction in args {
                 assemble_instruction(
                     instruction,
-                    symbol_name_book,
+                    symbol_identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1575,7 +1532,7 @@ fn assemble_instruction(
             for instruction in args {
                 assemble_instruction(
                     instruction,
-                    symbol_name_book,
+                    symbol_identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1587,11 +1544,14 @@ fn assemble_instruction(
             bytecode_writer.write_opcode_i32(Opcode::i32_imm, args.len() as u32);
             bytecode_writer.write_opcode(Opcode::syscall);
         }
-        Instruction::ExtCall { name, args } => {
+        Instruction::ExtCall {
+            name,
+            args,
+        } => {
             for instruction in args {
                 assemble_instruction(
                     instruction,
-                    symbol_name_book,
+                    symbol_identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1599,12 +1559,12 @@ fn assemble_instruction(
                 )?;
             }
 
-            let external_func_idx = symbol_name_book.get_external_func_index(name)?;
+            let external_func_idx = symbol_identifier_lookup_table.get_external_func_index(name)?;
             bytecode_writer.write_opcode_i32(Opcode::extcall, external_func_idx as u32);
         }
         // macro
-        Instruction::GetFuncPubIndex(name) => {
-            let func_pub_idx = symbol_name_book.get_func_pub_index(name)?;
+        Instruction::MacroGetFuncPubIndex(name_path) => {
+            let func_pub_idx = symbol_identifier_lookup_table.get_func_pub_index(name_path)?;
             bytecode_writer.write_opcode_i32(Opcode::i32_imm, func_pub_idx as u32);
         }
         Instruction::Debug(code) => {
@@ -1614,7 +1574,7 @@ fn assemble_instruction(
             bytecode_writer.write_opcode_i32(Opcode::unreachable, *code);
         }
         Instruction::HostAddrFunc(name) => {
-            let func_pub_idx = symbol_name_book.get_func_pub_index(name)?;
+            let func_pub_idx = symbol_identifier_lookup_table.get_func_pub_index(name)?;
             bytecode_writer.write_opcode_i32(Opcode::host_addr_func, func_pub_idx as u32);
         }
     }
@@ -1625,7 +1585,7 @@ fn assemble_instruction(
 fn assemble_instruction_kind_no_params(
     opcode: &Opcode,
     operands: &[Instruction],
-    symbol_name_book: &SymbolNameBook,
+    symbol_identifier_lookup_table: &SymbolIdentifierLookupTable,
     type_entries: &mut Vec<TypeEntry>,
     local_list_entries: &mut Vec<LocalListEntry>,
     flow_stack: &mut FlowStack,
@@ -1634,7 +1594,7 @@ fn assemble_instruction_kind_no_params(
     for instruction in operands {
         assemble_instruction(
             instruction,
-            symbol_name_book,
+            symbol_identifier_lookup_table,
             type_entries,
             local_list_entries,
             flow_stack,
@@ -1654,9 +1614,9 @@ type AssembleResultForDataNodes = (
 );
 
 fn assemble_data_nodes(
-    read_only_data_nodes: &[&DataNode],
-    read_write_data_nodes: &[&DataNode],
-    uninit_data_nodes: &[&DataNode],
+    read_only_data_nodes: &[DataNode],
+    read_write_data_nodes: &[DataNode],
+    uninit_data_nodes: &[DataNode],
 ) -> Result<AssembleResultForDataNodes, AssembleError> {
     let read_only_data_entries = read_only_data_nodes
         .iter()
