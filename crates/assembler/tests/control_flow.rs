@@ -5,19 +5,16 @@
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
 use ancvm_assembler::utils::helper_generate_module_image_binaries_from_single_module_assembly;
-use ancvm_binary::{
-    bytecode_reader::print_bytecode_as_text,
-    module_image::{
-        local_variable_section::{LocalListEntry, LocalVariableEntry},
-        type_section::TypeEntry,
-    },
-};
-use ancvm_program::program_source::ProgramSource;
+use ancvm_binary::bytecode_reader::print_bytecode_as_text;
 use ancvm_process::{
     in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
     InterpreterError, InterpreterErrorType,
 };
-use ancvm_types::{DataType, ForeignValue, MemoryDataType};
+use ancvm_program::program_source::ProgramSource;
+use ancvm_types::{
+    entry::{LocalListEntry, LocalVariableEntry, TypeEntry},
+    DataType, ForeignValue, MemoryDataType,
+};
 
 use pretty_assertions::assert_eq;
 

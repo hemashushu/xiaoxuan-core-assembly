@@ -4,16 +4,16 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancvm_binary::module_image::{
-    data_index_section::{DataIndexEntry, DataIndexModuleEntry},
-    external_func_index_section::{ExternalFuncIndexEntry, ExternalFuncIndexModuleEntry},
-    func_index_section::{FuncIndexEntry, FuncIndexModuleEntry},
-    unified_external_func_section::UnifiedExternalFuncEntry,
-    unified_external_library_section::UnifiedExternalLibraryEntry,
+use ancvm_types::{
+    entry::{
+        DataIndexEntry, DataIndexModuleEntry, ExternalFuncIndexEntry, ExternalFuncIndexModuleEntry,
+        FuncIndexEntry, FuncIndexModuleEntry, IndexEntry, ModuleEntry, UnifiedExternalFuncEntry,
+        UnifiedExternalLibraryEntry,
+    },
+    DataSectionType,
 };
-use ancvm_types::DataSectionType;
 
-use crate::{AssembleError, IndexEntry, ModuleEntry};
+use crate::AssembleError;
 
 pub fn link(module_entries: &[&ModuleEntry]) -> Result<IndexEntry, AssembleError> {
     // todo

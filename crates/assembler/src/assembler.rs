@@ -4,26 +4,16 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancvm_binary::{
-    bytecode_writer::BytecodeWriter,
-    module_image::{
-        data_name_section::DataNameEntry,
-        data_section::{InitedDataEntry, UninitDataEntry},
-        external_func_section::ExternalFuncEntry,
-        external_library_section::ExternalLibraryEntry,
-        func_name_section::FuncNameEntry,
-        func_section::FuncEntry,
-        local_variable_section::{LocalListEntry, LocalVariableEntry},
-        type_section::TypeEntry,
-    },
-};
+use ancvm_binary::bytecode_writer::BytecodeWriter;
 use ancvm_parser::ast::{DataKindNode, DataNode, ExternNode, ExternalItem};
 use ancvm_parser::ast::{FuncNode, ImmF32, ImmF64, Instruction, LocalNode, ParamNode};
+use ancvm_types::entry::{
+    DataNameEntry, ExternalFuncEntry, ExternalLibraryEntry, FuncEntry, FuncNameEntry,
+    InitedDataEntry, LocalListEntry, LocalVariableEntry, ModuleEntry, TypeEntry, UninitDataEntry,
+};
 use ancvm_types::{opcode::Opcode, DataType};
 
-use crate::{
-    preprocessor::MergedModuleNode, AssembleError, ModuleEntry, UNREACHABLE_CODE_NO_DEFAULT_ARM,
-};
+use crate::{preprocessor::MergedModuleNode, AssembleError, UNREACHABLE_CODE_NO_DEFAULT_ARM};
 
 // the identifier of functions and datas
 struct SymbolIdentifierLookupTable {
@@ -1544,10 +1534,7 @@ fn assemble_instruction(
             bytecode_writer.write_opcode_i32(Opcode::i32_imm, args.len() as u32);
             bytecode_writer.write_opcode(Opcode::syscall);
         }
-        Instruction::ExtCall {
-            name,
-            args,
-        } => {
+        Instruction::ExtCall { name, args } => {
             for instruction in args {
                 assemble_instruction(
                     instruction,

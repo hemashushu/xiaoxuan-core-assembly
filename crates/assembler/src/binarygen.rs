@@ -20,8 +20,9 @@ use ancvm_binary::module_image::{
     unified_external_library_section::UnifiedExternalLibrarySection,
     ModuleImage, SectionEntry,
 };
+use ancvm_types::entry::{IndexEntry, ModuleEntry};
 
-use crate::{AssembleError, IndexEntry, ModuleEntry};
+use crate::AssembleError;
 
 pub fn generate_module_image_binary(
     module_entry: &ModuleEntry,
@@ -206,16 +207,15 @@ pub fn generate_module_image_binary(
 
 #[cfg(test)]
 mod tests {
-    use ancvm_binary::module_image::{
-        local_variable_section::{LocalListEntry, LocalVariableEntry},
-        type_section::TypeEntry,
-    };
 
     use ancvm_process::{
         in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
     };
     use ancvm_program::program_source::ProgramSource;
-    use ancvm_types::{DataType, ForeignValue, MemoryDataType};
+    use ancvm_types::{
+        entry::{LocalListEntry, LocalVariableEntry, TypeEntry},
+        DataType, ForeignValue, MemoryDataType,
+    };
 
     use crate::utils::helper_generate_module_image_binaries_from_single_module_assembly;
 
