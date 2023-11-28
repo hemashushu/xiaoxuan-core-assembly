@@ -4,9 +4,12 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancvm_parser::ast::{
-    BranchCase, DataKindNode, DataNode, ExternNode, ExternalFuncNode, ExternalItem, FuncNode,
-    Instruction, ModuleElementNode, ModuleNode,
+use ancvm_parser::{
+    ast::{
+        BranchCase, DataKindNode, DataNode, ExternNode, ExternalFuncNode, ExternalItem, FuncNode,
+        Instruction, ModuleElementNode, ModuleNode,
+    },
+    NAME_PATH_SEPARATOR,
 };
 
 use crate::AssembleError;
@@ -155,7 +158,7 @@ enum RenameKind {
     ExternalFunc,
 }
 
-pub fn merge_submodule_nodes(
+pub fn canonicalize_submodule_nodes(
     submodule_nodes: &[ModuleNode],
 ) -> Result<MergedModuleNode, AssembleError> {
     // the first submodule is the main submodule of an application or a library.
@@ -166,7 +169,11 @@ pub fn merge_submodule_nodes(
 
     // check submodules name path and runtime version
     for module_node in &submodule_nodes[1..] {
-        let first_name = module_node.name_path.split("::").next().unwrap();
+        let first_name = module_node
+            .name_path
+            .split(NAME_PATH_SEPARATOR)
+            .next()
+            .unwrap();
         if first_name != name {
             return Err(AssembleError {
                 message: format!(
@@ -235,6 +242,7 @@ pub fn merge_submodule_nodes(
             // create new canonical external item if it does not exist.
 
             for original_extern_item in &original_extern_node.external_items {
+                // build the canonical extern item
                 let canonical_extern_item = match original_extern_item {
                     ExternalItem::ExternalFunc(original_external_func) => {
                         // the format of expect identifier name:
@@ -274,10 +282,13 @@ pub fn merge_submodule_nodes(
                     }
                 };
 
-                let extern_item_idx_opt = canonical_extern_node
-                    .external_items
-                    .iter()
-                    .position(|exists_external_item| exists_external_item == &canonical_extern_item);
+                let extern_item_idx_opt =
+                    canonical_extern_node
+                        .external_items
+                        .iter()
+                        .position(|exists_external_item| {
+                            exists_external_item == &canonical_extern_item
+                        });
 
                 if let Some(idx) = extern_item_idx_opt {
                     // already exist.
@@ -824,7 +835,7 @@ fn canonicalize_func_and_data_name_path(
     module_name_path: &str,
     rename_items: &[RenameItem],
 ) -> String {
-    let name_parts = name_path.split("::").collect::<Vec<&str>>();
+    let name_parts = name_path.split(NAME_PATH_SEPARATOR).collect::<Vec<&str>>();
 
     if name_parts.len() == 1 {
         let actual_name = rename(rename_kind, name_path, rename_items);
@@ -834,7 +845,11 @@ fn canonicalize_func_and_data_name_path(
 
         let first_part = name_parts[0];
         canonical_parts.push(match first_part {
-            "module" => module_name_path.split("::").next().unwrap().to_owned(),
+            "module" => module_name_path
+                .split(NAME_PATH_SEPARATOR)
+                .next()
+                .unwrap()
+                .to_owned(),
             "self" => module_name_path.to_owned(),
             _ => first_part.to_owned(),
         });
@@ -849,7 +864,7 @@ fn canonicalize_func_and_data_name_path(
         }
 
         canonical_parts.push(actual_name);
-        canonical_parts.join("::")
+        canonical_parts.join(NAME_PATH_SEPARATOR)
     }
 }
 
@@ -872,7 +887,7 @@ mod tests {
         peekable_iterator::PeekableIterator,
     };
 
-    use super::{merge_submodule_nodes, MergedModuleNode};
+    use super::{canonicalize_submodule_nodes, MergedModuleNode};
 
     fn merge_submodules_from_strs(sources: &[&str]) -> MergedModuleNode {
         let submodule_nodes = sources
@@ -886,7 +901,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        merge_submodule_nodes(&submodule_nodes).unwrap()
+        canonicalize_submodule_nodes(&submodule_nodes).unwrap()
     }
 
     #[test]

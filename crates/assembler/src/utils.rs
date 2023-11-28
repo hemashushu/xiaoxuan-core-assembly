@@ -8,7 +8,7 @@ use ancvm_parser::{lexer::lex, parser::parse, peekable_iterator::PeekableIterato
 
 use crate::{
     assembler::assemble_merged_module_node, binarygen::generate_module_image_binary, linker::link,
-    preprocessor::merge_submodule_nodes,
+    preprocessor::canonicalize_submodule_nodes,
 };
 
 pub fn helper_generate_module_image_binaries_from_single_module_assembly(
@@ -20,7 +20,7 @@ pub fn helper_generate_module_image_binaries_from_single_module_assembly(
     let mut token_iter = PeekableIterator::new(&mut tokens, 2);
 
     let module_node = parse(&mut token_iter).unwrap();
-    let merged_module_node = merge_submodule_nodes(&[module_node]).unwrap();
+    let merged_module_node = canonicalize_submodule_nodes(&[module_node]).unwrap();
 
     let module_entry = assemble_merged_module_node(&merged_module_node).unwrap();
     let module_entries = vec![&module_entry];

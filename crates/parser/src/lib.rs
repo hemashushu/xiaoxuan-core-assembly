@@ -14,6 +14,8 @@ pub mod lexer;
 pub mod parser;
 pub mod peekable_iterator;
 
+pub const NAME_PATH_SEPARATOR: &'static str = "::";
+
 #[derive(Debug)]
 pub struct ParseError {
     pub message: String,

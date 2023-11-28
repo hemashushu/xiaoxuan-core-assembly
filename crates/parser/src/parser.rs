@@ -82,7 +82,7 @@ use crate::{
     instruction_kind::{init_instruction_kind_table, InstructionKind, INSTRUCTION_KIND_TABLE},
     lexer::{NumberToken, Token},
     peekable_iterator::PeekableIterator,
-    ParseError,
+    ParseError, NAME_PATH_SEPARATOR,
 };
 
 pub fn parse(iter: &mut PeekableIterator<Token>) -> Result<ModuleNode, ParseError> {
@@ -233,6 +233,15 @@ fn parse_func_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNo
     let locals: Vec<LocalNode> = parse_optional_local_variables(iter)?;
     let code = parse_code_node(iter)?;
     consume_right_paren(iter)?;
+
+    if name.contains(NAME_PATH_SEPARATOR) {
+        return Err(ParseError {
+            message: format!(
+                "The name of function can not contains path separator, name: \"{}\"",
+                name
+            ),
+        });
+    }
 
     // function's code implies an instruction 'end' at the end.
     // instructions.push(Instruction::NoParams(Opcode::end));
@@ -424,6 +433,15 @@ fn parse_local_node(iter: &mut PeekableIterator<Token>) -> Result<LocalNode, Par
     let (memory_data_type, data_length, align) = parse_memory_data_type(iter)?;
 
     consume_right_paren(iter)?;
+
+    if name.contains(NAME_PATH_SEPARATOR) {
+        return Err(ParseError {
+            message: format!(
+                "The name of local variable can not contains path separator, name: \"{}\"",
+                name
+            ),
+        });
+    }
 
     Ok(LocalNode {
         name,
@@ -1465,6 +1483,15 @@ fn parse_data_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNo
 
     consume_right_paren(iter)?;
 
+    if name.contains(NAME_PATH_SEPARATOR) {
+        return Err(ParseError {
+            message: format!(
+                "The name of data can not contains path separator, name: \"{}\"",
+                name
+            ),
+        });
+    }
+
     let data_node = DataNode {
         name,
         exported,
@@ -1774,6 +1801,15 @@ fn parse_external_func_node(
 
     consume_right_paren(iter)?;
 
+    if name.contains(NAME_PATH_SEPARATOR) {
+        return Err(ParseError {
+            message: format!(
+                "The name of external function can not contains path separator, name: \"{}\"",
+                name
+            ),
+        });
+    }
+
     Ok(ExternalItem::ExternalFunc(ExternalFuncNode {
         name,
         symbol,
@@ -1998,17 +2034,6 @@ fn expect_identifier(
         ))),
     }
 }
-
-// fn expect_identifier_optional(iter: &mut PeekableIterator<Token>) -> Option<String> {
-//     match iter.peek(0) {
-//         Some(Token::Identifier(s)) => {
-//             let id = s.clone();
-//             iter.next();
-//             Some(id)
-//         }
-//         _ => None,
-//     }
-// }
 
 fn exist_child_node(iter: &mut PeekableIterator<Token>, child_node_name: &str) -> bool {
     if let Some(Token::LeftParen) = iter.peek(0) {
@@ -2353,6 +2378,19 @@ mod tests {
             Err(ParseError { message: _ })
         ));
 
+        // function name contains path separator
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (fn $a::b (code))
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
         // no function body
         assert!(matches!(
             parse_from_str(
@@ -2422,6 +2460,22 @@ mod tests {
                 })]
             }
         );
+
+        // local vairable name contains path separator
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (fn $test
+                    (local $a::b i32)
+                    (code)
+                )
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
     }
 
     #[test]
@@ -3745,6 +3799,32 @@ mod tests {
             Err(ParseError { message: _ })
         ));
 
+        // missing data name
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (data (read_only i32 123))
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
+        // data name contains path separator
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (data $a::b (read_only i32 123))
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
         // missing value
         assert!(matches!(
             parse_from_str(
@@ -4035,6 +4115,22 @@ mod tests {
                 (extern
                     (library user "libabc.so")
                     (fn "add")
+                )
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
+        // fn name contains path separator
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (extern
+                    (library user "libabc.so")
+                    (fn $a::b "add")
                 )
             )
             "#
