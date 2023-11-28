@@ -188,7 +188,7 @@ with 'exported' annotation
 
 ## The 'extern' node
 
-(extern (library shared "math.so.1")
+(extern (library share "math.so.1")
         (fn $add "add" (param i32) (param i32) (result i32))
 )
 
@@ -197,6 +197,6 @@ the parameters can be writtern as compact mode:
 (fn $add "add" (params i32 i32) (result i32))
 
 library type:
-- (library shared "math.so.1")
+- (library share "math.so.1")
 - (library system "libc.so.6")
 - (library user "lib-test-0.so.1")

@@ -57,7 +57,7 @@ use crate::AssembleError;
 // `(call $module::utils::add ...)`
 // `(call $self::utils::add ...)`
 //
-// 3. canonicalize the identifiers of external functions and imported items.
+// 3. canonicalize the identifiers of external functions.
 //
 // the identifiers and names of external functions (as well as imported items)
 // can be different for simplify the writing of the assembly text, so these identifiers
@@ -66,29 +66,55 @@ use crate::AssembleError;
 // e.g.
 // in submodule 'myapp':
 //
-// (extern (library shared "math.so.1")
+// (extern (library share "math.so.1")
 //         (fn $add "add" ...)
 // )
 // (extcall $add ...)
 //
 // in submodule 'myapp::utils':
 //
-// (extern (library shared "math.so.1")
+// (extern (library share "math.so.1")
 //         (fn $f0 "add" ...)
 // )
 // (extcall $f0 ...)
 //
 // the identifiers '$add' and '$f0' will be
-// rewritten as 'shared::math.so.1::add' in both the node 'extern' and 'extcall'
+// rewritten as 'EXTERNAL_FUNC::share::math.so.1::add' in both the node 'extern' and 'extcall'
+//
+// in addition to rewriteing identifiers, duplicate 'extern' nodes
+// will be removed.
 //
 // the expect identifier name for external function is:
 // EXTERNAL_FUNC::EXTERNAL_LIBRARY_TYPE::LIBRARY_SO_NAME::SYMBOL
 //
-// it's similar to the names of imported items, the expect identifier name for
-// imported items is:
+// 4. canonicalize the identifiers of imported items.
+//
+// it's similar to the external functions, e.g.
+//
+// in submodule 'myapp':
+//
+// (import (module share "math")
+//         (fn $add "add" ...)
+// )
+// (call $add ...)
+//
+// in submodule 'myapp::utils':
+//
+// (import (module share "math")
+//         (fn $f0 "add" ...)
+// )
+// (call $f0 ...)
+//
+// the identifiers '$add' and '$f0' will be
+// rewritten as 'IMPORTED_FUNC::share::math::add' in both the node 'import' and 'call'
+//
+// in addition to rewriteing identifiers, duplicate 'import' nodes
+// will be removed.
+//
+// the expect identifier name for imported item is:
 // IMPORTED_DATA|IMPORTED_FUNC::PATH_NAMES::ITEM_NAME
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct MergedModuleNode {
     // the main module name
     pub name: String,
@@ -209,10 +235,49 @@ pub fn merge_submodule_nodes(
             // create new canonical external item if it does not exist.
 
             for original_extern_item in &original_extern_node.external_items {
+                let canonical_extern_item = match original_extern_item {
+                    ExternalItem::ExternalFunc(original_external_func) => {
+                        // the format of expect identifier name:
+                        // EXTERNAL_FUNC::EXTERNAL_LIBRARY_TYPE::LIBRARY_SO_NAME::SYMBOL
+
+                        let symbol = original_external_func.symbol.clone();
+
+                        let expect_identifier_name = format!(
+                            "EXTERNAL_FUNC::{}::{}::{}",
+                            original_extern_node
+                                .external_library_node
+                                .external_library_type,
+                            original_extern_node.external_library_node.name,
+                            symbol
+                        );
+
+                        let actual_identifier_name = original_external_func.name.clone();
+
+                        // add rename item
+                        if expect_identifier_name != actual_identifier_name {
+                            let rename_item = RenameItem {
+                                from: actual_identifier_name,
+                                to: expect_identifier_name.clone(),
+                                kind: RenameKind::ExternalFunc,
+                            };
+                            rename_items.push(rename_item);
+                        }
+
+                        let canonical_external_func_node = ExternalFuncNode {
+                            name: expect_identifier_name,
+                            symbol,
+                            params: original_external_func.params.clone(),
+                            results: original_external_func.results.clone(),
+                        };
+
+                        ExternalItem::ExternalFunc(canonical_external_func_node)
+                    }
+                };
+
                 let extern_item_idx_opt = canonical_extern_node
                     .external_items
                     .iter()
-                    .position(|exists_external_item| exists_external_item == original_extern_item);
+                    .position(|exists_external_item| exists_external_item == &canonical_extern_item);
 
                 if let Some(idx) = extern_item_idx_opt {
                     // already exist.
@@ -234,47 +299,10 @@ pub fn merge_submodule_nodes(
                         rename_items.push(rename_item);
                     }
                 } else {
-                    // create new canonical external item
-                    match original_extern_item {
-                        ExternalItem::ExternalFunc(original_external_func) => {
-                            // the format of expect identifier name:
-                            // EXTERNAL_FUNC::EXTERNAL_LIBRARY_TYPE::LIBRARY_SO_NAME::SYMBOL
-
-                            let symbol = original_external_func.symbol.clone();
-
-                            let expect_identifier_name = format!(
-                                "EXTERNAL_FUNC::{}::{}::{}",
-                                original_extern_node
-                                    .external_library_node
-                                    .external_library_type,
-                                original_extern_node.external_library_node.name,
-                                symbol
-                            );
-
-                            let actual_identifier_name = original_external_func.name.clone();
-
-                            // add rename item
-                            if expect_identifier_name != actual_identifier_name {
-                                let rename_item = RenameItem {
-                                    from: actual_identifier_name,
-                                    to: expect_identifier_name.clone(),
-                                    kind: RenameKind::ExternalFunc,
-                                };
-                                rename_items.push(rename_item);
-                            }
-
-                            let canonical_external_func_node = ExternalFuncNode {
-                                name: expect_identifier_name,
-                                symbol,
-                                params: original_external_func.params.clone(),
-                                results: original_external_func.results.clone(),
-                            };
-
-                            canonical_extern_node
-                                .external_items
-                                .push(ExternalItem::ExternalFunc(canonical_external_func_node));
-                        }
-                    }
+                    // add new canonical external item
+                    canonical_extern_node
+                        .external_items
+                        .push(canonical_extern_item);
                 }
             }
         }
@@ -815,7 +843,7 @@ fn canonicalize_func_and_data_name_path(
         let actual_name = rename(rename_kind, last_part, rename_items);
 
         if name_parts.len() > 2 {
-            name_parts[1..(name_parts.len() - 2)]
+            name_parts[1..(name_parts.len() - 1)]
                 .iter()
                 .for_each(|s| canonical_parts.push(s.to_string()));
         }
@@ -831,9 +859,532 @@ fn canonicalize_external_func_call_name(name: &str, rename_items: &[RenameItem])
 
 #[cfg(test)]
 mod tests {
+    use ancvm_types::{opcode::Opcode, ExternalLibraryType, MemoryDataType};
+    use pretty_assertions::assert_eq;
+
+    use ancvm_parser::{
+        ast::{
+            DataKindNode, DataNode, ExternNode, ExternalFuncNode, ExternalItem,
+            ExternalLibraryNode, FuncNode, InitedData, Instruction, UninitData,
+        },
+        lexer::lex,
+        parser::parse,
+        peekable_iterator::PeekableIterator,
+    };
+
+    use super::{merge_submodule_nodes, MergedModuleNode};
+
+    fn merge_submodules_from_strs(sources: &[&str]) -> MergedModuleNode {
+        let submodule_nodes = sources
+            .iter()
+            .map(|source| {
+                let mut chars = source.chars();
+                let mut char_iter = PeekableIterator::new(&mut chars, 2);
+                let mut tokens = lex(&mut char_iter).unwrap().into_iter();
+                let mut token_iter = PeekableIterator::new(&mut tokens, 2);
+                parse(&mut token_iter).unwrap()
+            })
+            .collect::<Vec<_>>();
+
+        merge_submodule_nodes(&submodule_nodes).unwrap()
+    }
 
     #[test]
-    fn test() {
-        // todo
+    fn test_preprocess_merge_functions_and_datas() {
+        assert_eq!(
+            merge_submodules_from_strs(&[
+                r#"
+            (module $myapp
+                (runtime_version "1.0")
+                (data $code (read_only i32 0x11))
+                (fn $entry (code))
+                (fn $main (code))
+            )
+            "#,
+                r#"
+            (module $myapp::utils
+                (runtime_version "1.0")
+                (data $count (read_write i32 0x13))
+                (data $sum (uninit i32))
+                (fn $add (code))
+                (fn $sub (code))
+            )
+            "#
+            ]),
+            MergedModuleNode {
+                name: "myapp".to_owned(),
+                runtime_version_major: 1,
+                runtime_version_minor: 0,
+                func_nodes: vec![
+                    FuncNode {
+                        name: "myapp::entry".to_owned(),
+                        exported: false,
+                        params: vec![],
+                        results: vec![],
+                        locals: vec![],
+                        code: vec![]
+                    },
+                    FuncNode {
+                        name: "myapp::main".to_owned(),
+                        exported: false,
+                        params: vec![],
+                        results: vec![],
+                        locals: vec![],
+                        code: vec![]
+                    },
+                    FuncNode {
+                        name: "myapp::utils::add".to_owned(),
+                        exported: false,
+                        params: vec![],
+                        results: vec![],
+                        locals: vec![],
+                        code: vec![]
+                    },
+                    FuncNode {
+                        name: "myapp::utils::sub".to_owned(),
+                        exported: false,
+                        params: vec![],
+                        results: vec![],
+                        locals: vec![],
+                        code: vec![]
+                    }
+                ],
+                read_only_data_nodes: vec![DataNode {
+                    name: "myapp::code".to_owned(),
+                    exported: false,
+                    data_kind: DataKindNode::ReadOnly(InitedData {
+                        memory_data_type: MemoryDataType::I32,
+                        length: 4,
+                        align: 4,
+                        value: 0x11u32.to_le_bytes().to_vec()
+                    })
+                }],
+                read_write_data_nodes: vec![DataNode {
+                    name: "myapp::utils::count".to_owned(),
+                    exported: false,
+                    data_kind: DataKindNode::ReadWrite(InitedData {
+                        memory_data_type: MemoryDataType::I32,
+                        length: 4,
+                        align: 4,
+                        value: 0x13u32.to_le_bytes().to_vec()
+                    })
+                }],
+                uninit_data_nodes: vec![DataNode {
+                    name: "myapp::utils::sum".to_owned(),
+                    exported: false,
+                    data_kind: DataKindNode::Uninit(UninitData {
+                        memory_data_type: MemoryDataType::I32,
+                        length: 4,
+                        align: 4,
+                    })
+                }],
+                extern_nodes: vec![],
+            }
+        )
+    }
+
+    #[test]
+    fn test_preprocess_canonicalize_identifiers_of_func_and_data_instructions() {
+        assert_eq!(
+            merge_submodules_from_strs(&[
+                r#"
+            (module $myapp
+                (runtime_version "1.0")
+                (data $d0 (read_only i32 0x11))
+                (fn $add (code))
+                (fn $test (code
+                    ;; group 0
+                    (data.load32_i32 $d0)
+                    (data.load32_i32 $myapp::d0)
+                    (data.load32_i32 $module::d0)
+                    (data.load32_i32 $self::d0)
+                    ;; group 1
+                    (data.load64_i64 $myapp::utils::d0)
+                    (data.load64_i64 $module::utils::d0)
+                    (data.load64_i64 $self::utils::d0)
+                    ;; group 2
+                    (call $add)
+                    (call $myapp::add)
+                    (call $module::add)
+                    (call $self::add)
+                    ;; group 3
+                    (call $myapp::utils::add)
+                    (call $module::utils::add)
+                    (call $self::utils::add)
+                ))
+            )
+            "#,
+                r#"
+            (module $myapp::utils
+                (runtime_version "1.0")
+                (data $d0 (read_only i64 0x13))
+                (fn $add (code))
+                (fn $test (code
+                    ;; group 0
+                    (data.load32_i32 $myapp::d0)
+                    (data.load32_i32 $module::d0)
+                    ;; group 1
+                    (data.load64_i64 $d0)
+                    (data.load64_i64 $self::d0)
+                    (data.load64_i64 $myapp::utils::d0)
+                    (data.load64_i64 $module::utils::d0)
+                    ;; group 2
+                    (call $myapp::add)
+                    (call $module::add)
+                    ;; group 3
+                    (call $add)
+                    (call $self::add)
+                    (call $myapp::utils::add)
+                    (call $module::utils::add)
+                ))
+            )
+            "#
+            ]),
+            MergedModuleNode {
+                name: "myapp".to_owned(),
+                runtime_version_major: 1,
+                runtime_version_minor: 0,
+                func_nodes: vec![
+                    FuncNode {
+                        name: "myapp::add".to_owned(),
+                        exported: false,
+                        params: vec![],
+                        results: vec![],
+                        locals: vec![],
+                        code: vec![]
+                    },
+                    FuncNode {
+                        name: "myapp::test".to_owned(),
+                        exported: false,
+                        params: vec![],
+                        results: vec![],
+                        locals: vec![],
+                        code: vec![
+                            // group 0
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load32_i32,
+                                name_path: "myapp::d0".to_owned(),
+                                offset: 0
+                            },
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load32_i32,
+                                name_path: "myapp::d0".to_owned(),
+                                offset: 0
+                            },
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load32_i32,
+                                name_path: "myapp::d0".to_owned(),
+                                offset: 0
+                            },
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load32_i32,
+                                name_path: "myapp::d0".to_owned(),
+                                offset: 0
+                            },
+                            // group 1
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load64_i64,
+                                name_path: "myapp::utils::d0".to_owned(),
+                                offset: 0
+                            },
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load64_i64,
+                                name_path: "myapp::utils::d0".to_owned(),
+                                offset: 0
+                            },
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load64_i64,
+                                name_path: "myapp::utils::d0".to_owned(),
+                                offset: 0
+                            },
+                            // group 2
+                            Instruction::Call {
+                                name_path: "myapp::add".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::Call {
+                                name_path: "myapp::add".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::Call {
+                                name_path: "myapp::add".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::Call {
+                                name_path: "myapp::add".to_owned(),
+                                args: vec![]
+                            },
+                            // group 3
+                            Instruction::Call {
+                                name_path: "myapp::utils::add".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::Call {
+                                name_path: "myapp::utils::add".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::Call {
+                                name_path: "myapp::utils::add".to_owned(),
+                                args: vec![]
+                            },
+                        ]
+                    },
+                    FuncNode {
+                        name: "myapp::utils::add".to_owned(),
+                        exported: false,
+                        params: vec![],
+                        results: vec![],
+                        locals: vec![],
+                        code: vec![]
+                    },
+                    FuncNode {
+                        name: "myapp::utils::test".to_owned(),
+                        exported: false,
+                        params: vec![],
+                        results: vec![],
+                        locals: vec![],
+                        code: vec![
+                            // group 0
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load32_i32,
+                                name_path: "myapp::d0".to_owned(),
+                                offset: 0
+                            },
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load32_i32,
+                                name_path: "myapp::d0".to_owned(),
+                                offset: 0
+                            },
+                            // group 1
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load64_i64,
+                                name_path: "myapp::utils::d0".to_owned(),
+                                offset: 0
+                            },
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load64_i64,
+                                name_path: "myapp::utils::d0".to_owned(),
+                                offset: 0
+                            },
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load64_i64,
+                                name_path: "myapp::utils::d0".to_owned(),
+                                offset: 0
+                            },
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load64_i64,
+                                name_path: "myapp::utils::d0".to_owned(),
+                                offset: 0
+                            },
+                            // group 2
+                            Instruction::Call {
+                                name_path: "myapp::add".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::Call {
+                                name_path: "myapp::add".to_owned(),
+                                args: vec![]
+                            },
+                            // group 3
+                            Instruction::Call {
+                                name_path: "myapp::utils::add".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::Call {
+                                name_path: "myapp::utils::add".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::Call {
+                                name_path: "myapp::utils::add".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::Call {
+                                name_path: "myapp::utils::add".to_owned(),
+                                args: vec![]
+                            },
+                        ]
+                    }
+                ],
+                read_only_data_nodes: vec![
+                    DataNode {
+                        name: "myapp::d0".to_owned(),
+                        exported: false,
+                        data_kind: DataKindNode::ReadOnly(InitedData {
+                            memory_data_type: MemoryDataType::I32,
+                            length: 4,
+                            align: 4,
+                            value: 0x11u32.to_le_bytes().to_vec()
+                        })
+                    },
+                    DataNode {
+                        name: "myapp::utils::d0".to_owned(),
+                        exported: false,
+                        data_kind: DataKindNode::ReadOnly(InitedData {
+                            memory_data_type: MemoryDataType::I64,
+                            length: 8,
+                            align: 8,
+                            value: 0x13u64.to_le_bytes().to_vec()
+                        })
+                    }
+                ],
+                read_write_data_nodes: vec![],
+                uninit_data_nodes: vec![],
+                extern_nodes: vec![],
+            }
+        )
+    }
+
+    #[test]
+    fn test_preprocess_canonicalize_identifiers_of_external_funcs() {
+        assert_eq!(
+            merge_submodules_from_strs(&[
+                r#"
+            (module $myapp
+                (runtime_version "1.0")
+                (extern (library user "math.so.1")
+                    (fn $add "add")
+                    (fn $sub "sub_wrap")
+                )
+                (extern (library share "std.so.1")
+                    (fn $print "print")
+                )
+                (fn $test (code
+                    (extcall $add)
+                    (extcall $sub)
+                    (extcall $print)
+                ))
+            )
+            "#,
+                r#"
+            (module $myapp::utils
+                (runtime_version "1.0")
+                (extern (library user "math.so.1")
+                    (fn $f0 "add")      ;; duplicate
+                    (fn $f1 "mul")      ;; new
+                )
+                (extern (library share "std.so.1")
+                    (fn $f2 "print")    ;; duplicate
+                )
+                (extern (library system "libc.so.6")    ;; new
+                    (fn $f3 "getuid")                   ;; new
+                )
+                (fn $test (code
+                    (extcall $f0)
+                    (extcall $f1)
+                    (extcall $f2)
+                    (extcall $f3)
+                ))
+            )
+            "#
+            ]),
+            MergedModuleNode {
+                name: "myapp".to_owned(),
+                runtime_version_major: 1,
+                runtime_version_minor: 0,
+                func_nodes: vec![
+                    FuncNode {
+                        name: "myapp::test".to_owned(),
+                        exported: false,
+                        params: vec![],
+                        results: vec![],
+                        locals: vec![],
+                        code: vec![
+                            Instruction::ExtCall {
+                                name: "EXTERNAL_FUNC::user::math.so.1::add".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::ExtCall {
+                                name: "EXTERNAL_FUNC::user::math.so.1::sub_wrap".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::ExtCall {
+                                name: "EXTERNAL_FUNC::share::std.so.1::print".to_owned(),
+                                args: vec![]
+                            }
+                        ]
+                    },
+                    FuncNode {
+                        name: "myapp::utils::test".to_owned(),
+                        exported: false,
+                        params: vec![],
+                        results: vec![],
+                        locals: vec![],
+                        code: vec![
+                            Instruction::ExtCall {
+                                name: "EXTERNAL_FUNC::user::math.so.1::add".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::ExtCall {
+                                name: "EXTERNAL_FUNC::user::math.so.1::mul".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::ExtCall {
+                                name: "EXTERNAL_FUNC::share::std.so.1::print".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::ExtCall {
+                                name: "EXTERNAL_FUNC::system::libc.so.6::getuid".to_owned(),
+                                args: vec![]
+                            }
+                        ]
+                    },
+                ],
+                read_only_data_nodes: vec![],
+                read_write_data_nodes: vec![],
+                uninit_data_nodes: vec![],
+                extern_nodes: vec![
+                    ExternNode {
+                        external_library_node: ExternalLibraryNode {
+                            external_library_type: ExternalLibraryType::User,
+                            name: "math.so.1".to_owned()
+                        },
+                        external_items: vec![
+                            ExternalItem::ExternalFunc(ExternalFuncNode {
+                                name: "EXTERNAL_FUNC::user::math.so.1::add".to_owned(),
+                                symbol: "add".to_owned(),
+                                params: vec![],
+                                results: vec![]
+                            }),
+                            ExternalItem::ExternalFunc(ExternalFuncNode {
+                                name: "EXTERNAL_FUNC::user::math.so.1::sub_wrap".to_owned(),
+                                symbol: "sub_wrap".to_owned(),
+                                params: vec![],
+                                results: vec![]
+                            }),
+                            ExternalItem::ExternalFunc(ExternalFuncNode {
+                                name: "EXTERNAL_FUNC::user::math.so.1::mul".to_owned(),
+                                symbol: "mul".to_owned(),
+                                params: vec![],
+                                results: vec![]
+                            }),
+                        ]
+                    },
+                    ExternNode {
+                        external_library_node: ExternalLibraryNode {
+                            external_library_type: ExternalLibraryType::Share,
+                            name: "std.so.1".to_owned()
+                        },
+                        external_items: vec![ExternalItem::ExternalFunc(ExternalFuncNode {
+                            name: "EXTERNAL_FUNC::share::std.so.1::print".to_owned(),
+                            symbol: "print".to_owned(),
+                            params: vec![],
+                            results: vec![]
+                        }),]
+                    },
+                    ExternNode {
+                        external_library_node: ExternalLibraryNode {
+                            external_library_type: ExternalLibraryType::System,
+                            name: "libc.so.6".to_owned()
+                        },
+                        external_items: vec![ExternalItem::ExternalFunc(ExternalFuncNode {
+                            name: "EXTERNAL_FUNC::system::libc.so.6::getuid".to_owned(),
+                            symbol: "getuid".to_owned(),
+                            params: vec![],
+                            results: vec![]
+                        }),]
+                    }
+                ],
+            }
+        )
     }
 }

@@ -4,7 +4,7 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancvm_assembler::utils::helper_generate_single_module_image_binary_from_assembly;
+use ancvm_assembler::utils::helper_generate_module_image_binaries_from_single_module_assembly;
 use ancvm_program::program_source::ProgramSource;
 use ancvm_process::{
     in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
@@ -43,7 +43,7 @@ fn test_assemble_local_load_store() {
     //
     // (f32, f64) -> (i64,i32,i32,i32,i32,i32, f32,f64 ,i64,i32)
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -156,7 +156,7 @@ fn test_assemble_local_long_load_and_store() {
     //       |load64     |load32
     //
     // () -> (i64,i32,i32,i32,i32,i32, i64,i32,i32,i32)
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
         r#"
     (module $app
         (runtime_version "1.0")

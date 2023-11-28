@@ -4,7 +4,7 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancvm_assembler::utils::helper_generate_single_module_image_binary_from_assembly;
+use ancvm_assembler::utils::helper_generate_module_image_binaries_from_single_module_assembly;
 use ancvm_binary::bytecode_reader::print_bytecode_as_text;
 use ancvm_program::program_source::ProgramSource;
 use ancvm_process::{
@@ -21,7 +21,7 @@ use pretty_assertions::assert_eq;
 fn test_assemble_envcall_runtime_version() {
     // () -> (i64)
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -71,7 +71,7 @@ fn test_assemble_envcall_runtime_code_name() {
     //        |    |name buffer (8 bytes)
     //        |name length
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(&format!(
         r#"
         (module $app
             (runtime_version "1.0")

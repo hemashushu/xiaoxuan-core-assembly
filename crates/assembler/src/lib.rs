@@ -24,6 +24,7 @@ use ancvm_binary::module_image::{
 use ancvm_types::VMError;
 
 pub mod assembler;
+pub mod binarygen;
 pub mod linker;
 pub mod preprocessor;
 pub mod utils;
@@ -46,7 +47,6 @@ pub struct ModuleEntry {
 
     pub func_name_entries: Vec<FuncNameEntry>,
     pub data_name_entries: Vec<DataNameEntry>,
-    // pub external_func_name_entries: Vec<ExternalFuncNameEntry>,
 }
 
 pub struct IndexEntry {

@@ -4,7 +4,7 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancvm_assembler::utils::helper_generate_single_module_image_binary_from_assembly;
+use ancvm_assembler::utils::helper_generate_module_image_binaries_from_single_module_assembly;
 use ancvm_binary::{
     bytecode_reader::print_bytecode_as_text,
     module_image::{
@@ -36,7 +36,7 @@ fn test_assemble_control_flow_block_equ_structure_for() {
     //
     // expect (11, 13, 23, 29)
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -153,7 +153,7 @@ fn test_assemble_control_flow_block_with_args_and_results_equ_structure_for() {
     //
     // expect (11, 30, 19)
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -272,7 +272,7 @@ fn test_assemble_control_flow_block_with_local_vars_equ_structure_for() {
     //
     // expect (19, 11) -> (27, 44, 32, 7, 18, 10, 20, 13)
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -524,7 +524,7 @@ fn test_assemble_control_flow_break_function_equ_statement_return() {
     //
     // expect (11, 13)
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -591,7 +591,7 @@ fn test_assemble_control_flow_break_block_equ_statement_break() {
     //
     // expect (17, 19, 31, 37)
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -680,7 +680,7 @@ fn test_assemble_control_flow_break_block_to_function_equ_statement_return() {
     //
     // expect (17, 19)
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -767,7 +767,7 @@ fn test_assemble_control_flow_structure_when() {
     // assert (11, 13) -> (13)
     // assert (19, 17) -> (19)
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -869,7 +869,7 @@ fn test_assemble_control_flow_break_block_crossing_equ_statement_break() {
     // expect (1) -> (23, 29, 51, 53)
     // expect (0) -> (41, 43, 51, 53)
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -987,7 +987,7 @@ fn test_assemble_control_flow_structure_if() {
     // assert (11, 13) -> (13)
     // assert (19, 17) -> (19)
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -1090,7 +1090,7 @@ fn test_assemble_control_flow_structure_if_nested() {
     // assert (50) -> (68) 'D'
     // assert (40) -> (68) 'D'
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -1234,7 +1234,7 @@ fn test_assemble_control_flow_structure_branch() {
     // assert (50) -> (68) 'D'
     // assert (40) -> (68) 'D'
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -1375,7 +1375,7 @@ fn test_assemble_control_flow_structure_branch_without_default_arm() {
     // assert (70) -> unreachable
     // assert (60) -> unreachable
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -1501,7 +1501,7 @@ fn test_assemble_control_flow_structure_loop() {
     // assert (10) -> (55)
     // assert (100) -> (5050)
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -1609,7 +1609,7 @@ fn test_assemble_control_flow_structure_loop_with_block_parameters() {
     // assert (10) -> (55)
     // assert (100) -> (5050)
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -1721,7 +1721,7 @@ fn test_assemble_control_flow_structure_loop_with_if() {
     // assert (10) -> (55)
     // assert (100) -> (5050)
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -1832,7 +1832,7 @@ fn test_assemble_control_flow_function_tail_call() {
     // assert (0, 10) -> (55)
     // assert (0, 100) -> (5050)
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -1944,7 +1944,7 @@ fn test_assemble_control_flow_function_tail_call_with_if() {
     // assert (0, 10) -> (55)
     // assert (0, 100) -> (5050)
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
         r#"
         (module $app
             (runtime_version "1.0")

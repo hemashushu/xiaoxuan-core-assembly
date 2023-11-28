@@ -4,7 +4,7 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancvm_assembler::utils::helper_generate_single_module_image_binary_from_assembly;
+use ancvm_assembler::utils::helper_generate_module_image_binaries_from_single_module_assembly;
 use ancvm_binary::bytecode_reader::print_bytecode_as_text;
 use ancvm_program::program_source::ProgramSource;
 use ancvm_process::{
@@ -22,7 +22,7 @@ fn test_assemble_syscall_without_args() {
     // syscall:
     // `pid_t getpid(void);`
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -73,7 +73,7 @@ fn test_assemble_syscall_with_2_args() {
     // syscall:
     // `char *getcwd(char buf[.size], size_t size);`
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -156,7 +156,7 @@ fn test_assemble_syscall_error_no() {
     // syscall:
     // `int open(const char *pathname, int flags)`
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(&format!(
         r#"
         (module $app
             (runtime_version "1.0")

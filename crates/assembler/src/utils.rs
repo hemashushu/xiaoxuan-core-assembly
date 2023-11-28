@@ -5,14 +5,15 @@
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
 use ancvm_parser::{lexer::lex, parser::parse, peekable_iterator::PeekableIterator};
-use ancvm_program::program_settings::ProgramSettings;
 
 use crate::{
-    assembler::assemble_merged_module_node, linker::generate_image_binaries,
+    assembler::assemble_merged_module_node, binarygen::generate_module_image_binary, linker::link,
     preprocessor::merge_submodule_nodes,
 };
 
-pub fn helper_generate_single_module_image_binary_from_assembly(source: &str) -> Vec<Vec<u8>> {
+pub fn helper_generate_module_image_binaries_from_single_module_assembly(
+    source: &str,
+) -> Vec<Vec<u8>> {
     let mut chars = source.chars();
     let mut char_iter = PeekableIterator::new(&mut chars, 2);
     let mut tokens = lex(&mut char_iter).unwrap().into_iter();
@@ -22,6 +23,10 @@ pub fn helper_generate_single_module_image_binary_from_assembly(source: &str) ->
     let merged_module_node = merge_submodule_nodes(&[module_node]).unwrap();
 
     let module_entry = assemble_merged_module_node(&merged_module_node).unwrap();
-    let program_settings = ProgramSettings::default();
-    generate_image_binaries(&vec![module_entry], &program_settings).unwrap()
+    let module_entries = vec![&module_entry];
+
+    // let program_settings = ProgramSettings::default();
+    let index_entry = link(&module_entries).unwrap();
+    let module_image = generate_module_image_binary(&module_entry, Some(&index_entry)).unwrap();
+    vec![module_image]
 }

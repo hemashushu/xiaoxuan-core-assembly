@@ -6,7 +6,7 @@
 
 use std::time::Duration;
 
-use ancvm_assembler::utils::helper_generate_single_module_image_binary_from_assembly;
+use ancvm_assembler::utils::helper_generate_module_image_binaries_from_single_module_assembly;
 use ancvm_process::{
     in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
 };
@@ -18,7 +18,7 @@ use libc::{clock_gettime, timespec, CLOCK_MONOTONIC};
 fn test_assemble_envcall_time_now() {
     // () -> (i64)
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(&format!(
         r#"
         (module $app
             (runtime_version "1.0")

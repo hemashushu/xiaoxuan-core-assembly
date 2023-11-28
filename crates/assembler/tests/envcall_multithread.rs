@@ -6,7 +6,7 @@
 
 use std::time::Instant;
 
-use ancvm_assembler::utils::helper_generate_single_module_image_binary_from_assembly;
+use ancvm_assembler::utils::helper_generate_module_image_binaries_from_single_module_assembly;
 use ancvm_process::{
     in_memory_program_source::InMemoryProgramSource,
     multithread_program::run_program_in_multithread,
@@ -20,7 +20,7 @@ fn test_assemble_multithread_run_program_in_multithread() {
     // the signature of 'thread start function' must be
     // () -> (i64)
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -45,7 +45,7 @@ fn test_assemble_multithread_thread_id() {
     // the signature of 'thread start function' must be
     // () -> (i64)
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -73,7 +73,7 @@ fn test_assemble_multithread_thread_create() {
     // the signature of 'thread start function' must be
     // () -> (i64)
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -131,7 +131,7 @@ fn test_assemble_multithread_thread_start_data() {
     //       |
     //       \---> exit code 0x19171311_37312923
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -200,7 +200,7 @@ fn test_assemble_multithread_thread_running_status() {
     // the signature of 'thread start function' must be
     // () -> (i64)
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -324,7 +324,7 @@ fn test_assemble_multithread_thread_terminate() {
     // the signature of 'thread start function' must be
     // () -> (i64)
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -445,7 +445,7 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
     //              exit
     // 0x17        <----- 0x17
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -717,7 +717,7 @@ fn test_assemble_multithread_thread_message_forward() {
     //   |
     //   \-- exit code
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -874,7 +874,7 @@ fn test_assemble_multithread_thread_sleep() {
     // the signature of 'thread start function' must be
     // () -> (i64)
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(&format!(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(&format!(
         r#"
         (module $app
             (runtime_version "1.0")

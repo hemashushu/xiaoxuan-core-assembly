@@ -415,7 +415,7 @@ fn parse_local_node(iter: &mut PeekableIterator<Token>) -> Result<LocalNode, Par
     // ^                 ^____// to here
     // |______________________// current token
 
-    // also
+    // also:
     // (local $name (bytes DATA_LENGTH_NUMBER:i32 ALIGN_NUMBER:i16))
 
     consume_left_paren(iter, "local")?;
@@ -441,7 +441,7 @@ fn parse_memory_data_type(
     //              ^  ^______// to here
     //              |_________// current token
 
-    // also
+    // also:
     // (local $name (bytes DATA_LENGTH_NUMBER:i32 ALIGN_NUMBER:i16))
 
     if iter.look_ahead_equals(0, &Token::LeftParen) {
@@ -638,7 +638,7 @@ fn parse_instruction_with_parentheses(
     // ^           ^____// to here
     // |________________// current token
     //
-    // also maybe:
+    // also:
     //
     // (inst_name PARAM0 PARAM1 ...)
     // (inst_name OPERAND0 OPERAND1 ...)
@@ -1306,7 +1306,10 @@ fn parse_instruction_kind_call_by_name(
     consume_right_paren(iter)?;
 
     let instruction = if is_call {
-        Instruction::Call { name_path: name, args }
+        Instruction::Call {
+            name_path: name,
+            args,
+        }
     } else {
         Instruction::ExtCall { name, args }
     };
@@ -1436,7 +1439,7 @@ fn parse_data_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNo
     // ^                                ^____// to here
     // |_____________________________________// current token
 
-    // also
+    // also:
     // (data $name (read_only string "Hello, World!"))    ;; UTF-8 encoding string
     // (data $name (read_only cstring "Hello, World!"))   ;; type `cstring` will append '\0' at the end of string
     // (data $name (read_only (bytes 2) d"11-13-17-19"))
@@ -1493,7 +1496,7 @@ fn parse_data_kind_node_read_only(
     // ^                   ^____// to here
     // |________________________// current token
 
-    // also
+    // also:
     // (read_only string "Hello, World!")    ;; UTF-8 encoding string
     // (read_only cstring "Hello, World!")   ;; type `cstring` will append '\0' at the end of string
     // (read_only (bytes ALIGN_NUMBER:i16) d"11-13-17-19")
@@ -1515,7 +1518,7 @@ fn parse_data_kind_node_read_write(
     // ^                    ^____// to here
     // |_________________________// current token
 
-    // also
+    // also:
     // (read_write string "Hello, World!")    ;; UTF-8 encoding string
     // (read_write cstring "Hello, World!")   ;; type `cstring` will append '\0' at the end of string
     // (read_write (bytes ALIGN_NUMBER:i16) d"11-13-17-19")
@@ -1537,7 +1540,7 @@ fn parse_data_kind_node_uninit(
     // ^            ^___// to here
     // |________________// current token
 
-    // also
+    // also:
     // (uninit (bytes 12 4))
 
     consume_left_paren(iter, "uninit")?;
@@ -1560,7 +1563,7 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
     //            ^      ^______// to here
     //            |_____________// current token
 
-    // also
+    // also:
     // (read_write string "Hello, World!")    ;; UTF-8 encoding string
     // (read_write cstring "Hello, World!")   ;; type `cstring` will append '\0' at the end of string
     // (read_write (bytes ALIGN_NUMBER:i16) d"11-13-17-19")
@@ -1679,7 +1682,7 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
 
 fn parse_extern_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNode, ParseError> {
     // (extern
-    //     (library shared "math.so.1")
+    //     (library share "math.so.1")
     //     (fn $add "add" (param i32) (param i32) (result i32)
     //     ) ...  //
     // ^     ^____// to here
@@ -1723,7 +1726,7 @@ fn parse_extern_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElement
 fn parse_external_library_node(
     iter: &mut PeekableIterator<Token>,
 ) -> Result<ExternalLibraryNode, ParseError> {
-    // (library shared "math.so.1") ...  //
+    // (library share "math.so.1") ...  //
     // ^                            ^____// to here
     // |_________________________________// current token
 
@@ -1736,7 +1739,7 @@ fn parse_external_library_node(
 
     let external_library_type_str = expect_symbol(iter, "library")?;
     let external_library_type = match external_library_type_str.as_str() {
-        "shared" => ExternalLibraryType::Shared,
+        "share" => ExternalLibraryType::Share,
         "system" => ExternalLibraryType::System,
         "user" => ExternalLibraryType::User,
         _ => {
@@ -3924,7 +3927,7 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (extern (library shared "math.so.1")
+                (extern (library share "math.so.1")
                     (fn $add "add" (param i32) (param i32) (result i32))
                     (fn $sub_i32 "sub" (params i32 i32) (result i32))
                     (fn $pause "pause_1s")
@@ -3944,7 +3947,7 @@ mod tests {
                 element_nodes: vec![
                     ModuleElementNode::ExternNode(ExternNode {
                         external_library_node: ExternalLibraryNode {
-                            external_library_type: ExternalLibraryType::Shared,
+                            external_library_type: ExternalLibraryType::Share,
                             name: "math.so.1".to_owned()
                         },
                         external_items: vec![

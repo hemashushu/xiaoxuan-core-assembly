@@ -29,15 +29,15 @@ pub fn lex(iter: &mut PeekableIterator<char>) -> Result<Vec<Token>, ParseError> 
 
     // skip the shebang (https://en.wikipedia.org/wiki/Shebang_(Unix))
     if iter.look_ahead_equals(0, &'#') && iter.look_ahead_equals(1, &'!') {
-        while let Some(curc) = iter.next() {
-            if curc == '\n' {
+        while let Some(current_char) = iter.next() {
+            if current_char == '\n' {
                 break;
             }
         }
     }
 
-    while let Some(curc) = iter.peek(0) {
-        match curc {
+    while let Some(current_char) = iter.peek(0) {
+        match current_char {
             ' ' | '\t' | '\r' | '\n' => {
                 // skip whitespace
                 iter.next();
@@ -95,7 +95,12 @@ pub fn lex(iter: &mut PeekableIterator<char>) -> Result<Vec<Token>, ParseError> 
             'a'..='z' | 'A'..='Z' | '_' => {
                 tokens.push(lex_symbol(iter)?);
             }
-            _ => return Err(ParseError::new(&format!("Unexpected char: {}", curc))),
+            _ => {
+                return Err(ParseError::new(&format!(
+                    "Unexpected char: {}",
+                    current_char
+                )))
+            }
         }
     }
 
@@ -110,7 +115,7 @@ fn lex_identifier(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError
     iter.next(); // consume char '$'
 
     // identifier should not starts with numbers [0-9]
-    if matches!(iter.peek(0), Some(curc) if *curc >= '0' && *curc <= '9') {
+    if matches!(iter.peek(0), Some(current_char) if *current_char >= '0' && *current_char <= '9') {
         return Err(ParseError::new(
             "Identifier should not start with a number.",
         ));
@@ -118,10 +123,10 @@ fn lex_identifier(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError
 
     let mut id_string = String::new();
 
-    while let Some(curc) = iter.peek(0) {
-        match *curc {
+    while let Some(current_char) = iter.peek(0) {
+        match *current_char {
             '0'..='9' | 'a'..='z' | 'A'..='Z' | '_' => {
-                id_string.push(*curc);
+                id_string.push(*current_char);
                 iter.next();
             }
             ':' if iter.look_ahead_equals(1, &':') => {
@@ -136,7 +141,7 @@ fn lex_identifier(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError
             _ => {
                 return Err(ParseError::new(&format!(
                     "Invalid char for identifier: {}",
-                    *curc
+                    *current_char
                 )))
             }
         }
@@ -191,16 +196,16 @@ fn lex_number_decimal(iter: &mut PeekableIterator<char>) -> Result<Token, ParseE
     let mut found_point = false;
     let mut found_e = false;
 
-    while let Some(curc) = iter.peek(0) {
-        match *curc {
+    while let Some(current_char) = iter.peek(0) {
+        match *current_char {
             '0'..='9' | '_' => {
                 // valid digits for decimal number
-                num_string.push(*curc);
+                num_string.push(*current_char);
                 iter.next();
             }
             '.' if !found_point => {
                 found_point = true;
-                num_string.push(*curc);
+                num_string.push(*current_char);
                 iter.next();
             }
             'e' if !found_e => {
@@ -210,7 +215,7 @@ fn lex_number_decimal(iter: &mut PeekableIterator<char>) -> Result<Token, ParseE
                     iter.next();
                     iter.next();
                 } else {
-                    num_string.push(*curc);
+                    num_string.push(*current_char);
                     iter.next();
                 }
             }
@@ -221,7 +226,7 @@ fn lex_number_decimal(iter: &mut PeekableIterator<char>) -> Result<Token, ParseE
             _ => {
                 return Err(ParseError::new(&format!(
                     "Invalid char for decimal number: {}",
-                    *curc
+                    *current_char
                 )))
             }
         }
@@ -240,13 +245,12 @@ fn lex_number_binary(iter: &mut PeekableIterator<char>) -> Result<Token, ParseEr
     iter.next();
 
     let mut num_string = String::new();
-    // num_string.push_str("0b");
 
-    while let Some(curc) = iter.peek(0) {
-        match *curc {
+    while let Some(current_char) = iter.peek(0) {
+        match *current_char {
             '0' | '1' | '_' => {
                 // valid digits for binary number
-                num_string.push(*curc);
+                num_string.push(*current_char);
                 iter.next();
             }
             ' ' | '\t' | '\r' | '\n' | '(' | ')' | ';' | '#' => {
@@ -256,7 +260,7 @@ fn lex_number_binary(iter: &mut PeekableIterator<char>) -> Result<Token, ParseEr
             _ => {
                 return Err(ParseError::new(&format!(
                     "Invalid char for binary number: {}",
-                    *curc
+                    *current_char
                 )))
             }
         }
@@ -279,13 +283,12 @@ fn lex_number_hex(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError
     iter.next();
 
     let mut num_string = String::new();
-    // num_string.push_str("0x");
 
-    while let Some(curc) = iter.peek(0) {
-        match *curc {
+    while let Some(current_char) = iter.peek(0) {
+        match *current_char {
             '0'..='9' | 'a'..='f' | 'A'..='F' | '_' => {
                 // valid digits for hex number
-                num_string.push(*curc);
+                num_string.push(*current_char);
                 iter.next();
             }
             ' ' | '\t' | '\r' | '\n' | '(' | ')' | ';' | '#' => {
@@ -295,7 +298,7 @@ fn lex_number_hex(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError
             _ => {
                 return Err(ParseError::new(&format!(
                     "Invalid char for hexadecimal number: {}",
-                    *curc
+                    *current_char
                 )))
             }
         }
@@ -319,13 +322,13 @@ fn lex_string(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError> {
 
     loop {
         match iter.next() {
-            Some(curc) => match curc {
+            Some(current_char) => match current_char {
                 '\\' => {
                     // escape chars
-                    let opt_nextc = iter.next();
-                    match opt_nextc {
-                        Some(nextc) => {
-                            match nextc {
+                    let opt_next_char = iter.next();
+                    match opt_next_char {
+                        Some(next_char) => {
+                            match next_char {
                                 '\\' => {
                                     ss.push('\\');
                                 }
@@ -364,7 +367,7 @@ fn lex_string(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError> {
                                 _ => {
                                     return Err(ParseError::new(&format!(
                                         "Unsupported escape char: \"{}\"",
-                                        nextc
+                                        next_char
                                     )))
                                 }
                             }
@@ -378,7 +381,7 @@ fn lex_string(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError> {
                 }
                 _ => {
                     // ordinary char
-                    ss.push(curc);
+                    ss.push(current_char);
                 }
             },
             None => return Err(ParseError::new("Missing end quote for string.")),
@@ -397,7 +400,7 @@ fn consume_leading_whitespaces(iter: &mut PeekableIterator<char>) -> Result<usiz
     let mut count = 0;
     loop {
         match iter.peek(0) {
-            Some(nextc) if nextc == &' ' || nextc == &'\t' => {
+            Some(next_char) if next_char == &' ' || next_char == &'\t' => {
                 count += 1;
                 iter.next();
             }
@@ -412,7 +415,7 @@ fn consume_leading_whitespaces(iter: &mut PeekableIterator<char>) -> Result<usiz
 fn skip_leading_whitespaces(iter: &mut PeekableIterator<char>, whitespaces: usize) {
     for _ in 0..whitespaces {
         match iter.peek(0) {
-            Some(nextc) if nextc == &' ' || nextc == &'\t' => {
+            Some(next_char) if next_char == &' ' || next_char == &'\t' => {
                 iter.next();
             }
             _ => break,
@@ -436,13 +439,13 @@ fn lex_string_unescape_unicode(iter: &mut PeekableIterator<char>) -> Result<char
 
     loop {
         match iter.next() {
-            Some(curc) => match curc {
+            Some(current_char) => match current_char {
                 '}' => break,
-                '0'..='9' | 'a'..='f' | 'A'..='F' => codepoint_string.push(curc),
+                '0'..='9' | 'a'..='f' | 'A'..='F' => codepoint_string.push(current_char),
                 _ => {
                     return Err(ParseError::new(&format!(
                         "Invalid character for unicode escape sequence: {}",
-                        curc
+                        current_char
                     )))
                 }
             },
@@ -486,14 +489,14 @@ fn lex_raw_string(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError
 
     loop {
         match iter.next() {
-            Some(curc) => match curc {
+            Some(current_char) => match current_char {
                 '"' => {
                     // end of the string
                     break;
                 }
                 _ => {
                     // ordinary char
-                    ss.push(curc);
+                    ss.push(current_char);
                 }
             },
             None => return Err(ParseError::new("Missing end quote for string.")),
@@ -516,7 +519,7 @@ fn lex_raw_string_variant2(iter: &mut PeekableIterator<char>) -> Result<Token, P
 
     loop {
         match iter.next() {
-            Some(curc) => match curc {
+            Some(current_char) => match current_char {
                 '"' if iter.look_ahead_equals(0, &'#') => {
                     // end of the string
                     iter.next(); // consume the hash
@@ -524,7 +527,7 @@ fn lex_raw_string_variant2(iter: &mut PeekableIterator<char>) -> Result<Token, P
                 }
                 _ => {
                     // ordinary char
-                    ss.push(curc);
+                    ss.push(current_char);
                 }
             },
             None => return Err(ParseError::new("Missing end quote for string.")),
@@ -563,8 +566,8 @@ fn lex_paragraph_string(iter: &mut PeekableIterator<char>) -> Result<Token, Pars
 
     loop {
         match iter.next() {
-            Some(curc) => {
-                match curc {
+            Some(current_char) => {
+                match current_char {
                     '\n' => {
                         ss.push('\n');
                         line_leading.clear();
@@ -600,8 +603,8 @@ fn lex_paragraph_string(iter: &mut PeekableIterator<char>) -> Result<Token, Pars
                         }
                     }
                     _ => {
-                        ss.push(curc);
-                        line_leading.push(curc);
+                        ss.push(current_char);
+                        line_leading.push(current_char);
                     }
                 }
             }
@@ -629,8 +632,8 @@ fn lex_bytes_data(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError
 
     loop {
         match iter.next() {
-            Some(curc) => {
-                match curc {
+            Some(current_char) => {
+                match current_char {
                     ' ' | '\t' | '\r' | '\n' | '-' | ':' => {
                         // ignore the separator and whitespace chars
                     }
@@ -642,7 +645,7 @@ fn lex_bytes_data(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError
                         }
                     }
                     'a'..='f' | 'A'..='F' | '0'..='9' => {
-                        byte_buf.push(curc);
+                        byte_buf.push(current_char);
 
                         if byte_buf.len() == 2 {
                             let byte = u8::from_str_radix(&byte_buf, 16).unwrap();
@@ -653,7 +656,7 @@ fn lex_bytes_data(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError
                     _ => {
                         return Err(ParseError::new(&format!(
                             "Invalid char for byte string: {}",
-                            curc
+                            current_char
                         )))
                     }
                 }
@@ -673,9 +676,9 @@ fn comsume_line_comment(iter: &mut PeekableIterator<char>) -> Result<(), ParseEr
     iter.next(); // consume char ';'
     iter.next(); // consume char ';'
 
-    while let Some(curc) = iter.next() {
+    while let Some(current_char) = iter.next() {
         // ignore all chars except '\n'
-        if curc == '\n' {
+        if current_char == '\n' {
             break;
         }
     }
@@ -695,7 +698,7 @@ fn comsume_block_comment(iter: &mut PeekableIterator<char>) -> Result<(), ParseE
 
     loop {
         match iter.next() {
-            Some(curc) => match curc {
+            Some(current_char) => match current_char {
                 '(' if iter.look_ahead_equals(0, &';') => {
                     // nested block comment
                     iter.next();
@@ -734,7 +737,7 @@ fn comsume_node_comment(iter: &mut PeekableIterator<char>) -> Result<(), ParseEr
 
     loop {
         match iter.next() {
-            Some(curc) => match curc {
+            Some(current_char) => match current_char {
                 '(' => {
                     if iter.look_ahead_equals(0, &';') {
                         // nested block comment "(;..."
@@ -779,10 +782,10 @@ fn lex_symbol(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError> {
 
     let mut sym_string = String::new();
 
-    while let Some(curc) = iter.peek(0) {
-        match *curc {
+    while let Some(current_char) = iter.peek(0) {
+        match *current_char {
             '0'..='9' | 'a'..='z' | 'A'..='Z' | '_' | '.' => {
-                sym_string.push(*curc);
+                sym_string.push(*current_char);
                 iter.next();
             }
             ' ' | '\t' | '\r' | '\n' | '(' | ')' | ';' | '#' => {
@@ -792,7 +795,7 @@ fn lex_symbol(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError> {
             _ => {
                 return Err(ParseError::new(&format!(
                     "Invalid char for symbol: {}",
-                    *curc
+                    *current_char
                 )))
             }
         }
@@ -892,23 +895,17 @@ mod tests {
 
         assert_eq!(
             lex_from_str("$a__b__c").unwrap(),
-            vec![
-                Token::new_identifier("a__b__c"),
-            ]
+            vec![Token::new_identifier("a__b__c"),]
         );
 
         assert_eq!(
             lex_from_str("$a::b").unwrap(),
-            vec![
-                Token::new_identifier("a::b"),
-            ]
+            vec![Token::new_identifier("a::b"),]
         );
 
         assert_eq!(
             lex_from_str("$a::b::c").unwrap(),
-            vec![
-                Token::new_identifier("a::b::c"),
-            ]
+            vec![Token::new_identifier("a::b::c"),]
         );
 
         assert_eq!(

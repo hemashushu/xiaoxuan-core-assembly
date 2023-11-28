@@ -6,7 +6,7 @@
 
 use std::env;
 
-use ancvm_assembler::utils::helper_generate_single_module_image_binary_from_assembly;
+use ancvm_assembler::utils::helper_generate_module_image_binaries_from_single_module_assembly;
 use ancvm_extfunc_util::cstr_pointer_to_str;
 use ancvm_program::{program_settings::ProgramSettings, program_source::ProgramSource};
 use ancvm_process::{
@@ -23,7 +23,7 @@ fn test_assemble_extcall_with_system_libc_getuid() {
     // `man 3 getuid`
     // 'uid_t getuid(void);'
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -56,7 +56,7 @@ fn test_assemble_extcall_with_system_libc_getenv() {
     // `man 3 getenv`
     // 'char *getenv(const char *name);'
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -95,7 +95,7 @@ fn test_assemble_extcall_with_user_lib() {
     // 'lib-test-0.so.1'
     // 'int add(int, int)'
 
-    let module_binaries = helper_generate_single_module_image_binary_from_assembly(
+    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
         r#"
         (module $app
             (runtime_version "1.0")
