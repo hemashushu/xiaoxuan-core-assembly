@@ -35,8 +35,8 @@ fn test_assemble_fundamental_nop() {
     let program0 = program_source0.build_program().unwrap();
     let mut thread_context0 = program0.create_thread_context();
 
-    let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(11)]);
-    assert_eq!(result0.unwrap(), vec![ForeignValue::UInt32(11)]);
+    let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(11)]);
+    assert_eq!(result0.unwrap(), vec![ForeignValue::U32(11)]);
 }
 
 #[test]
@@ -60,7 +60,7 @@ fn test_assemble_fundamental_zero() {
     let mut thread_context0 = program0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
-    assert_eq!(result0.unwrap(), vec![ForeignValue::UInt32(0)]);
+    assert_eq!(result0.unwrap(), vec![ForeignValue::U32(0)]);
 }
 
 #[test]
@@ -87,7 +87,7 @@ fn test_assemble_fundamental_drop() {
     let mut thread_context0 = program0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
-    assert_eq!(result0.unwrap(), vec![ForeignValue::UInt32(13)]);
+    assert_eq!(result0.unwrap(), vec![ForeignValue::U32(13)]);
 }
 
 #[test]
@@ -115,7 +115,7 @@ fn test_assemble_fundamental_duplicate() {
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     assert_eq!(
         result0.unwrap(),
-        vec![ForeignValue::UInt32(19), ForeignValue::UInt32(19)]
+        vec![ForeignValue::U32(19), ForeignValue::U32(19)]
     );
 }
 
@@ -145,7 +145,7 @@ fn test_assemble_fundamental_swap() {
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     assert_eq!(
         result0.unwrap(),
-        vec![ForeignValue::UInt32(223), ForeignValue::UInt32(211)]
+        vec![ForeignValue::U32(223), ForeignValue::U32(211)]
     );
 }
 
@@ -174,7 +174,7 @@ fn test_assemble_fundamental_select_nez_false() {
     let mut thread_context0 = program0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
-    assert_eq!(result0.unwrap(), vec![ForeignValue::UInt32(13)]);
+    assert_eq!(result0.unwrap(), vec![ForeignValue::U32(13)]);
 }
 
 #[test]
@@ -202,7 +202,7 @@ fn test_assemble_fundamental_select_nez_true() {
     let mut thread_context0 = program0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
-    assert_eq!(result0.unwrap(), vec![ForeignValue::UInt32(11)]);
+    assert_eq!(result0.unwrap(), vec![ForeignValue::U32(11)]);
 }
 
 #[test]
@@ -232,10 +232,10 @@ fn test_assemble_fundamental_immediate_int() {
     assert_eq!(
         result0.unwrap(),
         vec![
-            ForeignValue::UInt32(23),
-            ForeignValue::UInt64(0x29313741_43475359u64),
-            ForeignValue::UInt32((-223i32) as u32),
-            ForeignValue::UInt64((-227i64) as u64)
+            ForeignValue::U32(23),
+            ForeignValue::U64(0x29313741_43475359u64),
+            ForeignValue::U32((-223i32) as u32),
+            ForeignValue::U64((-227i64) as u64)
         ]
     );
 }
@@ -267,10 +267,10 @@ fn test_assemble_fundamental_immediate_float() {
     assert_eq!(
         result0.unwrap(),
         vec![
-            ForeignValue::Float32(std::f32::consts::PI),
-            ForeignValue::Float64(std::f64::consts::SQRT_2),
-            ForeignValue::Float32(-std::f32::consts::E),
-            ForeignValue::Float64(-std::f64::consts::FRAC_PI_6),
+            ForeignValue::F32(std::f32::consts::PI),
+            ForeignValue::F64(std::f64::consts::SQRT_2),
+            ForeignValue::F32(-std::f32::consts::E),
+            ForeignValue::F64(-std::f64::consts::FRAC_PI_6),
         ]
     );
 }
@@ -302,10 +302,10 @@ fn test_assemble_fundamental_immediate_float_hex() {
     assert_eq!(
         result0.unwrap(),
         vec![
-            ForeignValue::Float32(std::f32::consts::PI),
-            ForeignValue::Float64(std::f64::consts::SQRT_2),
-            ForeignValue::Float32(-std::f32::consts::E),
-            ForeignValue::Float64(-std::f64::consts::FRAC_PI_6),
+            ForeignValue::F32(std::f32::consts::PI),
+            ForeignValue::F64(std::f64::consts::SQRT_2),
+            ForeignValue::F32(-std::f32::consts::E),
+            ForeignValue::F64(-std::f64::consts::FRAC_PI_6),
         ]
     );
 }

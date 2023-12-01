@@ -106,26 +106,26 @@ fn test_assemble_local_load_store() {
         0,
         0,
         &[
-            ForeignValue::Float32(std::f32::consts::PI),
-            ForeignValue::Float64(std::f64::consts::E),
+            ForeignValue::F32(std::f32::consts::PI),
+            ForeignValue::F64(std::f64::consts::E),
         ],
     );
     assert_eq!(
         result0.unwrap(),
         vec![
             // group 0
-            ForeignValue::UInt64(0xf0e0d0c0_19171311u64),
-            ForeignValue::UInt32(0xf0e0d0c0u32),
-            ForeignValue::UInt32(0xf0e0u32),
-            ForeignValue::UInt32(0xfffff0e0u32), // extend from i16 to i32
-            ForeignValue::UInt32(0xf0u32),
-            ForeignValue::UInt32(0xfffffff0u32), // extend from i8 to i32
+            ForeignValue::U64(0xf0e0d0c0_19171311u64),
+            ForeignValue::U32(0xf0e0d0c0u32),
+            ForeignValue::U32(0xf0e0u32),
+            ForeignValue::U32(0xfffff0e0u32), // extend from i16 to i32
+            ForeignValue::U32(0xf0u32),
+            ForeignValue::U32(0xfffffff0u32), // extend from i8 to i32
             // group 1
-            ForeignValue::Float32(std::f32::consts::PI),
-            ForeignValue::Float64(std::f64::consts::E),
+            ForeignValue::F32(std::f32::consts::PI),
+            ForeignValue::F64(std::f64::consts::E),
             // group 2
-            ForeignValue::UInt64(0xf0e0d0c0_19171311u64),
-            ForeignValue::UInt32(0x19171311u32),
+            ForeignValue::U64(0xf0e0d0c0_19171311u64),
+            ForeignValue::U32(0x19171311u32),
         ]
     );
 }
@@ -208,17 +208,17 @@ fn test_assemble_local_long_load_and_store() {
         result0.unwrap(),
         vec![
             // group 0
-            ForeignValue::UInt64(0xf0e0d0c0_19171311u64),
-            ForeignValue::UInt32(0xf0e0d0c0u32),
-            ForeignValue::UInt32(0xf0e0u32),
-            ForeignValue::UInt32(0xfffff0e0u32), // extend from i16 to i32
-            ForeignValue::UInt32(0xf0u32),
-            ForeignValue::UInt32(0xfffffff0u32), // extend from i8 to i32
+            ForeignValue::U64(0xf0e0d0c0_19171311u64),
+            ForeignValue::U32(0xf0e0d0c0u32),
+            ForeignValue::U32(0xf0e0u32),
+            ForeignValue::U32(0xfffff0e0u32), // extend from i16 to i32
+            ForeignValue::U32(0xf0u32),
+            ForeignValue::U32(0xfffffff0u32), // extend from i8 to i32
             // group 1
-            ForeignValue::UInt64(0xf0e0d0c0_19171311u64),
-            ForeignValue::UInt32(0x19171311u32),
-            ForeignValue::UInt32(0x00001311u32), // extend from i16 to i32
-            ForeignValue::UInt32(0x00000011u32), // extend from i8 to i32
+            ForeignValue::U64(0xf0e0d0c0_19171311u64),
+            ForeignValue::U32(0x19171311u32),
+            ForeignValue::U32(0x00001311u32), // extend from i16 to i32
+            ForeignValue::U32(0x00000011u32), // extend from i8 to i32
         ]
     );
 }

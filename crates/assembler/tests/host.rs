@@ -222,11 +222,11 @@ fn test_assemble_host_address_of_data_and_local_vars() {
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
 
     assert_eq!(
         bytecode_text,
@@ -351,11 +351,11 @@ fn test_assemble_host_address_long_of_data_and_local_vars() {
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -459,11 +459,11 @@ fn test_assemble_host_address_heap() {
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
 
     assert_eq!(
         bytecode_text,
@@ -573,8 +573,8 @@ fn test_assemble_host_heap_copy() {
         0,
         0,
         &[
-            ForeignValue::UInt64(src_ptr as usize as u64),
-            ForeignValue::UInt64(dst_ptr as usize as u64),
+            ForeignValue::U64(src_ptr as usize as u64),
+            ForeignValue::U64(dst_ptr as usize as u64),
         ],
     );
     result0.unwrap();
@@ -583,7 +583,7 @@ fn test_assemble_host_heap_copy() {
 }
 
 #[test]
-fn test_assemble_host_addr_func_and_callback_function() {
+fn test_assemble_host_addr_function_and_callback_function() {
     // C function in "lib-test-0.so.1"
     // ===============================
     // int do_something(int (*callback_func)(int), int a, int b)
@@ -668,21 +668,21 @@ fn test_assemble_host_addr_func_and_callback_function() {
         &mut thread_context0,
         0,
         0,
-        &[ForeignValue::UInt32(11), ForeignValue::UInt32(13)],
+        &[ForeignValue::U32(11), ForeignValue::U32(13)],
     );
-    assert_eq!(result0.unwrap(), vec![ForeignValue::UInt32(11 * 2 + 13)]);
+    assert_eq!(result0.unwrap(), vec![ForeignValue::U32(11 * 2 + 13)]);
 
     let result1 = process_function(
         &mut thread_context0,
         0,
         0,
-        &[ForeignValue::UInt32(211), ForeignValue::UInt32(223)],
+        &[ForeignValue::U32(211), ForeignValue::U32(223)],
     );
-    assert_eq!(result1.unwrap(), vec![ForeignValue::UInt32(211 * 2 + 223)]);
+    assert_eq!(result1.unwrap(), vec![ForeignValue::U32(211 * 2 + 223)]);
 }
 
 fn read_memory_i64(fv: ForeignValue) -> u64 {
-    if let ForeignValue::UInt64(addr) = fv {
+    if let ForeignValue::U64(addr) = fv {
         let ptr = addr as *const u64;
         unsafe { std::ptr::read(ptr) }
     } else {
@@ -691,7 +691,7 @@ fn read_memory_i64(fv: ForeignValue) -> u64 {
 }
 
 fn read_memory_i32(fv: ForeignValue) -> u32 {
-    if let ForeignValue::UInt64(addr) = fv {
+    if let ForeignValue::U64(addr) = fv {
         let ptr = addr as *const u32;
         unsafe { std::ptr::read(ptr) }
     } else {
@@ -700,7 +700,7 @@ fn read_memory_i32(fv: ForeignValue) -> u32 {
 }
 
 fn read_memory_i16(fv: ForeignValue) -> u16 {
-    if let ForeignValue::UInt64(addr) = fv {
+    if let ForeignValue::U64(addr) = fv {
         let ptr = addr as *const u16;
         unsafe { std::ptr::read(ptr) }
     } else {
@@ -709,7 +709,7 @@ fn read_memory_i16(fv: ForeignValue) -> u16 {
 }
 
 fn read_memory_i8(fv: ForeignValue) -> u8 {
-    if let ForeignValue::UInt64(addr) = fv {
+    if let ForeignValue::U64(addr) = fv {
         let ptr = addr as *const u8;
         unsafe { std::ptr::read(ptr) }
     } else {

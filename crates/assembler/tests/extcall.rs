@@ -46,7 +46,7 @@ fn test_assemble_extcall_with_system_libc_getuid() {
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     let results0 = result0.unwrap();
 
-    assert!(matches!(results0[0], ForeignValue::UInt32(uid) if uid > 0 ));
+    assert!(matches!(results0[0], ForeignValue::U32(uid) if uid > 0 ));
 }
 
 #[test]
@@ -82,7 +82,7 @@ fn test_assemble_extcall_with_system_libc_getenv() {
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     let results0 = result0.unwrap();
 
-    assert!(matches!(results0[0], ForeignValue::UInt64(addr) if {
+    assert!(matches!(results0[0], ForeignValue::U64(addr) if {
         let pwd0 = cstr_pointer_to_str(addr as *const i8);
         !pwd0.to_string().is_empty()
     }));
@@ -139,15 +139,15 @@ fn test_assemble_extcall_with_user_lib() {
         &mut thread_context0,
         0,
         0,
-        &[ForeignValue::UInt32(11), ForeignValue::UInt32(13)],
+        &[ForeignValue::U32(11), ForeignValue::U32(13)],
     );
-    assert_eq!(result0.unwrap(), vec![ForeignValue::UInt32(24)]);
+    assert_eq!(result0.unwrap(), vec![ForeignValue::U32(24)]);
 
     let result1 = process_function(
         &mut thread_context0,
         0,
         0,
-        &[ForeignValue::UInt32(211), ForeignValue::UInt32(223)],
+        &[ForeignValue::U32(211), ForeignValue::U32(223)],
     );
-    assert_eq!(result1.unwrap(), vec![ForeignValue::UInt32(434)]);
+    assert_eq!(result1.unwrap(), vec![ForeignValue::U32(434)]);
 }

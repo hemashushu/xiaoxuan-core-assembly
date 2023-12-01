@@ -109,36 +109,36 @@ fn test_assemble_arithmetic_i32() {
         0,
         0,
         &[
-            ForeignValue::UInt32(11),
-            ForeignValue::UInt32(211),
-            ForeignValue::UInt32(-13i32 as u32),
+            ForeignValue::U32(11),
+            ForeignValue::U32(211),
+            ForeignValue::U32(-13i32 as u32),
         ],
     );
     assert_eq!(
         result0.unwrap(),
         vec![
             // group 0
-            ForeignValue::UInt32(222),
-            ForeignValue::UInt32(200),
-            ForeignValue::UInt32(-200i32 as u32),
-            ForeignValue::UInt32(2321),
+            ForeignValue::U32(222),
+            ForeignValue::U32(200),
+            ForeignValue::U32(-200i32 as u32),
+            ForeignValue::U32(2321),
             // group 1
-            ForeignValue::UInt32(-16i32 as u32),
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(20355295),
-            ForeignValue::UInt32(3),
-            ForeignValue::UInt32(38),
+            ForeignValue::U32(-16i32 as u32),
+            ForeignValue::U32(0),
+            ForeignValue::U32(0),
+            ForeignValue::U32(20355295),
+            ForeignValue::U32(3),
+            ForeignValue::U32(38),
             // group 2
-            ForeignValue::UInt32(14),
-            ForeignValue::UInt32(8),
-            ForeignValue::UInt32(-10i32 as u32),
-            ForeignValue::UInt32(-16i32 as u32),
+            ForeignValue::U32(14),
+            ForeignValue::U32(8),
+            ForeignValue::U32(-10i32 as u32),
+            ForeignValue::U32(-16i32 as u32),
             // group 3
-            ForeignValue::UInt32(0x1),
-            ForeignValue::UInt32(0xf0e0_d0c0 << 1),
-            ForeignValue::UInt32(0x1),
-            ForeignValue::UInt32(0xffff_ffff),
+            ForeignValue::U32(0x1),
+            ForeignValue::U32(0xf0e0_d0c0 << 1),
+            ForeignValue::U32(0x1),
+            ForeignValue::U32(0xffff_ffff),
         ]
     );
 }
@@ -239,36 +239,36 @@ fn test_assemble_arithmetic_i64() {
         0,
         0,
         &[
-            ForeignValue::UInt64(11),
-            ForeignValue::UInt64(211),
-            ForeignValue::UInt64(-13i64 as u64),
+            ForeignValue::U64(11),
+            ForeignValue::U64(211),
+            ForeignValue::U64(-13i64 as u64),
         ],
     );
     assert_eq!(
         result0.unwrap(),
         vec![
             // group 0
-            ForeignValue::UInt64(222),
-            ForeignValue::UInt64(200),
-            ForeignValue::UInt64(-200_i64 as u64),
-            ForeignValue::UInt64(2321),
+            ForeignValue::U64(222),
+            ForeignValue::U64(200),
+            ForeignValue::U64(-200_i64 as u64),
+            ForeignValue::U64(2321),
             // group 1
-            ForeignValue::UInt64(-16i64 as u64),
-            ForeignValue::UInt64(0),
-            ForeignValue::UInt64(0),
-            ForeignValue::UInt64(87425327363552377),
-            ForeignValue::UInt64(3),
-            ForeignValue::UInt64(56),
+            ForeignValue::U64(-16i64 as u64),
+            ForeignValue::U64(0),
+            ForeignValue::U64(0),
+            ForeignValue::U64(87425327363552377),
+            ForeignValue::U64(3),
+            ForeignValue::U64(56),
             // group 2
-            ForeignValue::UInt64(14),
-            ForeignValue::UInt64(8),
-            ForeignValue::UInt64(-10i64 as u64),
-            ForeignValue::UInt64(-16i64 as u64),
+            ForeignValue::U64(14),
+            ForeignValue::U64(8),
+            ForeignValue::U64(-10i64 as u64),
+            ForeignValue::U64(-16i64 as u64),
             // group 3
-            ForeignValue::UInt64(0x1),
-            ForeignValue::UInt64(0xf0e0_d0c0_b0a0_9080 << 1),
-            ForeignValue::UInt64(0x1),
-            ForeignValue::UInt64(0xffff_ffff_ffff_ffff),
+            ForeignValue::U64(0x1),
+            ForeignValue::U64(0xf0e0_d0c0_b0a0_9080 << 1),
+            ForeignValue::U64(0x1),
+            ForeignValue::U64(0xffff_ffff_ffff_ffff),
         ]
     );
 }
@@ -313,15 +313,15 @@ fn test_assemble_arithmetic_f32() {
         &mut thread_context0,
         0,
         0,
-        &[ForeignValue::Float32(1.414), ForeignValue::Float32(4.123)],
+        &[ForeignValue::F32(1.414), ForeignValue::F32(4.123)],
     );
     assert_eq!(
         result0.unwrap(),
         vec![
-            ForeignValue::Float32(5.537),
-            ForeignValue::Float32(2.709),
-            ForeignValue::Float32(5.829922),
-            ForeignValue::Float32(2.915_841_6),
+            ForeignValue::F32(5.537),
+            ForeignValue::F32(2.709),
+            ForeignValue::F32(5.829922),
+            ForeignValue::F32(2.915_841_6),
         ]
     );
 }
@@ -368,15 +368,15 @@ fn test_assemble_arithmetic_f64() {
         &mut thread_context0,
         0,
         0,
-        &[ForeignValue::Float64(1.414), ForeignValue::Float64(4.123)],
+        &[ForeignValue::F64(1.414), ForeignValue::F64(4.123)],
     );
     assert_eq!(
         result0.unwrap(),
         vec![
-            ForeignValue::Float64(5.537),
-            ForeignValue::Float64(2.7090000000000005),
-            ForeignValue::Float64(5.829922),
-            ForeignValue::Float64(2.915841584158416),
+            ForeignValue::F64(5.537),
+            ForeignValue::F64(2.7090000000000005),
+            ForeignValue::F64(5.829922),
+            ForeignValue::F64(2.915841584158416),
         ]
     );
 }

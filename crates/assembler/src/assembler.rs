@@ -17,9 +17,9 @@ use crate::{preprocessor::MergedModuleNode, AssembleError, UNREACHABLE_CODE_NO_D
 
 // the identifier of functions and datas
 struct SymbolIdentifierLookupTable {
-    func_identifiers: Vec<IdentifierIndex>,
+    function_identifiers: Vec<IdentifierIndex>,
     data_identifiers: Vec<IdentifierIndex>,
-    external_func_identifiers: Vec<IdentifierIndex>,
+    external_function_identifiers: Vec<IdentifierIndex>,
 }
 
 struct IdentifierIndex {
@@ -31,9 +31,9 @@ impl SymbolIdentifierLookupTable {
     pub fn new(
         function_name_entries: &[FunctionNameEntry],
         data_name_entries: &[DataNameEntry],
-        extern_nodes: &[ExternalNode],
+        external_nodes: &[ExternalNode],
     ) -> Self {
-        let func_identifiers = function_name_entries
+        let function_identifiers = function_name_entries
             .iter()
             .map(|entry| IdentifierIndex {
                 identifier: entry.name.clone(),
@@ -49,27 +49,27 @@ impl SymbolIdentifierLookupTable {
             })
             .collect::<Vec<_>>();
 
-        let external_func_identifiers =
-            SymbolIdentifierLookupTable::build_external_function_identifier_indices(extern_nodes);
+        let external_function_identifiers =
+            SymbolIdentifierLookupTable::build_external_function_identifier_indices(external_nodes);
 
         Self {
-            func_identifiers,
+            function_identifiers,
             data_identifiers,
-            external_func_identifiers,
+            external_function_identifiers,
         }
     }
 
     fn build_external_function_identifier_indices(
-        extern_nodes: &[ExternalNode],
+        external_nodes: &[ExternalNode],
     ) -> Vec<IdentifierIndex> {
-        let mut external_func_identifiers: Vec<IdentifierIndex> = vec![];
+        let mut external_function_identifiers: Vec<IdentifierIndex> = vec![];
 
         let mut idx: usize = 0;
 
-        for extern_node in extern_nodes {
-            for external_item in &extern_node.external_items {
+        for external_node in external_nodes {
+            for external_item in &external_node.external_items {
                 let ExternalItem::ExternalFunction(external_func) = external_item;
-                external_func_identifiers.push(IdentifierIndex {
+                external_function_identifiers.push(IdentifierIndex {
                     identifier: external_func.id.clone(),
                     public_index: idx,
                 });
@@ -77,12 +77,12 @@ impl SymbolIdentifierLookupTable {
             }
         }
 
-        external_func_identifiers
+        external_function_identifiers
     }
 
     pub fn get_function_public_index(&self, identifier: &str) -> Result<usize, AssembleError> {
         match self
-            .func_identifiers
+            .function_identifiers
             .iter()
             .find(|entry| entry.identifier == identifier)
         {
@@ -108,9 +108,9 @@ impl SymbolIdentifierLookupTable {
         }
     }
 
-    pub fn get_external_func_index(&self, identifier: &str) -> Result<usize, AssembleError> {
+    pub fn get_external_function_index(&self, identifier: &str) -> Result<usize, AssembleError> {
         match self
-            .external_func_identifiers
+            .external_function_identifiers
             .iter()
             .find(|entry| entry.identifier == identifier)
         {
@@ -332,13 +332,13 @@ pub fn assemble_merged_module_node(
     let runtime_version_major = merged_module_node.runtime_version_major;
     let runtime_version_minor = merged_module_node.runtime_version_minor;
 
-    let imported_func_count = 0;
+    let imported_function_count = 0;
     let imported_ro_data_count = 0;
     let imported_rw_data_count = 0;
     let imported_uninit_data_count = 0;
 
     let function_name_entries =
-        build_func_name_entries(&merged_module_node.function_nodes, imported_func_count);
+        build_function_name_entries(&merged_module_node.function_nodes, imported_function_count);
     let data_name_entries = build_data_name_entries(
         &merged_module_node.read_only_data_nodes,
         &merged_module_node.read_write_data_nodes,
@@ -354,7 +354,7 @@ pub fn assemble_merged_module_node(
         &merged_module_node.external_nodes,
     );
 
-    let (mut type_entries, local_list_entries, function_entries) = assemble_func_nodes(
+    let (mut type_entries, local_list_entries, function_entries) = assemble_function_nodes(
         &merged_module_node.function_nodes,
         &symbol_identifier_lookup_table,
     )?;
@@ -367,7 +367,7 @@ pub fn assemble_merged_module_node(
         )?;
 
     let (external_library_entries, external_function_entries) =
-        assemble_extern_nodes(&merged_module_node.external_nodes, &mut type_entries)?;
+        assemble_external_nodes(&merged_module_node.external_nodes, &mut type_entries)?;
 
     let module_entry = ModuleEntry {
         name,
@@ -394,18 +394,18 @@ pub fn assemble_merged_module_node(
     Ok(module_entry)
 }
 
-fn build_func_name_entries(
-    func_nodes: &[FunctionNode],
-    imported_func_count: usize,
+fn build_function_name_entries(
+    function_nodes: &[FunctionNode],
+    imported_function_count: usize,
 ) -> Vec<FunctionNameEntry> {
     let mut function_name_entries = vec![];
-    let mut function_public_index = imported_func_count;
+    let mut function_public_index = imported_function_count;
 
-    for func_node in func_nodes {
+    for function_node in function_nodes {
         let entry = FunctionNameEntry {
-            name: func_node.name.clone(),
+            name: function_node.name.clone(),
             function_public_index,
-            exported: func_node.exported,
+            exported: function_node.exported,
         };
 
         function_name_entries.push(entry);
@@ -467,34 +467,34 @@ fn build_data_name_entries(
 
 type AssembleResultForFuncNode = (Vec<TypeEntry>, Vec<LocalListEntry>, Vec<FunctionEntry>);
 
-fn assemble_func_nodes(
-    func_nodes: &[FunctionNode],
+fn assemble_function_nodes(
+    function_nodes: &[FunctionNode],
     symbol_identifier_lookup_table: &SymbolIdentifierLookupTable,
 ) -> Result<AssembleResultForFuncNode, AssembleError> {
     let mut type_entries = vec![];
     let mut local_list_entries = vec![];
     let mut function_entries = vec![];
 
-    for func_node in func_nodes {
+    for function_node in function_nodes {
         let type_index = find_existing_type_index_with_creating_when_not_found_by_param_nodes(
             &mut type_entries,
-            &func_node.params,
-            &func_node.results,
+            &function_node.params,
+            &function_node.results,
         );
 
         let local_list_index = find_existing_local_index_with_creating_when_not_found(
             &mut local_list_entries,
-            &func_node.params,
-            &func_node.locals,
+            &function_node.params,
+            &function_node.locals,
         );
 
         let local_names =
-            get_local_names_with_params_and_locals(&func_node.params, &func_node.locals);
+            get_local_names_with_params_and_locals(&function_node.params, &function_node.locals);
 
-        let code = assemble_func_code(
-            &func_node.name,
+        let code = assemble_function_code(
+            &function_node.name,
             local_names,
-            &func_node.code,
+            &function_node.code,
             symbol_identifier_lookup_table,
             &mut type_entries,
             &mut local_list_entries,
@@ -603,8 +603,8 @@ fn get_local_names_with_params_and_locals(
     names
 }
 
-fn assemble_func_code(
-    func_name: &str,
+fn assemble_function_code(
+    function_name: &str,
     local_names: Vec<String>,
     instructions: &[Instruction],
     symbol_identifier_lookup_table: &SymbolIdentifierLookupTable,
@@ -639,7 +639,7 @@ fn assemble_func_code(
     if !flow_stack.items.is_empty() {
         return Err(AssembleError::new(&format!(
             "Control flow does not end in the function \"{}\"",
-            func_name
+            function_name
         )));
     }
 
@@ -1538,7 +1538,10 @@ fn assemble_instruction(
             bytecode_writer.write_opcode_i32(Opcode::i32_imm, args.len() as u32);
             bytecode_writer.write_opcode(Opcode::syscall);
         }
-        Instruction::ExtCall { name_path: name, args } => {
+        Instruction::ExtCall {
+            name_path: name,
+            args,
+        } => {
             for instruction in args {
                 assemble_instruction(
                     instruction,
@@ -1550,8 +1553,9 @@ fn assemble_instruction(
                 )?;
             }
 
-            let external_func_idx = symbol_identifier_lookup_table.get_external_func_index(name)?;
-            bytecode_writer.write_opcode_i32(Opcode::extcall, external_func_idx as u32);
+            let external_function_idx =
+                symbol_identifier_lookup_table.get_external_function_index(name)?;
+            bytecode_writer.write_opcode_i32(Opcode::extcall, external_function_idx as u32);
         }
         // macro
         Instruction::MacroGetFunctionPublicIndex(name_path) => {
@@ -1659,16 +1663,16 @@ fn assemble_data_nodes(
 
 type AssembleResultForExternNode = (Vec<ExternalLibraryEntry>, Vec<ExternalFunctionEntry>);
 
-fn assemble_extern_nodes(
-    extern_nodes: &[ExternalNode],
+fn assemble_external_nodes(
+    external_nodes: &[ExternalNode],
     type_entries: &mut Vec<TypeEntry>,
 ) -> Result<AssembleResultForExternNode, AssembleError> {
     let mut external_library_entries: Vec<ExternalLibraryEntry> = vec![];
     let mut external_function_entries: Vec<ExternalFunctionEntry> = vec![];
 
-    for extern_node in extern_nodes {
+    for external_node in external_nodes {
         // build ExternalLibraryEntry
-        let external_library_node = &extern_node.external_library_node;
+        let external_library_node = &external_node.external_library_node;
         let external_library_entry = ExternalLibraryEntry {
             name: external_library_node.name.clone(),
             external_library_type: external_library_node.external_library_type,
@@ -1676,8 +1680,8 @@ fn assemble_extern_nodes(
         let external_library_index = external_function_entries.len();
         external_library_entries.push(external_library_entry);
 
-        for extern_item in &extern_node.external_items {
-            let ExternalItem::ExternalFunction(external_func) = extern_item;
+        for external_item in &external_node.external_items {
+            let ExternalItem::ExternalFunction(external_func) = external_item;
 
             // get type index
             let type_index = find_existing_type_index_with_creating_when_not_found(
@@ -1687,13 +1691,13 @@ fn assemble_extern_nodes(
             );
 
             // build ExternalFunctionEntry
-            let external_func_entry = ExternalFunctionEntry {
+            let external_function_entry = ExternalFunctionEntry {
                 name: external_func.name.clone(),
                 external_library_index,
                 type_index,
             };
 
-            external_function_entries.push(external_func_entry);
+            external_function_entries.push(external_function_entry);
         }
     }
 

@@ -338,10 +338,9 @@ pub fn canonicalize_submodule_nodes(
 
                 // add rename item if it does not exist
                 if expect_identifier != actual_identifier
-                    && rename_items
+                    && !rename_items
                         .iter()
-                        .find(|item| item.from == actual_identifier && item.to == expect_identifier)
-                        .is_none()
+                        .any(|item| item.from == actual_identifier && item.to == expect_identifier)
                 {
                     let rename_item = RenameItem {
                         from: actual_identifier,
@@ -369,10 +368,8 @@ pub fn canonicalize_submodule_nodes(
     let mut canonical_read_write_data_nodes: Vec<DataNode> = vec![];
     let mut canonical_uninit_data_nodes: Vec<DataNode> = vec![];
 
-    for module_idx in 0..submodule_nodes.len() {
-        let module_node = &submodule_nodes[module_idx];
+    for module_node in submodule_nodes {
         let module_name_path = &module_node.name_path;
-        // let rename_items = &rename_item_modules[module_idx].items;
 
         // canonicalize the func nodes
         let original_function_nodes = module_node
@@ -929,19 +926,15 @@ fn canonicalize_identifiers_of_instruction(
 }
 
 fn rename(rename_kind: RenameKind, name: &str, rename_items: &[RenameItem]) -> Option<String> {
-    let idx_opt = rename_items
-        .iter()
-        .position(|item| item.kind == rename_kind && item.from == name);
-
     rename_items
         .iter()
         .find(|item| item.kind == rename_kind && item.from == name)
         .map(|item| item.to.clone())
 }
 
-fn get_rename_items_by_target_module_name_path<'a, 'b>(
+fn get_rename_items_by_target_module_name_path<'a>(
     rename_item_modules: &'a [RenameItemModule],
-    target_module_name_path: &'b str,
+    target_module_name_path: &str,
 ) -> &'a [RenameItem] {
     let rename_item_module_opt = rename_item_modules
         .iter()
@@ -1158,7 +1151,7 @@ mod tests {
     }
 
     #[test]
-    fn test_preprocess_canonicalize_identifiers_of_func_and_data_instructions() {
+    fn test_preprocess_canonicalize_identifiers_of_function_and_data_instructions() {
         assert_eq!(
             merge_submodules_from_strs(&[
                 r#"

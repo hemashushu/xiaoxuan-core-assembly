@@ -60,11 +60,11 @@ fn test_assemble_control_flow_block_equ_structure_for() {
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
 
     assert_eq!(
         bytecode_text,
@@ -82,28 +82,28 @@ fn test_assemble_control_flow_block_equ_structure_for() {
 0x0040  00 0a                       end"
     );
 
-    assert_eq!(func_entry.type_index, 0);
+    assert_eq!(function_entry.type_index, 0);
 
-    let func_type_entry = program0.module_images[0]
+    let function_type_entry = program0.module_images[0]
         .get_type_section()
         .get_type_entry(0);
 
     assert_eq!(
-        func_type_entry,
+        function_type_entry,
         TypeEntry {
             params: vec![],
             results: vec![DataType::I32, DataType::I32, DataType::I32, DataType::I32]
         }
     );
 
-    assert_eq!(func_entry.local_list_index, 0);
+    assert_eq!(function_entry.local_list_index, 0);
 
-    let func_local_list_entry = program0.module_images[0]
+    let function_local_list_entry = program0.module_images[0]
         .get_local_variable_section()
         .get_local_list_entry(0);
 
     assert_eq!(
-        func_local_list_entry,
+        function_local_list_entry,
         LocalListEntry {
             local_variable_entries: vec![]
         }
@@ -127,10 +127,10 @@ fn test_assemble_control_flow_block_equ_structure_for() {
     assert_eq!(
         result0.unwrap(),
         vec![
-            ForeignValue::UInt32(11),
-            ForeignValue::UInt32(13),
-            ForeignValue::UInt32(23),
-            ForeignValue::UInt32(29),
+            ForeignValue::U32(11),
+            ForeignValue::U32(13),
+            ForeignValue::U32(23),
+            ForeignValue::U32(29),
         ]
     );
 }
@@ -176,11 +176,11 @@ fn test_assemble_control_flow_block_with_args_and_results_equ_structure_for() {
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -231,9 +231,9 @@ fn test_assemble_control_flow_block_with_args_and_results_equ_structure_for() {
     assert_eq!(
         result0.unwrap(),
         vec![
-            ForeignValue::UInt32(11),
-            ForeignValue::UInt32(30),
-            ForeignValue::UInt32(19),
+            ForeignValue::U32(11),
+            ForeignValue::U32(30),
+            ForeignValue::U32(19),
         ]
     );
 }
@@ -349,11 +349,11 @@ fn test_assemble_control_flow_block_with_local_vars_equ_structure_for() {
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
 
     assert_eq!(
         bytecode_text,
@@ -407,14 +407,14 @@ fn test_assemble_control_flow_block_with_local_vars_equ_structure_for() {
 0x012c  00 0a                       end"
     );
 
-    assert_eq!(func_entry.type_index, 0);
+    assert_eq!(function_entry.type_index, 0);
 
-    let func_type_entry = program0.module_images[0]
+    let function_type_entry = program0.module_images[0]
         .get_type_section()
         .get_type_entry(0);
 
     assert_eq!(
-        func_type_entry,
+        function_type_entry,
         TypeEntry {
             params: vec![DataType::I32, DataType::I32],
             results: vec![
@@ -430,14 +430,14 @@ fn test_assemble_control_flow_block_with_local_vars_equ_structure_for() {
         }
     );
 
-    assert_eq!(func_entry.local_list_index, 0);
+    assert_eq!(function_entry.local_list_index, 0);
 
-    let func_local_list_entry = program0.module_images[0]
+    let function_local_list_entry = program0.module_images[0]
         .get_local_variable_section()
         .get_local_list_entry(0);
 
     assert_eq!(
-        func_local_list_entry,
+        function_local_list_entry,
         LocalListEntry {
             local_variable_entries: vec![
                 LocalVariableEntry::from_i32(),
@@ -492,19 +492,19 @@ fn test_assemble_control_flow_block_with_local_vars_equ_structure_for() {
         &mut thread_context0,
         0,
         0,
-        &[ForeignValue::UInt32(19), ForeignValue::UInt32(11)],
+        &[ForeignValue::U32(19), ForeignValue::U32(11)],
     );
     assert_eq!(
         result0.unwrap(),
         vec![
-            ForeignValue::UInt32(27),
-            ForeignValue::UInt32(44),
-            ForeignValue::UInt32(32),
-            ForeignValue::UInt32(7),
-            ForeignValue::UInt32(18),
-            ForeignValue::UInt32(10),
-            ForeignValue::UInt32(20),
-            ForeignValue::UInt32(13),
+            ForeignValue::U32(27),
+            ForeignValue::U32(44),
+            ForeignValue::U32(32),
+            ForeignValue::U32(7),
+            ForeignValue::U32(18),
+            ForeignValue::U32(10),
+            ForeignValue::U32(20),
+            ForeignValue::U32(13),
         ]
     );
 }
@@ -544,11 +544,11 @@ fn test_assemble_control_flow_break_function_equ_statement_return() {
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -566,7 +566,7 @@ fn test_assemble_control_flow_break_function_equ_statement_return() {
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     assert_eq!(
         result0.unwrap(),
-        vec![ForeignValue::UInt32(11), ForeignValue::UInt32(13),]
+        vec![ForeignValue::U32(11), ForeignValue::U32(13),]
     );
 }
 
@@ -620,11 +620,11 @@ fn test_assemble_control_flow_break_block_equ_statement_break() {
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -651,10 +651,10 @@ fn test_assemble_control_flow_break_block_equ_statement_break() {
     assert_eq!(
         result0.unwrap(),
         vec![
-            ForeignValue::UInt32(17),
-            ForeignValue::UInt32(19),
-            ForeignValue::UInt32(31),
-            ForeignValue::UInt32(37),
+            ForeignValue::U32(17),
+            ForeignValue::U32(19),
+            ForeignValue::U32(31),
+            ForeignValue::U32(37),
         ]
     );
 }
@@ -709,11 +709,11 @@ fn test_assemble_control_flow_break_block_to_function_equ_statement_return() {
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -739,7 +739,7 @@ fn test_assemble_control_flow_break_block_to_function_equ_statement_return() {
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     assert_eq!(
         result0.unwrap(),
-        vec![ForeignValue::UInt32(17), ForeignValue::UInt32(19),]
+        vec![ForeignValue::U32(17), ForeignValue::U32(19),]
     );
 }
 
@@ -794,11 +794,11 @@ fn test_assemble_control_flow_structure_when() {
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -825,17 +825,17 @@ fn test_assemble_control_flow_structure_when() {
         &mut thread_context0,
         0,
         0,
-        &[ForeignValue::UInt32(11), ForeignValue::UInt32(13)],
+        &[ForeignValue::U32(11), ForeignValue::U32(13)],
     );
-    assert_eq!(result0.unwrap(), vec![ForeignValue::UInt32(13)]);
+    assert_eq!(result0.unwrap(), vec![ForeignValue::U32(13)]);
 
     let result1 = process_function(
         &mut thread_context0,
         0,
         0,
-        &[ForeignValue::UInt32(19), ForeignValue::UInt32(17)],
+        &[ForeignValue::U32(19), ForeignValue::U32(17)],
     );
-    assert_eq!(result1.unwrap(), vec![ForeignValue::UInt32(19)]);
+    assert_eq!(result1.unwrap(), vec![ForeignValue::U32(19)]);
 }
 
 #[test]
@@ -908,11 +908,11 @@ fn test_assemble_control_flow_break_block_crossing_equ_statement_break() {
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -945,25 +945,25 @@ fn test_assemble_control_flow_break_block_crossing_equ_statement_break() {
 
     let mut thread_context0 = program0.create_thread_context();
 
-    let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(1)]);
+    let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(1)]);
     assert_eq!(
         result0.unwrap(),
         vec![
-            ForeignValue::UInt32(23),
-            ForeignValue::UInt32(29),
-            ForeignValue::UInt32(51),
-            ForeignValue::UInt32(53),
+            ForeignValue::U32(23),
+            ForeignValue::U32(29),
+            ForeignValue::U32(51),
+            ForeignValue::U32(53),
         ]
     );
 
-    let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(0)]);
+    let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(0)]);
     assert_eq!(
         result0.unwrap(),
         vec![
-            ForeignValue::UInt32(41),
-            ForeignValue::UInt32(43),
-            ForeignValue::UInt32(51),
-            ForeignValue::UInt32(53),
+            ForeignValue::U32(41),
+            ForeignValue::U32(43),
+            ForeignValue::U32(51),
+            ForeignValue::U32(53),
         ]
     );
 }
@@ -1011,11 +1011,11 @@ fn test_assemble_control_flow_structure_if() {
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -1040,17 +1040,17 @@ fn test_assemble_control_flow_structure_if() {
         &mut thread_context0,
         0,
         0,
-        &[ForeignValue::UInt32(11), ForeignValue::UInt32(13)],
+        &[ForeignValue::U32(11), ForeignValue::U32(13)],
     );
-    assert_eq!(result0.unwrap(), vec![ForeignValue::UInt32(13)]);
+    assert_eq!(result0.unwrap(), vec![ForeignValue::U32(13)]);
 
     let result1 = process_function(
         &mut thread_context0,
         0,
         0,
-        &[ForeignValue::UInt32(19), ForeignValue::UInt32(17)],
+        &[ForeignValue::U32(19), ForeignValue::U32(17)],
     );
-    assert_eq!(result1.unwrap(), vec![ForeignValue::UInt32(19)]);
+    assert_eq!(result1.unwrap(), vec![ForeignValue::U32(19)]);
 }
 
 #[test]
@@ -1129,11 +1129,11 @@ fn test_assemble_control_flow_structure_if_nested() {
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -1172,23 +1172,23 @@ fn test_assemble_control_flow_structure_if_nested() {
 
     let mut thread_context0 = program0.create_thread_context();
 
-    let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(90)]);
-    assert_eq!(result0.unwrap(), vec![ForeignValue::UInt32(65)]);
+    let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(90)]);
+    assert_eq!(result0.unwrap(), vec![ForeignValue::U32(65)]);
 
-    let result1 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(80)]);
-    assert_eq!(result1.unwrap(), vec![ForeignValue::UInt32(66)]);
+    let result1 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(80)]);
+    assert_eq!(result1.unwrap(), vec![ForeignValue::U32(66)]);
 
-    let result2 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(70)]);
-    assert_eq!(result2.unwrap(), vec![ForeignValue::UInt32(67)]);
+    let result2 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(70)]);
+    assert_eq!(result2.unwrap(), vec![ForeignValue::U32(67)]);
 
-    let result3 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(60)]);
-    assert_eq!(result3.unwrap(), vec![ForeignValue::UInt32(67)]);
+    let result3 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(60)]);
+    assert_eq!(result3.unwrap(), vec![ForeignValue::U32(67)]);
 
-    let result4 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(50)]);
-    assert_eq!(result4.unwrap(), vec![ForeignValue::UInt32(68)]);
+    let result4 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(50)]);
+    assert_eq!(result4.unwrap(), vec![ForeignValue::U32(68)]);
 
-    let result5 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(40)]);
-    assert_eq!(result5.unwrap(), vec![ForeignValue::UInt32(68)]);
+    let result5 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(40)]);
+    assert_eq!(result5.unwrap(), vec![ForeignValue::U32(68)]);
 }
 
 #[test]
@@ -1275,11 +1275,11 @@ fn test_assemble_control_flow_structure_branch() {
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -1324,23 +1324,23 @@ fn test_assemble_control_flow_structure_branch() {
 
     let mut thread_context0 = program0.create_thread_context();
 
-    let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(90)]);
-    assert_eq!(result0.unwrap(), vec![ForeignValue::UInt32(65)]);
+    let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(90)]);
+    assert_eq!(result0.unwrap(), vec![ForeignValue::U32(65)]);
 
-    let result1 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(80)]);
-    assert_eq!(result1.unwrap(), vec![ForeignValue::UInt32(66)]);
+    let result1 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(80)]);
+    assert_eq!(result1.unwrap(), vec![ForeignValue::U32(66)]);
 
-    let result2 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(70)]);
-    assert_eq!(result2.unwrap(), vec![ForeignValue::UInt32(67)]);
+    let result2 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(70)]);
+    assert_eq!(result2.unwrap(), vec![ForeignValue::U32(67)]);
 
-    let result3 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(60)]);
-    assert_eq!(result3.unwrap(), vec![ForeignValue::UInt32(67)]);
+    let result3 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(60)]);
+    assert_eq!(result3.unwrap(), vec![ForeignValue::U32(67)]);
 
-    let result4 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(50)]);
-    assert_eq!(result4.unwrap(), vec![ForeignValue::UInt32(68)]);
+    let result4 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(50)]);
+    assert_eq!(result4.unwrap(), vec![ForeignValue::U32(68)]);
 
-    let result5 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(40)]);
-    assert_eq!(result5.unwrap(), vec![ForeignValue::UInt32(68)]);
+    let result5 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(40)]);
+    assert_eq!(result5.unwrap(), vec![ForeignValue::U32(68)]);
 }
 
 #[test]
@@ -1407,11 +1407,11 @@ fn test_assemble_control_flow_structure_branch_without_default_arm() {
 
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -1446,13 +1446,13 @@ fn test_assemble_control_flow_structure_branch_without_default_arm() {
 
     let mut thread_context0 = program0.create_thread_context();
 
-    let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(90)]);
-    assert_eq!(result0.unwrap(), vec![ForeignValue::UInt32(65)]);
+    let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(90)]);
+    assert_eq!(result0.unwrap(), vec![ForeignValue::U32(65)]);
 
-    let result1 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(80)]);
-    assert_eq!(result1.unwrap(), vec![ForeignValue::UInt32(66)]);
+    let result1 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(80)]);
+    assert_eq!(result1.unwrap(), vec![ForeignValue::U32(66)]);
 
-    let result2 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(70)]);
+    let result2 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(70)]);
     assert!(matches!(
         result2,
         Err(InterpreterError {
@@ -1460,7 +1460,7 @@ fn test_assemble_control_flow_structure_branch_without_default_arm() {
         })
     ));
 
-    let result3 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(60)]);
+    let result3 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(60)]);
     assert!(matches!(
         result3,
         Err(InterpreterError {
@@ -1537,11 +1537,11 @@ fn test_assemble_control_flow_structure_loop() {
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -1571,11 +1571,11 @@ fn test_assemble_control_flow_structure_loop() {
 
     let mut thread_context0 = program0.create_thread_context();
 
-    let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(10)]);
-    assert_eq!(result0.unwrap(), vec![ForeignValue::UInt32(55)]);
+    let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(10)]);
+    assert_eq!(result0.unwrap(), vec![ForeignValue::U32(55)]);
 
-    let result1 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(100)]);
-    assert_eq!(result1.unwrap(), vec![ForeignValue::UInt32(5050)]);
+    let result1 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(100)]);
+    assert_eq!(result1.unwrap(), vec![ForeignValue::U32(5050)]);
 }
 
 #[test]
@@ -1647,11 +1647,11 @@ fn test_assemble_control_flow_structure_loop_with_block_parameters() {
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -1682,11 +1682,11 @@ fn test_assemble_control_flow_structure_loop_with_block_parameters() {
 
     let mut thread_context0 = program0.create_thread_context();
 
-    let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(10)]);
-    assert_eq!(result0.unwrap(), vec![ForeignValue::UInt32(55)]);
+    let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(10)]);
+    assert_eq!(result0.unwrap(), vec![ForeignValue::U32(55)]);
 
-    let result1 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(100)]);
-    assert_eq!(result1.unwrap(), vec![ForeignValue::UInt32(5050)]);
+    let result1 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(100)]);
+    assert_eq!(result1.unwrap(), vec![ForeignValue::U32(5050)]);
 }
 
 #[test]
@@ -1758,11 +1758,11 @@ fn test_assemble_control_flow_structure_loop_with_if() {
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -1795,11 +1795,11 @@ fn test_assemble_control_flow_structure_loop_with_if() {
 
     let mut thread_context0 = program0.create_thread_context();
 
-    let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(10)]);
-    assert_eq!(result0.unwrap(), vec![ForeignValue::UInt32(55)]);
+    let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(10)]);
+    assert_eq!(result0.unwrap(), vec![ForeignValue::U32(55)]);
 
-    let result1 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::UInt32(100)]);
-    assert_eq!(result1.unwrap(), vec![ForeignValue::UInt32(5050)]);
+    let result1 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(100)]);
+    assert_eq!(result1.unwrap(), vec![ForeignValue::U32(5050)]);
 }
 
 #[test]
@@ -1869,11 +1869,11 @@ fn test_assemble_control_flow_function_tail_call() {
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -1906,17 +1906,17 @@ fn test_assemble_control_flow_function_tail_call() {
         &mut thread_context0,
         0,
         0,
-        &[ForeignValue::UInt32(0), ForeignValue::UInt32(10)],
+        &[ForeignValue::U32(0), ForeignValue::U32(10)],
     );
-    assert_eq!(result0.unwrap(), vec![ForeignValue::UInt32(55)]);
+    assert_eq!(result0.unwrap(), vec![ForeignValue::U32(55)]);
 
     let result1 = process_function(
         &mut thread_context0,
         0,
         0,
-        &[ForeignValue::UInt32(0), ForeignValue::UInt32(100)],
+        &[ForeignValue::U32(0), ForeignValue::U32(100)],
     );
-    assert_eq!(result1.unwrap(), vec![ForeignValue::UInt32(5050)]);
+    assert_eq!(result1.unwrap(), vec![ForeignValue::U32(5050)]);
 }
 
 #[test]
@@ -1976,11 +1976,11 @@ fn test_assemble_control_flow_function_tail_call_with_if() {
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -2010,15 +2010,15 @@ fn test_assemble_control_flow_function_tail_call_with_if() {
         &mut thread_context0,
         0,
         0,
-        &[ForeignValue::UInt32(0), ForeignValue::UInt32(10)],
+        &[ForeignValue::U32(0), ForeignValue::U32(10)],
     );
-    assert_eq!(result0.unwrap(), vec![ForeignValue::UInt32(55)]);
+    assert_eq!(result0.unwrap(), vec![ForeignValue::U32(55)]);
 
     let result1 = process_function(
         &mut thread_context0,
         0,
         0,
-        &[ForeignValue::UInt32(0), ForeignValue::UInt32(100)],
+        &[ForeignValue::U32(0), ForeignValue::U32(100)],
     );
-    assert_eq!(result1.unwrap(), vec![ForeignValue::UInt32(5050)]);
+    assert_eq!(result1.unwrap(), vec![ForeignValue::U32(5050)]);
 }

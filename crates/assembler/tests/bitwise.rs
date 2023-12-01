@@ -93,33 +93,33 @@ fn test_assemble_bitwise_i32() {
         0,
         0,
         &[
-            ForeignValue::UInt32(0xff0000ff),
-            ForeignValue::UInt32(0xf0f000ff),
-            ForeignValue::UInt32(0x00f00000),
-            ForeignValue::UInt32(0x80000000),
+            ForeignValue::U32(0xff0000ff),
+            ForeignValue::U32(0xf0f000ff),
+            ForeignValue::U32(0x00f00000),
+            ForeignValue::U32(0x80000000),
         ],
     );
     assert_eq!(
         result0.unwrap(),
         vec![
             // group 0
-            ForeignValue::UInt32(0xf00000ff),
-            ForeignValue::UInt32(0xfff000ff),
-            ForeignValue::UInt32(0x0ff00000),
+            ForeignValue::U32(0xf00000ff),
+            ForeignValue::U32(0xfff000ff),
+            ForeignValue::U32(0x0ff00000),
             // group 1
-            ForeignValue::UInt32(0x0f000000),
-            ForeignValue::UInt32(0xffff8000),
-            ForeignValue::UInt32(0x00008000),
+            ForeignValue::U32(0x0f000000),
+            ForeignValue::U32(0xffff8000),
+            ForeignValue::U32(0x00008000),
             // group 2
-            ForeignValue::UInt32(0x00000000),
-            ForeignValue::UInt32(0x0000f000),
-            ForeignValue::UInt32(0x00000000),
-            ForeignValue::UInt32(0x0f000000),
+            ForeignValue::U32(0x00000000),
+            ForeignValue::U32(0x0000f000),
+            ForeignValue::U32(0x00000000),
+            ForeignValue::U32(0x0f000000),
             // group 3
-            ForeignValue::UInt32(0x00ffff00),
-            ForeignValue::UInt32(8),
-            ForeignValue::UInt32(20),
-            ForeignValue::UInt32(4),
+            ForeignValue::U32(0x00ffff00),
+            ForeignValue::U32(8),
+            ForeignValue::U32(20),
+            ForeignValue::U32(4),
         ]
     );
 }
@@ -204,33 +204,33 @@ fn test_assemble_bitwise_i64() {
         0,
         0,
         &[
-            ForeignValue::UInt64(0xff00ff00_00ff00ff),
-            ForeignValue::UInt64(0xf0f00f0f_00ff00ff),
-            ForeignValue::UInt64(0x0000ff00_00000000),
-            ForeignValue::UInt64(0x80000000_00000000),
+            ForeignValue::U64(0xff00ff00_00ff00ff),
+            ForeignValue::U64(0xf0f00f0f_00ff00ff),
+            ForeignValue::U64(0x0000ff00_00000000),
+            ForeignValue::U64(0x80000000_00000000),
         ],
     );
     assert_eq!(
         result0.unwrap(),
         vec![
             // group 0
-            ForeignValue::UInt64(0xf0000f00_00ff00ff),
-            ForeignValue::UInt64(0xfff0ff0f_00ff00ff),
-            ForeignValue::UInt64(0x0ff0f00f_00000000),
+            ForeignValue::U64(0xf0000f00_00ff00ff),
+            ForeignValue::U64(0xfff0ff0f_00ff00ff),
+            ForeignValue::U64(0x0ff0f00f_00000000),
             // group 1
-            ForeignValue::UInt64(0x00ff0000_00000000),
-            ForeignValue::UInt64(0xffff8000_00000000),
-            ForeignValue::UInt64(0x00008000_00000000),
+            ForeignValue::U64(0x00ff0000_00000000),
+            ForeignValue::U64(0xffff8000_00000000),
+            ForeignValue::U64(0x00008000_00000000),
             // group 2
-            ForeignValue::UInt64(0x00000000_00000000),
-            ForeignValue::UInt64(0x00000000_0000ff00),
-            ForeignValue::UInt64(0x00000000_00000000),
-            ForeignValue::UInt64(0x00ff0000_00000000),
+            ForeignValue::U64(0x00000000_00000000),
+            ForeignValue::U64(0x00000000_0000ff00),
+            ForeignValue::U64(0x00000000_00000000),
+            ForeignValue::U64(0x00ff0000_00000000),
             // group 3
-            ForeignValue::UInt64(0x00ff00ff_ff00ff00),
-            ForeignValue::UInt32(16),
-            ForeignValue::UInt32(40),
-            ForeignValue::UInt32(8),
+            ForeignValue::U64(0x00ff00ff_ff00ff00),
+            ForeignValue::U32(16),
+            ForeignValue::U32(40),
+            ForeignValue::U32(8),
         ]
     );
 }

@@ -38,11 +38,11 @@ fn test_assemble_envcall_runtime_version() {
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
     assert_eq!(
         bytecode_text,
         "\
@@ -60,7 +60,7 @@ fn test_assemble_envcall_runtime_version() {
 
     assert_eq!(
         result0.unwrap(),
-        vec![ForeignValue::UInt64(expect_version_number)]
+        vec![ForeignValue::U64(expect_version_number)]
     );
 }
 
@@ -90,11 +90,11 @@ fn test_assemble_envcall_runtime_code_name() {
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(

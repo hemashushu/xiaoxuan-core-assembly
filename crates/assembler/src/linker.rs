@@ -27,7 +27,7 @@ pub fn link(module_entries: &[&ModuleEntry]) -> Result<IndexEntry, AssembleError
                 .function_entries
                 .iter()
                 .enumerate()
-                .map(|(function_public_index, _func_entry)| {
+                .map(|(function_public_index, _function_entry)| {
                     FunctionIndexEntry::new(
                         function_public_index,
                         module_index,
@@ -102,7 +102,7 @@ pub fn link(module_entries: &[&ModuleEntry]) -> Result<IndexEntry, AssembleError
     let mut external_function_index_module_entries: Vec<ExternalFunctionIndexModuleEntry> = vec![];
 
     for module_entry in module_entries {
-        let mut external_func_index_entries: Vec<ExternalFunctionIndexEntry> = vec![];
+        let mut external_function_index_entries: Vec<ExternalFunctionIndexEntry> = vec![];
 
         for (original_external_library_index, external_library_entry) in
             module_entry.external_library_entries.iter().enumerate()
@@ -126,7 +126,7 @@ pub fn link(module_entries: &[&ModuleEntry]) -> Result<IndexEntry, AssembleError
             };
 
             // filter external functions by the specified external libray
-            let external_func_entries_with_indices = module_entry
+            let external_function_entries_with_indices = module_entry
                 .external_function_entries
                 .iter()
                 .enumerate()
@@ -135,41 +135,41 @@ pub fn link(module_entries: &[&ModuleEntry]) -> Result<IndexEntry, AssembleError
                 })
                 .collect::<Vec<_>>();
 
-            for (original_external_func_index, external_func_entry) in
-                external_func_entries_with_indices
+            for (original_external_function_index, external_function_entry) in
+                external_function_entries_with_indices
             {
-                let unified_func_idx_opt =
+                let unified_function_idx_opt =
                     unified_external_function_entries.iter().position(|entry| {
                         entry.unified_external_library_index == unified_lib_idx
-                            && entry.name == external_func_entry.name
+                            && entry.name == external_function_entry.name
                     });
 
                 // add unified function entry when not found, and then
                 // add external function index entry
-                if unified_func_idx_opt.is_none() {
+                if unified_function_idx_opt.is_none() {
                     // add unified function entry
-                    let unified_func_idx = unified_external_function_entries.len();
-                    let unified_external_func_entry = UnifiedExternalFunctionEntry {
-                        name: external_func_entry.name.clone(),
+                    let unified_function_idx = unified_external_function_entries.len();
+                    let unified_external_function_entry = UnifiedExternalFunctionEntry {
+                        name: external_function_entry.name.clone(),
                         unified_external_library_index: unified_lib_idx,
                     };
-                    unified_external_function_entries.push(unified_external_func_entry);
+                    unified_external_function_entries.push(unified_external_function_entry);
 
                     // add external function index entry
-                    let external_func_index_entry = ExternalFunctionIndexEntry {
-                        external_function_index: original_external_func_index,
-                        unified_external_function_index: unified_func_idx,
-                        type_index: external_func_entry.type_index,
+                    let external_function_index_entry = ExternalFunctionIndexEntry {
+                        external_function_index: original_external_function_index,
+                        unified_external_function_index: unified_function_idx,
+                        type_index: external_function_entry.type_index,
                     };
-                    external_func_index_entries.push(external_func_index_entry);
+                    external_function_index_entries.push(external_function_index_entry);
                 }
             }
         }
 
-        let external_func_index_module_entry = ExternalFunctionIndexModuleEntry {
-            index_entries: external_func_index_entries,
+        let external_function_index_module_entry = ExternalFunctionIndexModuleEntry {
+            index_entries: external_function_index_entries,
         };
-        external_function_index_module_entries.push(external_func_index_module_entry);
+        external_function_index_module_entries.push(external_function_index_module_entry);
     }
 
     Ok(IndexEntry {

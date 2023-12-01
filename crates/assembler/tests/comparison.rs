@@ -109,40 +109,40 @@ fn test_assemble_comparison_i32() {
         0,
         0,
         &[
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(11),
-            ForeignValue::UInt32(13),
-            ForeignValue::UInt32(-7i32 as u32),
+            ForeignValue::U32(0),
+            ForeignValue::U32(11),
+            ForeignValue::U32(13),
+            ForeignValue::U32(-7i32 as u32),
         ],
     );
     assert_eq!(
         result0.unwrap(),
         vec![
             // group 0
-            ForeignValue::UInt32(1),
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(1),
+            ForeignValue::U32(1),
+            ForeignValue::U32(0),
+            ForeignValue::U32(0),
+            ForeignValue::U32(1),
             // group 1
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(1),
-            ForeignValue::UInt32(1),
-            ForeignValue::UInt32(0),
+            ForeignValue::U32(0),
+            ForeignValue::U32(1),
+            ForeignValue::U32(1),
+            ForeignValue::U32(0),
             // group 2
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(1),
-            ForeignValue::UInt32(1),
-            ForeignValue::UInt32(0),
+            ForeignValue::U32(0),
+            ForeignValue::U32(1),
+            ForeignValue::U32(1),
+            ForeignValue::U32(0),
             // group 3
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(1),
-            ForeignValue::UInt32(1),
+            ForeignValue::U32(0),
+            ForeignValue::U32(0),
+            ForeignValue::U32(1),
+            ForeignValue::U32(1),
             // group 4
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(1),
-            ForeignValue::UInt32(1),
+            ForeignValue::U32(0),
+            ForeignValue::U32(0),
+            ForeignValue::U32(1),
+            ForeignValue::U32(1),
         ]
     );
 }
@@ -243,40 +243,40 @@ fn test_assemble_comparison_i64() {
         0,
         0,
         &[
-            ForeignValue::UInt64(0),
-            ForeignValue::UInt64(11),
-            ForeignValue::UInt64(13),
-            ForeignValue::UInt64(-7i64 as u64),
+            ForeignValue::U64(0),
+            ForeignValue::U64(11),
+            ForeignValue::U64(13),
+            ForeignValue::U64(-7i64 as u64),
         ],
     );
     assert_eq!(
         result0.unwrap(),
         vec![
             // group 0
-            ForeignValue::UInt32(1),
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(1),
+            ForeignValue::U32(1),
+            ForeignValue::U32(0),
+            ForeignValue::U32(0),
+            ForeignValue::U32(1),
             // group 1
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(1),
-            ForeignValue::UInt32(1),
-            ForeignValue::UInt32(0),
+            ForeignValue::U32(0),
+            ForeignValue::U32(1),
+            ForeignValue::U32(1),
+            ForeignValue::U32(0),
             // group 2
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(1),
-            ForeignValue::UInt32(1),
-            ForeignValue::UInt32(0),
+            ForeignValue::U32(0),
+            ForeignValue::U32(1),
+            ForeignValue::U32(1),
+            ForeignValue::U32(0),
             // group 3
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(1),
-            ForeignValue::UInt32(1),
+            ForeignValue::U32(0),
+            ForeignValue::U32(0),
+            ForeignValue::U32(1),
+            ForeignValue::U32(1),
             // group 4
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(1),
-            ForeignValue::UInt32(1),
+            ForeignValue::U32(0),
+            ForeignValue::U32(0),
+            ForeignValue::U32(1),
+            ForeignValue::U32(1),
         ]
     );
 }
@@ -355,30 +355,30 @@ fn test_assemble_comparison_f32() {
         0,
         0,
         &[
-            ForeignValue::Float32(1.414f32),
-            ForeignValue::Float32(1.732f32),
+            ForeignValue::F32(1.414f32),
+            ForeignValue::F32(1.732f32),
         ],
     );
     assert_eq!(
         result0.unwrap(),
         vec![
             // group 0
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(1),
-            ForeignValue::UInt32(1),
-            ForeignValue::UInt32(0),
+            ForeignValue::U32(0),
+            ForeignValue::U32(1),
+            ForeignValue::U32(1),
+            ForeignValue::U32(0),
             // group 1
-            ForeignValue::UInt32(1),
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(1),
-            ForeignValue::UInt32(0),
+            ForeignValue::U32(1),
+            ForeignValue::U32(0),
+            ForeignValue::U32(0),
+            ForeignValue::U32(0),
+            ForeignValue::U32(1),
+            ForeignValue::U32(0),
             // group 2
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(1),
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(1),
+            ForeignValue::U32(0),
+            ForeignValue::U32(1),
+            ForeignValue::U32(0),
+            ForeignValue::U32(1),
         ]
     );
 }
@@ -457,30 +457,30 @@ fn test_assemble_comparison_f64() {
         0,
         0,
         &[
-            ForeignValue::Float64(1.414f64),
-            ForeignValue::Float64(1.732f64),
+            ForeignValue::F64(1.414f64),
+            ForeignValue::F64(1.732f64),
         ],
     );
     assert_eq!(
         result0.unwrap(),
         vec![
             // group 0
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(1),
-            ForeignValue::UInt32(1),
-            ForeignValue::UInt32(0),
+            ForeignValue::U32(0),
+            ForeignValue::U32(1),
+            ForeignValue::U32(1),
+            ForeignValue::U32(0),
             // group 1
-            ForeignValue::UInt32(1),
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(1),
-            ForeignValue::UInt32(0),
+            ForeignValue::U32(1),
+            ForeignValue::U32(0),
+            ForeignValue::U32(0),
+            ForeignValue::U32(0),
+            ForeignValue::U32(1),
+            ForeignValue::U32(0),
             // group 2
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(1),
-            ForeignValue::UInt32(0),
-            ForeignValue::UInt32(1),
+            ForeignValue::U32(0),
+            ForeignValue::U32(1),
+            ForeignValue::U32(0),
+            ForeignValue::U32(1),
         ]
     );
 }

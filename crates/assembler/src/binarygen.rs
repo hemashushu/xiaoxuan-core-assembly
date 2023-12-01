@@ -52,11 +52,11 @@ pub fn generate_module_image_binary(
     };
 
     // function section
-    let (func_items, func_data) =
+    let (function_items, function_data) =
         FunctionSection::convert_from_entries(&module_entry.function_entries);
-    let func_section = FunctionSection {
-        items: &func_items,
-        codes_data: &func_data,
+    let function_section = FunctionSection {
+        items: &function_items,
+        codes_data: &function_data,
     };
 
     // ro data section
@@ -99,11 +99,11 @@ pub fn generate_module_image_binary(
     };
 
     // func name section
-    let (func_name_items, func_name_data) =
+    let (function_name_items, function_name_data) =
         FunctionNameSection::convert_from_entries(&module_entry.function_name_entries);
-    let func_name_section = FunctionNameSection {
-        items: &func_name_items,
-        names_data: &func_name_data,
+    let function_name_section = FunctionNameSection {
+        items: &function_name_items,
+        names_data: &function_name_data,
     };
 
     // data name section
@@ -117,23 +117,23 @@ pub fn generate_module_image_binary(
     let mut section_entries: Vec<&dyn SectionEntry> = vec![
         &type_section,
         &local_variable_section,
-        &func_section,
+        &function_section,
         &read_only_data_section,
         &read_write_data_section,
         &uninit_data_section,
         &external_library_section,
         &external_function_section,
-        &func_name_section,
+        &function_name_section,
         &data_name_section,
     ];
 
     let image_binary = if let Some(index_entry) = index_entry_opt {
         // func index
-        let (func_index_range_items, func_index_items) =
+        let (function_index_range_items, function_index_items) =
             FunctionIndexSection::convert_from_entries(&index_entry.function_index_module_entries);
-        let func_index_section = FunctionIndexSection {
-            ranges: &func_index_range_items,
-            items: &func_index_items,
+        let function_index_section = FunctionIndexSection {
+            ranges: &function_index_range_items,
+            items: &function_index_items,
         };
 
         // data index
@@ -175,7 +175,7 @@ pub fn generate_module_image_binary(
         };
 
         let mut index_section_entries: Vec<&dyn SectionEntry> = vec![
-            &func_index_section,
+            &function_index_section,
             &data_index_section,
             &unified_external_library_section,
             &unified_external_function_section,
@@ -256,15 +256,15 @@ mod tests {
         let program_source0 = InMemoryProgramSource::new(module_binaries);
         let program0 = program_source0.build_program().unwrap();
 
-        let func_entry = program0.module_images[0]
+        let function_entry = program0.module_images[0]
             .get_function_section()
             .get_function_entry(0);
 
-        assert_eq!(func_entry.type_index, 0);
+        assert_eq!(function_entry.type_index, 0);
 
         let type_entry = program0.module_images[0]
             .get_type_section()
-            .get_type_entry(func_entry.type_index);
+            .get_type_entry(function_entry.type_index);
 
         assert_eq!(
             type_entry,
@@ -274,11 +274,11 @@ mod tests {
             }
         );
 
-        assert_eq!(func_entry.local_list_index, 0);
+        assert_eq!(function_entry.local_list_index, 0);
 
         let local_list_entry = program0.module_images[0]
             .get_local_variable_section()
-            .get_local_list_entry(func_entry.local_list_index);
+            .get_local_list_entry(function_entry.local_list_index);
 
         assert_eq!(
             local_list_entry,
@@ -309,9 +309,9 @@ mod tests {
             &mut thread_context0,
             0,
             0,
-            &[ForeignValue::UInt32(11), ForeignValue::UInt32(13)],
+            &[ForeignValue::U32(11), ForeignValue::U32(13)],
         );
 
-        assert_eq!(result0.unwrap(), vec![ForeignValue::UInt32(24)]);
+        assert_eq!(result0.unwrap(), vec![ForeignValue::U32(24)]);
     }
 }

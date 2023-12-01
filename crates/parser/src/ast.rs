@@ -4,9 +4,7 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancvm_types::{
-    opcode::Opcode, DataSectionType, DataType, ExternalLibraryType, MemoryDataType, ModuleShareType,
-};
+use ancvm_types::{opcode::Opcode, DataType, ExternalLibraryType, MemoryDataType, ModuleShareType};
 
 #[derive(Debug, PartialEq)]
 pub struct ModuleNode {
@@ -16,8 +14,8 @@ pub struct ModuleNode {
     pub runtime_version_major: u16,
     pub runtime_version_minor: u16,
 
-    pub constructor_function_name:Option<String>,
-    pub destructor_function_name:Option<String>,
+    pub constructor_function_name: Option<String>,
+    pub destructor_function_name: Option<String>,
 
     pub element_nodes: Vec<ModuleElementNode>,
 }
@@ -27,7 +25,7 @@ pub enum ModuleElementNode {
     FunctionNode(FunctionNode),
     DataNode(DataNode),
     ExternalNode(ExternalNode),
-    ImportNode(ImportNode)
+    ImportNode(ImportNode),
 }
 
 #[derive(Debug, PartialEq)]
@@ -85,8 +83,8 @@ pub struct ExternalLibraryNode {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ExternalFunctionNode {
-    pub id: String,          // the identifier of the external function
-    pub name: String,        // the original exported name/symbol
+    pub id: String,            // the identifier of the external function
+    pub name: String,          // the original exported name/symbol
     pub params: Vec<DataType>, // the parameters of external functions have no identifier
     pub results: Vec<DataType>,
 }
@@ -108,7 +106,7 @@ pub struct ImportModuleNode {
     pub module_share_type: ModuleShareType,
     pub name: String,
     pub version_major: u16,
-    pub version_minor: u16
+    pub version_minor: u16,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -123,7 +121,9 @@ pub struct ImportFunctionNode {
 pub struct ImportDataNode {
     pub id: String,        // the identifier of the imported data
     pub name_path: String, // the original exported name path (excludes the module name)
-    pub data_section_type: DataSectionType,
+    // pub data_section_type: DataSectionType,
+    // pub memory_data_type: MemoryDataType,
+    pub data_kind_node: SimplifiedDataKindNode,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -319,7 +319,7 @@ pub enum Instruction {
         args: Vec<Instruction>,
     },
 
-    // bytecode: (param env_func_num:i32)
+    // bytecode: (param env_function_num:i32)
     EnvCall {
         num: u32,
         args: Vec<Instruction>,
@@ -331,7 +331,7 @@ pub enum Instruction {
         args: Vec<Instruction>,
     },
 
-    // bytecode: (param external_func_idx:i32)
+    // bytecode: (param external_function_idx:i32)
     ExtCall {
         name_path: String,
         args: Vec<Instruction>,
@@ -402,4 +402,12 @@ pub struct UninitData {
     // if the data is a struct, the value should be the max one of the length of its fields.
     // currently the MIN value is 1.
     pub align: u16,
+}
+
+// for imported data node
+#[derive(Debug, PartialEq, Clone)]
+pub enum SimplifiedDataKindNode {
+    ReadOnly(MemoryDataType),
+    ReadWrite(MemoryDataType),
+    Uninit(MemoryDataType),
 }

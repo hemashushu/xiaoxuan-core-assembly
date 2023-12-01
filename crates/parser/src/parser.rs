@@ -75,9 +75,10 @@ use ancvm_types::{opcode::Opcode, DataType, ExternalLibraryType, MemoryDataType,
 
 use crate::{
     ast::{
-        BranchCase, DataKindNode, DataNode, ExternalNode, ExternalFunctionNode, ExternalItem,
-        ExternalLibraryNode, FunctionNode, ImmF32, ImmF64, ImportItem, ImportModuleNode, ImportNode,
-        InitedData, Instruction, LocalNode, ModuleElementNode, ModuleNode, ParamNode, UninitData,
+        BranchCase, DataKindNode, DataNode, ExternalFunctionNode, ExternalItem,
+        ExternalLibraryNode, ExternalNode, FunctionNode, ImmF32, ImmF64, ImportDataNode,
+        ImportFunctionNode, ImportItem, ImportModuleNode, ImportNode, InitedData, Instruction,
+        LocalNode, ModuleElementNode, ModuleNode, ParamNode, SimplifiedDataKindNode, UninitData,
     },
     instruction_kind::{init_instruction_kind_table, InstructionKind, INSTRUCTION_KIND_TABLE},
     lexer::{NumberToken, Token},
@@ -103,8 +104,8 @@ pub fn parse_module_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleNod
     // (module $name (runtime_version "1.0") ...)  ;; base
     // (module $name (runtime_version "1.0")
     //                                          ;; optional parameters
-    //      (constructor $func_name)            ;; similar to GCC '__attribute__((constructor))', run before main()
-    //      (destructor $func_name)             ;; similar to GCC '__attribute__((destructor))', run after main()
+    //      (constructor $function_name)            ;; similar to GCC '__attribute__((constructor))', run before main()
+    //      (destructor $function_name)             ;; similar to GCC '__attribute__((destructor))', run after main()
     //      ...
     // )
 
@@ -230,7 +231,9 @@ fn parse_version(ver_string: &str) -> Result<(u16, u16), ParseError> {
     Ok((major, minor))
 }
 
-fn parse_function_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNode, ParseError> {
+fn parse_function_node(
+    iter: &mut PeekableIterator<Token>,
+) -> Result<ModuleElementNode, ParseError> {
     // (function ...) ...  //
     // ^              ^____// to here
     // |___________________// current token
@@ -282,7 +285,7 @@ fn parse_function_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleEleme
     // function's code implies an instruction 'end' at the end.
     // instructions.push(Instruction::NoParams(Opcode::end));
 
-    let func_node = FunctionNode {
+    let function_node = FunctionNode {
         name,
         exported,
         params,
@@ -291,7 +294,7 @@ fn parse_function_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleEleme
         code,
     };
 
-    Ok(ModuleElementNode::FunctionNode(func_node))
+    Ok(ModuleElementNode::FunctionNode(function_node))
 }
 
 fn parse_optional_signature(
@@ -524,7 +527,7 @@ fn parse_memory_data_type_primitive(
         "f64" => (MemoryDataType::F64, 8, 8),
         _ => {
             return Err(ParseError::new(&format!(
-                "Unknown memory data type: {}",
+                "Unknown data node memory data type: {}",
                 memory_data_type_name
             )))
         }
@@ -570,7 +573,7 @@ fn parse_memory_data_type_bytes(
 
     consume_right_paren(iter)?;
 
-    Ok((MemoryDataType::BYTES, length, align))
+    Ok((MemoryDataType::Bytes, length, align))
 }
 
 fn parse_code_node(iter: &mut PeekableIterator<Token>) -> Result<Vec<Instruction>, ParseError> {
@@ -764,7 +767,9 @@ fn parse_instruction_with_parentheses(
                     parse_instruction_sequence_node(iter, node_name)?
                 }
                 //
-                InstructionKind::Call => parse_instruction_kind_call_by_name_path(iter, "call", true)?,
+                InstructionKind::Call => {
+                    parse_instruction_kind_call_by_name_path(iter, "call", true)?
+                }
                 InstructionKind::DynCall => parse_instruction_kind_call_by_operand_num(iter)?,
                 InstructionKind::EnvCall => {
                     parse_instruction_kind_call_by_num(iter, "envcall", true)?
@@ -781,7 +786,9 @@ fn parse_instruction_with_parentheses(
                 }
                 InstructionKind::Debug => parse_instruction_kind_debug(iter)?,
                 InstructionKind::Unreachable => parse_instruction_kind_unreachable(iter)?,
-                InstructionKind::HostAddrFunction => parse_instruction_kind_host_addr_function(iter)?,
+                InstructionKind::HostAddrFunction => {
+                    parse_instruction_kind_host_addr_function(iter)?
+                }
             }
         } else {
             return Err(ParseError::new(&format!(
@@ -1360,10 +1367,7 @@ fn parse_instruction_kind_call_by_name_path(
     consume_right_paren(iter)?;
 
     let instruction = if is_call {
-        Instruction::Call {
-            name_path,
-            args,
-        }
+        Instruction::Call { name_path, args }
     } else {
         Instruction::ExtCall { name_path, args }
     };
@@ -1538,17 +1542,25 @@ fn parse_data_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNo
 }
 
 fn parse_data_kind_node(iter: &mut PeekableIterator<Token>) -> Result<DataKindNode, ParseError> {
+    // (read_only i32 123) ...  //
+    // ^                   ^____// to here
+    // |________________________// current token
+
+    // also
+    // (read_write i32 123)
+    // (uninit i32)
+
     match iter.peek(1) {
         Some(Token::Symbol(kind)) => match kind.as_str() {
             "read_only" => parse_data_kind_node_read_only(iter),
             "read_write" => parse_data_kind_node_read_write(iter),
             "uninit" => parse_data_kind_node_uninit(iter),
             _ => Err(ParseError::new(&format!(
-                "Unknown data kind: {}, only supports \"read_only\", \"read_write\", \"uninit\"",
+                "Unknown data node kind: {}, only supports \"read_only\", \"read_write\", \"uninit\"",
                 kind
             ))),
         },
-        _ => Err(ParseError::new("Missing data kind node")),
+        _ => Err(ParseError::new("Missing data kind for data node")),
     }
 }
 
@@ -1691,7 +1703,7 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
                 let value = expect_string(iter, "data")?;
                 let bytes = value.as_bytes().to_vec();
                 InitedData {
-                    memory_data_type: MemoryDataType::BYTES,
+                    memory_data_type: MemoryDataType::Bytes,
                     length: bytes.len() as u32,
                     align: 1,
                     value: bytes,
@@ -1703,7 +1715,7 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
                 bytes.push(0); // append '\0'
 
                 InitedData {
-                    memory_data_type: MemoryDataType::BYTES,
+                    memory_data_type: MemoryDataType::Bytes,
                     length: bytes.len() as u32,
                     align: 1,
                     value: bytes,
@@ -1731,7 +1743,7 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
             let bytes = expect_bytes(iter, "data")?;
 
             InitedData {
-                memory_data_type: MemoryDataType::BYTES,
+                memory_data_type: MemoryDataType::Bytes,
                 length: bytes.len() as u32,
                 align,
                 value: bytes,
@@ -1743,7 +1755,9 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
     Ok(inited_data)
 }
 
-fn parse_external_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNode, ParseError> {
+fn parse_external_node(
+    iter: &mut PeekableIterator<Token>,
+) -> Result<ModuleElementNode, ParseError> {
     // (external
     //     (library share "math.so.1")
     //     (function $add "add" (param i32) (param i32) (result i32))
@@ -1778,20 +1792,20 @@ fn parse_external_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleEleme
 
     consume_right_paren(iter)?;
 
-    let extern_node = ExternalNode {
+    let external_node = ExternalNode {
         external_library_node,
         external_items,
     };
 
-    Ok(ModuleElementNode::ExternalNode(extern_node))
+    Ok(ModuleElementNode::ExternalNode(external_node))
 }
 
 fn parse_external_library_node(
     iter: &mut PeekableIterator<Token>,
 ) -> Result<ExternalLibraryNode, ParseError> {
     // (library share "math.so.1") ...  //
-    // ^                            ^____// to here
-    // |_________________________________// current token
+    // ^                           ^____// to here
+    // |________________________________// current token
 
     // also:
     // (library system "libc.so.6")
@@ -1824,9 +1838,14 @@ fn parse_external_library_node(
 fn parse_external_function_node(
     iter: &mut PeekableIterator<Token>,
 ) -> Result<ExternalItem, ParseError> {
-    // (function $add "add" (param i32) (param i32) (result i32)
+    // (function $add "add"
+    //      (param i32) (param i32)
+    //      (result i32)) ...  //
+    // ^                  ^____// to here
+    // |_______________________// current token
+
+    // also
     // (function $add "add" (params i32 i32) (result i32))
-    // parse_optional_external_signature
 
     consume_left_paren(iter, "external.function)")?;
     consume_symbol(iter, "function")?;
@@ -2012,15 +2031,26 @@ fn parse_import_module_node(
     })
 }
 
-fn parse_import_function_node(iter: &mut PeekableIterator<Token>) -> Result<ImportItem, ParseError> {
-    // (function $add "add" (param i32) (param i32) (result i32)
+fn parse_import_function_node(
+    iter: &mut PeekableIterator<Token>,
+) -> Result<ImportItem, ParseError> {
+    // (function $add "add"
+    //      (param i32) (param i32)
+    //      (result i32)) ...  //
+    // ^                  ^____// to here
+    // |_______________________// current token
+
+    // also
     // (function $add "add" (params i32 i32) (result i32))
 
     consume_left_paren(iter, "import.function)")?;
     consume_symbol(iter, "function")?;
 
     let id = expect_identifier(iter, "import.function")?;
-    let name = expect_string(iter, "import.function")?;
+
+    // the original exported name path (excludes the module name)
+    let name_path = expect_string(iter, "import.function")?;
+
     let (params, results) = parse_optional_simplified_signature(iter)?;
 
     consume_right_paren(iter)?;
@@ -2034,17 +2064,104 @@ fn parse_import_function_node(iter: &mut PeekableIterator<Token>) -> Result<Impo
         });
     }
 
-    todo!()
-    // Ok(ExternalItem::ExternalFunc(ExternalFuncNode {
-    //     id,
-    //     name,
-    //     params,
-    //     results,
-    // }))
+    Ok(ImportItem::ImportFunction(ImportFunctionNode {
+        id,
+        name_path,
+        params,
+        results,
+    }))
 }
 
 fn parse_import_data_node(iter: &mut PeekableIterator<Token>) -> Result<ImportItem, ParseError> {
-    todo!()
+    // (data $sum "sum" (read_write i32)) ...  //
+    // ^                                  ^____// to here
+    // |_______________________________________// current token
+
+    // also
+    // (data $msg "msg" (read_only i64))
+    // (data $buf "utils::buf" (uninit bytes))
+
+    consume_left_paren(iter, "import.data)")?;
+    consume_symbol(iter, "data")?;
+
+    let id = expect_identifier(iter, "import.data")?;
+
+    // the original exported name path (excludes the module name)
+    let name_path = expect_string(iter, "import.data")?;
+    let data_kind_node = parse_simplified_data_kind_node(iter)?;
+
+    consume_right_paren(iter)?;
+
+    if id.contains(NAME_PATH_SEPARATOR) {
+        return Err(ParseError {
+            message: format!(
+                "The id of import data can not contains path separator, id: \"{}\"",
+                id
+            ),
+        });
+    }
+
+    Ok(ImportItem::ImportData(ImportDataNode {
+        id,
+        name_path,
+        data_kind_node,
+    }))
+}
+
+fn parse_simplified_data_kind_node(
+    iter: &mut PeekableIterator<Token>,
+) -> Result<SimplifiedDataKindNode, ParseError> {
+    // (read_write i32) ...  //
+    // ^                ^____// to here
+    // |_____________________// current token
+
+    // also:
+    // (read_only i64)
+    // (uninit bytes)
+
+    consume_left_paren(iter, "import.data.kind")?;
+    let kind = expect_symbol(iter, "import.data.kind")?;
+    let memory_data_type_str = expect_symbol(iter, "import.data.memory_data_type")?;
+    consume_right_paren(iter)?;
+
+    let memory_data_type = parse_simplified_memory_data_type(&memory_data_type_str)?;
+    match kind.as_str() {
+        "read_only" => Ok(SimplifiedDataKindNode::ReadOnly(memory_data_type)),
+        "read_write" => Ok(SimplifiedDataKindNode::ReadWrite(memory_data_type)),
+        "uninit" => Ok(SimplifiedDataKindNode::Uninit(memory_data_type)),
+        _ => Err(ParseError::new(&format!(
+            "Unknown import data kind: {}, only supports \"read_only\", \"read_write\", \"uninit\"",
+            kind
+        ))),
+    }
+}
+
+fn parse_simplified_memory_data_type(
+    memory_data_type_str: &str,
+) -> Result<MemoryDataType, ParseError> {
+    // i32   ...  //
+    // i64   ...  //
+    // f32   ...  //
+    // f64   ...  //
+    // bytes ...  //
+    // ^     ^____// to here
+    // |__________// current token
+
+    let memory_data_type = match memory_data_type_str {
+        "i32" => MemoryDataType::I32,
+        "i64" => MemoryDataType::I64,
+        "f32" => MemoryDataType::F32,
+        "f64" => MemoryDataType::F64,
+        "bytes" => MemoryDataType::Bytes,
+        _ => {
+            return Err(ParseError::new(&format!(
+                "Unknown imported data memory data type: {}",
+                memory_data_type_str
+            )))
+        }
+    };
+
+    Ok(memory_data_type)
 }
 
 // helper functions
@@ -2354,13 +2471,17 @@ mod tests {
 
     use pretty_assertions::assert_eq;
 
-    use ancvm_types::{opcode::Opcode, DataType, ExternalLibraryType, MemoryDataType};
+    use ancvm_types::{
+        opcode::Opcode, DataType, ExternalLibraryType, MemoryDataType, ModuleShareType,
+    };
 
     use crate::{
         ast::{
-            BranchCase, DataKindNode, DataNode, ExternalNode, ExternalFunctionNode, ExternalItem,
-            ExternalLibraryNode, FunctionNode, ImmF32, ImmF64, InitedData, Instruction, LocalNode,
-            ModuleElementNode, ModuleNode, ParamNode, UninitData,
+            BranchCase, DataKindNode, DataNode, ExternalFunctionNode, ExternalItem,
+            ExternalLibraryNode, ExternalNode, FunctionNode, ImmF32, ImmF64, ImportDataNode,
+            ImportFunctionNode, ImportItem, ImportModuleNode, ImportNode, InitedData, Instruction,
+            LocalNode, ModuleElementNode, ModuleNode, ParamNode, SimplifiedDataKindNode,
+            UninitData,
         },
         lexer::lex,
         peekable_iterator::PeekableIterator,
@@ -2379,8 +2500,8 @@ mod tests {
 
     fn parse_instructions_from_str(text: &str) -> Vec<Instruction> {
         let module_node = parse_from_str(text).unwrap();
-        if let ModuleElementNode::FunctionNode(func_node) = &module_node.element_nodes[0] {
-            func_node.code.clone()
+        if let ModuleElementNode::FunctionNode(function_node) = &module_node.element_nodes[0] {
+            function_node.code.clone()
         } else {
             panic!("Expect function node")
         }
@@ -2457,7 +2578,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_function_node_signature() {
+    fn test_parse_function_signature() {
         assert_eq!(
             parse_from_str(
                 r#"
@@ -2608,7 +2729,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_function_node_local_variables() {
+    fn test_parse_function_local_variables() {
         assert_eq!(
             parse_from_str(
                 r#"
@@ -2649,7 +2770,7 @@ mod tests {
                         },
                         LocalNode {
                             name: "db".to_owned(),
-                            memory_data_type: MemoryDataType::BYTES,
+                            memory_data_type: MemoryDataType::Bytes,
                             data_length: 12,
                             align: 8
                         },
@@ -3633,7 +3754,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_instructions_calling() {
+    fn test_parse_instructions_all_sorts_0f_calling() {
         // test 'call', 'dyncall', 'envcall', 'syscall' and 'extcall'
         assert_eq!(
             parse_instructions_from_str(
@@ -3805,7 +3926,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_data_node_inited() {
+    fn test_parse_data_read_only_and_read_write() {
         assert_eq!(
             parse_from_str(
                 r#"
@@ -3926,7 +4047,7 @@ mod tests {
                         name: "d0".to_owned(),
                         exported: false,
                         data_kind: DataKindNode::ReadOnly(InitedData {
-                            memory_data_type: MemoryDataType::BYTES,
+                            memory_data_type: MemoryDataType::Bytes,
                             length: 13,
                             align: 1,
                             value: "Hello, World!".as_bytes().to_vec()
@@ -3936,7 +4057,7 @@ mod tests {
                         name: "d1".to_owned(),
                         exported: false,
                         data_kind: DataKindNode::ReadOnly(InitedData {
-                            memory_data_type: MemoryDataType::BYTES,
+                            memory_data_type: MemoryDataType::Bytes,
                             length: 14,
                             align: 1,
                             value: "Hello, World!\0".as_bytes().to_vec()
@@ -3946,7 +4067,7 @@ mod tests {
                         name: "d2".to_owned(),
                         exported: false,
                         data_kind: DataKindNode::ReadOnly(InitedData {
-                            memory_data_type: MemoryDataType::BYTES,
+                            memory_data_type: MemoryDataType::Bytes,
                             length: 4,
                             align: 2,
                             value: [0x11, 0x13, 0x17, 0x19].to_vec()
@@ -4078,7 +4199,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_data_node_uninit() {
+    fn test_parse_data_uninit() {
         assert_eq!(
             parse_from_str(
                 r#"
@@ -4140,7 +4261,7 @@ mod tests {
                         name: "d4".to_owned(),
                         exported: false,
                         data_kind: DataKindNode::Uninit(UninitData {
-                            memory_data_type: MemoryDataType::BYTES,
+                            memory_data_type: MemoryDataType::Bytes,
                             length: 12,
                             align: 4,
                         })
@@ -4217,7 +4338,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_extern_node() {
+    fn test_parse_external_node() {
         assert_eq!(
             parse_from_str(
                 r#"
@@ -4286,6 +4407,170 @@ mod tests {
                                 name: "getenv".to_owned(),
                                 params: vec![DataType::I64],
                                 results: vec![DataType::I64]
+                            })
+                        ]
+                    }),
+                ]
+            }
+        );
+
+        // missing library node
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (external
+                    (function $add "add")
+                )
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
+        // unsupported library type
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (external
+                    (library custom "libabc.so")
+                    (function $add "add")
+                )
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
+        // missing fn identifier
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (external
+                    (library user "libabc.so")
+                    (function "add")
+                )
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
+        // fn name contains path separator
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (external
+                    (library user "libabc.so")
+                    (function $a::b "add")
+                )
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
+        // missing fn symbol
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (external
+                    (library user "libabc.so")
+                    (function $add)
+                )
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+    }
+
+    #[test]
+    fn test_parse_import_node() {
+        assert_eq!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.0")
+                (import (module share "math" "1.0")
+                    (function $add "add" (param i32) (param i32) (result i32))
+                    (function $add_wrap "wrap::add" (params i32 i32) (results i32))
+                )
+                (import (module user "format" "1.2")
+                    (data $msg "msg" (read_only i32))
+                    (data $sum "sum" (read_write i64))
+                    (data $buf "utils::buf" (uninit bytes))
+                )
+            )
+            "#
+            )
+            .unwrap(),
+            ModuleNode {
+                name_path: "app".to_owned(),
+                runtime_version_major: 1,
+                runtime_version_minor: 0,
+                constructor_function_name: None,
+                destructor_function_name: None,
+                element_nodes: vec![
+                    ModuleElementNode::ImportNode(ImportNode {
+                        import_module_node: ImportModuleNode {
+                            module_share_type: ModuleShareType::Share,
+                            name: "math".to_owned(),
+                            version_major: 1,
+                            version_minor: 0
+                        },
+                        import_items: vec![
+                            ImportItem::ImportFunction(ImportFunctionNode {
+                                id: "add".to_owned(),
+                                name_path: "add".to_owned(),
+                                params: vec![DataType::I32, DataType::I32,],
+                                results: vec![DataType::I32]
+                            }),
+                            ImportItem::ImportFunction(ImportFunctionNode {
+                                id: "add_wrap".to_owned(),
+                                name_path: "wrap::add".to_owned(),
+                                params: vec![DataType::I32, DataType::I32,],
+                                results: vec![DataType::I32]
+                            }),
+                        ]
+                    }),
+                    ModuleElementNode::ImportNode(ImportNode {
+                        import_module_node: ImportModuleNode {
+                            module_share_type: ModuleShareType::User,
+                            name: "format".to_owned(),
+                            version_major: 1,
+                            version_minor: 2
+                        },
+                        import_items: vec![
+                            ImportItem::ImportData(ImportDataNode {
+                                id: "msg".to_owned(),
+                                name_path: "msg".to_owned(),
+                                data_kind_node: SimplifiedDataKindNode::ReadOnly(
+                                    MemoryDataType::I32
+                                )
+                            }),
+                            ImportItem::ImportData(ImportDataNode {
+                                id: "sum".to_owned(),
+                                name_path: "sum".to_owned(),
+                                data_kind_node: SimplifiedDataKindNode::ReadWrite(
+                                    MemoryDataType::I64
+                                )
+                            }),
+                            ImportItem::ImportData(ImportDataNode {
+                                id: "buf".to_owned(),
+                                name_path: "utils::buf".to_owned(),
+                                data_kind_node: SimplifiedDataKindNode::Uninit(
+                                    MemoryDataType::Bytes
+                                )
                             })
                         ]
                     }),

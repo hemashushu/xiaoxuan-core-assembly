@@ -39,11 +39,11 @@ fn test_assemble_syscall_without_args() {
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -62,8 +62,8 @@ fn test_assemble_syscall_without_args() {
 
     let pid = std::process::id();
 
-    assert!(matches!(result_values0[0], ForeignValue::UInt64(value) if value == pid as u64));
-    assert_eq!(result_values0[1], ForeignValue::UInt32(0));
+    assert!(matches!(result_values0[0], ForeignValue::U64(value) if value == pid as u64));
+    assert_eq!(result_values0[1], ForeignValue::U32(0));
 }
 
 #[test]
@@ -97,11 +97,11 @@ fn test_assemble_syscall_with_2_args() {
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -126,8 +126,8 @@ fn test_assemble_syscall_with_2_args() {
         0,
         0,
         &[
-            ForeignValue::UInt64(buf_addr),
-            ForeignValue::UInt32(BUF_LENGTH),
+            ForeignValue::U64(buf_addr),
+            ForeignValue::U32(BUF_LENGTH),
         ],
     );
 
@@ -140,8 +140,8 @@ fn test_assemble_syscall_with_2_args() {
 
     let null_pos = buf.iter().position(|u| *u == 0).unwrap();
 
-    assert!(matches!(results0[0], ForeignValue::UInt64(value) if value == (null_pos + 1) as u64));
-    assert_eq!(results0[1], ForeignValue::UInt32(0));
+    assert!(matches!(results0[0], ForeignValue::U64(value) if value == (null_pos + 1) as u64));
+    assert_eq!(results0[1], ForeignValue::U32(0));
 
     let path0 = String::from_utf8_lossy(&buf[0..null_pos]);
     let cwd = std::env::current_dir().unwrap();
@@ -179,11 +179,11 @@ fn test_assemble_syscall_error_no() {
     let program_source0 = InMemoryProgramSource::new(module_binaries);
     let program0 = program_source0.build_program().unwrap();
 
-    let func_entry = program0.module_images[0]
+    let function_entry = program0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&func_entry.code);
+    let bytecode_text = print_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -209,15 +209,15 @@ fn test_assemble_syscall_error_no() {
         &mut thread_context0,
         0,
         0,
-        &[ForeignValue::UInt64(file_path_addr0 as u64)],
+        &[ForeignValue::U64(file_path_addr0 as u64)],
     );
     let results0 = result0.unwrap();
 
     assert_eq!(
         results0,
         vec![
-            ForeignValue::UInt64(0),
-            ForeignValue::UInt32(Errno::ENOENT as u32)
+            ForeignValue::U64(0),
+            ForeignValue::U32(Errno::ENOENT as u32)
         ]
     );
 
@@ -225,10 +225,10 @@ fn test_assemble_syscall_error_no() {
         &mut thread_context0,
         0,
         0,
-        &[ForeignValue::UInt64(file_path_addr1 as u64)],
+        &[ForeignValue::U64(file_path_addr1 as u64)],
     );
     let results1 = result1.unwrap();
 
-    assert!(matches!(results1[0], ForeignValue::UInt64(value) if value > 0));
-    assert_eq!(results1[1], ForeignValue::UInt32(0));
+    assert!(matches!(results1[0], ForeignValue::U64(value) if value > 0));
+    assert_eq!(results1[1], ForeignValue::U32(0));
 }

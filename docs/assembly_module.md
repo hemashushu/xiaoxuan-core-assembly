@@ -122,7 +122,7 @@ or
 
 ### local variables
 
-(function $func_name
+(function $function_name
     (local $local_variable_name_0 i32)
     (local $local_variable_name_1 i32)
     (code ...)
@@ -142,7 +142,7 @@ bytes syntax:
 
 e.g.
 
-(function $func_name
+(function $function_name
     (local $buf (bytes 12 4))
     (code ...)
 )
@@ -193,9 +193,11 @@ with 'exported' annotation
 
 (external (library share "math.so.1")
     (function $add "add" (param i32) (param i32) (result i32))
+    (function $sub_i32 "sub" (params i32 i32) (result i32))
+    (function $pause "pause_1s")
 )
 
-the parameters can be writtern as compact mode:
+there is no identifier in the 'param' nodes, and the parameters can be writtern as compact mode, e.g.
 
 (function $add "add" (params i32 i32) (result i32))
 
@@ -204,20 +206,25 @@ library type:
 - (library system "libc.so.6")
 - (library user "lib-test-0.so.1")
 
+(external (library system "libc.so.6")
+    (function $getuid "getuid" (result i32))
+    (function $getenv "getenv" (param (;name;) i64) (result i64))
+)
+
 ## The 'import' node
 
 import functions:
 
 (import (module share "math" "1.0")
     (function $add "add" (param i32) (param i32) (result i32))
-    (function $add_wrap "wrap::add" (param i32) (param i32) (result i32))
+    (function $add_wrap "wrap::add" (params i32 i32) (results i32))
 )
 
 import data:
 
 (import (module user "format" "1.2")
-    (data $sum "sum" (read_write i32))
-    (data $msg "msg" (read_only i64))
+    (data $msg "msg" (read_only i32))
+    (data $sum "sum" (read_write i64))
     (data $buf "utils::buf" (uninit bytes))
 )
 
