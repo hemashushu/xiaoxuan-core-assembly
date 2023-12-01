@@ -26,7 +26,7 @@ fn test_assemble_syscall_without_args() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test (results i64 i32)
+            (function $test (results i64 i32)
                 (code
                     (syscall {SYS_CALL_NUMBER_0})
                 )
@@ -40,8 +40,8 @@ fn test_assemble_syscall_without_args() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
     // println!("{}", bytecode_text);
@@ -77,7 +77,7 @@ fn test_assemble_syscall_with_2_args() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (param $buf_addr i64)
                 (param $buf_len i32)
                 (results i64 i32)
@@ -98,8 +98,8 @@ fn test_assemble_syscall_with_2_args() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
     // println!("{}", bytecode_text);
@@ -160,7 +160,7 @@ fn test_assemble_syscall_error_no() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (param $file_path_buf_addr i64)
                 (results i64 i32)
                 (code
@@ -180,8 +180,8 @@ fn test_assemble_syscall_error_no() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
     // println!("{}", bytecode_text);

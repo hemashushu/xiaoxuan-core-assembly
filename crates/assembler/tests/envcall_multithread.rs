@@ -24,7 +24,7 @@ fn test_assemble_multithread_run_program_in_multithread() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test (results i64)
+            (function $test (results i64)
                 (code
                     (i64.imm 0x11)
                 )
@@ -49,7 +49,7 @@ fn test_assemble_multithread_thread_id() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test (results i64)
+            (function $test (results i64)
                 (code
                     (i64.extend_i32_u
                         (envcall {ENV_CALL_CODE_THREAD_ID})
@@ -77,12 +77,12 @@ fn test_assemble_multithread_thread_create() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test (result i64)
+            (function $test (result i64)
                 (code
                     (drop
                         (envcall {ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT}
                             (envcall {ENV_CALL_CODE_THREAD_CREATE}
-                                (macro.get_func_pub_index $child)   ;; function pub index
+                                (macro.get_function_public_index $child)   ;; function pub index
                                 (i32.imm 0)         ;; thread_start_data_address
                                 (i32.imm 0)         ;; thread_start_data_length
                             )
@@ -94,7 +94,7 @@ fn test_assemble_multithread_thread_create() {
                 )
             )
 
-            (fn $child (result i64)
+            (function $child (result i64)
                 (code
                     (i64.imm 0x13)  ;; set thread_exit_code as 0x13
                 )
@@ -135,7 +135,7 @@ fn test_assemble_multithread_thread_start_data() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test (result i64)
+            (function $test (result i64)
                 (code
                     ;; resize heap to 1 page, because the heap is required to read the thread_start_data.
                     (drop
@@ -204,7 +204,7 @@ fn test_assemble_multithread_thread_running_status() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test (result i64)
+            (function $test (result i64)
                 (local $tid i32)
                 (local $last_status i32)
                 (local $last_result i32)
@@ -212,7 +212,7 @@ fn test_assemble_multithread_thread_running_status() {
                     ;; create child thread
                     (local.store32 $tid
                         (envcall {ENV_CALL_CODE_THREAD_CREATE}
-                            (macro.get_func_pub_index $child)   ;; function pub index
+                            (macro.get_function_public_index $child)   ;; function pub index
                             (i32.imm 0)         ;; thread_start_data_address
                             (i32.imm 0)         ;; thread_start_data_length
                         )
@@ -297,7 +297,7 @@ fn test_assemble_multithread_thread_running_status() {
                 )
             )
 
-            (fn $child (result i64)
+            (function $child (result i64)
                 (code
                     ;; sleep 1000ms
                     (envcall {ENV_CALL_CODE_THREAD_SLEEP} (i64.imm 1000))
@@ -328,7 +328,7 @@ fn test_assemble_multithread_thread_terminate() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test (result i64)
+            (function $test (result i64)
                 (local $tid i32)
                 (local $last_status i32)
                 (local $last_result i32)
@@ -336,7 +336,7 @@ fn test_assemble_multithread_thread_terminate() {
                     ;; create child thread
                     (local.store32 $tid
                         (envcall {ENV_CALL_CODE_THREAD_CREATE}
-                            (macro.get_func_pub_index $child)   ;; function pub index
+                            (macro.get_function_public_index $child)   ;; function pub index
                             (i32.imm 0)         ;; thread_start_data_address
                             (i32.imm 0)         ;; thread_start_data_length
                         )
@@ -408,7 +408,7 @@ fn test_assemble_multithread_thread_terminate() {
                 )
             )
 
-            (fn $child (result i64)
+            (function $child (result i64)
                 (code
                     ;; sleep 5000ms
                     (envcall {ENV_CALL_CODE_THREAD_SLEEP} (i64.imm 5000))
@@ -449,7 +449,7 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test (result i64)
+            (function $test (result i64)
                 (local $tid i32)
                 (local $last_length i32)
                 (local $last_result i32)
@@ -463,7 +463,7 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                     ;; create new thread
                     (local.store32 $tid
                         (envcall {ENV_CALL_CODE_THREAD_CREATE}
-                            (macro.get_func_pub_index $child)   ;; function pub index
+                            (macro.get_function_public_index $child)   ;; function pub index
                             (i32.imm 0)         ;; thread_start_data_address
                             (i32.imm 0)         ;; thread_start_data_length
                         )
@@ -593,7 +593,7 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                 )
             )
 
-            (fn $child (result i64)
+            (function $child (result i64)
                 (local $last_length i32)
                 (local $last_result i32)
                 (code
@@ -721,7 +721,7 @@ fn test_assemble_multithread_thread_message_forward() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test (result i64)
+            (function $test (result i64)
                 (local $tid0 i32)
                 (local $tid1 i32)
                 (code
@@ -733,7 +733,7 @@ fn test_assemble_multithread_thread_message_forward() {
                     ;; create child thread 0 (t0)
                     (local.store32 $tid0
                         (envcall {ENV_CALL_CODE_THREAD_CREATE}
-                            (macro.get_func_pub_index $child0)   ;; function pub index
+                            (macro.get_function_public_index $child0)   ;; function pub index
                             (i32.imm 0)         ;; thread_start_data_address
                             (i32.imm 0)         ;; thread_start_data_length
                         )
@@ -742,7 +742,7 @@ fn test_assemble_multithread_thread_message_forward() {
                     ;; create child thread 1 (t1)
                     (local.store32 $tid1
                         (envcall {ENV_CALL_CODE_THREAD_CREATE}
-                            (macro.get_func_pub_index $child1)   ;; function pub index
+                            (macro.get_function_public_index $child1)   ;; function pub index
                             (i32.imm 0)         ;; thread_start_data_address
                             (i32.imm 0)         ;; thread_start_data_length
                         )
@@ -799,7 +799,7 @@ fn test_assemble_multithread_thread_message_forward() {
                 )
             )
 
-            (fn $child0 (result i64)
+            (function $child0 (result i64)
                 (code
                     ;; resize heap to 1 page, because the heap is required to send/receive the message.
                     (drop
@@ -823,7 +823,7 @@ fn test_assemble_multithread_thread_message_forward() {
                 )
             )
 
-            (fn $child1 (result i64)
+            (function $child1 (result i64)
                 (code
                     ;; resize heap to 1 page, because the heap is required to send/receive the message.
                     (drop
@@ -878,7 +878,7 @@ fn test_assemble_multithread_thread_sleep() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (result i64)
                 (code
                     (envcall {ENV_CALL_CODE_THREAD_SLEEP}

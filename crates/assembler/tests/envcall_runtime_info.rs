@@ -25,7 +25,7 @@ fn test_assemble_envcall_runtime_version() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test (result i64)
+            (function $test (result i64)
                 (code
                     (envcall {ENV_CALL_CODE_RUNTIME_VERSION})
                 )
@@ -39,8 +39,8 @@ fn test_assemble_envcall_runtime_version() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
     assert_eq!(
@@ -75,7 +75,7 @@ fn test_assemble_envcall_runtime_code_name() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test (results i32 i64)
+            (function $test (results i32 i64)
                 (local $buf (bytes 8 8))
                 (code
                     (envcall {ENV_CALL_CODE_RUNTIME_NAME} (host.addr_local $buf))
@@ -91,8 +91,8 @@ fn test_assemble_envcall_runtime_code_name() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
     // println!("{}", bytecode_text);

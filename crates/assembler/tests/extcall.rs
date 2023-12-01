@@ -27,10 +27,10 @@ fn test_assemble_extcall_with_system_libc_getuid() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (extern (library system "libc.so.6")
-                (fn $getuid "getuid" (result i32))
+            (external (library system "libc.so.6")
+                (function $getuid "getuid" (result i32))
             )
-            (fn $test (result i32)
+            (function $test (result i32)
                 (code
                     (extcall $getuid)
                 )
@@ -60,11 +60,11 @@ fn test_assemble_extcall_with_system_libc_getenv() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (extern (library system "libc.so.6")
-                (fn $getenv "getenv" (param i64) (result i64))
+            (external (library system "libc.so.6")
+                (function $getenv "getenv" (param i64) (result i64))
             )
             (data $pwd (read_only cstring "PWD"))
-            (fn $test (result i64)
+            (function $test (result i64)
                 (code
                     (extcall $getenv
                         (host.addr_data $pwd)
@@ -99,10 +99,10 @@ fn test_assemble_extcall_with_user_lib() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (extern (library user "lib-test-0.so.1")
-                (fn $add "add" (params i32 i32) (result i32))
+            (external (library user "lib-test-0.so.1")
+                (function $add "add" (params i32 i32) (result i32))
             )
-            (fn $test (param $a i32) (param $b i32) (result i32)
+            (function $test (param $a i32) (param $b i32) (result i32)
                 (code
                     (extcall $add
                         (local.load32_i32 $a)

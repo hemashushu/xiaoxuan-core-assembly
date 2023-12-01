@@ -19,7 +19,7 @@
 //    tree structure. e.g.
 //
 //    ```clojure
-//    (fn $name (param $lhs i32) (param $rhs i32) (result i32)
+//    (function $name (param $lhs i32) (param $rhs i32) (result i32)
 //        (code
 //            (i32.add
 //                (local.load32_i32 $lhs) (local.load32_i32 $rhs)
@@ -71,13 +71,13 @@
 //    )
 //    ```
 
-use ancvm_types::{opcode::Opcode, DataType, ExternalLibraryType, MemoryDataType};
+use ancvm_types::{opcode::Opcode, DataType, ExternalLibraryType, MemoryDataType, ModuleShareType};
 
 use crate::{
     ast::{
-        BranchCase, DataKindNode, DataNode, ExternNode, ExternalFuncNode, ExternalItem,
-        ExternalLibraryNode, FuncNode, ImmF32, ImmF64, InitedData, Instruction, LocalNode,
-        ModuleElementNode, ModuleNode, ParamNode, UninitData,
+        BranchCase, DataKindNode, DataNode, ExternalNode, ExternalFunctionNode, ExternalItem,
+        ExternalLibraryNode, FunctionNode, ImmF32, ImmF64, ImportItem, ImportModuleNode, ImportNode,
+        InitedData, Instruction, LocalNode, ModuleElementNode, ModuleNode, ParamNode, UninitData,
     },
     instruction_kind::{init_instruction_kind_table, InstructionKind, INSTRUCTION_KIND_TABLE},
     lexer::{NumberToken, Token},
@@ -115,13 +115,42 @@ pub fn parse_module_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleNod
     let (runtime_version_major, runtime_version_minor) = parse_module_runtime_version_node(iter)?;
 
     // optional parameters
-    if exist_child_node(iter, "constructor") {
-        todo!()
-    }
+    let is_sub_module = name.contains(NAME_PATH_SEPARATOR);
+    let constructor_function_name = if exist_child_node(iter, "constructor") {
+        if is_sub_module {
+            return Err(ParseError::new(&format!(
+                "Only the main module can define the constructor function, current submodule: {}",
+                name
+            )));
+        }
 
-    if exist_child_node(iter, "destructor") {
-        todo!()
-    }
+        consume_left_paren(iter, "constructor")?;
+        consume_symbol(iter, "constructor")?;
+        let id = expect_identifier(iter, "constructor")?;
+        consume_right_paren(iter)?;
+
+        Some(id)
+    } else {
+        None
+    };
+
+    let destructor_function_name = if exist_child_node(iter, "destructor") {
+        if is_sub_module {
+            return Err(ParseError::new(&format!(
+                "Only the main module can define the constructor function, current submodule: {}",
+                name
+            )));
+        }
+
+        consume_left_paren(iter, "destructor")?;
+        consume_symbol(iter, "destructor")?;
+        let id = expect_identifier(iter, "destructor")?;
+        consume_right_paren(iter)?;
+
+        Some(id)
+    } else {
+        None
+    };
 
     let mut element_nodes: Vec<ModuleElementNode> = vec![];
 
@@ -129,9 +158,10 @@ pub fn parse_module_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleNod
     while iter.look_ahead_equals(0, &Token::LeftParen) {
         if let Some(Token::Symbol(child_node_name)) = iter.peek(1) {
             let element_node = match child_node_name.as_str() {
-                "fn" => parse_func_node(iter)?,
+                "function" => parse_function_node(iter)?,
                 "data" => parse_data_node(iter)?,
-                "extern" => parse_extern_node(iter)?,
+                "external" => parse_external_node(iter)?,
+                "import" => parse_import_node(iter)?,
                 _ => {
                     return Err(ParseError::new(&format!(
                         "Unknown module element: {}",
@@ -151,6 +181,8 @@ pub fn parse_module_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleNod
         name_path: name,
         runtime_version_major,
         runtime_version_minor,
+        constructor_function_name,
+        destructor_function_name,
         element_nodes,
     };
 
@@ -169,39 +201,43 @@ fn parse_module_runtime_version_node(
     let ver_string = expect_string(iter, "module runtime version")?;
     consume_right_paren(iter)?;
 
-    let vers: Vec<&str> = ver_string.split('.').collect();
-    if vers.len() != 2 {
+    parse_version(&ver_string)
+}
+
+fn parse_version(ver_string: &str) -> Result<(u16, u16), ParseError> {
+    let ver_parts: Vec<&str> = ver_string.split('.').collect();
+    if ver_parts.len() != 2 {
         return Err(ParseError::new(&format!(
-            "Error runtime version number, expect: \"major.minor\", actual: \"{}\"",
+            "Error version number, expect: \"major.minor\", actual: \"{}\"",
             ver_string
         )));
     }
 
-    let major = vers[0].parse::<u16>().map_err(|_| {
+    let major = ver_parts[0].parse::<u16>().map_err(|_| {
         ParseError::new(&format!(
             "Major version '{}' is not a valid number.",
-            vers[0]
+            ver_parts[0]
         ))
     })?;
 
-    let minor = vers[1].parse::<u16>().map_err(|_| {
+    let minor = ver_parts[1].parse::<u16>().map_err(|_| {
         ParseError::new(&format!(
             "Minor version '{}' is not a valid number.",
-            vers[1]
+            ver_parts[1]
         ))
     })?;
 
     Ok((major, minor))
 }
 
-fn parse_func_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNode, ParseError> {
-    // (fn ...) ...  //
-    // ^        ^____// to here
-    // |_____________// current token
+fn parse_function_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNode, ParseError> {
+    // (function ...) ...  //
+    // ^              ^____// to here
+    // |___________________// current token
 
-    // the node 'fn' syntax:
+    // the node 'function' syntax:
     //
-    // (fn $name (param $param_0 DATA_TYPE) ...
+    // (function $name (param $param_0 DATA_TYPE) ...
     //           (result DATA_TYPE) ...
     //           (local $local_variable_name LOCAL_DATA_TYPE) ...
     //           (code ...)
@@ -209,25 +245,25 @@ fn parse_func_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNo
 
     // e.g.
     //
-    // (fn $add (param $lhs i32) (param $rhs i32) (result i32) ...)     ;; signature
-    // (fn $add (param $lhs i32) (result i32) (result i32) ...)         ;; signature with multiple return values
-    // (fn $add (param $lhs i32) (results i32 i32) ...)                 ;; signature with multiple return values
-    // (fn $add
+    // (function $add (param $lhs i32) (param $rhs i32) (result i32) ...)     ;; signature
+    // (function $add (param $lhs i32) (result i32) (result i32) ...)         ;; signature with multiple return values
+    // (function $add (param $lhs i32) (results i32 i32) ...)                 ;; signature with multiple return values
+    // (function $add
     //     (local $sum i32)             ;; local variable with identifier and data type
     //     (local $db (bytes 12 4))     ;; bytes-type local variable
     //     ...
     // )
     //
-    // (fn $add
+    // (function $add
     //     (code ...)                   ;; the function body, the instructions sequence, sholud be written inside the node '(code)'
     // )
 
     // function with 'exported' annotation
-    // (fn $add exported ...)
+    // (function $add exported ...)
 
-    consume_left_paren(iter, "fn")?;
-    consume_symbol(iter, "fn")?;
-    let name = expect_identifier(iter, "fn")?;
+    consume_left_paren(iter, "function")?;
+    consume_symbol(iter, "function")?;
+    let name = expect_identifier(iter, "function")?;
     let exported = expect_specified_symbol_optional(iter, "exported");
     let (params, results) = parse_optional_signature(iter)?;
     let locals: Vec<LocalNode> = parse_optional_local_variables(iter)?;
@@ -246,7 +282,7 @@ fn parse_func_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNo
     // function's code implies an instruction 'end' at the end.
     // instructions.push(Instruction::NoParams(Opcode::end));
 
-    let func_node = FuncNode {
+    let func_node = FunctionNode {
         name,
         exported,
         params,
@@ -255,7 +291,7 @@ fn parse_func_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNo
         code,
     };
 
-    Ok(ModuleElementNode::FuncNode(func_node))
+    Ok(ModuleElementNode::FunctionNode(func_node))
 }
 
 fn parse_optional_signature(
@@ -728,7 +764,7 @@ fn parse_instruction_with_parentheses(
                     parse_instruction_sequence_node(iter, node_name)?
                 }
                 //
-                InstructionKind::Call => parse_instruction_kind_call_by_name(iter, "call", true)?,
+                InstructionKind::Call => parse_instruction_kind_call_by_name_path(iter, "call", true)?,
                 InstructionKind::DynCall => parse_instruction_kind_call_by_operand_num(iter)?,
                 InstructionKind::EnvCall => {
                     parse_instruction_kind_call_by_num(iter, "envcall", true)?
@@ -737,15 +773,15 @@ fn parse_instruction_with_parentheses(
                     parse_instruction_kind_call_by_num(iter, "syscall", false)?
                 }
                 InstructionKind::ExtCall => {
-                    parse_instruction_kind_call_by_name(iter, "extcall", false)?
+                    parse_instruction_kind_call_by_name_path(iter, "extcall", false)?
                 }
                 // macro
-                InstructionKind::MacroGetFuncPubIndex => {
-                    parse_instruction_kind_get_func_pub_index(iter)?
+                InstructionKind::MacroGetFunctionPublicIndex => {
+                    parse_instruction_kind_get_function_public_index(iter)?
                 }
                 InstructionKind::Debug => parse_instruction_kind_debug(iter)?,
                 InstructionKind::Unreachable => parse_instruction_kind_unreachable(iter)?,
-                InstructionKind::HostAddrFunc => parse_instruction_kind_host_addr_func(iter)?,
+                InstructionKind::HostAddrFunction => parse_instruction_kind_host_addr_function(iter)?,
             }
         } else {
             return Err(ParseError::new(&format!(
@@ -1303,18 +1339,18 @@ fn parse_instruction_kind_for(
     })
 }
 
-fn parse_instruction_kind_call_by_name(
+fn parse_instruction_kind_call_by_name_path(
     iter: &mut PeekableIterator<Token>,
     node_name: &str,
     is_call: bool,
 ) -> Result<Instruction, ParseError> {
-    // (call/extcall $name ...) ...  //
-    // ^                        ^____// to here
-    // ______________________________// current token
+    // (call/extcall $name_path ...) ...  //
+    // ^                             ^____// to here
+    // ___________________________________// current token
 
     consume_left_paren(iter, node_name)?;
     consume_symbol(iter, node_name)?;
-    let name = expect_identifier(iter, node_name)?;
+    let name_path = expect_identifier(iter, node_name)?;
 
     let mut args = vec![];
     while let Some(arg) = parse_next_instruction_optional(iter)? {
@@ -1325,11 +1361,11 @@ fn parse_instruction_kind_call_by_name(
 
     let instruction = if is_call {
         Instruction::Call {
-            name_path: name,
+            name_path,
             args,
         }
     } else {
-        Instruction::ExtCall { name, args }
+        Instruction::ExtCall { name_path, args }
     };
 
     Ok(instruction)
@@ -1390,19 +1426,19 @@ fn parse_instruction_kind_call_by_operand_num(
     })
 }
 
-fn parse_instruction_kind_get_func_pub_index(
+fn parse_instruction_kind_get_function_public_index(
     iter: &mut PeekableIterator<Token>,
 ) -> Result<Instruction, ParseError> {
-    // (macro.get_func_pub_index name ...) ...  //
-    // ^                                   ^____// to here
-    // _________________________________________// current token
+    // (macro.get_function_public_index $name_path ...) ...  //
+    // ^                                                ^____// to here
+    // ______________________________________________________// current token
 
-    consume_left_paren(iter, "macro.get_func_pub_index")?;
-    consume_symbol(iter, "macro.get_func_pub_index")?;
-    let name = expect_identifier(iter, "macro.get_func_pub_index")?;
+    consume_left_paren(iter, "macro.get_function_public_index")?;
+    consume_symbol(iter, "macro.get_function_public_index")?;
+    let name_path = expect_identifier(iter, "macro.get_function_public_index")?;
     consume_right_paren(iter)?;
 
-    Ok(Instruction::MacroGetFuncPubIndex(name))
+    Ok(Instruction::MacroGetFunctionPublicIndex(name_path))
 }
 
 fn parse_instruction_kind_debug(
@@ -1437,19 +1473,19 @@ fn parse_instruction_kind_unreachable(
     Ok(Instruction::Unreachable(num))
 }
 
-fn parse_instruction_kind_host_addr_func(
+fn parse_instruction_kind_host_addr_function(
     iter: &mut PeekableIterator<Token>,
 ) -> Result<Instruction, ParseError> {
-    // (host.addr_func name ...) ...  //
-    // ^                         ^____// to here
-    // _______________________________// current token
+    // (host.addr_function $name_path ...) ...  //
+    // ^                                   ^____// to here
+    // _________________________________________// current token
 
-    consume_left_paren(iter, "host.addr_func")?;
-    consume_symbol(iter, "host.addr_func")?;
-    let name = expect_identifier(iter, "host.addr_func")?;
+    consume_left_paren(iter, "host.addr_function")?;
+    consume_symbol(iter, "host.addr_function")?;
+    let name_path = expect_identifier(iter, "host.addr_function")?;
     consume_right_paren(iter)?;
 
-    Ok(Instruction::HostAddrFunc(name))
+    Ok(Instruction::HostAddrFunction(name_path))
 }
 
 fn parse_data_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNode, ParseError> {
@@ -1707,16 +1743,16 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
     Ok(inited_data)
 }
 
-fn parse_extern_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNode, ParseError> {
-    // (extern
+fn parse_external_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNode, ParseError> {
+    // (external
     //     (library share "math.so.1")
-    //     (fn $add "add" (param i32) (param i32) (result i32)
+    //     (function $add "add" (param i32) (param i32) (result i32))
     //     ) ...  //
     // ^     ^____// to here
     // |__________// current token
 
-    consume_left_paren(iter, "extern")?;
-    consume_symbol(iter, "extern")?;
+    consume_left_paren(iter, "external")?;
+    consume_symbol(iter, "external")?;
 
     let external_library_node = parse_external_library_node(iter)?;
 
@@ -1725,8 +1761,8 @@ fn parse_extern_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElement
     // parse external items
     while iter.look_ahead_equals(0, &Token::LeftParen) {
         if let Some(Token::Symbol(child_node_name)) = iter.peek(1) {
-            let element_node = match child_node_name.as_str() {
-                "fn" => parse_external_func_node(iter)?,
+            let external_item = match child_node_name.as_str() {
+                "function" => parse_external_function_node(iter)?,
                 _ => {
                     return Err(ParseError::new(&format!(
                         "Unknown external item: {}",
@@ -1734,7 +1770,7 @@ fn parse_extern_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElement
                     )))
                 }
             };
-            external_items.push(element_node);
+            external_items.push(external_item);
         } else {
             break;
         }
@@ -1742,12 +1778,12 @@ fn parse_extern_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElement
 
     consume_right_paren(iter)?;
 
-    let extern_node = ExternNode {
+    let extern_node = ExternalNode {
         external_library_node,
         external_items,
     };
 
-    Ok(ModuleElementNode::ExternNode(extern_node))
+    Ok(ModuleElementNode::ExternalNode(extern_node))
 }
 
 fn parse_external_library_node(
@@ -1785,34 +1821,34 @@ fn parse_external_library_node(
     })
 }
 
-fn parse_external_func_node(
+fn parse_external_function_node(
     iter: &mut PeekableIterator<Token>,
 ) -> Result<ExternalItem, ParseError> {
-    // (fn $add "add" (param i32) (param i32) (result i32)
-    // (fn $add "add" (params i32 i32) (result i32))
+    // (function $add "add" (param i32) (param i32) (result i32)
+    // (function $add "add" (params i32 i32) (result i32))
     // parse_optional_external_signature
 
-    consume_left_paren(iter, "extern.fn)")?;
-    consume_symbol(iter, "fn")?;
+    consume_left_paren(iter, "external.function)")?;
+    consume_symbol(iter, "function")?;
 
-    let name = expect_identifier(iter, "extern.fn")?;
-    let symbol = expect_string(iter, "extern.fn")?;
+    let id = expect_identifier(iter, "external.function")?;
+    let name = expect_string(iter, "external.function")?;
     let (params, results) = parse_optional_simplified_signature(iter)?;
 
     consume_right_paren(iter)?;
 
-    if name.contains(NAME_PATH_SEPARATOR) {
+    if id.contains(NAME_PATH_SEPARATOR) {
         return Err(ParseError {
             message: format!(
-                "The name of external function can not contains path separator, name: \"{}\"",
-                name
+                "The id of external function can not contains path separator, id: \"{}\"",
+                id
             ),
         });
     }
 
-    Ok(ExternalItem::ExternalFunc(ExternalFuncNode {
+    Ok(ExternalItem::ExternalFunction(ExternalFunctionNode {
+        id,
         name,
-        symbol,
         params,
         results,
     }))
@@ -1891,6 +1927,124 @@ fn parse_simplified_params_node(
     consume_right_paren(iter)?;
 
     Ok(data_types)
+}
+
+fn parse_import_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNode, ParseError> {
+    // (import
+    //     (module share "math" "1.0")
+    //     (function $add "add" (param i32) (param i32) (result i32))
+    //     (data $msg "msg" (read_only i32))
+    //     ) ...  //
+    // ^     ^____// to here
+    // |__________// current token
+
+    consume_left_paren(iter, "import")?;
+    consume_symbol(iter, "import")?;
+
+    let import_module_node = parse_import_module_node(iter)?;
+
+    let mut import_items: Vec<ImportItem> = vec![];
+
+    // parse import items
+    while iter.look_ahead_equals(0, &Token::LeftParen) {
+        if let Some(Token::Symbol(child_node_name)) = iter.peek(1) {
+            let import_item = match child_node_name.as_str() {
+                "function" => parse_import_function_node(iter)?,
+                "data" => parse_import_data_node(iter)?,
+                _ => {
+                    return Err(ParseError::new(&format!(
+                        "Unknown import item: {}",
+                        child_node_name
+                    )))
+                }
+            };
+            import_items.push(import_item);
+        } else {
+            break;
+        }
+    }
+
+    consume_right_paren(iter)?;
+
+    let import_node = ImportNode {
+        import_module_node,
+        import_items,
+    };
+
+    Ok(ModuleElementNode::ImportNode(import_node))
+}
+
+fn parse_import_module_node(
+    iter: &mut PeekableIterator<Token>,
+) -> Result<ImportModuleNode, ParseError> {
+    // (module share "math" "1.0") ...  //
+    // ^                     ^____// to here
+    // |__________________________// current token
+
+    // also:
+    // (module user "math" "1.0")
+
+    consume_left_paren(iter, "import.module")?;
+    consume_symbol(iter, "module")?;
+
+    let module_share_type_str = expect_symbol(iter, "import.module.share_type")?;
+    let module_share_type = match module_share_type_str.as_str() {
+        "share" => ModuleShareType::Share,
+        "user" => ModuleShareType::User,
+        _ => {
+            return Err(ParseError {
+                message: format!("Unknown module share type: {}", module_share_type_str),
+            })
+        }
+    };
+
+    let name = expect_string(iter, "import.module.name")?;
+    let ver_string = expect_string(iter, "import.module.version")?;
+    consume_right_paren(iter)?;
+
+    let (version_major, version_minor) = parse_version(&ver_string)?;
+
+    Ok(ImportModuleNode {
+        module_share_type,
+        name,
+        version_major,
+        version_minor,
+    })
+}
+
+fn parse_import_function_node(iter: &mut PeekableIterator<Token>) -> Result<ImportItem, ParseError> {
+    // (function $add "add" (param i32) (param i32) (result i32)
+    // (function $add "add" (params i32 i32) (result i32))
+
+    consume_left_paren(iter, "import.function)")?;
+    consume_symbol(iter, "function")?;
+
+    let id = expect_identifier(iter, "import.function")?;
+    let name = expect_string(iter, "import.function")?;
+    let (params, results) = parse_optional_simplified_signature(iter)?;
+
+    consume_right_paren(iter)?;
+
+    if id.contains(NAME_PATH_SEPARATOR) {
+        return Err(ParseError {
+            message: format!(
+                "The id of import function can not contains path separator, id: \"{}\"",
+                id
+            ),
+        });
+    }
+
+    todo!()
+    // Ok(ExternalItem::ExternalFunc(ExternalFuncNode {
+    //     id,
+    //     name,
+    //     params,
+    //     results,
+    // }))
+}
+
+fn parse_import_data_node(iter: &mut PeekableIterator<Token>) -> Result<ImportItem, ParseError> {
+    todo!()
 }
 
 // helper functions
@@ -2204,8 +2358,8 @@ mod tests {
 
     use crate::{
         ast::{
-            BranchCase, DataKindNode, DataNode, ExternNode, ExternalFuncNode, ExternalItem,
-            ExternalLibraryNode, FuncNode, ImmF32, ImmF64, InitedData, Instruction, LocalNode,
+            BranchCase, DataKindNode, DataNode, ExternalNode, ExternalFunctionNode, ExternalItem,
+            ExternalLibraryNode, FunctionNode, ImmF32, ImmF64, InitedData, Instruction, LocalNode,
             ModuleElementNode, ModuleNode, ParamNode, UninitData,
         },
         lexer::lex,
@@ -2225,7 +2379,7 @@ mod tests {
 
     fn parse_instructions_from_str(text: &str) -> Vec<Instruction> {
         let module_node = parse_from_str(text).unwrap();
-        if let ModuleElementNode::FuncNode(func_node) = &module_node.element_nodes[0] {
+        if let ModuleElementNode::FunctionNode(func_node) = &module_node.element_nodes[0] {
             func_node.code.clone()
         } else {
             panic!("Expect function node")
@@ -2240,24 +2394,66 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_empty_module() {
+    fn test_parse_module_node() {
         assert_eq!(
-            parse_from_str(r#"(module $app (runtime_version "1.2"))"#).unwrap(),
+            parse_from_str(r#"(module $app (runtime_version "1.0"))"#).unwrap(),
             ModuleNode {
                 name_path: "app".to_owned(),
                 runtime_version_major: 1,
-                runtime_version_minor: 2,
+                runtime_version_minor: 0,
+                constructor_function_name: None,
+                destructor_function_name: None,
                 element_nodes: vec![]
             }
         );
 
+        assert_eq!(
+            parse_from_str(
+                r#"
+            (module $app
+                (runtime_version "1.2")
+                (constructor $abc)
+                (destructor $xyz)
+            )
+            "#
+            )
+            .unwrap(),
+            ModuleNode {
+                name_path: "app".to_owned(),
+                runtime_version_major: 1,
+                runtime_version_minor: 2,
+                constructor_function_name: Some("abc".to_string()),
+                destructor_function_name: Some("xyz".to_string()),
+                element_nodes: vec![]
+            }
+        );
+
+        // empty
         assert!(parse_from_str(r#"()"#).is_err());
+
+        // missing essential nodes
         assert!(parse_from_str(r#"(module)"#).is_err());
+
+        // missing node 'runtime'
         assert!(parse_from_str(r#"(module $app)"#).is_err());
         assert!(parse_from_str(r#"(module $app ())"#).is_err());
+
+        // missing runtime number
         assert!(parse_from_str(r#"(module $app (runtime_version))"#).is_err());
+
+        // error version number
         assert!(parse_from_str(r#"(module $app (runtime_version "1"))"#).is_err());
         assert!(parse_from_str(r#"(module $app (runtime_version "1a.2b"))"#).is_err());
+
+        // define constructor or destructor in submodule
+        assert!(parse_from_str(
+            r#"(module $app::utils (runtime_version "1.0") (constructor $abc))"#
+        )
+        .is_err());
+        assert!(parse_from_str(
+            r#"(module $app::utils (runtime_version "1.0") (destructor $xyz))"#
+        )
+        .is_err());
     }
 
     #[test]
@@ -2267,7 +2463,7 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (fn $add (param $lhs i32) (param $rhs i64) (result i32) (result i64)
+                (function $add (param $lhs i32) (param $rhs i64) (result i32) (result i64)
                     ;; no local variables
                     (code)
                 )
@@ -2279,7 +2475,9 @@ mod tests {
                 name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                element_nodes: vec![ModuleElementNode::FuncNode(FuncNode {
+                constructor_function_name: None,
+                destructor_function_name: None,
+                element_nodes: vec![ModuleElementNode::FunctionNode(FunctionNode {
                     name: "add".to_owned(),
                     exported: false,
                     params: vec![
@@ -2306,7 +2504,7 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (fn $add (param $lhs i32) (param $rhs i64) (results i32 i64) (result f32) (result f64)
+                (function $add (param $lhs i32) (param $rhs i64) (results i32 i64) (result f32) (result f64)
                     ;; no local variables
                     (code)
                 )
@@ -2318,7 +2516,9 @@ mod tests {
                 name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                element_nodes: vec![ModuleElementNode::FuncNode(FuncNode {
+                constructor_function_name: None,
+                destructor_function_name: None,
+                element_nodes: vec![ModuleElementNode::FunctionNode(FunctionNode {
                     name: "add".to_owned(),
                     exported: false,
                     params: vec![
@@ -2345,7 +2545,7 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (fn $add exported (code))
+                (function $add exported (code))
             )
             "#
             )
@@ -2354,7 +2554,9 @@ mod tests {
                 name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                element_nodes: vec![ModuleElementNode::FuncNode(FuncNode {
+                constructor_function_name: None,
+                destructor_function_name: None,
+                element_nodes: vec![ModuleElementNode::FunctionNode(FunctionNode {
                     name: "add".to_owned(),
                     exported: true,
                     params: vec![],
@@ -2371,7 +2573,7 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (fn (code))
+                (function (code))
             )
             "#
             ),
@@ -2384,7 +2586,7 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (fn $a::b (code))
+                (function $a::b (code))
             )
             "#
             ),
@@ -2397,7 +2599,7 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (fn $add)
+                (function $add)
             )
             "#
             ),
@@ -2412,7 +2614,7 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (fn $add
+                (function $add
                     ;; no params and results
                     (local $sum i32) (local $count i64) (local $db (bytes 12 8)) (local $average f32)
                     (code)
@@ -2425,7 +2627,9 @@ mod tests {
                 name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                element_nodes: vec![ModuleElementNode::FuncNode(FuncNode {
+                constructor_function_name: None,
+                destructor_function_name: None,
+                element_nodes: vec![ModuleElementNode::FunctionNode(FunctionNode {
                     name: "add".to_owned(),
                     exported: false,
                     params: vec![],
@@ -2467,7 +2671,7 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (fn $test
+                (function $test
                     (local $a::b i32)
                     (code)
                 )
@@ -2485,7 +2689,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (function $test
                     (code
                         nop
                         zero
@@ -2532,7 +2736,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (function $test
                     (code
                         (i32.imm 11)
                         (i32.imm 0x13)
@@ -2580,7 +2784,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (function $test
                     (code
                         (f32.imm 3.1415927)
                         (f32.imm 0x40490fdb)
@@ -2617,7 +2821,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (function $test
                     (code
                         (i32.eqz (i32.imm 11))
                         (i32.inc 1 (i32.imm 13))
@@ -2673,7 +2877,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (function $test
                     (code
                         (local.load32_i32 $sum)
                         (local.load64_i64 $count 4)
@@ -2735,7 +2939,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (function $test
                     (code
                         (data.load32_i32 $sum)
                         (data.load64_i64 $count 4)
@@ -2797,7 +3001,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (function $test
                     (code
                         (heap.load32_i32 (i32.imm 11))
                         (heap.load64_i64 4 (i32.imm 13))
@@ -2844,7 +3048,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (function $test
                     (code
                         (when
                             (i32.eq (i32.imm 11) (i32.imm 13))
@@ -2871,7 +3075,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (function $test
                     (code
                         (when
                             zero
@@ -2905,7 +3109,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (function $test
                     (code
                         (when (param $a i32) zero zero)
                     )
@@ -2922,7 +3126,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (function $test
                     (code
                         (when (result i32) zero zero)
                     )
@@ -2939,7 +3143,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (function $test
                     (code
                         (when (local $a i32) zero zero)
                     )
@@ -2958,7 +3162,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (function $test
                     (code
                         (if
                             (i32.eq (i32.imm 11) (i32.imm 13))
@@ -2987,7 +3191,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (function $test
                     (code
                         (if
                             (result i32)
@@ -3042,7 +3246,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (function $test
                     (code
                         (if
                             (param $a i32)
@@ -3062,7 +3266,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (function $test
                     (code
                         (if
                             (local $a i32)
@@ -3084,7 +3288,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (function $test
                     (code
                         (branch
                             (result i32)
@@ -3138,7 +3342,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (function $test
                     (code
                         (branch
                             (param $a i32)
@@ -3158,7 +3362,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (function $test
                     (code
                         (branch
                             (local $a i32)
@@ -3180,7 +3384,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (function $test
                     (code
                         (for (param $sum i32) (param $n i32) (result i32) (local $temp i32)
                             (do
@@ -3306,7 +3510,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test (param $sum i32) (param $n i32) (result i32)
+                (function $test (param $sum i32) (param $n i32) (result i32)
                     (code
                         ;; n = n - 1
                         (local.store32 $n (i32.dec 1 (local.load32_i32 $n)))
@@ -3339,7 +3543,9 @@ mod tests {
                 name_path: "lib".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                element_nodes: vec![ModuleElementNode::FuncNode(FuncNode {
+                constructor_function_name: None,
+                destructor_function_name: None,
+                element_nodes: vec![ModuleElementNode::FunctionNode(FunctionNode {
                     name: "test".to_owned(),
                     exported: false,
                     params: vec![
@@ -3434,7 +3640,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (function $test
                     (code
                         ;; call: add(11, 13)
                         (call $add (i32.imm 11) (i32.imm 13))
@@ -3452,7 +3658,7 @@ mod tests {
                         (extcall $format (local.load64_i64 $str) (local.load64_i64 $values))
 
                         ;; get the public index of the specified function
-                        (macro.get_func_pub_index $add)
+                        (macro.get_function_public_index $add)
                     )
                 )
             )
@@ -3496,7 +3702,7 @@ mod tests {
                     ]
                 },
                 Instruction::ExtCall {
-                    name: "format".to_owned(),
+                    name_path: "format".to_owned(),
                     args: vec![
                         Instruction::LocalLoad {
                             opcode: Opcode::local_load64_i64,
@@ -3510,7 +3716,7 @@ mod tests {
                         }
                     ]
                 },
-                Instruction::MacroGetFuncPubIndex("add".to_owned()),
+                Instruction::MacroGetFunctionPublicIndex("add".to_owned()),
             ]
         );
     }
@@ -3522,7 +3728,7 @@ mod tests {
                 r#"
             (module $lib
                 (runtime_version "1.0")
-                (fn $test
+                (function $test
                     (code
                         panic
                         (unreachable 0x11)
@@ -3532,7 +3738,7 @@ mod tests {
                         (host.addr_data $msg 0x23)
                         (host.addr_data_long $title (i32.imm 0x29))
                         (host.addr_heap 0x31 (i32.imm 0x37))
-                        (host.addr_func $add)
+                        (host.addr_function $add)
                         (host.copy_from_heap
                             (i32.imm 0x41)
                             (i32.imm 0x43)
@@ -3577,7 +3783,7 @@ mod tests {
                     offset: 0x31,
                     addr: Box::new(Instruction::ImmI32(0x37)),
                 },
-                Instruction::HostAddrFunc("add".to_owned(),),
+                Instruction::HostAddrFunction("add".to_owned(),),
                 Instruction::NoParams {
                     opcode: Opcode::host_copy_from_heap,
                     operands: vec![
@@ -3620,6 +3826,8 @@ mod tests {
                 name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
+                constructor_function_name: None,
+                destructor_function_name: None,
                 element_nodes: vec![
                     ModuleElementNode::DataNode(DataNode {
                         name: "d0".to_owned(),
@@ -3711,6 +3919,8 @@ mod tests {
                 name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
+                constructor_function_name: None,
+                destructor_function_name: None,
                 element_nodes: vec![
                     ModuleElementNode::DataNode(DataNode {
                         name: "d0".to_owned(),
@@ -3761,6 +3971,8 @@ mod tests {
                 name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
+                constructor_function_name: None,
+                destructor_function_name: None,
                 element_nodes: vec![
                     ModuleElementNode::DataNode(DataNode {
                         name: "d0".to_owned(),
@@ -3885,6 +4097,8 @@ mod tests {
                 name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
+                constructor_function_name: None,
+                destructor_function_name: None,
                 element_nodes: vec![
                     ModuleElementNode::DataNode(DataNode {
                         name: "d0".to_owned(),
@@ -3950,6 +4164,8 @@ mod tests {
                 name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
+                constructor_function_name: None,
+                destructor_function_name: None,
                 element_nodes: vec![
                     ModuleElementNode::DataNode(DataNode {
                         name: "d0".to_owned(),
@@ -4007,14 +4223,14 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (extern (library share "math.so.1")
-                    (fn $add "add" (param i32) (param i32) (result i32))
-                    (fn $sub_i32 "sub" (params i32 i32) (result i32))
-                    (fn $pause "pause_1s")
+                (external (library share "math.so.1")
+                    (function $add "add" (param i32) (param i32) (result i32))
+                    (function $sub_i32 "sub" (params i32 i32) (result i32))
+                    (function $pause "pause_1s")
                 )
-                (extern (library system "libc.so.6")
-                    (fn $getuid "getuid" (result i32))
-                    (fn $getenv "getenv" (param (;name;) i64) (result i64))
+                (external (library system "libc.so.6")
+                    (function $getuid "getuid" (result i32))
+                    (function $getenv "getenv" (param (;name;) i64) (result i64))
                 )
             )
             "#
@@ -4024,48 +4240,50 @@ mod tests {
                 name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
+                constructor_function_name: None,
+                destructor_function_name: None,
                 element_nodes: vec![
-                    ModuleElementNode::ExternNode(ExternNode {
+                    ModuleElementNode::ExternalNode(ExternalNode {
                         external_library_node: ExternalLibraryNode {
                             external_library_type: ExternalLibraryType::Share,
                             name: "math.so.1".to_owned()
                         },
                         external_items: vec![
-                            ExternalItem::ExternalFunc(ExternalFuncNode {
+                            ExternalItem::ExternalFunction(ExternalFunctionNode {
+                                id: "add".to_owned(),
                                 name: "add".to_owned(),
-                                symbol: "add".to_owned(),
                                 params: vec![DataType::I32, DataType::I32,],
                                 results: vec![DataType::I32]
                             }),
-                            ExternalItem::ExternalFunc(ExternalFuncNode {
-                                name: "sub_i32".to_owned(),
-                                symbol: "sub".to_owned(),
+                            ExternalItem::ExternalFunction(ExternalFunctionNode {
+                                id: "sub_i32".to_owned(),
+                                name: "sub".to_owned(),
                                 params: vec![DataType::I32, DataType::I32,],
                                 results: vec![DataType::I32]
                             }),
-                            ExternalItem::ExternalFunc(ExternalFuncNode {
-                                name: "pause".to_owned(),
-                                symbol: "pause_1s".to_owned(),
+                            ExternalItem::ExternalFunction(ExternalFunctionNode {
+                                id: "pause".to_owned(),
+                                name: "pause_1s".to_owned(),
                                 params: vec![],
                                 results: vec![]
                             })
                         ]
                     }),
-                    ModuleElementNode::ExternNode(ExternNode {
+                    ModuleElementNode::ExternalNode(ExternalNode {
                         external_library_node: ExternalLibraryNode {
                             external_library_type: ExternalLibraryType::System,
                             name: "libc.so.6".to_owned()
                         },
                         external_items: vec![
-                            ExternalItem::ExternalFunc(ExternalFuncNode {
+                            ExternalItem::ExternalFunction(ExternalFunctionNode {
+                                id: "getuid".to_owned(),
                                 name: "getuid".to_owned(),
-                                symbol: "getuid".to_owned(),
                                 params: vec![],
                                 results: vec![DataType::I32]
                             }),
-                            ExternalItem::ExternalFunc(ExternalFuncNode {
+                            ExternalItem::ExternalFunction(ExternalFunctionNode {
+                                id: "getenv".to_owned(),
                                 name: "getenv".to_owned(),
-                                symbol: "getenv".to_owned(),
                                 params: vec![DataType::I64],
                                 results: vec![DataType::I64]
                             })
@@ -4081,8 +4299,8 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (extern
-                    (fn $add "add")
+                (external
+                    (function $add "add")
                 )
             )
             "#
@@ -4096,9 +4314,9 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (extern
+                (external
                     (library custom "libabc.so")
-                    (fn $add "add")
+                    (function $add "add")
                 )
             )
             "#
@@ -4112,9 +4330,9 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (extern
+                (external
                     (library user "libabc.so")
-                    (fn "add")
+                    (function "add")
                 )
             )
             "#
@@ -4128,9 +4346,9 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (extern
+                (external
                     (library user "libabc.so")
-                    (fn $a::b "add")
+                    (function $a::b "add")
                 )
             )
             "#
@@ -4144,9 +4362,9 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (extern
+                (external
                     (library user "libabc.so")
-                    (fn $add)
+                    (function $add)
                 )
             )
             "#

@@ -6,8 +6,8 @@
 
 use ancvm_parser::{
     ast::{
-        BranchCase, DataKindNode, DataNode, ExternNode, ExternalFuncNode, ExternalItem, FuncNode,
-        Instruction, ModuleElementNode, ModuleNode,
+        BranchCase, DataKindNode, DataNode, ExternalFunctionNode, ExternalItem, ExternalNode,
+        FunctionNode, Instruction, ModuleElementNode, ModuleNode,
     },
     NAME_PATH_SEPARATOR,
 };
@@ -32,10 +32,10 @@ use crate::AssembleError;
 // 1. canonicalize the identifiers of functions and datas
 //
 // in submodule 'myapp':
-// (fn $entry ...)
+// (function $entry ...)
 //
 // in submodule 'myapp::utils':
-// (fn $add ...)
+// (function $add ...)
 //
 // the identifiers will be renamed to:
 //
@@ -49,7 +49,7 @@ use crate::AssembleError;
 //    data store and load instructions.
 //
 // e.g.
-// the identifier `$add`` in `(call $add ...)` and macro `(macro.get_func_pub_index $add ...)`
+// the identifier `$add`` in `(call $add ...)` and macro `(macro.get_function_public_index $add ...)`
 // will be rewritten to '$myapp::utils::add'.
 //
 // when the identifier already contains the namespace path separator `::` and
@@ -69,26 +69,26 @@ use crate::AssembleError;
 // e.g.
 // in submodule 'myapp':
 //
-// (extern (library share "math.so.1")
-//         (fn $add "add" ...)
+// (external (library share "math.so.1")
+//         (function $add "add" ...)
 // )
 // (extcall $add ...)
 //
 // in submodule 'myapp::utils':
 //
-// (extern (library share "math.so.1")
-//         (fn $f0 "add" ...)
+// (external (library share "math.so.1")
+//         (function $f0 "add" ...)
 // )
 // (extcall $f0 ...)
 //
 // the identifiers '$add' and '$f0' will be
-// rewritten as 'EXTERNAL_FUNC::share::math.so.1::add' in both the node 'extern' and 'extcall'
+// rewritten as 'EXTERNAL_FUNCTION::share::math.so.1::add' in both the node 'external' and 'extcall'
 //
-// in addition to rewriteing identifiers, duplicate 'extern' nodes
+// in addition to rewriteing identifiers, duplicate 'external' nodes
 // will be removed.
 //
 // the expect identifier name for external function is:
-// EXTERNAL_FUNC::EXTERNAL_LIBRARY_TYPE::LIBRARY_SO_NAME::SYMBOL
+// EXTERNAL_FUNCTION::EXTERNAL_LIBRARY_TYPE::LIBRARY_SO_NAME::SYMBOL_NAME
 //
 // 4. canonicalize the identifiers of imported items.
 //
@@ -97,25 +97,29 @@ use crate::AssembleError;
 // in submodule 'myapp':
 //
 // (import (module share "math")
-//         (fn $add "add" ...)
+//         (function $add "add" ...)
 // )
 // (call $add ...)
 //
 // in submodule 'myapp::utils':
 //
 // (import (module share "math")
-//         (fn $f0 "add" ...)
+//         (function $f0 "add" ...)
 // )
 // (call $f0 ...)
 //
 // the identifiers '$add' and '$f0' will be
-// rewritten as 'IMPORTED_FUNC::share::math::add' in both the node 'import' and 'call'
+// rewritten as 'IMPORT_FUNCTION::share::math::add' in both the node 'import' and 'call'
 //
 // in addition to rewriteing identifiers, duplicate 'import' nodes
 // will be removed.
 //
 // the expect identifier name for imported item is:
-// IMPORTED_DATA|IMPORTED_FUNC::PATH_NAMES::ITEM_NAME
+// MODULE_NAME::PATH_NAMES::ITEM_NAME
+//
+// note: at the assembly level, submodules are transparent to each other,
+// i.e., all functions and data (including imported functions, imported data,
+// and declared external functions) are public and can be accessed in any submodule.
 
 #[derive(Debug, PartialEq)]
 pub struct MergedModuleNode {
@@ -125,37 +129,47 @@ pub struct MergedModuleNode {
     pub runtime_version_major: u16,
     pub runtime_version_minor: u16,
 
-    pub func_nodes: Vec<FuncNode>,
+    pub constructor_function_name: Option<String>,
+    pub destructor_function_name: Option<String>,
+
+    pub function_nodes: Vec<FunctionNode>,
     pub read_only_data_nodes: Vec<DataNode>,
     pub read_write_data_nodes: Vec<DataNode>,
     pub uninit_data_nodes: Vec<DataNode>,
-    pub extern_nodes: Vec<ExternNode>,
+    pub external_nodes: Vec<ExternalNode>,
 }
 
 struct RenameItemModule {
-    // module_name_path: String,
+    module_name_path: String,
     items: Vec<RenameItem>,
 }
 
 struct RenameItem {
+    // item_name, without name path, e.g.
+    // - "add"
+    // - "sub_i32"
     from: String,
+
+    // rename to, e.g.
+    //
+    // - "MODULE_NAME::NAME_PATH::FUNC_NAME"
+    // - "MODULE_NAME::NAME_PATH::DATA_NAME"
+    // - "EXTERNAL_FUNCTION::EXTERNAL_LIBRARY_TYPE::LIBRARY_SO_NAME::SYMBOL_NAME"
     to: String,
+
     kind: RenameKind,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum RenameKind {
-    // the internal and impored functions
-    // FUNC::NAME_PATH::FUNC_NAME
-    Func,
+    // canonicalize the internal functions or rename the imported functions
+    Function,
 
-    // the internal and imported data
-    // DATA::NAME_PATH::DATA_NAME
+    // canonicalize the internal data or rename the imported data
     Data,
 
-    // the external functions
-    // EXTERNAL_FUNC::EXTERNAL_LIBRARY_TYPE::LIBRARY_SO_NAME::SYMBOL
-    ExternalFunc,
+    // rename the external functions
+    ExternalFunction,
 }
 
 pub fn canonicalize_submodule_nodes(
@@ -163,18 +177,23 @@ pub fn canonicalize_submodule_nodes(
 ) -> Result<MergedModuleNode, AssembleError> {
     // the first submodule is the main submodule of an application or a library.
     // so pick the name and runtime version from the first submodule.
+
     let name = submodule_nodes[0].name_path.clone();
     let runtime_version_major = submodule_nodes[0].runtime_version_major;
     let runtime_version_minor = submodule_nodes[0].runtime_version_minor;
+    let constructor_function_name = submodule_nodes[0].constructor_function_name.clone();
+    let destructor_function_name = submodule_nodes[0].destructor_function_name.clone();
 
     // check submodules name path and runtime version
+
     for module_node in &submodule_nodes[1..] {
-        let first_name = module_node
+        let first_part_of_name_path = module_node
             .name_path
             .split(NAME_PATH_SEPARATOR)
             .next()
             .unwrap();
-        if first_name != name {
+
+        if first_part_of_name_path != name {
             return Err(AssembleError {
                 message: format!(
                     "The name path of submodule: \"{}\" does not starts with: \"{}\"",
@@ -197,128 +216,145 @@ pub fn canonicalize_submodule_nodes(
     }
 
     let mut rename_item_modules: Vec<RenameItemModule> = vec![];
-    let mut canonical_extern_nodes: Vec<ExternNode> = vec![];
+    let mut canonical_external_nodes: Vec<ExternalNode> = vec![];
 
-    // canonicalize the extern nodes
+    // canonicalize the external nodes
     // remove the duplicate external items and group by external library
 
     for submodule_node in submodule_nodes {
+        let submodule_name_path = &submodule_node.name_path;
         let mut rename_items: Vec<RenameItem> = vec![];
 
-        let original_extern_nodes = submodule_node
+        let original_external_nodes = submodule_node
             .element_nodes
             .iter()
             .filter_map(|node| match node {
-                ModuleElementNode::ExternNode(extern_node) => Some(extern_node),
+                ModuleElementNode::ExternalNode(external_node) => Some(external_node),
                 _ => None,
             })
             .collect::<Vec<_>>();
 
-        // find the existed external node
         // create new canonical external node if it does not exist.
 
-        for original_extern_node in original_extern_nodes {
-            let extern_node_idx_opt = canonical_extern_nodes.iter().position(|node| {
-                node.external_library_node == original_extern_node.external_library_node
-            });
+        for original_external_node in original_external_nodes {
+            let idx_opt_of_canonical_external_node =
+                canonical_external_nodes.iter().position(|node| {
+                    node.external_library_node == original_external_node.external_library_node
+                });
 
-            let extern_node_idx = if let Some(idx) = extern_node_idx_opt {
-                idx
-            } else {
-                let idx = canonical_extern_nodes.len();
+            let idx_of_canonical_external_node =
+                if let Some(idx) = idx_opt_of_canonical_external_node {
+                    idx
+                } else {
+                    let idx = canonical_external_nodes.len();
 
-                // create new canonical external node
-                let canonical_extern_node = ExternNode {
-                    external_library_node: original_extern_node.external_library_node.clone(),
-                    external_items: vec![],
+                    // create new canonical external node
+                    let canonical_external_node = ExternalNode {
+                        external_library_node: original_external_node.external_library_node.clone(),
+                        external_items: vec![],
+                    };
+
+                    canonical_external_nodes.push(canonical_external_node);
+                    idx
                 };
 
-                canonical_extern_nodes.push(canonical_extern_node);
-                idx
-            };
+            let canonical_external_node =
+                &mut canonical_external_nodes[idx_of_canonical_external_node];
 
-            let canonical_extern_node = &mut canonical_extern_nodes[extern_node_idx];
+            for original_external_item in &original_external_node.external_items {
+                // build the canonical external item
 
-            // create new canonical external item if it does not exist.
-
-            for original_extern_item in &original_extern_node.external_items {
-                // build the canonical extern item
-                let canonical_extern_item = match original_extern_item {
-                    ExternalItem::ExternalFunc(original_external_func) => {
+                let canonical_external_item = match original_external_item {
+                    ExternalItem::ExternalFunction(original_external_func) => {
                         // the format of expect identifier name:
-                        // EXTERNAL_FUNC::EXTERNAL_LIBRARY_TYPE::LIBRARY_SO_NAME::SYMBOL
+                        // EXTERNAL_FUNCTION::EXTERNAL_LIBRARY_TYPE::LIBRARY_SO_NAME::SYMBOL_NAME
 
-                        let symbol = original_external_func.symbol.clone();
+                        let name = original_external_func.name.clone();
 
-                        let expect_identifier_name = format!(
-                            "EXTERNAL_FUNC::{}::{}::{}",
-                            original_extern_node
+                        let expect_identifier = format!(
+                            "EXTERNAL_FUNCTION::{}::{}::{}",
+                            original_external_node
                                 .external_library_node
                                 .external_library_type,
-                            original_extern_node.external_library_node.name,
-                            symbol
+                            original_external_node.external_library_node.name,
+                            name
                         );
 
-                        let actual_identifier_name = original_external_func.name.clone();
+                        //                         let actual_identifier = original_external_func.id.clone();
+                        //
+                        //                         if expect_identifier != actual_identifier {
+                        //                             let rename_item = RenameItem {
+                        //                                 from: format!("{}::{}",submodule_name_path,  actual_identifier),
+                        //                                 to: expect_identifier.clone(),
+                        //                                 kind: RenameKind::ExternalFunction,
+                        //                             };
+                        //                             rename_items.push(rename_item);
+                        //                         }
 
-                        // add rename item
-                        if expect_identifier_name != actual_identifier_name {
-                            let rename_item = RenameItem {
-                                from: actual_identifier_name,
-                                to: expect_identifier_name.clone(),
-                                kind: RenameKind::ExternalFunc,
-                            };
-                            rename_items.push(rename_item);
-                        }
-
-                        let canonical_external_func_node = ExternalFuncNode {
-                            name: expect_identifier_name,
-                            symbol,
+                        let canonical_external_function_node = ExternalFunctionNode {
+                            id: expect_identifier,
+                            name,
                             params: original_external_func.params.clone(),
                             results: original_external_func.results.clone(),
                         };
 
-                        ExternalItem::ExternalFunc(canonical_external_func_node)
+                        ExternalItem::ExternalFunction(canonical_external_function_node)
                     }
                 };
 
-                let extern_item_idx_opt =
-                    canonical_extern_node
-                        .external_items
-                        .iter()
-                        .position(|exists_external_item| {
-                            exists_external_item == &canonical_extern_item
-                        });
+                let idx_opt_of_canonical_external_item =
+                    canonical_external_node.external_items.iter().position(
+                        |exists_external_item| exists_external_item == &canonical_external_item,
+                    );
 
-                if let Some(idx) = extern_item_idx_opt {
-                    // already exist.
-                    let expect_identifier_name = match &canonical_extern_node.external_items[idx] {
-                        ExternalItem::ExternalFunc(external_func) => external_func.name.to_owned(),
+                // create new canonical external item if it does not exist.
+
+                let idx_of_canonical_external_item =
+                    if let Some(idx) = idx_opt_of_canonical_external_item {
+                        idx
+                    } else {
+                        let idx = canonical_external_node.external_items.len();
+
+                        // add new canonical external item
+                        canonical_external_node
+                            .external_items
+                            .push(canonical_external_item);
+
+                        idx
                     };
 
-                    let actual_identifier_name = match original_extern_item {
-                        ExternalItem::ExternalFunc(external_func) => external_func.name.to_owned(),
+                let expect_identifier =
+                    match &canonical_external_node.external_items[idx_of_canonical_external_item] {
+                        ExternalItem::ExternalFunction(external_function) => {
+                            external_function.id.to_owned()
+                        }
                     };
 
-                    // add rename item
-                    if expect_identifier_name != actual_identifier_name {
-                        let rename_item = RenameItem {
-                            from: actual_identifier_name,
-                            to: expect_identifier_name,
-                            kind: RenameKind::ExternalFunc,
-                        };
-                        rename_items.push(rename_item);
+                let actual_identifier = match original_external_item {
+                    ExternalItem::ExternalFunction(external_function) => {
+                        external_function.id.to_owned()
                     }
-                } else {
-                    // add new canonical external item
-                    canonical_extern_node
-                        .external_items
-                        .push(canonical_extern_item);
+                };
+
+                // add rename item if it does not exist
+                if expect_identifier != actual_identifier
+                    && rename_items
+                        .iter()
+                        .find(|item| item.from == actual_identifier && item.to == expect_identifier)
+                        .is_none()
+                {
+                    let rename_item = RenameItem {
+                        from: actual_identifier,
+                        to: expect_identifier,
+                        kind: RenameKind::ExternalFunction,
+                    };
+                    rename_items.push(rename_item);
                 }
             }
         }
 
         let rename_item_module = RenameItemModule {
+            module_name_path: submodule_name_path.to_owned(),
             items: rename_items,
         };
 
@@ -328,7 +364,7 @@ pub fn canonicalize_submodule_nodes(
     // todo::
     // canonicalize the import nodes
 
-    let mut canonical_func_nodes: Vec<FuncNode> = vec![];
+    let mut canonical_function_nodes: Vec<FunctionNode> = vec![];
     let mut canonical_read_only_data_nodes: Vec<DataNode> = vec![];
     let mut canonical_read_write_data_nodes: Vec<DataNode> = vec![];
     let mut canonical_uninit_data_nodes: Vec<DataNode> = vec![];
@@ -336,18 +372,30 @@ pub fn canonicalize_submodule_nodes(
     for module_idx in 0..submodule_nodes.len() {
         let module_node = &submodule_nodes[module_idx];
         let module_name_path = &module_node.name_path;
-        let rename_items = &rename_item_modules[module_idx].items;
+        // let rename_items = &rename_item_modules[module_idx].items;
 
         // canonicalize the func nodes
-        let mut func_nodes = module_node
+        let original_function_nodes = module_node
             .element_nodes
             .iter()
             .filter_map(|node| match node {
-                ModuleElementNode::FuncNode(func_node) => Some(func_node),
+                ModuleElementNode::FunctionNode(function_node) => Some(function_node),
                 _ => None,
             })
-            .map(|func_node| canonicalize_func_node(func_node, module_name_path, rename_items))
+            // .map(|function_node| {
+            //     canonicalize_function_node(function_node, module_name_path, &rename_item_modules)
+            // })
             .collect::<Vec<_>>();
+
+        let mut function_nodes = vec![];
+        for original_function_node in original_function_nodes {
+            let function_node = canonicalize_function_node(
+                original_function_node,
+                module_name_path,
+                &rename_item_modules,
+            )?;
+            function_nodes.push(function_node);
+        }
 
         let mut read_only_data_nodes = module_node
             .element_nodes
@@ -391,7 +439,7 @@ pub fn canonicalize_submodule_nodes(
             .map(|data_node| canonicalize_data_node(data_node, module_name_path))
             .collect::<Vec<_>>();
 
-        canonical_func_nodes.append(&mut func_nodes);
+        canonical_function_nodes.append(&mut function_nodes);
         canonical_read_only_data_nodes.append(&mut read_only_data_nodes);
         canonical_read_write_data_nodes.append(&mut read_write_data_nodes);
         canonical_uninit_data_nodes.append(&mut uninit_data_nodes);
@@ -401,33 +449,38 @@ pub fn canonicalize_submodule_nodes(
         name,
         runtime_version_major,
         runtime_version_minor,
-        func_nodes: canonical_func_nodes,
+        constructor_function_name,
+        destructor_function_name,
+        function_nodes: canonical_function_nodes,
         read_only_data_nodes: canonical_read_only_data_nodes,
         read_write_data_nodes: canonical_read_write_data_nodes,
         uninit_data_nodes: canonical_uninit_data_nodes,
-        extern_nodes: canonical_extern_nodes,
+        external_nodes: canonical_external_nodes,
     };
 
     Ok(merged_module_node)
 }
 
-fn canonicalize_func_node(
-    func_node: &FuncNode,
+fn canonicalize_function_node(
+    function_node: &FunctionNode,
     module_name_path: &str,
-    rename_items: &[RenameItem],
-) -> FuncNode {
-    let func_full_name = format!("{}::{}", module_name_path, func_node.name);
-    let canonical_code =
-        canonicalize_identifiers_of_instructions(&func_node.code, module_name_path, rename_items);
+    rename_item_modules: &[RenameItemModule],
+) -> Result<FunctionNode, AssembleError> {
+    let function_full_name = format!("{}::{}", module_name_path, function_node.name);
+    let canonical_code = canonicalize_identifiers_of_instructions(
+        &function_node.code,
+        module_name_path,
+        rename_item_modules,
+    )?;
 
-    FuncNode {
-        name: func_full_name,
-        exported: func_node.exported,
-        params: func_node.params.clone(),
-        results: func_node.results.clone(),
-        locals: func_node.locals.clone(),
+    Ok(FunctionNode {
+        name: function_full_name,
+        exported: function_node.exported,
+        params: function_node.params.clone(),
+        results: function_node.results.clone(),
+        locals: function_node.locals.clone(),
         code: canonical_code,
-    }
+    })
 }
 
 fn canonicalize_data_node(data_node: &DataNode, module_name_path: &str) -> DataNode {
@@ -443,29 +496,35 @@ fn canonicalize_data_node(data_node: &DataNode, module_name_path: &str) -> DataN
 fn canonicalize_identifiers_of_instructions(
     instructions: &[Instruction],
     module_name_path: &str,
-    rename_items: &[RenameItem],
-) -> Vec<Instruction> {
-    instructions
-        .iter()
-        .map(|instruction| {
-            canonicalize_identifiers_of_instruction(instruction, module_name_path, rename_items)
-        })
-        .collect::<Vec<_>>()
+    rename_item_modules: &[RenameItemModule],
+) -> Result<Vec<Instruction>, AssembleError> {
+    let mut canonical_instructions = vec![];
+
+    for instruction in instructions {
+        let canonical_instruction = canonicalize_identifiers_of_instruction(
+            instruction,
+            module_name_path,
+            rename_item_modules,
+        )?;
+
+        canonical_instructions.push(canonical_instruction);
+    }
+    Ok(canonical_instructions)
 }
 
 fn canonicalize_identifiers_of_instruction(
     instruction: &Instruction,
     module_name_path: &str,
-    rename_items: &[RenameItem],
-) -> Instruction {
-    match instruction {
+    rename_item_modules: &[RenameItemModule],
+) -> Result<Instruction, AssembleError> {
+    let canonical_instruction = match instruction {
         Instruction::NoParams { opcode, operands } => Instruction::NoParams {
             opcode: *opcode,
             operands: canonicalize_identifiers_of_instructions(
                 operands,
                 module_name_path,
-                rename_items,
-            ),
+                rename_item_modules,
+            )?,
         },
         Instruction::ImmI32(_) => {
             // instruction without operands, just clone
@@ -491,8 +550,8 @@ fn canonicalize_identifiers_of_instruction(
             value: Box::new(canonicalize_identifiers_of_instruction(
                 value,
                 module_name_path,
-                rename_items,
-            )),
+                rename_item_modules,
+            )?),
         },
         Instruction::LocalLongLoad {
             opcode,
@@ -504,8 +563,8 @@ fn canonicalize_identifiers_of_instruction(
             offset: Box::new(canonicalize_identifiers_of_instruction(
                 offset,
                 module_name_path,
-                rename_items,
-            )),
+                rename_item_modules,
+            )?),
         },
         Instruction::LocalLongStore {
             opcode,
@@ -518,13 +577,13 @@ fn canonicalize_identifiers_of_instruction(
             offset: Box::new(canonicalize_identifiers_of_instruction(
                 offset,
                 module_name_path,
-                rename_items,
-            )),
+                rename_item_modules,
+            )?),
             value: Box::new(canonicalize_identifiers_of_instruction(
                 value,
                 module_name_path,
-                rename_items,
-            )),
+                rename_item_modules,
+            )?),
         },
         Instruction::DataLoad {
             opcode,
@@ -532,12 +591,12 @@ fn canonicalize_identifiers_of_instruction(
             offset,
         } => Instruction::DataLoad {
             opcode: *opcode,
-            name_path: canonicalize_func_and_data_name_path(
+            name_path: canonicalize_name_path_in_instruction(
                 RenameKind::Data,
                 name_path,
                 module_name_path,
-                rename_items,
-            ),
+                rename_item_modules,
+            )?,
             offset: *offset,
         },
         Instruction::DataStore {
@@ -547,18 +606,18 @@ fn canonicalize_identifiers_of_instruction(
             value,
         } => Instruction::DataStore {
             opcode: *opcode,
-            name_path: canonicalize_func_and_data_name_path(
+            name_path: canonicalize_name_path_in_instruction(
                 RenameKind::Data,
                 name_path,
                 module_name_path,
-                rename_items,
-            ),
+                rename_item_modules,
+            )?,
             offset: *offset,
             value: Box::new(canonicalize_identifiers_of_instruction(
                 value,
                 module_name_path,
-                rename_items,
-            )),
+                rename_item_modules,
+            )?),
         },
         Instruction::DataLongLoad {
             opcode,
@@ -566,17 +625,17 @@ fn canonicalize_identifiers_of_instruction(
             offset,
         } => Instruction::DataLongLoad {
             opcode: *opcode,
-            name_path: canonicalize_func_and_data_name_path(
+            name_path: canonicalize_name_path_in_instruction(
                 RenameKind::Data,
                 name_path,
                 module_name_path,
-                rename_items,
-            ),
+                rename_item_modules,
+            )?,
             offset: Box::new(canonicalize_identifiers_of_instruction(
                 offset,
                 module_name_path,
-                rename_items,
-            )),
+                rename_item_modules,
+            )?),
         },
         Instruction::DataLongStore {
             opcode,
@@ -585,22 +644,22 @@ fn canonicalize_identifiers_of_instruction(
             value,
         } => Instruction::DataLongStore {
             opcode: *opcode,
-            name_path: canonicalize_func_and_data_name_path(
+            name_path: canonicalize_name_path_in_instruction(
                 RenameKind::Data,
                 name_path,
                 module_name_path,
-                rename_items,
-            ),
+                rename_item_modules,
+            )?,
             offset: Box::new(canonicalize_identifiers_of_instruction(
                 offset,
                 module_name_path,
-                rename_items,
-            )),
+                rename_item_modules,
+            )?),
             value: Box::new(canonicalize_identifiers_of_instruction(
                 value,
                 module_name_path,
-                rename_items,
-            )),
+                rename_item_modules,
+            )?),
         },
         Instruction::HeapLoad {
             opcode,
@@ -612,8 +671,8 @@ fn canonicalize_identifiers_of_instruction(
             addr: Box::new(canonicalize_identifiers_of_instruction(
                 addr,
                 module_name_path,
-                rename_items,
-            )),
+                rename_item_modules,
+            )?),
         },
         Instruction::HeapStore {
             opcode,
@@ -626,21 +685,21 @@ fn canonicalize_identifiers_of_instruction(
             addr: Box::new(canonicalize_identifiers_of_instruction(
                 addr,
                 module_name_path,
-                rename_items,
-            )),
+                rename_item_modules,
+            )?),
             value: Box::new(canonicalize_identifiers_of_instruction(
                 value,
                 module_name_path,
-                rename_items,
-            )),
+                rename_item_modules,
+            )?),
         },
         Instruction::UnaryOp { opcode, number } => Instruction::UnaryOp {
             opcode: *opcode,
             number: Box::new(canonicalize_identifiers_of_instruction(
                 number,
                 module_name_path,
-                rename_items,
-            )),
+                rename_item_modules,
+            )?),
         },
         Instruction::UnaryOpParamI16 {
             opcode,
@@ -652,8 +711,8 @@ fn canonicalize_identifiers_of_instruction(
             number: Box::new(canonicalize_identifiers_of_instruction(
                 number,
                 module_name_path,
-                rename_items,
-            )),
+                rename_item_modules,
+            )?),
         },
         Instruction::BinaryOp {
             opcode,
@@ -664,25 +723,25 @@ fn canonicalize_identifiers_of_instruction(
             left: Box::new(canonicalize_identifiers_of_instruction(
                 left,
                 module_name_path,
-                rename_items,
-            )),
+                rename_item_modules,
+            )?),
             right: Box::new(canonicalize_identifiers_of_instruction(
                 right,
                 module_name_path,
-                rename_items,
-            )),
+                rename_item_modules,
+            )?),
         },
         Instruction::When { test, consequent } => Instruction::When {
             test: Box::new(canonicalize_identifiers_of_instruction(
                 test,
                 module_name_path,
-                rename_items,
-            )),
+                rename_item_modules,
+            )?),
             consequent: Box::new(canonicalize_identifiers_of_instruction(
                 consequent,
                 module_name_path,
-                rename_items,
-            )),
+                rename_item_modules,
+            )?),
         },
         Instruction::If {
             results,
@@ -694,18 +753,18 @@ fn canonicalize_identifiers_of_instruction(
             test: Box::new(canonicalize_identifiers_of_instruction(
                 test,
                 module_name_path,
-                rename_items,
-            )),
+                rename_item_modules,
+            )?),
             consequent: Box::new(canonicalize_identifiers_of_instruction(
                 consequent,
                 module_name_path,
-                rename_items,
-            )),
+                rename_item_modules,
+            )?),
             alternate: Box::new(canonicalize_identifiers_of_instruction(
                 alternate,
                 module_name_path,
-                rename_items,
-            )),
+                rename_item_modules,
+            )?),
         },
         Instruction::Branch {
             results,
@@ -713,28 +772,36 @@ fn canonicalize_identifiers_of_instruction(
             default,
         } => Instruction::Branch {
             results: results.clone(),
-            cases: cases
-                .iter()
-                .map(|case| BranchCase {
-                    test: Box::new(canonicalize_identifiers_of_instruction(
-                        &case.test,
-                        module_name_path,
-                        rename_items,
-                    )),
-                    consequent: Box::new(canonicalize_identifiers_of_instruction(
-                        &case.consequent,
-                        module_name_path,
-                        rename_items,
-                    )),
-                })
-                .collect::<Vec<_>>(),
-            default: default.as_ref().map(|instruction| {
-                Box::new(canonicalize_identifiers_of_instruction(
-                    instruction,
+            cases: {
+                let mut canonical_cases = vec![];
+                for original_case in cases {
+                    let canonical_case = BranchCase {
+                        test: Box::new(canonicalize_identifiers_of_instruction(
+                            &original_case.test,
+                            module_name_path,
+                            rename_item_modules,
+                        )?),
+                        consequent: Box::new(canonicalize_identifiers_of_instruction(
+                            &original_case.consequent,
+                            module_name_path,
+                            rename_item_modules,
+                        )?),
+                    };
+                    canonical_cases.push(canonical_case);
+                }
+                canonical_cases
+            },
+            default: if let Some(default_instruction) = default {
+                let canonical_instruction = canonicalize_identifiers_of_instruction(
+                    default_instruction,
                     module_name_path,
-                    rename_items,
-                ))
-            }),
+                    rename_item_modules,
+                )?;
+
+                Some(Box::new(canonical_instruction))
+            } else {
+                None
+            },
         },
         Instruction::For {
             params,
@@ -748,114 +815,186 @@ fn canonicalize_identifiers_of_instruction(
             code: Box::new(canonicalize_identifiers_of_instruction(
                 code,
                 module_name_path,
-                rename_items,
-            )),
+                rename_item_modules,
+            )?),
         },
         Instruction::Do(instructions) => Instruction::Do(canonicalize_identifiers_of_instructions(
             instructions,
             module_name_path,
-            rename_items,
-        )),
-        Instruction::Break(instructions) => Instruction::Break(
-            canonicalize_identifiers_of_instructions(instructions, module_name_path, rename_items),
-        ),
-        Instruction::Recur(instructions) => Instruction::Recur(
-            canonicalize_identifiers_of_instructions(instructions, module_name_path, rename_items),
-        ),
-        Instruction::Return(instructions) => Instruction::Return(
-            canonicalize_identifiers_of_instructions(instructions, module_name_path, rename_items),
-        ),
-        Instruction::Rerun(instructions) => Instruction::Rerun(
-            canonicalize_identifiers_of_instructions(instructions, module_name_path, rename_items),
-        ),
+            rename_item_modules,
+        )?),
+        Instruction::Break(instructions) => {
+            Instruction::Break(canonicalize_identifiers_of_instructions(
+                instructions,
+                module_name_path,
+                rename_item_modules,
+            )?)
+        }
+        Instruction::Recur(instructions) => {
+            Instruction::Recur(canonicalize_identifiers_of_instructions(
+                instructions,
+                module_name_path,
+                rename_item_modules,
+            )?)
+        }
+        Instruction::Return(instructions) => {
+            Instruction::Return(canonicalize_identifiers_of_instructions(
+                instructions,
+                module_name_path,
+                rename_item_modules,
+            )?)
+        }
+        Instruction::Rerun(instructions) => {
+            Instruction::Rerun(canonicalize_identifiers_of_instructions(
+                instructions,
+                module_name_path,
+                rename_item_modules,
+            )?)
+        }
         Instruction::Call { name_path, args } => Instruction::Call {
-            name_path: canonicalize_func_and_data_name_path(
-                RenameKind::Func,
+            name_path: canonicalize_name_path_in_instruction(
+                RenameKind::Function,
                 name_path,
                 module_name_path,
-                rename_items,
-            ),
-            args: canonicalize_identifiers_of_instructions(args, module_name_path, rename_items),
+                rename_item_modules,
+            )?,
+            args: canonicalize_identifiers_of_instructions(
+                args,
+                module_name_path,
+                rename_item_modules,
+            )?,
         },
         Instruction::DynCall { num, args } => Instruction::DynCall {
             num: Box::new(canonicalize_identifiers_of_instruction(
                 num,
                 module_name_path,
-                rename_items,
-            )),
-            args: canonicalize_identifiers_of_instructions(args, module_name_path, rename_items),
+                rename_item_modules,
+            )?),
+            args: canonicalize_identifiers_of_instructions(
+                args,
+                module_name_path,
+                rename_item_modules,
+            )?,
         },
         Instruction::EnvCall { num, args } => Instruction::EnvCall {
             num: *num,
-            args: canonicalize_identifiers_of_instructions(args, module_name_path, rename_items),
+            args: canonicalize_identifiers_of_instructions(
+                args,
+                module_name_path,
+                rename_item_modules,
+            )?,
         },
         Instruction::SysCall { num, args } => Instruction::SysCall {
             num: *num,
-            args: canonicalize_identifiers_of_instructions(args, module_name_path, rename_items),
+            args: canonicalize_identifiers_of_instructions(
+                args,
+                module_name_path,
+                rename_item_modules,
+            )?,
         },
-        Instruction::ExtCall { name, args } => Instruction::ExtCall {
-            name: canonicalize_external_func_call_name(name, rename_items),
-            args: canonicalize_identifiers_of_instructions(args, module_name_path, rename_items),
+        Instruction::ExtCall { name_path, args } => Instruction::ExtCall {
+            name_path: canonicalize_name_path_in_instruction(
+                RenameKind::ExternalFunction,
+                name_path,
+                module_name_path,
+                rename_item_modules,
+            )?,
+            args: canonicalize_identifiers_of_instructions(
+                args,
+                module_name_path,
+                rename_item_modules,
+            )?,
         },
         Instruction::Debug(_) => instruction.clone(),
         Instruction::Unreachable(_) => instruction.clone(),
-        Instruction::HostAddrFunc(name_path) => {
-            Instruction::HostAddrFunc(canonicalize_func_and_data_name_path(
-                RenameKind::Func,
+        Instruction::HostAddrFunction(name_path) => {
+            Instruction::HostAddrFunction(canonicalize_name_path_in_instruction(
+                RenameKind::Function,
                 name_path,
                 module_name_path,
-                rename_items,
-            ))
+                rename_item_modules,
+            )?)
         }
-        Instruction::MacroGetFuncPubIndex(name_path) => {
-            Instruction::MacroGetFuncPubIndex(canonicalize_func_and_data_name_path(
-                RenameKind::Func,
+        Instruction::MacroGetFunctionPublicIndex(name_path) => {
+            Instruction::MacroGetFunctionPublicIndex(canonicalize_name_path_in_instruction(
+                RenameKind::Function,
                 name_path,
                 module_name_path,
-                rename_items,
-            ))
+                rename_item_modules,
+            )?)
         }
-    }
+    };
+
+    Ok(canonical_instruction)
 }
 
-fn rename(rename_kind: RenameKind, name: &str, rename_items: &[RenameItem]) -> String {
+fn rename(rename_kind: RenameKind, name: &str, rename_items: &[RenameItem]) -> Option<String> {
     let idx_opt = rename_items
         .iter()
         .position(|item| item.kind == rename_kind && item.from == name);
 
-    match idx_opt {
-        Some(idx) => rename_items[idx].to.clone(),
-        None => name.to_owned(),
+    rename_items
+        .iter()
+        .find(|item| item.kind == rename_kind && item.from == name)
+        .map(|item| item.to.clone())
+}
+
+fn get_rename_items_by_target_module_name_path<'a, 'b>(
+    rename_item_modules: &'a [RenameItemModule],
+    target_module_name_path: &'b str,
+) -> &'a [RenameItem] {
+    let rename_item_module_opt = rename_item_modules
+        .iter()
+        .find(|module| module.module_name_path == target_module_name_path);
+    match rename_item_module_opt {
+        Some(rename_item_module) => &rename_item_module.items,
+        None => &[],
     }
 }
 
-fn canonicalize_func_and_data_name_path(
+fn canonicalize_name_path_in_instruction(
     rename_kind: RenameKind,
     name_path: &str,
-    module_name_path: &str,
-    rename_items: &[RenameItem],
-) -> String {
+    current_module_name_path: &str,
+    rename_item_modules: &[RenameItemModule],
+) -> Result<String, AssembleError> {
     let name_parts = name_path.split(NAME_PATH_SEPARATOR).collect::<Vec<&str>>();
 
     if name_parts.len() == 1 {
+        let rename_items = get_rename_items_by_target_module_name_path(
+            rename_item_modules,
+            current_module_name_path,
+        );
+
         let actual_name = rename(rename_kind, name_path, rename_items);
-        format!("{}::{}", module_name_path, actual_name)
+
+        if rename_kind == RenameKind::ExternalFunction {
+            actual_name.ok_or(AssembleError {
+                message: format!(
+                    "Can not find the external function: {}, current module: {}",
+                    name_path, current_module_name_path
+                ),
+            })
+        } else {
+            Ok(format!(
+                "{}::{}",
+                current_module_name_path,
+                actual_name.unwrap_or(name_path.to_owned())
+            ))
+        }
     } else {
         let mut canonical_parts = vec![];
 
         let first_part = name_parts[0];
         canonical_parts.push(match first_part {
-            "module" => module_name_path
+            "module" => current_module_name_path
                 .split(NAME_PATH_SEPARATOR)
                 .next()
                 .unwrap()
                 .to_owned(),
-            "self" => module_name_path.to_owned(),
+            "self" => current_module_name_path.to_owned(),
             _ => first_part.to_owned(),
         });
-
-        let last_part = name_parts[name_parts.len() - 1];
-        let actual_name = rename(rename_kind, last_part, rename_items);
 
         if name_parts.len() > 2 {
             name_parts[1..(name_parts.len() - 1)]
@@ -863,13 +1002,31 @@ fn canonicalize_func_and_data_name_path(
                 .for_each(|s| canonical_parts.push(s.to_string()));
         }
 
-        canonical_parts.push(actual_name);
-        canonical_parts.join(NAME_PATH_SEPARATOR)
-    }
-}
+        let target_module_name_path = canonical_parts.join(NAME_PATH_SEPARATOR);
 
-fn canonicalize_external_func_call_name(name: &str, rename_items: &[RenameItem]) -> String {
-    rename(RenameKind::ExternalFunc, name, rename_items)
+        let rename_items = get_rename_items_by_target_module_name_path(
+            rename_item_modules,
+            &target_module_name_path,
+        );
+
+        let last_part = name_parts[name_parts.len() - 1];
+        let actual_name = rename(rename_kind, last_part, rename_items);
+
+        if rename_kind == RenameKind::ExternalFunction {
+            actual_name.ok_or(AssembleError {
+                message: format!(
+                    "Can not find the external function: {}, current module: {}",
+                    name_path, current_module_name_path
+                ),
+            })
+        } else {
+            Ok(format!(
+                "{}::{}",
+                target_module_name_path,
+                actual_name.unwrap_or(last_part.to_owned())
+            ))
+        }
+    }
 }
 
 #[cfg(test)]
@@ -879,8 +1036,8 @@ mod tests {
 
     use ancvm_parser::{
         ast::{
-            DataKindNode, DataNode, ExternNode, ExternalFuncNode, ExternalItem,
-            ExternalLibraryNode, FuncNode, InitedData, Instruction, UninitData,
+            DataKindNode, DataNode, ExternalFunctionNode, ExternalItem, ExternalLibraryNode,
+            ExternalNode, FunctionNode, InitedData, Instruction, UninitData,
         },
         lexer::lex,
         parser::parse,
@@ -912,8 +1069,8 @@ mod tests {
             (module $myapp
                 (runtime_version "1.0")
                 (data $code (read_only i32 0x11))
-                (fn $entry (code))
-                (fn $main (code))
+                (function $entry (code))
+                (function $main (code))
             )
             "#,
                 r#"
@@ -921,8 +1078,8 @@ mod tests {
                 (runtime_version "1.0")
                 (data $count (read_write i32 0x13))
                 (data $sum (uninit i32))
-                (fn $add (code))
-                (fn $sub (code))
+                (function $add (code))
+                (function $sub (code))
             )
             "#
             ]),
@@ -930,8 +1087,10 @@ mod tests {
                 name: "myapp".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                func_nodes: vec![
-                    FuncNode {
+                constructor_function_name: None,
+                destructor_function_name: None,
+                function_nodes: vec![
+                    FunctionNode {
                         name: "myapp::entry".to_owned(),
                         exported: false,
                         params: vec![],
@@ -939,7 +1098,7 @@ mod tests {
                         locals: vec![],
                         code: vec![]
                     },
-                    FuncNode {
+                    FunctionNode {
                         name: "myapp::main".to_owned(),
                         exported: false,
                         params: vec![],
@@ -947,7 +1106,7 @@ mod tests {
                         locals: vec![],
                         code: vec![]
                     },
-                    FuncNode {
+                    FunctionNode {
                         name: "myapp::utils::add".to_owned(),
                         exported: false,
                         params: vec![],
@@ -955,7 +1114,7 @@ mod tests {
                         locals: vec![],
                         code: vec![]
                     },
-                    FuncNode {
+                    FunctionNode {
                         name: "myapp::utils::sub".to_owned(),
                         exported: false,
                         params: vec![],
@@ -993,7 +1152,7 @@ mod tests {
                         align: 4,
                     })
                 }],
-                extern_nodes: vec![],
+                external_nodes: vec![],
             }
         )
     }
@@ -1006,8 +1165,8 @@ mod tests {
             (module $myapp
                 (runtime_version "1.0")
                 (data $d0 (read_only i32 0x11))
-                (fn $add (code))
-                (fn $test (code
+                (function $add (code))
+                (function $test (code
                     ;; group 0
                     (data.load32_i32 $d0)
                     (data.load32_i32 $myapp::d0)
@@ -1033,8 +1192,8 @@ mod tests {
             (module $myapp::utils
                 (runtime_version "1.0")
                 (data $d0 (read_only i64 0x13))
-                (fn $add (code))
-                (fn $test (code
+                (function $add (code))
+                (function $test (code
                     ;; group 0
                     (data.load32_i32 $myapp::d0)
                     (data.load32_i32 $module::d0)
@@ -1059,8 +1218,10 @@ mod tests {
                 name: "myapp".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                func_nodes: vec![
-                    FuncNode {
+                constructor_function_name: None,
+                destructor_function_name: None,
+                function_nodes: vec![
+                    FunctionNode {
                         name: "myapp::add".to_owned(),
                         exported: false,
                         params: vec![],
@@ -1068,7 +1229,7 @@ mod tests {
                         locals: vec![],
                         code: vec![]
                     },
-                    FuncNode {
+                    FunctionNode {
                         name: "myapp::test".to_owned(),
                         exported: false,
                         params: vec![],
@@ -1144,7 +1305,7 @@ mod tests {
                             },
                         ]
                     },
-                    FuncNode {
+                    FunctionNode {
                         name: "myapp::utils::add".to_owned(),
                         exported: false,
                         params: vec![],
@@ -1152,7 +1313,7 @@ mod tests {
                         locals: vec![],
                         code: vec![]
                     },
-                    FuncNode {
+                    FunctionNode {
                         name: "myapp::utils::test".to_owned(),
                         exported: false,
                         params: vec![],
@@ -1244,50 +1405,76 @@ mod tests {
                 ],
                 read_write_data_nodes: vec![],
                 uninit_data_nodes: vec![],
-                extern_nodes: vec![],
+                external_nodes: vec![],
             }
         )
     }
 
     #[test]
-    fn test_preprocess_canonicalize_identifiers_of_external_funcs() {
+    fn test_preprocess_canonicalize_identifiers_of_external_functions() {
         assert_eq!(
             merge_submodules_from_strs(&[
                 r#"
             (module $myapp
                 (runtime_version "1.0")
-                (extern (library user "math.so.1")
-                    (fn $add "add")
-                    (fn $sub "sub_wrap")
+                (external (library user "math.so.1")
+                    (function $add "add")
+                    (function $sub "sub_wrap")
                 )
-                (extern (library share "std.so.1")
-                    (fn $print "print")
+                (external (library share "std.so.1")
+                    (function $print "print")
                 )
-                (fn $test (code
+                (function $test (code
+                    ;; group 0
                     (extcall $add)
+                    (extcall $myapp::add)
+                    (extcall $module::add)
+                    (extcall $self::add)
+
+                    ;; group 1
                     (extcall $sub)
                     (extcall $print)
+
+                    ;; group 2
+                    (extcall $myapp::utils::f0)     ;; add
+                    (extcall $module::utils::f0)    ;; add
+                    (extcall $self::utils::f0)      ;; add
+
+                    ;; group 3
+                    (extcall $myapp::utils::f1)     ;; mul
+                    (extcall $myapp::utils::f2)     ;; print
+                    (extcall $myapp::utils::f3)     ;; getuid
                 ))
             )
             "#,
                 r#"
             (module $myapp::utils
                 (runtime_version "1.0")
-                (extern (library user "math.so.1")
-                    (fn $f0 "add")      ;; duplicate
-                    (fn $f1 "mul")      ;; new
+                (external (library user "math.so.1")
+                    (function $f0 "add")      ;; duplicate
+                    (function $f1 "mul")      ;; new
                 )
-                (extern (library share "std.so.1")
-                    (fn $f2 "print")    ;; duplicate
+                (external (library share "std.so.1")
+                    (function $f2 "print")    ;; duplicate
                 )
-                (extern (library system "libc.so.6")    ;; new
-                    (fn $f3 "getuid")                   ;; new
+                (external (library system "libc.so.6")  ;; new
+                    (function $f3 "getuid")             ;; new
                 )
-                (fn $test (code
+                (function $test (code
+                    ;; group 0
                     (extcall $f0)
+                    (extcall $myapp::utils::f0)
+                    (extcall $module::utils::f0)
+                    (extcall $self::f0)
+
+                    ;; group 1
                     (extcall $f1)
                     (extcall $f2)
                     (extcall $f3)
+
+                    ;; group 2
+                    (extcall $myapp::add)
+                    (extcall $module::add)
                 ))
             )
             "#
@@ -1296,107 +1483,179 @@ mod tests {
                 name: "myapp".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                func_nodes: vec![
-                    FuncNode {
+                constructor_function_name: None,
+                destructor_function_name: None,
+                function_nodes: vec![
+                    FunctionNode {
                         name: "myapp::test".to_owned(),
                         exported: false,
                         params: vec![],
                         results: vec![],
                         locals: vec![],
                         code: vec![
+                            // group 0
                             Instruction::ExtCall {
-                                name: "EXTERNAL_FUNC::user::math.so.1::add".to_owned(),
+                                name_path: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
                                 args: vec![]
                             },
                             Instruction::ExtCall {
-                                name: "EXTERNAL_FUNC::user::math.so.1::sub_wrap".to_owned(),
+                                name_path: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
                                 args: vec![]
                             },
                             Instruction::ExtCall {
-                                name: "EXTERNAL_FUNC::share::std.so.1::print".to_owned(),
+                                name_path: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
                                 args: vec![]
-                            }
+                            },
+                            Instruction::ExtCall {
+                                name_path: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
+                                args: vec![]
+                            },
+                            // group 1
+                            Instruction::ExtCall {
+                                name_path: "EXTERNAL_FUNCTION::user::math.so.1::sub_wrap"
+                                    .to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::ExtCall {
+                                name_path: "EXTERNAL_FUNCTION::share::std.so.1::print".to_owned(),
+                                args: vec![]
+                            },
+                            // group 2
+                            Instruction::ExtCall {
+                                name_path: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::ExtCall {
+                                name_path: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::ExtCall {
+                                name_path: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
+                                args: vec![]
+                            },
+                            // group 3
+                            Instruction::ExtCall {
+                                name_path: "EXTERNAL_FUNCTION::user::math.so.1::mul".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::ExtCall {
+                                name_path: "EXTERNAL_FUNCTION::share::std.so.1::print".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::ExtCall {
+                                name_path: "EXTERNAL_FUNCTION::system::libc.so.6::getuid"
+                                    .to_owned(),
+                                args: vec![]
+                            },
                         ]
                     },
-                    FuncNode {
+                    FunctionNode {
                         name: "myapp::utils::test".to_owned(),
                         exported: false,
                         params: vec![],
                         results: vec![],
                         locals: vec![],
                         code: vec![
+                            // group 0
                             Instruction::ExtCall {
-                                name: "EXTERNAL_FUNC::user::math.so.1::add".to_owned(),
+                                name_path: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
                                 args: vec![]
                             },
                             Instruction::ExtCall {
-                                name: "EXTERNAL_FUNC::user::math.so.1::mul".to_owned(),
+                                name_path: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
                                 args: vec![]
                             },
                             Instruction::ExtCall {
-                                name: "EXTERNAL_FUNC::share::std.so.1::print".to_owned(),
+                                name_path: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
                                 args: vec![]
                             },
                             Instruction::ExtCall {
-                                name: "EXTERNAL_FUNC::system::libc.so.6::getuid".to_owned(),
+                                name_path: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
                                 args: vec![]
-                            }
+                            },
+                            // group 1
+                            Instruction::ExtCall {
+                                name_path: "EXTERNAL_FUNCTION::user::math.so.1::mul".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::ExtCall {
+                                name_path: "EXTERNAL_FUNCTION::share::std.so.1::print".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::ExtCall {
+                                name_path: "EXTERNAL_FUNCTION::system::libc.so.6::getuid"
+                                    .to_owned(),
+                                args: vec![]
+                            },
+                            // group 2
+                            Instruction::ExtCall {
+                                name_path: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::ExtCall {
+                                name_path: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
+                                args: vec![]
+                            },
                         ]
                     },
                 ],
                 read_only_data_nodes: vec![],
                 read_write_data_nodes: vec![],
                 uninit_data_nodes: vec![],
-                extern_nodes: vec![
-                    ExternNode {
+                external_nodes: vec![
+                    ExternalNode {
                         external_library_node: ExternalLibraryNode {
                             external_library_type: ExternalLibraryType::User,
                             name: "math.so.1".to_owned()
                         },
                         external_items: vec![
-                            ExternalItem::ExternalFunc(ExternalFuncNode {
-                                name: "EXTERNAL_FUNC::user::math.so.1::add".to_owned(),
-                                symbol: "add".to_owned(),
+                            ExternalItem::ExternalFunction(ExternalFunctionNode {
+                                id: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
+                                name: "add".to_owned(),
                                 params: vec![],
                                 results: vec![]
                             }),
-                            ExternalItem::ExternalFunc(ExternalFuncNode {
-                                name: "EXTERNAL_FUNC::user::math.so.1::sub_wrap".to_owned(),
-                                symbol: "sub_wrap".to_owned(),
+                            ExternalItem::ExternalFunction(ExternalFunctionNode {
+                                id: "EXTERNAL_FUNCTION::user::math.so.1::sub_wrap".to_owned(),
+                                name: "sub_wrap".to_owned(),
                                 params: vec![],
                                 results: vec![]
                             }),
-                            ExternalItem::ExternalFunc(ExternalFuncNode {
-                                name: "EXTERNAL_FUNC::user::math.so.1::mul".to_owned(),
-                                symbol: "mul".to_owned(),
+                            ExternalItem::ExternalFunction(ExternalFunctionNode {
+                                id: "EXTERNAL_FUNCTION::user::math.so.1::mul".to_owned(),
+                                name: "mul".to_owned(),
                                 params: vec![],
                                 results: vec![]
                             }),
                         ]
                     },
-                    ExternNode {
+                    ExternalNode {
                         external_library_node: ExternalLibraryNode {
                             external_library_type: ExternalLibraryType::Share,
                             name: "std.so.1".to_owned()
                         },
-                        external_items: vec![ExternalItem::ExternalFunc(ExternalFuncNode {
-                            name: "EXTERNAL_FUNC::share::std.so.1::print".to_owned(),
-                            symbol: "print".to_owned(),
-                            params: vec![],
-                            results: vec![]
-                        }),]
+                        external_items: vec![ExternalItem::ExternalFunction(
+                            ExternalFunctionNode {
+                                id: "EXTERNAL_FUNCTION::share::std.so.1::print".to_owned(),
+                                name: "print".to_owned(),
+                                params: vec![],
+                                results: vec![]
+                            }
+                        ),]
                     },
-                    ExternNode {
+                    ExternalNode {
                         external_library_node: ExternalLibraryNode {
                             external_library_type: ExternalLibraryType::System,
                             name: "libc.so.6".to_owned()
                         },
-                        external_items: vec![ExternalItem::ExternalFunc(ExternalFuncNode {
-                            name: "EXTERNAL_FUNC::system::libc.so.6::getuid".to_owned(),
-                            symbol: "getuid".to_owned(),
-                            params: vec![],
-                            results: vec![]
-                        }),]
+                        external_items: vec![ExternalItem::ExternalFunction(
+                            ExternalFunctionNode {
+                                id: "EXTERNAL_FUNCTION::system::libc.so.6::getuid".to_owned(),
+                                name: "getuid".to_owned(),
+                                params: vec![],
+                                results: vec![]
+                            }
+                        ),]
                     }
                 ],
             }

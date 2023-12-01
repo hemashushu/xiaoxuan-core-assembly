@@ -37,7 +37,7 @@ fn test_assemble_control_flow_block_equ_structure_for() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (results
                     i32 i32 i32 i32)
                 (code
@@ -61,8 +61,8 @@ fn test_assemble_control_flow_block_equ_structure_for() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
 
@@ -105,7 +105,7 @@ fn test_assemble_control_flow_block_equ_structure_for() {
     assert_eq!(
         func_local_list_entry,
         LocalListEntry {
-            variable_entries: vec![]
+            local_variable_entries: vec![]
         }
     );
 
@@ -154,7 +154,7 @@ fn test_assemble_control_flow_block_with_args_and_results_equ_structure_for() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (results
                     i32 i32 i32)
                 (code
@@ -177,8 +177,8 @@ fn test_assemble_control_flow_block_with_args_and_results_equ_structure_for() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
     // println!("{}", bytecode_text);
@@ -217,7 +217,7 @@ fn test_assemble_control_flow_block_with_args_and_results_equ_structure_for() {
     assert_eq!(
         block_local_list_entry,
         LocalListEntry {
-            variable_entries: vec![LocalVariableEntry {
+            local_variable_entries: vec![LocalVariableEntry {
                 memory_data_type: MemoryDataType::I32,
                 length: 4,
                 align: 4
@@ -273,7 +273,7 @@ fn test_assemble_control_flow_block_with_local_vars_equ_structure_for() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (param $a i32)
                 (param $b i32)
                 (results
@@ -350,8 +350,8 @@ fn test_assemble_control_flow_block_with_local_vars_equ_structure_for() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
 
@@ -439,7 +439,7 @@ fn test_assemble_control_flow_block_with_local_vars_equ_structure_for() {
     assert_eq!(
         func_local_list_entry,
         LocalListEntry {
-            variable_entries: vec![
+            local_variable_entries: vec![
                 LocalVariableEntry::from_i32(),
                 LocalVariableEntry::from_i32(),
                 LocalVariableEntry::from_i32(),
@@ -467,7 +467,7 @@ fn test_assemble_control_flow_block_with_local_vars_equ_structure_for() {
     assert_eq!(
         block_0_local_list_entry,
         LocalListEntry {
-            variable_entries: vec![
+            local_variable_entries: vec![
                 LocalVariableEntry::from_i32(),
                 LocalVariableEntry::from_i32(),
             ]
@@ -525,7 +525,7 @@ fn test_assemble_control_flow_break_function_equ_statement_return() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (results
                     i32 i32)
                 (code
@@ -545,8 +545,8 @@ fn test_assemble_control_flow_break_function_equ_statement_return() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
     // println!("{}", bytecode_text);
@@ -592,7 +592,7 @@ fn test_assemble_control_flow_break_block_equ_statement_break() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (results
                     i32 i32 i32 i32)
                 (code
@@ -621,8 +621,8 @@ fn test_assemble_control_flow_break_block_equ_statement_break() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
     // println!("{}", bytecode_text);
@@ -681,7 +681,7 @@ fn test_assemble_control_flow_break_block_to_function_equ_statement_return() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (results
                     i32 i32)
                 (code
@@ -710,8 +710,8 @@ fn test_assemble_control_flow_break_block_to_function_equ_statement_return() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
     // println!("{}", bytecode_text);
@@ -768,7 +768,7 @@ fn test_assemble_control_flow_structure_when() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $max
+            (function $max
                 (param $a i32)
                 (param $b i32)
                 (results i32)
@@ -795,8 +795,8 @@ fn test_assemble_control_flow_structure_when() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
     // println!("{}", bytecode_text);
@@ -870,7 +870,7 @@ fn test_assemble_control_flow_break_block_crossing_equ_statement_break() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (param $a i32)
                 (results
                     i32 i32 i32 i32)
@@ -909,8 +909,8 @@ fn test_assemble_control_flow_break_block_crossing_equ_statement_break() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
     // println!("{}", bytecode_text);
@@ -988,7 +988,7 @@ fn test_assemble_control_flow_structure_if() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (param $a i32)
                 (param $b i32)
                 (results i32)
@@ -1012,8 +1012,8 @@ fn test_assemble_control_flow_structure_if() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
     // println!("{}", bytecode_text);
@@ -1091,7 +1091,7 @@ fn test_assemble_control_flow_structure_if_nested() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (param $a i32)
                 (results i32)
                 (code
@@ -1130,8 +1130,8 @@ fn test_assemble_control_flow_structure_if_nested() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
     // println!("{}", bytecode_text);
@@ -1235,7 +1235,7 @@ fn test_assemble_control_flow_structure_branch() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (param $a i32)
                 (results i32)
                 (code
@@ -1276,8 +1276,8 @@ fn test_assemble_control_flow_structure_branch() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
     // println!("{}", bytecode_text);
@@ -1376,7 +1376,7 @@ fn test_assemble_control_flow_structure_branch_without_default_arm() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (param $a i32)
                 (results i32)
                 (code
@@ -1408,8 +1408,8 @@ fn test_assemble_control_flow_structure_branch_without_default_arm() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
     // println!("{}", bytecode_text);
@@ -1502,7 +1502,7 @@ fn test_assemble_control_flow_structure_loop() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (param $n i32)
                 (results i32)
                 (local $sum i32)
@@ -1538,8 +1538,8 @@ fn test_assemble_control_flow_structure_loop() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
     // println!("{}", bytecode_text);
@@ -1610,7 +1610,7 @@ fn test_assemble_control_flow_structure_loop_with_block_parameters() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (param $count i32)
                 (results i32)
                 (code
@@ -1648,8 +1648,8 @@ fn test_assemble_control_flow_structure_loop_with_block_parameters() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
     // println!("{}", bytecode_text);
@@ -1722,7 +1722,7 @@ fn test_assemble_control_flow_structure_loop_with_if() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (param $count i32)
                 (results i32)
                 (code
@@ -1759,8 +1759,8 @@ fn test_assemble_control_flow_structure_loop_with_if() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
     // println!("{}", bytecode_text);
@@ -1833,7 +1833,7 @@ fn test_assemble_control_flow_function_tail_call() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (param $sum i32)
                 (param $n i32)
                 (results i32)
@@ -1870,8 +1870,8 @@ fn test_assemble_control_flow_function_tail_call() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
     // println!("{}", bytecode_text);
@@ -1945,7 +1945,7 @@ fn test_assemble_control_flow_function_tail_call_with_if() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (param $sum i32)
                 (param $n i32)
                 (results i32)
@@ -1977,8 +1977,8 @@ fn test_assemble_control_flow_function_tail_call_with_if() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
     // println!("{}", bytecode_text);

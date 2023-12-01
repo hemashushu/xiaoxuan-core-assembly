@@ -471,7 +471,7 @@ wrapping dec, e.g. 0x1 dec 2 = 0xffff_ffff
 (host.addr_data $DATA_NAME_PATH OPTIONAL_OFFSET_NUMBER:i16)
 (host.addr_data_long $DATA_NAME_PATH OPERAND_FOR_OFFSET:i32)
 (host.addr_heap OPTIONAL_OFFSET_NUMBER:i16 OPERAND_FOR_ADDR)
-(host.addr_func $name)
+(host.addr_function $name)
 (host.copy_from_heap
     OPERAND_FOR_dst_pointer:i64
     OPERAND_FOR_src_offset:i64

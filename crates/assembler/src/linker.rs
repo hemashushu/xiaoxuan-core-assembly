@@ -6,9 +6,9 @@
 
 use ancvm_types::{
     entry::{
-        DataIndexEntry, DataIndexModuleEntry, ExternalFuncIndexEntry, ExternalFuncIndexModuleEntry,
-        FuncIndexEntry, FuncIndexModuleEntry, IndexEntry, ModuleEntry, UnifiedExternalFuncEntry,
-        UnifiedExternalLibraryEntry,
+        DataIndexEntry, DataIndexModuleEntry, ExternalFunctionIndexEntry,
+        ExternalFunctionIndexModuleEntry, FunctionIndexEntry, FunctionIndexModuleEntry, IndexEntry,
+        ModuleEntry, UnifiedExternalFunctionEntry, UnifiedExternalLibraryEntry,
     },
     DataSectionType,
 };
@@ -16,25 +16,30 @@ use ancvm_types::{
 use crate::AssembleError;
 
 pub fn link(module_entries: &[&ModuleEntry]) -> Result<IndexEntry, AssembleError> {
-    // todo
-    // load shared modules
+    // link functions
 
     // TEMPORARY, NO LINKING
-    let func_index_module_entries = module_entries
+    let function_index_module_entries = module_entries
         .iter()
         .enumerate()
         .map(|(module_index, module_entry)| {
             let entries = module_entry
-                .func_entries
+                .function_entries
                 .iter()
                 .enumerate()
-                .map(|(func_pub_index, _func_entry)| {
-                    FuncIndexEntry::new(func_pub_index, module_index, func_pub_index)
+                .map(|(function_public_index, _func_entry)| {
+                    FunctionIndexEntry::new(
+                        function_public_index,
+                        module_index,
+                        function_public_index,
+                    )
                 })
                 .collect::<Vec<_>>();
-            FuncIndexModuleEntry::new(entries)
+            FunctionIndexModuleEntry::new(entries)
         })
         .collect::<Vec<_>>();
+
+    // link data
 
     // TEMPORARY, NO LINKING
     // note that data internal index is section relevant.
@@ -44,60 +49,60 @@ pub fn link(module_entries: &[&ModuleEntry]) -> Result<IndexEntry, AssembleError
         .iter()
         .enumerate()
         .map(|(module_index, module_entry)| {
-            let mut data_pub_index = 0;
+            let mut data_public_index = 0;
             let mut entries = vec![];
 
             for (data_internal_idx, _read_only_data_entry) in
                 module_entry.read_only_data_entries.iter().enumerate()
             {
                 entries.push(DataIndexEntry::new(
-                    data_pub_index,
+                    data_public_index,
                     module_index,
                     data_internal_idx,
                     DataSectionType::ReadOnly,
                 ));
 
-                data_pub_index += 1;
+                data_public_index += 1;
             }
 
             for (data_internal_idx, _read_write_data_entry) in
                 module_entry.read_write_data_entries.iter().enumerate()
             {
                 entries.push(DataIndexEntry::new(
-                    data_pub_index,
+                    data_public_index,
                     module_index,
                     data_internal_idx,
                     DataSectionType::ReadWrite,
                 ));
 
-                data_pub_index += 1;
+                data_public_index += 1;
             }
 
             for (data_internal_idx, _uninit_data_entry) in
                 module_entry.uninit_data_entries.iter().enumerate()
             {
                 entries.push(DataIndexEntry::new(
-                    data_pub_index,
+                    data_public_index,
                     module_index,
                     data_internal_idx,
                     DataSectionType::Uninit,
                 ));
 
-                data_pub_index += 1;
+                data_public_index += 1;
             }
 
             DataIndexModuleEntry::new(entries)
         })
         .collect::<Vec<_>>();
 
-    // linking external functions
+    // link external functions
 
     let mut unified_external_library_entries: Vec<UnifiedExternalLibraryEntry> = vec![];
-    let mut unified_external_func_entries: Vec<UnifiedExternalFuncEntry> = vec![];
-    let mut external_func_index_module_entries: Vec<ExternalFuncIndexModuleEntry> = vec![];
+    let mut unified_external_function_entries: Vec<UnifiedExternalFunctionEntry> = vec![];
+    let mut external_function_index_module_entries: Vec<ExternalFunctionIndexModuleEntry> = vec![];
 
     for module_entry in module_entries {
-        let mut external_func_index_entries: Vec<ExternalFuncIndexEntry> = vec![];
+        let mut external_func_index_entries: Vec<ExternalFunctionIndexEntry> = vec![];
 
         for (original_external_library_index, external_library_entry) in
             module_entry.external_library_entries.iter().enumerate()
@@ -122,7 +127,7 @@ pub fn link(module_entries: &[&ModuleEntry]) -> Result<IndexEntry, AssembleError
 
             // filter external functions by the specified external libray
             let external_func_entries_with_indices = module_entry
-                .external_func_entries
+                .external_function_entries
                 .iter()
                 .enumerate()
                 .filter(|(_, entry)| {
@@ -133,26 +138,27 @@ pub fn link(module_entries: &[&ModuleEntry]) -> Result<IndexEntry, AssembleError
             for (original_external_func_index, external_func_entry) in
                 external_func_entries_with_indices
             {
-                let unified_func_idx_opt = unified_external_func_entries.iter().position(|entry| {
-                    entry.unified_external_library_index == unified_lib_idx
-                        && entry.name == external_func_entry.name
-                });
+                let unified_func_idx_opt =
+                    unified_external_function_entries.iter().position(|entry| {
+                        entry.unified_external_library_index == unified_lib_idx
+                            && entry.name == external_func_entry.name
+                    });
 
                 // add unified function entry when not found, and then
                 // add external function index entry
                 if unified_func_idx_opt.is_none() {
                     // add unified function entry
-                    let unified_func_idx = unified_external_func_entries.len();
-                    let unified_external_func_entry = UnifiedExternalFuncEntry {
+                    let unified_func_idx = unified_external_function_entries.len();
+                    let unified_external_func_entry = UnifiedExternalFunctionEntry {
                         name: external_func_entry.name.clone(),
                         unified_external_library_index: unified_lib_idx,
                     };
-                    unified_external_func_entries.push(unified_external_func_entry);
+                    unified_external_function_entries.push(unified_external_func_entry);
 
                     // add external function index entry
-                    let external_func_index_entry = ExternalFuncIndexEntry {
-                        external_func_index: original_external_func_index,
-                        unified_external_func_index: unified_func_idx,
+                    let external_func_index_entry = ExternalFunctionIndexEntry {
+                        external_function_index: original_external_func_index,
+                        unified_external_function_index: unified_func_idx,
                         type_index: external_func_entry.type_index,
                     };
                     external_func_index_entries.push(external_func_index_entry);
@@ -160,18 +166,18 @@ pub fn link(module_entries: &[&ModuleEntry]) -> Result<IndexEntry, AssembleError
             }
         }
 
-        let external_func_index_module_entry = ExternalFuncIndexModuleEntry {
+        let external_func_index_module_entry = ExternalFunctionIndexModuleEntry {
             index_entries: external_func_index_entries,
         };
-        external_func_index_module_entries.push(external_func_index_module_entry);
+        external_function_index_module_entries.push(external_func_index_module_entry);
     }
 
     Ok(IndexEntry {
-        func_index_module_entries,
+        function_index_module_entries,
         data_index_module_entries,
         unified_external_library_entries,
-        unified_external_func_entries,
-        external_func_index_module_entries,
+        unified_external_function_entries,
+        external_function_index_module_entries,
     })
 }
 

@@ -22,7 +22,7 @@ fn test_assemble_envcall_time_now() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test (results i64 i32)
+            (function $test (results i64 i32)
                 (code
                     (envcall {ENV_CALL_CODE_TIME_NOW})
                 )

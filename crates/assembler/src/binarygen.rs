@@ -8,15 +8,15 @@ use ancvm_binary::module_image::{
     data_index_section::DataIndexSection,
     data_name_section::DataNameSection,
     data_section::{ReadOnlyDataSection, ReadWriteDataSection, UninitDataSection},
-    external_func_index_section::ExternalFuncIndexSection,
-    external_func_section::ExternalFuncSection,
+    external_function_index_section::ExternalFunctionIndexSection,
+    external_function_section::ExternalFunctionSection,
     external_library_section::ExternalLibrarySection,
-    func_index_section::FuncIndexSection,
-    func_name_section::FuncNameSection,
-    func_section::FuncSection,
+    function_index_section::FunctionIndexSection,
+    function_name_section::FunctionNameSection,
+    function_section::FunctionSection,
     local_variable_section::LocalVariableSection,
     type_section::TypeSection,
-    unified_external_func_section::UnifiedExternalFuncSection,
+    unified_external_function_section::UnifiedExternalFunctionSection,
     unified_external_library_section::UnifiedExternalLibrarySection,
     ModuleImage, SectionEntry,
 };
@@ -28,6 +28,14 @@ pub fn generate_module_image_binary(
     module_entry: &ModuleEntry,
     index_entry_opt: Option<&IndexEntry>,
 ) -> Result<Vec<u8>, AssembleError> {
+    let name = &module_entry.name;
+    let constructor_function_public_index = module_entry
+        .constructor_function_public_index
+        .unwrap_or(u32::MAX);
+    let destructor_function_public_index = module_entry
+        .destructor_function_public_index
+        .unwrap_or(u32::MAX);
+
     // type section
     let (type_items, type_data) = TypeSection::convert_from_entries(&module_entry.type_entries);
     let type_section = TypeSection {
@@ -44,8 +52,9 @@ pub fn generate_module_image_binary(
     };
 
     // function section
-    let (func_items, func_data) = FuncSection::convert_from_entries(&module_entry.func_entries);
-    let func_section = FuncSection {
+    let (func_items, func_data) =
+        FunctionSection::convert_from_entries(&module_entry.function_entries);
+    let func_section = FunctionSection {
         items: &func_items,
         codes_data: &func_data,
     };
@@ -82,17 +91,17 @@ pub fn generate_module_image_binary(
     };
 
     // external function section
-    let (external_func_items, external_func_names_data) =
-        ExternalFuncSection::convert_from_entries(&module_entry.external_func_entries);
-    let external_func_section = ExternalFuncSection {
-        items: &external_func_items,
-        names_data: &external_func_names_data,
+    let (external_function_items, external_function_names_data) =
+        ExternalFunctionSection::convert_from_entries(&module_entry.external_function_entries);
+    let external_function_section = ExternalFunctionSection {
+        items: &external_function_items,
+        names_data: &external_function_names_data,
     };
 
     // func name section
     let (func_name_items, func_name_data) =
-        FuncNameSection::convert_from_entries(&module_entry.func_name_entries);
-    let func_name_section = FuncNameSection {
+        FunctionNameSection::convert_from_entries(&module_entry.function_name_entries);
+    let func_name_section = FunctionNameSection {
         items: &func_name_items,
         names_data: &func_name_data,
     };
@@ -113,7 +122,7 @@ pub fn generate_module_image_binary(
         &read_write_data_section,
         &uninit_data_section,
         &external_library_section,
-        &external_func_section,
+        &external_function_section,
         &func_name_section,
         &data_name_section,
     ];
@@ -121,8 +130,8 @@ pub fn generate_module_image_binary(
     let image_binary = if let Some(index_entry) = index_entry_opt {
         // func index
         let (func_index_range_items, func_index_items) =
-            FuncIndexSection::convert_from_entries(&index_entry.func_index_module_entries);
-        let func_index_section = FuncIndexSection {
+            FunctionIndexSection::convert_from_entries(&index_entry.function_index_module_entries);
+        let func_index_section = FunctionIndexSection {
             ranges: &func_index_range_items,
             items: &func_index_items,
         };
@@ -146,31 +155,31 @@ pub fn generate_module_image_binary(
         };
 
         // unified external function
-        let (unified_external_func_items, unified_external_func_names_data) =
-            UnifiedExternalFuncSection::convert_from_entries(
-                &index_entry.unified_external_func_entries,
+        let (unified_external_function_items, unified_external_function_names_data) =
+            UnifiedExternalFunctionSection::convert_from_entries(
+                &index_entry.unified_external_function_entries,
             );
-        let unified_external_func_section = UnifiedExternalFuncSection {
-            items: &unified_external_func_items,
-            names_data: &unified_external_func_names_data,
+        let unified_external_function_section = UnifiedExternalFunctionSection {
+            items: &unified_external_function_items,
+            names_data: &unified_external_function_names_data,
         };
 
         // external function index
-        let (external_func_ranges, external_func_items) =
-            ExternalFuncIndexSection::convert_from_entries(
-                &index_entry.external_func_index_module_entries,
+        let (external_function_ranges, external_function_items) =
+            ExternalFunctionIndexSection::convert_from_entries(
+                &index_entry.external_function_index_module_entries,
             );
-        let external_func_index_section = ExternalFuncIndexSection {
-            ranges: &external_func_ranges,
-            items: &external_func_items,
+        let external_function_index_section = ExternalFunctionIndexSection {
+            ranges: &external_function_ranges,
+            items: &external_function_items,
         };
 
         let mut index_section_entries: Vec<&dyn SectionEntry> = vec![
             &func_index_section,
             &data_index_section,
             &unified_external_library_section,
-            &unified_external_func_section,
-            &external_func_index_section,
+            &unified_external_function_section,
+            &external_function_index_section,
         ];
 
         section_entries.append(&mut index_section_entries);
@@ -178,7 +187,9 @@ pub fn generate_module_image_binary(
         // build ModuleImage instance
         let (section_items, sections_data) = ModuleImage::convert_from_entries(&section_entries);
         let module_image = ModuleImage {
-            name: &module_entry.name,
+            name,
+            constructor_function_public_index,
+            destructor_function_public_index,
             items: &section_items,
             sections_data: &sections_data,
         };
@@ -191,7 +202,9 @@ pub fn generate_module_image_binary(
         // build ModuleImage instance
         let (section_items, sections_data) = ModuleImage::convert_from_entries(&section_entries);
         let module_image = ModuleImage {
-            name: &module_entry.name,
+            name,
+            constructor_function_public_index,
+            destructor_function_public_index,
             items: &section_items,
             sections_data: &sections_data,
         };
@@ -225,7 +238,7 @@ mod tests {
             r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (param $a i32) (param $b i32)
                 (results i32)
                 (local $c i32)
@@ -244,8 +257,8 @@ mod tests {
         let program0 = program_source0.build_program().unwrap();
 
         let func_entry = program0.module_images[0]
-            .get_func_section()
-            .get_func_entry(0);
+            .get_function_section()
+            .get_function_entry(0);
 
         assert_eq!(func_entry.type_index, 0);
 
@@ -270,7 +283,7 @@ mod tests {
         assert_eq!(
             local_list_entry,
             LocalListEntry {
-                variable_entries: vec![
+                local_variable_entries: vec![
                     LocalVariableEntry {
                         memory_data_type: MemoryDataType::I32,
                         length: 4,

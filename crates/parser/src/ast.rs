@@ -4,7 +4,9 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancvm_types::{opcode::Opcode, DataType, ExternalLibraryType, MemoryDataType};
+use ancvm_types::{
+    opcode::Opcode, DataSectionType, DataType, ExternalLibraryType, MemoryDataType, ModuleShareType,
+};
 
 #[derive(Debug, PartialEq)]
 pub struct ModuleNode {
@@ -14,19 +16,22 @@ pub struct ModuleNode {
     pub runtime_version_major: u16,
     pub runtime_version_minor: u16,
 
+    pub constructor_function_name:Option<String>,
+    pub destructor_function_name:Option<String>,
+
     pub element_nodes: Vec<ModuleElementNode>,
 }
 
 #[derive(Debug, PartialEq)]
 pub enum ModuleElementNode {
-    FuncNode(FuncNode),
+    FunctionNode(FunctionNode),
     DataNode(DataNode),
-    ExternNode(ExternNode),
-    TODONode,
+    ExternalNode(ExternalNode),
+    ImportNode(ImportNode)
 }
 
 #[derive(Debug, PartialEq)]
-pub struct FuncNode {
+pub struct FunctionNode {
     // the names of functions (includes imported function)
     // in a module can not be duplicated.
     pub name: String,
@@ -62,14 +67,14 @@ pub struct LocalNode {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct ExternNode {
+pub struct ExternalNode {
     pub external_library_node: ExternalLibraryNode,
     pub external_items: Vec<ExternalItem>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum ExternalItem {
-    ExternalFunc(ExternalFuncNode),
+    ExternalFunction(ExternalFunctionNode),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -79,11 +84,46 @@ pub struct ExternalLibraryNode {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct ExternalFuncNode {
-    pub name: String,          // the identifier of the external function
-    pub symbol: String,        // the original exported name
+pub struct ExternalFunctionNode {
+    pub id: String,          // the identifier of the external function
+    pub name: String,        // the original exported name/symbol
     pub params: Vec<DataType>, // the parameters of external functions have no identifier
     pub results: Vec<DataType>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct ImportNode {
+    pub import_module_node: ImportModuleNode,
+    pub import_items: Vec<ImportItem>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum ImportItem {
+    ImportFunction(ImportFunctionNode),
+    ImportData(ImportDataNode),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct ImportModuleNode {
+    pub module_share_type: ModuleShareType,
+    pub name: String,
+    pub version_major: u16,
+    pub version_minor: u16
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct ImportFunctionNode {
+    pub id: String,            // the identifier of the imported function
+    pub name_path: String,     // the original exported name path (excludes the module name)
+    pub params: Vec<DataType>, // the parameters of external functions have no identifier
+    pub results: Vec<DataType>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct ImportDataNode {
+    pub id: String,        // the identifier of the imported data
+    pub name_path: String, // the original exported name path (excludes the module name)
+    pub data_section_type: DataSectionType,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -267,7 +307,7 @@ pub enum Instruction {
     // bytecode: recur (param reversed_index:i16, start_inst_offset:i32)
     Rerun(Vec<Instruction>),
 
-    // bytecode: (param func_pub_index:i32)
+    // bytecode: (param function_public_index:i32)
     Call {
         name_path: String,
         args: Vec<Instruction>,
@@ -293,18 +333,18 @@ pub enum Instruction {
 
     // bytecode: (param external_func_idx:i32)
     ExtCall {
-        name: String,
+        name_path: String,
         args: Vec<Instruction>,
     },
 
     Debug(/* code */ u32),
     Unreachable(/* code */ u32),
-    HostAddrFunc(/* name_path */ String),
+    HostAddrFunction(/* name_path */ String),
 
-    // macro.get_func_pub_index
+    // macro.get_function_public_index
     //
     // for obtaining the public index of the specified function
-    MacroGetFuncPubIndex(/* name_path */ String),
+    MacroGetFunctionPublicIndex(/* name_path */ String),
 }
 
 #[derive(Debug, PartialEq, Clone)]

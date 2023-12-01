@@ -5,10 +5,10 @@
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
 use ancvm_binary::bytecode_writer::BytecodeWriter;
-use ancvm_parser::ast::{DataKindNode, DataNode, ExternNode, ExternalItem};
-use ancvm_parser::ast::{FuncNode, ImmF32, ImmF64, Instruction, LocalNode, ParamNode};
+use ancvm_parser::ast::{DataKindNode, DataNode, ExternalItem, ExternalNode};
+use ancvm_parser::ast::{FunctionNode, ImmF32, ImmF64, Instruction, LocalNode, ParamNode};
 use ancvm_types::entry::{
-    DataNameEntry, ExternalFuncEntry, ExternalLibraryEntry, FuncEntry, FuncNameEntry,
+    DataNameEntry, ExternalFunctionEntry, ExternalLibraryEntry, FunctionEntry, FunctionNameEntry,
     InitedDataEntry, LocalListEntry, LocalVariableEntry, ModuleEntry, TypeEntry, UninitDataEntry,
 };
 use ancvm_types::{opcode::Opcode, DataType};
@@ -29,15 +29,15 @@ struct IdentifierIndex {
 
 impl SymbolIdentifierLookupTable {
     pub fn new(
-        func_name_entries: &[FuncNameEntry],
+        function_name_entries: &[FunctionNameEntry],
         data_name_entries: &[DataNameEntry],
-        extern_nodes: &[ExternNode],
+        extern_nodes: &[ExternalNode],
     ) -> Self {
-        let func_identifiers = func_name_entries
+        let func_identifiers = function_name_entries
             .iter()
             .map(|entry| IdentifierIndex {
                 identifier: entry.name.clone(),
-                public_index: entry.func_pub_index,
+                public_index: entry.function_public_index,
             })
             .collect::<Vec<_>>();
 
@@ -45,7 +45,7 @@ impl SymbolIdentifierLookupTable {
             .iter()
             .map(|entry| IdentifierIndex {
                 identifier: entry.name.clone(),
-                public_index: entry.data_pub_index,
+                public_index: entry.data_public_index,
             })
             .collect::<Vec<_>>();
 
@@ -60,7 +60,7 @@ impl SymbolIdentifierLookupTable {
     }
 
     fn build_external_function_identifier_indices(
-        extern_nodes: &[ExternNode],
+        extern_nodes: &[ExternalNode],
     ) -> Vec<IdentifierIndex> {
         let mut external_func_identifiers: Vec<IdentifierIndex> = vec![];
 
@@ -68,9 +68,9 @@ impl SymbolIdentifierLookupTable {
 
         for extern_node in extern_nodes {
             for external_item in &extern_node.external_items {
-                let ExternalItem::ExternalFunc(external_func) = external_item;
+                let ExternalItem::ExternalFunction(external_func) = external_item;
                 external_func_identifiers.push(IdentifierIndex {
-                    identifier: external_func.name.clone(),
+                    identifier: external_func.id.clone(),
                     public_index: idx,
                 });
                 idx += 1;
@@ -80,7 +80,7 @@ impl SymbolIdentifierLookupTable {
         external_func_identifiers
     }
 
-    pub fn get_func_pub_index(&self, identifier: &str) -> Result<usize, AssembleError> {
+    pub fn get_function_public_index(&self, identifier: &str) -> Result<usize, AssembleError> {
         match self
             .func_identifiers
             .iter()
@@ -94,7 +94,7 @@ impl SymbolIdentifierLookupTable {
         }
     }
 
-    pub fn get_data_pub_index(&self, identifier: &str) -> Result<usize, AssembleError> {
+    pub fn get_data_public_index(&self, identifier: &str) -> Result<usize, AssembleError> {
         match self
             .data_identifiers
             .iter()
@@ -337,8 +337,8 @@ pub fn assemble_merged_module_node(
     let imported_rw_data_count = 0;
     let imported_uninit_data_count = 0;
 
-    let func_name_entries =
-        build_func_name_entries(&merged_module_node.func_nodes, imported_func_count);
+    let function_name_entries =
+        build_func_name_entries(&merged_module_node.function_nodes, imported_func_count);
     let data_name_entries = build_data_name_entries(
         &merged_module_node.read_only_data_nodes,
         &merged_module_node.read_write_data_nodes,
@@ -349,13 +349,13 @@ pub fn assemble_merged_module_node(
     );
 
     let symbol_identifier_lookup_table = SymbolIdentifierLookupTable::new(
-        &func_name_entries,
+        &function_name_entries,
         &data_name_entries,
-        &merged_module_node.extern_nodes,
+        &merged_module_node.external_nodes,
     );
 
-    let (mut type_entries, local_list_entries, func_entries) = assemble_func_nodes(
-        &merged_module_node.func_nodes,
+    let (mut type_entries, local_list_entries, function_entries) = assemble_func_nodes(
+        &merged_module_node.function_nodes,
         &symbol_identifier_lookup_table,
     )?;
 
@@ -366,25 +366,28 @@ pub fn assemble_merged_module_node(
             &merged_module_node.uninit_data_nodes,
         )?;
 
-    let (external_library_entries, external_func_entries) =
-        assemble_extern_nodes(&merged_module_node.extern_nodes, &mut type_entries)?;
+    let (external_library_entries, external_function_entries) =
+        assemble_extern_nodes(&merged_module_node.external_nodes, &mut type_entries)?;
 
     let module_entry = ModuleEntry {
         name,
         runtime_version_major,
         runtime_version_minor,
+        // todo
+        constructor_function_public_index: None,
+        destructor_function_public_index: None,
         //
         type_entries,
         local_list_entries,
-        func_entries,
+        function_entries,
         read_only_data_entries,
         read_write_data_entries,
         uninit_data_entries,
         //
         external_library_entries,
-        external_func_entries,
+        external_function_entries,
         //
-        func_name_entries,
+        function_name_entries,
         data_name_entries,
     };
 
@@ -392,24 +395,24 @@ pub fn assemble_merged_module_node(
 }
 
 fn build_func_name_entries(
-    func_nodes: &[FuncNode],
+    func_nodes: &[FunctionNode],
     imported_func_count: usize,
-) -> Vec<FuncNameEntry> {
-    let mut func_name_entries = vec![];
-    let mut func_pub_idx = imported_func_count;
+) -> Vec<FunctionNameEntry> {
+    let mut function_name_entries = vec![];
+    let mut function_public_index = imported_func_count;
 
     for func_node in func_nodes {
-        let entry = FuncNameEntry {
+        let entry = FunctionNameEntry {
             name: func_node.name.clone(),
-            func_pub_index: func_pub_idx,
+            function_public_index,
             exported: func_node.exported,
         };
 
-        func_name_entries.push(entry);
-        func_pub_idx += 1;
+        function_name_entries.push(entry);
+        function_public_index += 1;
     }
 
-    func_name_entries
+    function_name_entries
 }
 
 fn build_data_name_entries(
@@ -421,56 +424,56 @@ fn build_data_name_entries(
     imported_uninit_data_count: usize,
 ) -> Vec<DataNameEntry> {
     let mut data_name_entries = vec![];
-    let mut data_pub_idx = 0;
+    let mut data_public_index = 0;
 
-    data_pub_idx += imported_ro_data_count;
+    data_public_index += imported_ro_data_count;
 
     for data_node in ro_data_nodes {
         let entry = DataNameEntry {
             name: data_node.name.clone(),
-            data_pub_index: data_pub_idx,
+            data_public_index,
             exported: data_node.exported,
         };
         data_name_entries.push(entry);
-        data_pub_idx += 1;
+        data_public_index += 1;
     }
 
-    data_pub_idx += imported_rw_data_count;
+    data_public_index += imported_rw_data_count;
 
     for data_node in rw_data_nodes {
         let entry = DataNameEntry {
             name: data_node.name.clone(),
-            data_pub_index: data_pub_idx,
+            data_public_index,
             exported: data_node.exported,
         };
         data_name_entries.push(entry);
-        data_pub_idx += 1;
+        data_public_index += 1;
     }
 
-    data_pub_idx += imported_uninit_data_count;
+    data_public_index += imported_uninit_data_count;
 
     for data_node in uninit_data_nodes {
         let entry = DataNameEntry {
             name: data_node.name.clone(),
-            data_pub_index: data_pub_idx,
+            data_public_index,
             exported: data_node.exported,
         };
         data_name_entries.push(entry);
-        data_pub_idx += 1;
+        data_public_index += 1;
     }
 
     data_name_entries
 }
 
-type AssembleResultForFuncNode = (Vec<TypeEntry>, Vec<LocalListEntry>, Vec<FuncEntry>);
+type AssembleResultForFuncNode = (Vec<TypeEntry>, Vec<LocalListEntry>, Vec<FunctionEntry>);
 
 fn assemble_func_nodes(
-    func_nodes: &[FuncNode],
+    func_nodes: &[FunctionNode],
     symbol_identifier_lookup_table: &SymbolIdentifierLookupTable,
 ) -> Result<AssembleResultForFuncNode, AssembleError> {
     let mut type_entries = vec![];
     let mut local_list_entries = vec![];
-    let mut func_entries = vec![];
+    let mut function_entries = vec![];
 
     for func_node in func_nodes {
         let type_index = find_existing_type_index_with_creating_when_not_found_by_param_nodes(
@@ -498,14 +501,14 @@ fn assemble_func_nodes(
             // &mut flow_stack,
         )?;
 
-        func_entries.push(FuncEntry {
+        function_entries.push(FunctionEntry {
             type_index,
             local_list_index,
             code,
         });
     }
 
-    Ok((type_entries, local_list_entries, func_entries))
+    Ok((type_entries, local_list_entries, function_entries))
 }
 
 fn find_existing_type_index_with_creating_when_not_found_by_param_nodes(
@@ -568,7 +571,7 @@ fn find_existing_local_index_with_creating_when_not_found(
 
     let opt_idx = local_list_entries
         .iter()
-        .position(|entry| entry.variable_entries == variable_entries);
+        .position(|entry| entry.local_variable_entries == variable_entries);
 
     if let Some(idx) = opt_idx {
         idx
@@ -789,10 +792,10 @@ fn assemble_instruction(
             name_path: name,
             offset,
         } => {
-            let data_pub_index = symbol_identifier_lookup_table.get_data_pub_index(name)?;
+            let data_public_index = symbol_identifier_lookup_table.get_data_public_index(name)?;
 
             // bytecode: (param offset_bytes:i16 data_public_index:i32)
-            bytecode_writer.write_opcode_i16_i32(*opcode, *offset, data_pub_index as u32);
+            bytecode_writer.write_opcode_i16_i32(*opcode, *offset, data_public_index as u32);
         }
         Instruction::DataStore {
             opcode,
@@ -809,10 +812,10 @@ fn assemble_instruction(
                 bytecode_writer,
             )?;
 
-            let data_pub_index = symbol_identifier_lookup_table.get_data_pub_index(name)?;
+            let data_public_index = symbol_identifier_lookup_table.get_data_public_index(name)?;
 
             // bytecode: (param offset_bytes:i16 data_public_index:i32)
-            bytecode_writer.write_opcode_i16_i32(*opcode, *offset, data_pub_index as u32);
+            bytecode_writer.write_opcode_i16_i32(*opcode, *offset, data_public_index as u32);
         }
         Instruction::DataLongLoad {
             opcode,
@@ -828,10 +831,10 @@ fn assemble_instruction(
                 bytecode_writer,
             )?;
 
-            let data_pub_index = symbol_identifier_lookup_table.get_data_pub_index(name)?;
+            let data_public_index = symbol_identifier_lookup_table.get_data_public_index(name)?;
 
             // bytecode: (param data_public_index:i32)
-            bytecode_writer.write_opcode_i32(*opcode, data_pub_index as u32);
+            bytecode_writer.write_opcode_i32(*opcode, data_public_index as u32);
         }
         Instruction::DataLongStore {
             opcode,
@@ -857,10 +860,10 @@ fn assemble_instruction(
                 bytecode_writer,
             )?;
 
-            let data_pub_index = symbol_identifier_lookup_table.get_data_pub_index(name)?;
+            let data_public_index = symbol_identifier_lookup_table.get_data_public_index(name)?;
 
             // bytecode: (param data_public_index:i32)
-            bytecode_writer.write_opcode_i32(*opcode, data_pub_index as u32);
+            bytecode_writer.write_opcode_i32(*opcode, data_public_index as u32);
         }
         Instruction::HeapLoad {
             opcode,
@@ -1477,8 +1480,9 @@ fn assemble_instruction(
                 )?;
             }
 
-            let func_pub_idx = symbol_identifier_lookup_table.get_func_pub_index(name)?;
-            bytecode_writer.write_opcode_i32(Opcode::call, func_pub_idx as u32);
+            let function_public_index =
+                symbol_identifier_lookup_table.get_function_public_index(name)?;
+            bytecode_writer.write_opcode_i32(Opcode::call, function_public_index as u32);
         }
         Instruction::DynCall { num, args } => {
             for instruction in args {
@@ -1534,7 +1538,7 @@ fn assemble_instruction(
             bytecode_writer.write_opcode_i32(Opcode::i32_imm, args.len() as u32);
             bytecode_writer.write_opcode(Opcode::syscall);
         }
-        Instruction::ExtCall { name, args } => {
+        Instruction::ExtCall { name_path: name, args } => {
             for instruction in args {
                 assemble_instruction(
                     instruction,
@@ -1550,9 +1554,10 @@ fn assemble_instruction(
             bytecode_writer.write_opcode_i32(Opcode::extcall, external_func_idx as u32);
         }
         // macro
-        Instruction::MacroGetFuncPubIndex(name_path) => {
-            let func_pub_idx = symbol_identifier_lookup_table.get_func_pub_index(name_path)?;
-            bytecode_writer.write_opcode_i32(Opcode::i32_imm, func_pub_idx as u32);
+        Instruction::MacroGetFunctionPublicIndex(name_path) => {
+            let function_public_index =
+                symbol_identifier_lookup_table.get_function_public_index(name_path)?;
+            bytecode_writer.write_opcode_i32(Opcode::i32_imm, function_public_index as u32);
         }
         Instruction::Debug(code) => {
             bytecode_writer.write_opcode_i32(Opcode::debug, *code);
@@ -1560,9 +1565,11 @@ fn assemble_instruction(
         Instruction::Unreachable(code) => {
             bytecode_writer.write_opcode_i32(Opcode::unreachable, *code);
         }
-        Instruction::HostAddrFunc(name) => {
-            let func_pub_idx = symbol_identifier_lookup_table.get_func_pub_index(name)?;
-            bytecode_writer.write_opcode_i32(Opcode::host_addr_func, func_pub_idx as u32);
+        Instruction::HostAddrFunction(name) => {
+            let function_public_index =
+                symbol_identifier_lookup_table.get_function_public_index(name)?;
+            bytecode_writer
+                .write_opcode_i32(Opcode::host_addr_function, function_public_index as u32);
         }
     }
 
@@ -1650,14 +1657,14 @@ fn assemble_data_nodes(
     ))
 }
 
-type AssembleResultForExternNode = (Vec<ExternalLibraryEntry>, Vec<ExternalFuncEntry>);
+type AssembleResultForExternNode = (Vec<ExternalLibraryEntry>, Vec<ExternalFunctionEntry>);
 
 fn assemble_extern_nodes(
-    extern_nodes: &[ExternNode],
+    extern_nodes: &[ExternalNode],
     type_entries: &mut Vec<TypeEntry>,
 ) -> Result<AssembleResultForExternNode, AssembleError> {
     let mut external_library_entries: Vec<ExternalLibraryEntry> = vec![];
-    let mut external_func_entries: Vec<ExternalFuncEntry> = vec![];
+    let mut external_function_entries: Vec<ExternalFunctionEntry> = vec![];
 
     for extern_node in extern_nodes {
         // build ExternalLibraryEntry
@@ -1666,11 +1673,11 @@ fn assemble_extern_nodes(
             name: external_library_node.name.clone(),
             external_library_type: external_library_node.external_library_type,
         };
-        let external_library_index = external_func_entries.len();
+        let external_library_index = external_function_entries.len();
         external_library_entries.push(external_library_entry);
 
         for extern_item in &extern_node.external_items {
-            let ExternalItem::ExternalFunc(external_func) = extern_item;
+            let ExternalItem::ExternalFunction(external_func) = extern_item;
 
             // get type index
             let type_index = find_existing_type_index_with_creating_when_not_found(
@@ -1679,16 +1686,16 @@ fn assemble_extern_nodes(
                 &external_func.results,
             );
 
-            // build ExternalFuncEntry
-            let external_func_entry = ExternalFuncEntry {
-                name: external_func.symbol.clone(),
+            // build ExternalFunctionEntry
+            let external_func_entry = ExternalFunctionEntry {
+                name: external_func.name.clone(),
                 external_library_index,
                 type_index,
             };
 
-            external_func_entries.push(external_func_entry);
+            external_function_entries.push(external_func_entry);
         }
     }
 
-    Ok((external_library_entries, external_func_entries))
+    Ok((external_library_entries, external_function_entries))
 }

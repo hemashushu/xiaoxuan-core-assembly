@@ -59,7 +59,7 @@ fn test_assemble_arithmetic_i32() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (param $a0 i32)
                 (param $a1 i32)
                 (param $a2 i32)
@@ -189,7 +189,7 @@ fn test_assemble_arithmetic_i64() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (param $a0 i64)
                 (param $a1 i64)
                 (param $a2 i64)
@@ -289,7 +289,7 @@ fn test_assemble_arithmetic_f32() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (param $a0 f32)
                 (param $a1 f32)
                 (results
@@ -344,7 +344,7 @@ fn test_assemble_arithmetic_f64() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (param $a0 f64)
                 (param $a1 f64)
                 (results

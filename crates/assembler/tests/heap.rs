@@ -21,7 +21,7 @@ fn test_assemble_heap_capacity() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (results i64 i64 i64 i64 i64)
                 (code
                     ;; get the capacity
@@ -92,7 +92,7 @@ fn test_assemble_heap_load_and_store() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (param $a0 f32)
                 (param $a1 f64)
                 (results

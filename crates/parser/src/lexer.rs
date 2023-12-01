@@ -1794,7 +1794,7 @@ mod tests {
             (import
                 (module
                     (local "math")
-                    (fn $add "add" (param $lhs i32))
+                    (function $add "add" (param $lhs i32))
                 )
             )
             "#
@@ -1810,7 +1810,7 @@ mod tests {
                 Token::new_string("math"),
                 Token::RightParen,
                 Token::LeftParen,
-                Token::new_symbol("fn"),
+                Token::new_symbol("function"),
                 Token::new_identifier("add"),
                 Token::new_string("add"),
                 Token::LeftParen,

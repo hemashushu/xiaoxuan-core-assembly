@@ -24,7 +24,7 @@ fn test_assemble_host_panic() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (code
                     nop
                     panic
@@ -57,7 +57,7 @@ fn test_assemble_host_debug() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (code
                     nop
                     (debug 0x101)
@@ -90,7 +90,7 @@ fn test_assemble_host_unreachable() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (code
                     nop
                     (unreachable 0x103)
@@ -178,7 +178,7 @@ fn test_assemble_host_address_of_data_and_local_vars() {
             (data $d3 (read_write i32 0xff))    ;; init data
             (data $d4 (uninit i32))
             (data $d5 (uninit i64))
-            (fn $test
+            (function $test
                 (results i64 i64 i64 i64 i64 i64 i64 i64)
                 (local $reserved (bytes 64 8))
                 (local $n1 i32)
@@ -223,8 +223,8 @@ fn test_assemble_host_address_of_data_and_local_vars() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
 
@@ -321,7 +321,7 @@ fn test_assemble_host_address_long_of_data_and_local_vars() {
             (runtime_version "1.0")
             (data $d0 (read_only (bytes 8) d"02-03-05-07"))
             (data $d1 (read_only (bytes 8) d"11-13-17-19"))
-            (fn $test
+            (function $test
                 (results i64 i64 i64 i64 i64 i64 i64 i64)
                 (local $reserved (bytes 64 8))
                 (local $n1 (bytes 8 8))
@@ -352,8 +352,8 @@ fn test_assemble_host_address_long_of_data_and_local_vars() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
     // println!("{}", bytecode_text);
@@ -423,7 +423,7 @@ fn test_assemble_host_address_heap() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (results i64 i64 i64 i64 i64)
                 (code
                     ;; init the heap size
@@ -460,8 +460,8 @@ fn test_assemble_host_address_heap() {
     let program0 = program_source0.build_program().unwrap();
 
     let func_entry = program0.module_images[0]
-        .get_func_section()
-        .get_func_entry(0);
+        .get_function_section()
+        .get_function_entry(0);
 
     let bytecode_text = print_bytecode_as_text(&func_entry.code);
 
@@ -529,7 +529,7 @@ fn test_assemble_host_heap_copy() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test
+            (function $test
                 (param $src_ptr i64)
                 (param $dst_ptr i64)
                 (code
@@ -611,25 +611,25 @@ fn test_assemble_host_addr_func_and_callback_function() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (extern (library user "lib-test-0.so.1")
-                (fn $do_something "do_something"
+            (external (library user "lib-test-0.so.1")
+                (function $do_something "do_something"
                     (params i64 i32 i32)
                     (result i32)
                 )
             )
-            (fn $func0
+            (function $func0
                 (param $a i32)
                 (param $b i32)
                 (result i32)
                 (code
                     (extcall $do_something
-                        (host.addr_func $func1)
+                        (host.addr_function $func1)
                         (local.load32_i32 $a)
                         (local.load32_i32 $b)
                     )
                 )
             )
-            (fn $func1
+            (function $func1
                 (param $n i32)
                 (result i32)
                 (code

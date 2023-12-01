@@ -158,10 +158,10 @@ pub enum InstructionKind {
     //
     Debug,
     Unreachable,
-    HostAddrFunc,
+    HostAddrFunction,
 
-    // (macro.get_func_pub_index $name)
-    MacroGetFuncPubIndex,
+    // (macro.get_function_public_index $name)
+    MacroGetFunctionPublicIndex,
 }
 
 pub fn init_instruction_kind_table() {
@@ -769,7 +769,7 @@ fn init_instruction_kind_table_internal() {
         "host.addr_heap",
         InstructionKind::HeapLoad(Opcode::host_addr_heap),
     );
-    add("host.addr_func", InstructionKind::HostAddrFunc);
+    add("host.addr_function", InstructionKind::HostAddrFunction);
     add(
         "host.copy_from_heap",
         InstructionKind::NoParams(Opcode::host_copy_from_heap, 3),
@@ -805,8 +805,8 @@ fn init_instruction_kind_table_internal() {
 
     // macros
     add(
-        "macro.get_func_pub_index",
-        InstructionKind::MacroGetFuncPubIndex,
+        "macro.get_function_public_index",
+        InstructionKind::MacroGetFunctionPublicIndex,
     );
 
     unsafe { INSTRUCTION_KIND_TABLE = Some(table) };

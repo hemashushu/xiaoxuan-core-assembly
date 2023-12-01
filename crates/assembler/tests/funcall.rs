@@ -55,13 +55,13 @@ fn test_assemble_function_call() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test (param $count i32) (result i32)
+            (function $test (param $count i32) (result i32)
                 (code
                     (call $sum_square (local.load32_i32 $count))
                 )
             )
 
-            (fn $sum_square (param $count i32) (result i32)
+            (function $sum_square (param $count i32) (result i32)
                 (code
                     zero                        ;; for arg 'sum'
                     (local.load32_i32 $count)   ;; for arg 'n'
@@ -85,7 +85,7 @@ fn test_assemble_function_call() {
                 )
             )
 
-            (fn $square (param $n i32) (result i32)
+            (function $square (param $n i32) (result i32)
                 (code
                     (i32.mul
                         (local.load32_i32 $n)
@@ -142,35 +142,35 @@ fn test_assemble_function_call_dyncall() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (fn $test (results i32 i32 i32 i32 i32)
+            (function $test (results i32 i32 i32 i32 i32)
                 (code
-                    (dyncall (macro.get_func_pub_index $thirteen))
-                    (dyncall (macro.get_func_pub_index $nineteen))
-                    (dyncall (macro.get_func_pub_index $seventeen))
-                    (dyncall (macro.get_func_pub_index $eleven))
-                    (dyncall (macro.get_func_pub_index $thirteen))
+                    (dyncall (macro.get_function_public_index $thirteen))
+                    (dyncall (macro.get_function_public_index $nineteen))
+                    (dyncall (macro.get_function_public_index $seventeen))
+                    (dyncall (macro.get_function_public_index $eleven))
+                    (dyncall (macro.get_function_public_index $thirteen))
                 )
             )
 
-            (fn $eleven (result i32)
+            (function $eleven (result i32)
                 (code
                     (i32.imm 11)
                 )
             )
 
-            (fn $thirteen (result i32)
+            (function $thirteen (result i32)
                 (code
                     (i32.imm 13)
                 )
             )
 
-            (fn $seventeen (result i32)
+            (function $seventeen (result i32)
                 (code
                     (i32.imm 17)
                 )
             )
 
-            (fn $nineteen (result i32)
+            (function $nineteen (result i32)
                 (code
                     (i32.imm 19)
                 )

@@ -27,7 +27,7 @@ An assembly text file can only define one module, so the content of an assembly 
 ```clojure
 (module $app
     (runtime_version "1.0")
-    (fn $test (result i32)
+    (function $test (result i32)
         (code
             (i32.imm 42)
         )
@@ -74,15 +74,15 @@ The following is an example that uses these parameters:
     (constructor $init)
     (destructor $exit)
 
-    (fn $init ...)
-    (fn $test ...)
-    (fn $exit ...)
+    (function $init ...)
+    (function $test ...)
+    (function $exit ...)
 )
 ```
 
 ## The `fn` Node
 
-(fn $name (param $p0 i32) (param $p1 i32) (result i32)
+(function $name (param $p0 i32) (param $p1 i32) (result i32)
     (code ...)
 )
 
@@ -95,25 +95,25 @@ parameters and results data type:
 
 no parameters
 
-(fn $name (result i32)
+(function $name (result i32)
     (code ...)
 )
 
 no return values
 
-(fn $name
+(function $name
     (code ...)
 )
 
 multiple return values
 
-(fn $name (result i32) (result i32)
+(function $name (result i32) (result i32)
     (code ...)
 )
 
 or
 
-(fn $name (results i32 i32)
+(function $name (results i32 i32)
     (code ...)
 )
 
@@ -122,7 +122,7 @@ or
 
 ### local variables
 
-(fn $func_name
+(function $func_name
     (local $local_variable_name_0 i32)
     (local $local_variable_name_1 i32)
     (code ...)
@@ -142,7 +142,7 @@ bytes syntax:
 
 e.g.
 
-(fn $func_name
+(function $func_name
     (local $buf (bytes 12 4))
     (code ...)
 )
@@ -151,7 +151,7 @@ e.g.
 
 add 'exported' annotation after the function name.
 
-(fn $name exported ...)
+(function $name exported ...)
 
 ## The `data` node
 
@@ -166,12 +166,15 @@ add 'exported' annotation after the function name.
 ;; data
 (data $name (read_only (bytes ALIGN_NUMBER:i16) d"11-13-17-19"))
 
-also
+there are two variants of 'bytes': 'string' and 'cstring', e.g.
+
 ;; UTF-8 encoding string
 (data $name (read_only string "Hello, World!"))
 
 ;; type `cstring` will append '\0' at the end of string
 (data $name (read_only cstring "Hello, World!"))
+
+they will be converted into 'bytes' by assembler.
 
 other sections than 'read_only'
 
@@ -186,17 +189,41 @@ uninitialized section:
 with 'exported' annotation
 (data $name exported (read_only i32 123))
 
-## The 'extern' node
+## The 'external' node
 
-(extern (library share "math.so.1")
-        (fn $add "add" (param i32) (param i32) (result i32))
+(external (library share "math.so.1")
+    (function $add "add" (param i32) (param i32) (result i32))
 )
 
 the parameters can be writtern as compact mode:
 
-(fn $add "add" (params i32 i32) (result i32))
+(function $add "add" (params i32 i32) (result i32))
 
 library type:
 - (library share "math.so.1")
 - (library system "libc.so.6")
 - (library user "lib-test-0.so.1")
+
+## The 'import' node
+
+import functions:
+
+(import (module share "math" "1.0")
+    (function $add "add" (param i32) (param i32) (result i32))
+    (function $add_wrap "wrap::add" (param i32) (param i32) (result i32))
+)
+
+import data:
+
+(import (module user "format" "1.2")
+    (data $sum "sum" (read_write i32))
+    (data $msg "msg" (read_only i64))
+    (data $buf "utils::buf" (uninit bytes))
+)
+
+for the variants of 'bytes' such as 'string' and 'cstring', use 'bytes' instead in the data-import node.
+
+> At the assembly level, submodules are transparent to each other, i.e., all
+> functions and data (including imported functions, imported data, and
+> declared external functions) are public and can be accessed in any submodule.
+
