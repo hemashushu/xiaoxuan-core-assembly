@@ -8,13 +8,18 @@ use ancvm_types::{opcode::Opcode, DataType, ExternalLibraryType, MemoryDataType,
 
 #[derive(Debug, PartialEq)]
 pub struct ModuleNode {
-    // module names can not be duplicated
+    // the name of main module or submodule
+    //
+    // note that the module names within an application (or a module) can not be duplicated
     pub name_path: String,
 
     pub runtime_version_major: u16,
     pub runtime_version_minor: u16,
 
+    // the relative name path of constructor function
     pub constructor_function_name: Option<String>,
+
+    // the relative name path of destructor function
     pub destructor_function_name: Option<String>,
 
     pub element_nodes: Vec<ModuleElementNode>,
@@ -30,11 +35,11 @@ pub enum ModuleElementNode {
 
 #[derive(Debug, PartialEq)]
 pub struct FunctionNode {
-    // the names of functions (includes imported function)
-    // in a module can not be duplicated.
+    // nate that the names of functions can not be duplicated within a module,
+    // including the name of imported functions.
     pub name: String,
 
-    pub exported: bool,
+    pub export: bool,
     pub params: Vec<ParamNode>,
     pub results: Vec<DataType>,
     pub locals: Vec<LocalNode>,
@@ -43,7 +48,7 @@ pub struct FunctionNode {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ParamNode {
-    // the names of all parameters and local variables in a function
+    // nate that the names of all parameters and local variables within a function
     // can not be duplicated.
     pub name: String,
     pub data_type: DataType,
@@ -51,7 +56,7 @@ pub struct ParamNode {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct LocalNode {
-    // the names of all parameters and local variables in a function
+    // nate that the names of all parameters and local variables within a function
     // can not be duplicated.
     pub name: String,
 
@@ -83,8 +88,8 @@ pub struct ExternalLibraryNode {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ExternalFunctionNode {
-    pub id: String,            // the identifier of the external function
-    pub name: String,          // the original exported name/symbol
+    pub id: String,   // the identifier of the external function for 'extcall' instruction
+    pub name: String, // the original exported name/symbol
     pub params: Vec<DataType>, // the parameters of external functions have no identifier
     pub results: Vec<DataType>,
 }
@@ -111,18 +116,34 @@ pub struct ImportModuleNode {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ImportFunctionNode {
-    pub id: String,            // the identifier of the imported function
-    pub name_path: String,     // the original exported name path (excludes the module name)
-    pub params: Vec<DataType>, // the parameters of external functions have no identifier
+    // the identifier of the imported function for calling instructons
+    pub id: String,
+
+    // the original exported name path,
+    // includes the submodule name path, but excludes the module name.
+    //
+    // e.g.
+    // the name path of functon 'add' in module 'myapp' is 'add',
+    // the name path of function 'add' in submodule 'myapp:utils' is 'utils::add'.
+    pub name_path: String,
+
+    // the parameters of external functions have no identifier
+    pub params: Vec<DataType>,
     pub results: Vec<DataType>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ImportDataNode {
-    pub id: String,        // the identifier of the imported data
-    pub name_path: String, // the original exported name path (excludes the module name)
-    // pub data_section_type: DataSectionType,
-    // pub memory_data_type: MemoryDataType,
+    // the identifier of the imported data for data loading/storing instructions
+    pub id: String,
+
+    // the original exported name path,
+    // includes the submodule name path, but excludes the module name.
+    //
+    // e.g.
+    // the name path of data 'buf' in module 'myapp' is 'buf',
+    // the name path of data 'buf' in submodule 'myapp:utils' is 'utils::buf'.
+    pub name_path: String,
     pub data_kind_node: SimplifiedDataKindNode,
 }
 
@@ -179,14 +200,18 @@ pub enum Instruction {
     // bytecode: (param offset_bytes:i16 data_public_index:i32)
     DataLoad {
         opcode: Opcode,
-        name_path: String,
+
+        // the data identifier, or the (relative/absolute) name path
+        id: String,
         offset: u16,
     },
 
     // bytecode: (param offset_bytes:i16 data_public_index:i32)
     DataStore {
         opcode: Opcode,
-        name_path: String,
+
+        // the data identifier, or the (relative/absolute) name path
+        id: String,
         offset: u16,
         value: Box<Instruction>,
     },
@@ -194,14 +219,18 @@ pub enum Instruction {
     // bytecode: (param data_public_index:i32)
     DataLongLoad {
         opcode: Opcode,
-        name_path: String,
+
+        // the data identifier, or the (relative/absolute) name path
+        id: String,
         offset: Box<Instruction>,
     },
 
     // bytecode: (param data_public_index:i32)
     DataLongStore {
         opcode: Opcode,
-        name_path: String,
+
+        // the data identifier, or the (relative/absolute) name path
+        id: String,
         offset: Box<Instruction>,
         value: Box<Instruction>,
     },
@@ -309,7 +338,8 @@ pub enum Instruction {
 
     // bytecode: (param function_public_index:i32)
     Call {
-        name_path: String,
+        // the function identifier (name), or the (relative/absolute) name path
+        id: String,
         args: Vec<Instruction>,
     },
 
@@ -333,18 +363,29 @@ pub enum Instruction {
 
     // bytecode: (param external_function_idx:i32)
     ExtCall {
-        name_path: String,
+        // the external function identifier, or the (relative/absolute) name path
+        id: String,
         args: Vec<Instruction>,
     },
 
     Debug(/* code */ u32),
     Unreachable(/* code */ u32),
-    HostAddrFunction(/* name_path */ String),
+
+    // id:
+    // the function identifier (name), or the (relative/absolute) name path
+    HostAddrFunction {
+        id: String,
+    },
 
     // macro.get_function_public_index
     //
     // for obtaining the public index of the specified function
-    MacroGetFunctionPublicIndex(/* name_path */ String),
+    //
+    // id:
+    // the function identifier (name), or the (relative/absolute) name path
+    MacroGetFunctionPublicIndex {
+        id: String,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -367,10 +408,10 @@ pub struct BranchCase {
 
 #[derive(Debug, PartialEq)]
 pub struct DataNode {
-    // the names of datas (includes imported data)
-    // in a module can not be duplicated.
+    // the names of data can not be duplicated within a module,
+    // including the name of imported data.
     pub name: String,
-    pub exported: bool,
+    pub export: bool,
     pub data_kind: DataKindNode,
 }
 

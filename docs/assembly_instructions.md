@@ -449,14 +449,14 @@ wrapping dec, e.g. 0x1 dec 2 = 0xffff_ffff
 
 ## Function Calling
 
-(call $name_path OPERAND_FOR_ARGS...)
+(call $id OPERAND_FOR_ARGS...)
 (dyncall OPERAND_FOR_FUNC_PUBLIC_INDEX:i32 OPERAND_FOR_ARGS...)
 (envcall ENV_CALL_NUMBER:i32 OPERAND_FOR_ARGS...)
 (syscall SYS_CALL_NUMBER:i32 OPERAND_FOR_ARGS...)
-(extcall $name OPERAND_FOR_ARGS...)
+(extcall $id OPERAND_FOR_ARGS...)
 
 > NOTE:
-> the `name_path` in the instructions `call`, data loading and data storing can be a full name path (a path that combined with the path of namespace and the identifier), e.g. `mylib::msg`, `mylib::utils::buf`.
+> the `id` in the instructions `call`, data loading and data storing can be a full name path (a path that combined with the path of namespace and the identifier), e.g. `mylib::msg`, `mylib::utils::buf`.
 > When the name path is omitted, the instruction will access items within the current module.
 > These name path can be a relative path, e.g. `module::utils::buf`, `self::utils::buf`.
 

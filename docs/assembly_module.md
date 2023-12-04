@@ -149,9 +149,9 @@ e.g.
 
 ### export function
 
-add 'exported' annotation after the function name.
+add 'export' annotation after the function name.
 
-(function $name exported ...)
+(function $name export ...)
 
 ## The `data` node
 
@@ -186,8 +186,8 @@ uninitialized section:
 (data $name (uninit (bytes 12 4)))
 (data $name (uninit (bytes DATA_LENGTH_NUMBER:i32 ALIGN_NUMBER:i16)))
 
-with 'exported' annotation
-(data $name exported (read_only i32 123))
+with 'export' annotation
+(data $name export (read_only i32 123))
 
 ## The 'external' node
 

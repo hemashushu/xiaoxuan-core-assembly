@@ -5,52 +5,196 @@
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
 use ancvm_binary::bytecode_writer::BytecodeWriter;
-use ancvm_parser::ast::{DataKindNode, DataNode, ExternalItem, ExternalNode};
-use ancvm_parser::ast::{FunctionNode, ImmF32, ImmF64, Instruction, LocalNode, ParamNode};
+use ancvm_parser::ast::{
+    DataKindNode, ExternalItem, ExternalNode, ImportItem, ImportNode, SimplifiedDataKindNode,
+};
+use ancvm_parser::ast::{ImmF32, ImmF64, Instruction, LocalNode, ParamNode};
 use ancvm_types::entry::{
     DataNameEntry, ExternalFunctionEntry, ExternalLibraryEntry, FunctionEntry, FunctionNameEntry,
-    InitedDataEntry, LocalListEntry, LocalVariableEntry, ModuleEntry, TypeEntry, UninitDataEntry,
+    ImportDataEntry, ImportFunctionEntry, ImportModuleEntry, InitedDataEntry, LocalListEntry,
+    LocalVariableEntry, ModuleEntry, TypeEntry, UninitDataEntry,
 };
+use ancvm_types::DataSectionType;
 use ancvm_types::{opcode::Opcode, DataType};
 
+use crate::preprocessor::{CanonicalDataNode, CanonicalFunctionNode};
 use crate::{preprocessor::MergedModuleNode, AssembleError, UNREACHABLE_CODE_NO_DEFAULT_ARM};
 
 // the identifier of functions and datas
-struct SymbolIdentifierLookupTable {
+//
+// the identifier is used for the function calling instructions, and
+// the data loading/storing instructions.
+//
+// unlike the 'path name' in the function name entry(data name entry,
+// import function entry, import data entry), the 'path name' is used
+// for linking.
+struct IdentifierLookupTable {
     function_identifiers: Vec<IdentifierIndex>,
     data_identifiers: Vec<IdentifierIndex>,
     external_function_identifiers: Vec<IdentifierIndex>,
 }
 
 struct IdentifierIndex {
-    identifier: String,
+    id: String,
     public_index: usize,
 }
 
-impl SymbolIdentifierLookupTable {
+struct IdentifierSource {
+    import_function_ids: Vec<String>,
+    function_ids: Vec<String>,
+    import_read_only_data_ids: Vec<String>,
+    read_only_data_ids: Vec<String>,
+    import_read_write_data_ids: Vec<String>,
+    read_write_data_ids: Vec<String>,
+    import_uninit_data_ids: Vec<String>,
+    uninit_data_ids: Vec<String>,
+    external_function_ids: Vec<String>,
+}
+
+impl IdentifierLookupTable {
     pub fn new(
-        function_name_entries: &[FunctionNameEntry],
-        data_name_entries: &[DataNameEntry],
-        external_nodes: &[ExternalNode],
+        // function_name_entries: &[FunctionNameEntry],
+        // data_name_entries: &[DataNameEntry],
+        // external_nodes: &[ExternalNode],
+        identifier_source: IdentifierSource,
     ) -> Self {
-        let function_identifiers = function_name_entries
-            .iter()
-            .map(|entry| IdentifierIndex {
-                identifier: entry.name.clone(),
-                public_index: entry.function_public_index,
-            })
-            .collect::<Vec<_>>();
+        //         let function_identifiers = function_name_entries
+        //             .iter()
+        //             .map(|entry| IdentifierIndex {
+        //                 id: entry.name_path.clone(),
+        //                 public_index: entry.function_public_index,
+        //             })
+        //             .collect::<Vec<_>>();
+        //
+        //         let data_identifiers = data_name_entries
+        //             .iter()
+        //             .map(|entry| IdentifierIndex {
+        //                 id: entry.name_path.clone(),
+        //                 public_index: entry.data_public_index,
+        //             })
+        //             .collect::<Vec<_>>();
+        //
+        //         let external_function_identifiers =
+        //             IdentifierLookupTable::build_external_function_identifier_indices(external_nodes);
 
-        let data_identifiers = data_name_entries
-            .iter()
-            .map(|entry| IdentifierIndex {
-                identifier: entry.name.clone(),
-                public_index: entry.data_public_index,
-            })
-            .collect::<Vec<_>>();
+        let mut function_identifiers: Vec<IdentifierIndex> = vec![];
+        let mut data_identifiers: Vec<IdentifierIndex> = vec![];
+        let mut external_function_identifiers: Vec<IdentifierIndex> = vec![];
 
-        let external_function_identifiers =
-            SymbolIdentifierLookupTable::build_external_function_identifier_indices(external_nodes);
+        // fill function ids
+
+        let mut function_public_index_offset: usize = 0;
+
+        function_identifiers.extend(
+            identifier_source
+                .import_function_ids
+                .iter()
+                .enumerate()
+                .map(|(idx, id)| IdentifierIndex {
+                    id: id.to_owned(),
+                    public_index: function_public_index_offset + idx,
+                }),
+        );
+
+        function_public_index_offset += identifier_source.import_function_ids.len();
+
+        function_identifiers.extend(identifier_source.function_ids.iter().enumerate().map(
+            |(idx, id)| IdentifierIndex {
+                id: id.to_owned(),
+                public_index: function_public_index_offset + idx,
+            },
+        ));
+
+        // fill read-only data ids
+
+        let mut read_only_data_public_index_offset: usize = 0;
+
+        data_identifiers.extend(
+            identifier_source
+                .import_read_only_data_ids
+                .iter()
+                .enumerate()
+                .map(|(idx, id)| IdentifierIndex {
+                    id: id.to_owned(),
+                    public_index: read_only_data_public_index_offset + idx,
+                }),
+        );
+
+        read_only_data_public_index_offset += identifier_source.import_read_only_data_ids.len();
+
+        data_identifiers.extend(identifier_source.read_only_data_ids.iter().enumerate().map(
+            |(idx, id)| IdentifierIndex {
+                id: id.to_owned(),
+                public_index: read_only_data_public_index_offset + idx,
+            },
+        ));
+
+        // fill read-write data ids
+
+        let mut read_write_data_public_index_offset: usize = 0;
+
+        data_identifiers.extend(
+            identifier_source
+                .import_read_write_data_ids
+                .iter()
+                .enumerate()
+                .map(|(idx, id)| IdentifierIndex {
+                    id: id.to_owned(),
+                    public_index: read_write_data_public_index_offset + idx,
+                }),
+        );
+
+        read_write_data_public_index_offset += identifier_source.import_read_write_data_ids.len();
+
+        data_identifiers.extend(
+            identifier_source
+                .read_write_data_ids
+                .iter()
+                .enumerate()
+                .map(|(idx, id)| IdentifierIndex {
+                    id: id.to_owned(),
+                    public_index: read_write_data_public_index_offset + idx,
+                }),
+        );
+
+        // fill uninit data ids
+
+        let mut uninit_data_public_index_offset: usize = 0;
+
+        data_identifiers.extend(
+            identifier_source
+                .import_uninit_data_ids
+                .iter()
+                .enumerate()
+                .map(|(idx, id)| IdentifierIndex {
+                    id: id.to_owned(),
+                    public_index: uninit_data_public_index_offset + idx,
+                }),
+        );
+
+        uninit_data_public_index_offset += identifier_source.import_uninit_data_ids.len();
+
+        data_identifiers.extend(identifier_source.uninit_data_ids.iter().enumerate().map(
+            |(idx, id)| IdentifierIndex {
+                id: id.to_owned(),
+                public_index: uninit_data_public_index_offset + idx,
+            },
+        ));
+
+        // external function ids
+
+        external_function_identifiers.extend(
+            identifier_source
+                .external_function_ids
+                .iter()
+                .enumerate()
+                .map(|(idx, id)| IdentifierIndex {
+                    id: id.to_owned(),
+                    public_index: idx,
+                }),
+        );
+
+        // complete
 
         Self {
             function_identifiers,
@@ -59,32 +203,32 @@ impl SymbolIdentifierLookupTable {
         }
     }
 
-    fn build_external_function_identifier_indices(
-        external_nodes: &[ExternalNode],
-    ) -> Vec<IdentifierIndex> {
-        let mut external_function_identifiers: Vec<IdentifierIndex> = vec![];
-
-        let mut idx: usize = 0;
-
-        for external_node in external_nodes {
-            for external_item in &external_node.external_items {
-                let ExternalItem::ExternalFunction(external_func) = external_item;
-                external_function_identifiers.push(IdentifierIndex {
-                    identifier: external_func.id.clone(),
-                    public_index: idx,
-                });
-                idx += 1;
-            }
-        }
-
-        external_function_identifiers
-    }
+    //     fn build_external_function_identifier_indices(
+    //         external_nodes: &[ExternalNode],
+    //     ) -> Vec<IdentifierIndex> {
+    //         let mut external_function_identifiers: Vec<IdentifierIndex> = vec![];
+    //
+    //         let mut idx: usize = 0;
+    //
+    //         for external_node in external_nodes {
+    //             for external_item in &external_node.external_items {
+    //                 let ExternalItem::ExternalFunction(external_func) = external_item;
+    //                 external_function_identifiers.push(IdentifierIndex {
+    //                     id: external_func.id.clone(),
+    //                     public_index: idx,
+    //                 });
+    //                 idx += 1;
+    //             }
+    //         }
+    //
+    //         external_function_identifiers
+    //     }
 
     pub fn get_function_public_index(&self, identifier: &str) -> Result<usize, AssembleError> {
         match self
             .function_identifiers
             .iter()
-            .find(|entry| entry.identifier == identifier)
+            .find(|entry| entry.id == identifier)
         {
             Some(ii) => Ok(ii.public_index),
             None => Err(AssembleError::new(&format!(
@@ -98,7 +242,7 @@ impl SymbolIdentifierLookupTable {
         match self
             .data_identifiers
             .iter()
-            .find(|entry| entry.identifier == identifier)
+            .find(|entry| entry.id == identifier)
         {
             Some(ii) => Ok(ii.public_index),
             None => Err(AssembleError::new(&format!(
@@ -112,7 +256,7 @@ impl SymbolIdentifierLookupTable {
         match self
             .external_function_identifiers
             .iter()
-            .find(|entry| entry.identifier == identifier)
+            .find(|entry| entry.id == identifier)
         {
             Some(ii) => Ok(ii.public_index),
             None => Err(AssembleError::new(&format!(
@@ -278,6 +422,7 @@ impl FlowStack {
     // of function and all parameters and local varialbes within all blocks,
     // must not have duplicate names in the valid scope. e.g.
     //
+    // ```text
     // {
     //     let abc = 0
     //     {
@@ -289,6 +434,8 @@ impl FlowStack {
     //         let xyz = 3     // valid
     //     }
     // }
+    // ```
+
     pub fn get_local_variable_reversed_index_and_variable_index(
         &self,
         local_variable_name: &str,
@@ -328,35 +475,63 @@ impl FlowStack {
 pub fn assemble_merged_module_node(
     merged_module_node: &MergedModuleNode,
 ) -> Result<ModuleEntry, AssembleError> {
-    let name = merged_module_node.name.clone();
+    let module_name = merged_module_node.name.clone();
     let runtime_version_major = merged_module_node.runtime_version_major;
     let runtime_version_minor = merged_module_node.runtime_version_minor;
 
-    let imported_function_count = 0;
-    let imported_ro_data_count = 0;
-    let imported_rw_data_count = 0;
-    let imported_uninit_data_count = 0;
+    let mut type_entries = vec![];
 
-    let function_name_entries =
-        build_function_name_entries(&merged_module_node.function_nodes, imported_function_count);
-    let data_name_entries = build_data_name_entries(
+    let AssembleResultForImportNodes {
+        import_module_entries,
+        import_function_entries,
+        import_data_entries,
+        import_function_ids,
+        import_read_only_data_ids,
+        import_read_write_data_ids,
+        import_uninit_data_ids,
+    } = assemble_import_nodes(&merged_module_node.import_nodes, &mut type_entries)?;
+
+    let (external_library_entries, external_function_entries, external_function_ids) =
+        assemble_external_nodes(&merged_module_node.external_nodes, &mut type_entries)?;
+
+    let import_function_count = import_function_ids.len();
+    let import_read_only_data_count = import_read_only_data_ids.len();
+    let import_read_write_data_count = import_read_write_data_ids.len();
+    let import_uninit_data_count = import_uninit_data_ids.len();
+
+    let (function_name_entries, function_ids) =
+        build_function_name_entries(&merged_module_node.function_nodes, import_function_count);
+
+    let BuildDataNameEntryResult {
+        data_name_entries,
+        read_only_data_ids,
+        read_write_data_ids,
+        uninit_data_ids,
+    } = build_data_name_entries(
         &merged_module_node.read_only_data_nodes,
         &merged_module_node.read_write_data_nodes,
         &merged_module_node.uninit_data_nodes,
-        imported_ro_data_count,
-        imported_rw_data_count,
-        imported_uninit_data_count,
+        import_read_only_data_count,
+        import_read_write_data_count,
+        import_uninit_data_count,
     );
 
-    let symbol_identifier_lookup_table = SymbolIdentifierLookupTable::new(
-        &function_name_entries,
-        &data_name_entries,
-        &merged_module_node.external_nodes,
-    );
+    let identifier_lookup_table = IdentifierLookupTable::new(IdentifierSource {
+        import_function_ids,
+        function_ids,
+        import_read_only_data_ids,
+        read_only_data_ids,
+        import_read_write_data_ids,
+        read_write_data_ids,
+        import_uninit_data_ids,
+        uninit_data_ids,
+        external_function_ids,
+    });
 
-    let (mut type_entries, local_list_entries, function_entries) = assemble_function_nodes(
+    let (local_list_entries, function_entries) = assemble_function_nodes(
         &merged_module_node.function_nodes,
-        &symbol_identifier_lookup_table,
+        &mut type_entries,
+        &identifier_lookup_table,
     )?;
 
     let (read_only_data_entries, read_write_data_entries, uninit_data_entries) =
@@ -366,16 +541,59 @@ pub fn assemble_merged_module_node(
             &merged_module_node.uninit_data_nodes,
         )?;
 
-    let (external_library_entries, external_function_entries) =
-        assemble_external_nodes(&merged_module_node.external_nodes, &mut type_entries)?;
+    // find the public index of constructor and destructor
+    let constructor_function_public_index =
+        if let Some(function_name) = &merged_module_node.constructor_function_name {
+            let entry_opt = function_name_entries
+                .iter()
+                .find(|entry| &entry.name_path == function_name);
+
+            if let Some(entry) = entry_opt {
+                Some(entry.function_public_index as u32)
+            } else {
+                return Err(AssembleError {
+                    message: format!(
+                        "Can not find the constructor function \"{}\" in module \"{}\".",
+                        function_name, module_name
+                    ),
+                });
+            }
+        } else {
+            None
+        };
+
+    let destructor_function_public_index =
+        if let Some(function_name) = &merged_module_node.destructor_function_name {
+            let entry_opt = function_name_entries
+                .iter()
+                .find(|entry| &entry.name_path == function_name);
+
+            if let Some(entry) = entry_opt {
+                Some(entry.function_public_index as u32)
+            } else {
+                return Err(AssembleError {
+                    message: format!(
+                        "Can not find the destructor function \"{}\" in module \"{}\".",
+                        function_name, module_name
+                    ),
+                });
+            }
+        } else {
+            None
+        };
 
     let module_entry = ModuleEntry {
-        name,
+        name: module_name,
         runtime_version_major,
         runtime_version_minor,
-        // todo
-        constructor_function_public_index: None,
-        destructor_function_public_index: None,
+        //
+        import_function_count,
+        import_read_only_data_count,
+        import_read_write_data_count,
+        import_uninit_data_count,
+        //
+        constructor_function_public_index,
+        destructor_function_public_index,
         //
         type_entries,
         local_list_entries,
@@ -383,6 +601,10 @@ pub fn assemble_merged_module_node(
         read_only_data_entries,
         read_write_data_entries,
         uninit_data_entries,
+        //
+        import_module_entries,
+        import_function_entries,
+        import_data_entries,
         //
         external_library_entries,
         external_function_entries,
@@ -394,90 +616,153 @@ pub fn assemble_merged_module_node(
     Ok(module_entry)
 }
 
+// fn count_imported_function(merged_module_node: &MergedModuleNode) -> usize {
+//     let mut count: usize = 0;
+//     for import_node in &merged_module_node.import_nodes {
+//         for import_item in &import_node.import_items {
+//             if let ImportItem::ImportFunction(_) = import_item {
+//                 count += 1;
+//             }
+//         }
+//     }
+//     count
+// }
+//
+// fn count_imported_data(merged_module_node: &MergedModuleNode) -> (usize, usize, usize) {
+//     let mut count_ro: usize = 0;
+//     let mut count_rw: usize = 0;
+//     let mut count_uninit: usize = 0;
+//     for import_node in &merged_module_node.import_nodes {
+//         for import_item in &import_node.import_items {
+//             if let ImportItem::ImportData(import_data) = import_item {
+//                 match import_data.data_kind_node {
+//                     SimplifiedDataKindNode::ReadOnly(_) => count_ro += 1,
+//                     SimplifiedDataKindNode::ReadWrite(_) => count_rw += 1,
+//                     SimplifiedDataKindNode::Uninit(_) => count_uninit += 1,
+//                 }
+//             }
+//         }
+//     }
+//     (count_ro, count_rw, count_uninit)
+// }
+
 fn build_function_name_entries(
-    function_nodes: &[FunctionNode],
-    imported_function_count: usize,
-) -> Vec<FunctionNameEntry> {
+    function_nodes: &[CanonicalFunctionNode],
+    import_function_count: usize,
+) -> (Vec<FunctionNameEntry>, Vec<String>) {
     let mut function_name_entries = vec![];
-    let mut function_public_index = imported_function_count;
+    let mut function_public_index = import_function_count;
+    let mut function_ids: Vec<String> = vec![];
 
     for function_node in function_nodes {
-        let entry = FunctionNameEntry {
-            name: function_node.name.clone(),
+        // add function id
+        function_ids.push(function_node.id.clone());
+
+        // add function name entry
+        let function_name_entry = FunctionNameEntry {
+            name_path: function_node.name_path.clone(),
             function_public_index,
-            exported: function_node.exported,
+            export: function_node.export,
         };
 
-        function_name_entries.push(entry);
+        function_name_entries.push(function_name_entry);
         function_public_index += 1;
     }
 
-    function_name_entries
+    (function_name_entries, function_ids)
+}
+
+struct BuildDataNameEntryResult {
+    data_name_entries: Vec<DataNameEntry>,
+    read_only_data_ids: Vec<String>,
+    read_write_data_ids: Vec<String>,
+    uninit_data_ids: Vec<String>,
 }
 
 fn build_data_name_entries(
-    ro_data_nodes: &[DataNode],
-    rw_data_nodes: &[DataNode],
-    uninit_data_nodes: &[DataNode],
-    imported_ro_data_count: usize,
-    imported_rw_data_count: usize,
-    imported_uninit_data_count: usize,
-) -> Vec<DataNameEntry> {
+    read_only_data_nodes: &[CanonicalDataNode],
+    read_write_data_nodes: &[CanonicalDataNode],
+    uninit_data_nodes: &[CanonicalDataNode],
+    import_read_only_data_count: usize,
+    import_read_write_data_count: usize,
+    import_uninit_data_count: usize,
+) -> BuildDataNameEntryResult {
     let mut data_name_entries = vec![];
     let mut data_public_index = 0;
 
-    data_public_index += imported_ro_data_count;
+    let mut read_only_data_ids: Vec<String> = vec![];
+    let mut read_write_data_ids: Vec<String> = vec![];
+    let mut uninit_data_ids: Vec<String> = vec![];
 
-    for data_node in ro_data_nodes {
-        let entry = DataNameEntry {
-            name: data_node.name.clone(),
+    data_public_index += import_read_only_data_count;
+
+    for read_only_data_node in read_only_data_nodes {
+        // add data id
+        read_only_data_ids.push(read_only_data_node.id.clone());
+
+        // add data name entry
+        let data_name_entry = DataNameEntry {
+            name_path: read_only_data_node.name_path.clone(),
             data_public_index,
-            exported: data_node.exported,
+            export: read_only_data_node.export,
         };
-        data_name_entries.push(entry);
+        data_name_entries.push(data_name_entry);
         data_public_index += 1;
     }
 
-    data_public_index += imported_rw_data_count;
+    data_public_index += import_read_write_data_count;
 
-    for data_node in rw_data_nodes {
-        let entry = DataNameEntry {
-            name: data_node.name.clone(),
+    for read_write_data_node in read_write_data_nodes {
+        // add data id
+        read_write_data_ids.push(read_write_data_node.id.clone());
+
+        // add data name entry
+        let data_name_entry = DataNameEntry {
+            name_path: read_write_data_node.name_path.clone(),
             data_public_index,
-            exported: data_node.exported,
+            export: read_write_data_node.export,
         };
-        data_name_entries.push(entry);
+        data_name_entries.push(data_name_entry);
         data_public_index += 1;
     }
 
-    data_public_index += imported_uninit_data_count;
+    data_public_index += import_uninit_data_count;
 
-    for data_node in uninit_data_nodes {
-        let entry = DataNameEntry {
-            name: data_node.name.clone(),
+    for uninit_data_node in uninit_data_nodes {
+        // add data id
+        uninit_data_ids.push(uninit_data_node.id.clone());
+
+        // add data name entry
+        let data_name_entry = DataNameEntry {
+            name_path: uninit_data_node.name_path.clone(),
             data_public_index,
-            exported: data_node.exported,
+            export: uninit_data_node.export,
         };
-        data_name_entries.push(entry);
+        data_name_entries.push(data_name_entry);
         data_public_index += 1;
     }
 
-    data_name_entries
+    BuildDataNameEntryResult {
+        data_name_entries,
+        read_only_data_ids,
+        read_write_data_ids,
+        uninit_data_ids,
+    }
 }
 
-type AssembleResultForFuncNode = (Vec<TypeEntry>, Vec<LocalListEntry>, Vec<FunctionEntry>);
+type AssembleResultForFuncNode = (Vec<LocalListEntry>, Vec<FunctionEntry>);
 
 fn assemble_function_nodes(
-    function_nodes: &[FunctionNode],
-    symbol_identifier_lookup_table: &SymbolIdentifierLookupTable,
+    function_nodes: &[CanonicalFunctionNode],
+    type_entries: &mut Vec<TypeEntry>,
+    identifier_lookup_table: &IdentifierLookupTable,
 ) -> Result<AssembleResultForFuncNode, AssembleError> {
-    let mut type_entries = vec![];
     let mut local_list_entries = vec![];
     let mut function_entries = vec![];
 
     for function_node in function_nodes {
         let type_index = find_existing_type_index_with_creating_when_not_found_by_param_nodes(
-            &mut type_entries,
+            type_entries,
             &function_node.params,
             &function_node.results,
         );
@@ -492,11 +777,11 @@ fn assemble_function_nodes(
             get_local_names_with_params_and_locals(&function_node.params, &function_node.locals);
 
         let code = assemble_function_code(
-            &function_node.name,
+            &function_node.name_path,
             local_names,
             &function_node.code,
-            symbol_identifier_lookup_table,
-            &mut type_entries,
+            identifier_lookup_table,
+            type_entries,
             &mut local_list_entries,
             // &mut flow_stack,
         )?;
@@ -508,7 +793,7 @@ fn assemble_function_nodes(
         });
     }
 
-    Ok((type_entries, local_list_entries, function_entries))
+    Ok((local_list_entries, function_entries))
 }
 
 fn find_existing_type_index_with_creating_when_not_found_by_param_nodes(
@@ -607,7 +892,7 @@ fn assemble_function_code(
     function_name: &str,
     local_names: Vec<String>,
     instructions: &[Instruction],
-    symbol_identifier_lookup_table: &SymbolIdentifierLookupTable,
+    identifier_lookup_table: &IdentifierLookupTable,
     type_entries: &mut Vec<TypeEntry>,
     local_list_entries: &mut Vec<LocalListEntry>,
     // flow_stack: &mut FlowStack,
@@ -621,7 +906,7 @@ fn assemble_function_code(
     for instruction in instructions {
         assemble_instruction(
             instruction,
-            symbol_identifier_lookup_table,
+            identifier_lookup_table,
             type_entries,
             local_list_entries,
             &mut flow_stack,
@@ -648,7 +933,7 @@ fn assemble_function_code(
 
 fn assemble_instruction(
     instruction: &Instruction,
-    symbol_identifier_lookup_table: &SymbolIdentifierLookupTable,
+    identifier_lookup_table: &IdentifierLookupTable,
     type_entries: &mut Vec<TypeEntry>,
     local_list_entries: &mut Vec<LocalListEntry>,
     flow_stack: &mut FlowStack,
@@ -658,7 +943,7 @@ fn assemble_instruction(
         Instruction::NoParams { opcode, operands } => assemble_instruction_kind_no_params(
             opcode,
             operands,
-            symbol_identifier_lookup_table,
+            identifier_lookup_table,
             type_entries,
             local_list_entries,
             flow_stack,
@@ -710,7 +995,7 @@ fn assemble_instruction(
         } => {
             assemble_instruction(
                 value,
-                symbol_identifier_lookup_table,
+                identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -735,7 +1020,7 @@ fn assemble_instruction(
         } => {
             assemble_instruction(
                 offset,
-                symbol_identifier_lookup_table,
+                identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -761,7 +1046,7 @@ fn assemble_instruction(
             // assemble 'offset' first, then 'value'
             assemble_instruction(
                 offset,
-                symbol_identifier_lookup_table,
+                identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -770,7 +1055,7 @@ fn assemble_instruction(
 
             assemble_instruction(
                 value,
-                symbol_identifier_lookup_table,
+                identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -789,62 +1074,62 @@ fn assemble_instruction(
         }
         Instruction::DataLoad {
             opcode,
-            name_path: name,
+            id: name,
             offset,
         } => {
-            let data_public_index = symbol_identifier_lookup_table.get_data_public_index(name)?;
+            let data_public_index = identifier_lookup_table.get_data_public_index(name)?;
 
             // bytecode: (param offset_bytes:i16 data_public_index:i32)
             bytecode_writer.write_opcode_i16_i32(*opcode, *offset, data_public_index as u32);
         }
         Instruction::DataStore {
             opcode,
-            name_path: name,
+            id: name,
             offset,
             value,
         } => {
             assemble_instruction(
                 value,
-                symbol_identifier_lookup_table,
+                identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
                 bytecode_writer,
             )?;
 
-            let data_public_index = symbol_identifier_lookup_table.get_data_public_index(name)?;
+            let data_public_index = identifier_lookup_table.get_data_public_index(name)?;
 
             // bytecode: (param offset_bytes:i16 data_public_index:i32)
             bytecode_writer.write_opcode_i16_i32(*opcode, *offset, data_public_index as u32);
         }
         Instruction::DataLongLoad {
             opcode,
-            name_path: name,
+            id: name,
             offset,
         } => {
             assemble_instruction(
                 offset,
-                symbol_identifier_lookup_table,
+                identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
                 bytecode_writer,
             )?;
 
-            let data_public_index = symbol_identifier_lookup_table.get_data_public_index(name)?;
+            let data_public_index = identifier_lookup_table.get_data_public_index(name)?;
 
             // bytecode: (param data_public_index:i32)
             bytecode_writer.write_opcode_i32(*opcode, data_public_index as u32);
         }
         Instruction::DataLongStore {
             opcode,
-            name_path: name,
+            id: name,
             offset,
             value,
         } => {
             assemble_instruction(
                 offset,
-                symbol_identifier_lookup_table,
+                identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -853,14 +1138,14 @@ fn assemble_instruction(
 
             assemble_instruction(
                 value,
-                symbol_identifier_lookup_table,
+                identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
                 bytecode_writer,
             )?;
 
-            let data_public_index = symbol_identifier_lookup_table.get_data_public_index(name)?;
+            let data_public_index = identifier_lookup_table.get_data_public_index(name)?;
 
             // bytecode: (param data_public_index:i32)
             bytecode_writer.write_opcode_i32(*opcode, data_public_index as u32);
@@ -872,7 +1157,7 @@ fn assemble_instruction(
         } => {
             assemble_instruction(
                 addr,
-                symbol_identifier_lookup_table,
+                identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -890,7 +1175,7 @@ fn assemble_instruction(
         } => {
             assemble_instruction(
                 addr,
-                symbol_identifier_lookup_table,
+                identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -899,7 +1184,7 @@ fn assemble_instruction(
 
             assemble_instruction(
                 value,
-                symbol_identifier_lookup_table,
+                identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -912,7 +1197,7 @@ fn assemble_instruction(
         Instruction::UnaryOp { opcode, number } => {
             assemble_instruction(
                 number,
-                symbol_identifier_lookup_table,
+                identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -928,7 +1213,7 @@ fn assemble_instruction(
         } => {
             assemble_instruction(
                 number,
-                symbol_identifier_lookup_table,
+                identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -945,7 +1230,7 @@ fn assemble_instruction(
             // assemble 'left' first, then 'right'
             assemble_instruction(
                 left,
-                symbol_identifier_lookup_table,
+                identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -954,7 +1239,7 @@ fn assemble_instruction(
 
             assemble_instruction(
                 right,
-                symbol_identifier_lookup_table,
+                identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -983,7 +1268,7 @@ fn assemble_instruction(
             // assemble node 'test'
             assemble_instruction(
                 test,
-                symbol_identifier_lookup_table,
+                identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -1010,7 +1295,7 @@ fn assemble_instruction(
             // assemble node 'consequent'
             assemble_instruction(
                 consequent,
-                symbol_identifier_lookup_table,
+                identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -1063,7 +1348,7 @@ fn assemble_instruction(
             // assemble node 'test'
             assemble_instruction(
                 test,
-                symbol_identifier_lookup_table,
+                identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -1095,7 +1380,7 @@ fn assemble_instruction(
             // assemble node 'consequent'
             assemble_instruction(
                 consequent,
-                symbol_identifier_lookup_table,
+                identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -1120,7 +1405,7 @@ fn assemble_instruction(
             // assemble node 'alternate'
             assemble_instruction(
                 alternate,
-                symbol_identifier_lookup_table,
+                identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -1190,7 +1475,7 @@ fn assemble_instruction(
                 // assemble node 'test'
                 assemble_instruction(
                     &case.test,
-                    symbol_identifier_lookup_table,
+                    identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1217,7 +1502,7 @@ fn assemble_instruction(
                 // assemble node 'consequent'
                 assemble_instruction(
                     &case.consequent,
-                    symbol_identifier_lookup_table,
+                    identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1248,7 +1533,7 @@ fn assemble_instruction(
                 // assemble node 'consequent'
                 assemble_instruction(
                     default_instruction,
-                    symbol_identifier_lookup_table,
+                    identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1337,7 +1622,7 @@ fn assemble_instruction(
             // assemble node 'consequent'
             assemble_instruction(
                 code,
-                symbol_identifier_lookup_table,
+                identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -1355,7 +1640,7 @@ fn assemble_instruction(
             for instruction in instructions {
                 assemble_instruction(
                     instruction,
-                    symbol_identifier_lookup_table,
+                    identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1370,7 +1655,7 @@ fn assemble_instruction(
             for instruction in instructions {
                 assemble_instruction(
                     instruction,
-                    symbol_identifier_lookup_table,
+                    identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1396,7 +1681,7 @@ fn assemble_instruction(
             for instruction in instructions {
                 assemble_instruction(
                     instruction,
-                    symbol_identifier_lookup_table,
+                    identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1425,7 +1710,7 @@ fn assemble_instruction(
             for instruction in instructions {
                 assemble_instruction(
                     instruction,
-                    symbol_identifier_lookup_table,
+                    identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1448,7 +1733,7 @@ fn assemble_instruction(
             for instruction in instructions {
                 assemble_instruction(
                     instruction,
-                    symbol_identifier_lookup_table,
+                    identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1465,14 +1750,11 @@ fn assemble_instruction(
                 0, // 'start_inst_offset' is ignored when the target is function
             );
         }
-        Instruction::Call {
-            name_path: name,
-            args,
-        } => {
+        Instruction::Call { id, args } => {
             for instruction in args {
                 assemble_instruction(
                     instruction,
-                    symbol_identifier_lookup_table,
+                    identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1480,15 +1762,14 @@ fn assemble_instruction(
                 )?;
             }
 
-            let function_public_index =
-                symbol_identifier_lookup_table.get_function_public_index(name)?;
+            let function_public_index = identifier_lookup_table.get_function_public_index(id)?;
             bytecode_writer.write_opcode_i32(Opcode::call, function_public_index as u32);
         }
         Instruction::DynCall { num, args } => {
             for instruction in args {
                 assemble_instruction(
                     instruction,
-                    symbol_identifier_lookup_table,
+                    identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1499,7 +1780,7 @@ fn assemble_instruction(
             // assemble the function public index operand
             assemble_instruction(
                 num,
-                symbol_identifier_lookup_table,
+                identifier_lookup_table,
                 type_entries,
                 local_list_entries,
                 flow_stack,
@@ -1512,7 +1793,7 @@ fn assemble_instruction(
             for instruction in args {
                 assemble_instruction(
                     instruction,
-                    symbol_identifier_lookup_table,
+                    identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1526,7 +1807,7 @@ fn assemble_instruction(
             for instruction in args {
                 assemble_instruction(
                     instruction,
-                    symbol_identifier_lookup_table,
+                    identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1538,14 +1819,11 @@ fn assemble_instruction(
             bytecode_writer.write_opcode_i32(Opcode::i32_imm, args.len() as u32);
             bytecode_writer.write_opcode(Opcode::syscall);
         }
-        Instruction::ExtCall {
-            name_path: name,
-            args,
-        } => {
+        Instruction::ExtCall { id, args } => {
             for instruction in args {
                 assemble_instruction(
                     instruction,
-                    symbol_identifier_lookup_table,
+                    identifier_lookup_table,
                     type_entries,
                     local_list_entries,
                     flow_stack,
@@ -1553,14 +1831,12 @@ fn assemble_instruction(
                 )?;
             }
 
-            let external_function_idx =
-                symbol_identifier_lookup_table.get_external_function_index(name)?;
+            let external_function_idx = identifier_lookup_table.get_external_function_index(id)?;
             bytecode_writer.write_opcode_i32(Opcode::extcall, external_function_idx as u32);
         }
         // macro
-        Instruction::MacroGetFunctionPublicIndex(name_path) => {
-            let function_public_index =
-                symbol_identifier_lookup_table.get_function_public_index(name_path)?;
+        Instruction::MacroGetFunctionPublicIndex { id } => {
+            let function_public_index = identifier_lookup_table.get_function_public_index(id)?;
             bytecode_writer.write_opcode_i32(Opcode::i32_imm, function_public_index as u32);
         }
         Instruction::Debug(code) => {
@@ -1569,9 +1845,8 @@ fn assemble_instruction(
         Instruction::Unreachable(code) => {
             bytecode_writer.write_opcode_i32(Opcode::unreachable, *code);
         }
-        Instruction::HostAddrFunction(name) => {
-            let function_public_index =
-                symbol_identifier_lookup_table.get_function_public_index(name)?;
+        Instruction::HostAddrFunction { id } => {
+            let function_public_index = identifier_lookup_table.get_function_public_index(id)?;
             bytecode_writer
                 .write_opcode_i32(Opcode::host_addr_function, function_public_index as u32);
         }
@@ -1583,7 +1858,7 @@ fn assemble_instruction(
 fn assemble_instruction_kind_no_params(
     opcode: &Opcode,
     operands: &[Instruction],
-    symbol_identifier_lookup_table: &SymbolIdentifierLookupTable,
+    identifier_lookup_table: &IdentifierLookupTable,
     type_entries: &mut Vec<TypeEntry>,
     local_list_entries: &mut Vec<LocalListEntry>,
     flow_stack: &mut FlowStack,
@@ -1592,7 +1867,7 @@ fn assemble_instruction_kind_no_params(
     for instruction in operands {
         assemble_instruction(
             instruction,
-            symbol_identifier_lookup_table,
+            identifier_lookup_table,
             type_entries,
             local_list_entries,
             flow_stack,
@@ -1612,9 +1887,9 @@ type AssembleResultForDataNodes = (
 );
 
 fn assemble_data_nodes(
-    read_only_data_nodes: &[DataNode],
-    read_write_data_nodes: &[DataNode],
-    uninit_data_nodes: &[DataNode],
+    read_only_data_nodes: &[CanonicalDataNode],
+    read_write_data_nodes: &[CanonicalDataNode],
+    uninit_data_nodes: &[CanonicalDataNode],
 ) -> Result<AssembleResultForDataNodes, AssembleError> {
     let read_only_data_entries = read_only_data_nodes
         .iter()
@@ -1661,7 +1936,113 @@ fn assemble_data_nodes(
     ))
 }
 
-type AssembleResultForExternNode = (Vec<ExternalLibraryEntry>, Vec<ExternalFunctionEntry>);
+struct AssembleResultForImportNodes {
+    import_module_entries: Vec<ImportModuleEntry>,
+    import_function_entries: Vec<ImportFunctionEntry>,
+    import_data_entries: Vec<ImportDataEntry>,
+    import_function_ids: Vec<String>,
+    import_read_only_data_ids: Vec<String>,
+    import_read_write_data_ids: Vec<String>,
+    import_uninit_data_ids: Vec<String>,
+}
+
+fn assemble_import_nodes(
+    import_nodes: &[ImportNode],
+    type_entries: &mut Vec<TypeEntry>,
+) -> Result<AssembleResultForImportNodes, AssembleError> {
+    let mut import_module_entries: Vec<ImportModuleEntry> = vec![];
+    let mut import_function_entries: Vec<ImportFunctionEntry> = vec![];
+    let mut import_data_entries: Vec<ImportDataEntry> = vec![];
+
+    let mut import_function_ids: Vec<String> = vec![];
+    let mut import_read_only_data_ids: Vec<String> = vec![];
+    let mut import_read_write_data_ids: Vec<String> = vec![];
+    let mut import_uninit_data_ids: Vec<String> = vec![];
+
+    for (import_module_index, import_node) in import_nodes.iter().enumerate() {
+        let import_module_node = &import_node.import_module_node;
+
+        // add import module entry
+        let import_module_entry = ImportModuleEntry::new(
+            import_module_node.name.clone(),
+            import_module_node.module_share_type,
+            import_module_node.version_major,
+            import_module_node.version_minor,
+        );
+        import_module_entries.push(import_module_entry);
+
+        for import_item in &import_node.import_items {
+            match import_item {
+                ImportItem::ImportFunction(import_function_node) => {
+                    // add function id
+                    import_function_ids.push(import_function_node.id.clone());
+
+                    // get type index
+                    let type_index = find_existing_type_index_with_creating_when_not_found(
+                        type_entries,
+                        &import_function_node.params,
+                        &import_function_node.results,
+                    );
+
+                    // add import function entry
+                    let import_function_entry = ImportFunctionEntry::new(
+                        import_function_node.name_path.clone(),
+                        import_module_index,
+                        type_index,
+                    );
+                    import_function_entries.push(import_function_entry);
+                }
+                ImportItem::ImportData(import_data_node) => {
+                    let (data_section_type, memory_data_type) =
+                        match import_data_node.data_kind_node {
+                            SimplifiedDataKindNode::ReadOnly(memory_data_type) => {
+                                // add data id
+                                import_read_only_data_ids.push(import_data_node.id.clone());
+                                (DataSectionType::ReadOnly, memory_data_type)
+                            }
+                            SimplifiedDataKindNode::ReadWrite(memory_data_type) => {
+                                // add data id
+                                import_read_write_data_ids.push(import_data_node.id.clone());
+                                (DataSectionType::ReadWrite, memory_data_type)
+                            }
+                            SimplifiedDataKindNode::Uninit(memory_data_type) => {
+                                // add data id
+                                import_uninit_data_ids.push(import_data_node.id.clone());
+                                (DataSectionType::Uninit, memory_data_type)
+                            }
+                        };
+
+                    // add import data entry
+                    let import_data_entry = ImportDataEntry {
+                        name_path: import_data_node.name_path.clone(),
+                        import_module_index,
+                        data_section_type,
+                        memory_data_type,
+                    };
+                    import_data_entries.push(import_data_entry);
+                }
+            }
+        }
+    }
+
+    let result = AssembleResultForImportNodes {
+        import_module_entries,
+        import_function_entries,
+        import_data_entries,
+        import_function_ids,
+        import_read_only_data_ids,
+        import_read_write_data_ids,
+        import_uninit_data_ids,
+    };
+
+    Ok(result)
+}
+
+type AssembleResultForExternNode = (
+    Vec<ExternalLibraryEntry>,
+    Vec<ExternalFunctionEntry>,
+    Vec<String>,
+);
 
 fn assemble_external_nodes(
     external_nodes: &[ExternalNode],
@@ -1669,6 +2050,7 @@ fn assemble_external_nodes(
 ) -> Result<AssembleResultForExternNode, AssembleError> {
     let mut external_library_entries: Vec<ExternalLibraryEntry> = vec![];
     let mut external_function_entries: Vec<ExternalFunctionEntry> = vec![];
+    let mut external_function_ids: Vec<String> = vec![];
 
     for external_node in external_nodes {
         // build ExternalLibraryEntry
@@ -1681,18 +2063,21 @@ fn assemble_external_nodes(
         external_library_entries.push(external_library_entry);
 
         for external_item in &external_node.external_items {
-            let ExternalItem::ExternalFunction(external_func) = external_item;
+            let ExternalItem::ExternalFunction(external_function) = external_item;
+
+            // add external function id
+            external_function_ids.push(external_function.id.clone());
 
             // get type index
             let type_index = find_existing_type_index_with_creating_when_not_found(
                 type_entries,
-                &external_func.params,
-                &external_func.results,
+                &external_function.params,
+                &external_function.results,
             );
 
             // build ExternalFunctionEntry
             let external_function_entry = ExternalFunctionEntry {
-                name: external_func.name.clone(),
+                name: external_function.name.clone(),
                 external_library_index,
                 type_index,
             };
@@ -1701,5 +2086,337 @@ fn assemble_external_nodes(
         }
     }
 
-    Ok((external_library_entries, external_function_entries))
+    Ok((
+        external_library_entries,
+        external_function_entries,
+        external_function_ids,
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use ancvm_binary::bytecode_reader::print_bytecode_as_text;
+    use ancvm_types::{
+        entry::{
+            DataNameEntry, ExternalFunctionEntry, ExternalLibraryEntry, FunctionNameEntry,
+            ImportDataEntry, ImportFunctionEntry, ImportModuleEntry, InitedDataEntry,
+            LocalListEntry, LocalVariableEntry, TypeEntry,
+        },
+        DataSectionType, DataType, ExternalLibraryType, MemoryDataType, ModuleShareType,
+    };
+    use pretty_assertions::assert_eq;
+
+    use ancvm_parser::{lexer::lex, parser::parse, peekable_iterator::PeekableIterator};
+
+    use crate::{
+        assembler::assemble_merged_module_node, preprocessor::canonicalize_submodule_nodes,
+    };
+
+    #[test]
+    fn test_assemble() {
+        let sources = &[
+            r#"
+        (module $myapp
+            (runtime_version "1.0")
+            (constructor $init)
+            (destructor $exit)
+            (data $SUCCESS (read_only i64 0))
+            (data $FAILURE (read_only i64 1))
+            (function $entry
+                (result i64)
+                (code
+                    (call $module::utils::add
+                        (extcall $module::utils::getuid)
+                        (data.load32_i32 $module::utils::seed)
+                    )
+                    (data.load64_i64 $SUCCESS)
+                )
+            )
+            (function $init
+                (code
+                    zero
+                )
+            )
+            (function $exit
+                (code
+                    nop
+                )
+            )
+        )
+        "#,
+            r#"
+        (module $myapp::utils
+            (runtime_version "1.0")
+            (external
+                (library system "libc.so.6")
+                (function $getuid "getuid" (result i32))
+            )
+            (import
+                (module share "math" "1.0")
+                (function $wrap_add "wrap::add"
+                    (params i32 i32)
+                    (result i32)
+                )
+                (data $seed "seed" (read_only i32))
+            )
+            (function export $add
+                (param $left i32) (param $right i32)
+                (result i64)
+                (code
+                    (call $wrap_add
+                        (local.load32_i32 $left)
+                        (local.load32_i32 $right)
+                    )
+                )
+            )
+        )
+        "#,
+        ];
+
+        let submodule_nodes = sources
+            .iter()
+            .map(|source| {
+                let mut chars = source.chars();
+                let mut char_iter = PeekableIterator::new(&mut chars, 2);
+                let mut tokens = lex(&mut char_iter).unwrap().into_iter();
+                let mut token_iter = PeekableIterator::new(&mut tokens, 2);
+                parse(&mut token_iter).unwrap()
+            })
+            .collect::<Vec<_>>();
+
+        let merged_module_node = canonicalize_submodule_nodes(&submodule_nodes).unwrap();
+        let module_entry = assemble_merged_module_node(&merged_module_node).unwrap();
+
+        assert_eq!(module_entry.name, "myapp");
+        assert_eq!(module_entry.runtime_version_major, 1);
+        assert_eq!(module_entry.runtime_version_minor, 0);
+
+        assert_eq!(module_entry.import_function_count, 1);
+        assert_eq!(module_entry.import_read_only_data_count, 1);
+        assert_eq!(module_entry.import_read_write_data_count, 0);
+        assert_eq!(module_entry.import_uninit_data_count, 0);
+
+        assert_eq!(module_entry.constructor_function_public_index, Some(2));
+        assert_eq!(module_entry.destructor_function_public_index, Some(3));
+
+        // check import entries
+
+        assert_eq!(
+            module_entry.import_module_entries,
+            vec![ImportModuleEntry {
+                name: "math".to_owned(),
+                module_share_type: ModuleShareType::Share,
+                version_major: 1,
+                version_minor: 0
+            }]
+        );
+
+        assert_eq!(
+            module_entry.import_function_entries,
+            vec![ImportFunctionEntry {
+                name_path: "wrap::add".to_owned(),
+                import_module_index: 0,
+                type_index: 0
+            }]
+        );
+
+        assert_eq!(
+            module_entry.import_data_entries,
+            vec![ImportDataEntry {
+                name_path: "seed".to_owned(),
+                import_module_index: 0,
+                data_section_type: DataSectionType::ReadOnly,
+                memory_data_type: MemoryDataType::I32
+            }]
+        );
+
+        // check external entries
+
+        assert_eq!(
+            module_entry.external_library_entries,
+            vec![ExternalLibraryEntry {
+                name: "libc.so.6".to_owned(),
+                external_library_type: ExternalLibraryType::System
+            }]
+        );
+
+        assert_eq!(
+            module_entry.external_function_entries,
+            vec![ExternalFunctionEntry {
+                name: "getuid".to_owned(),
+                external_library_index: 0,
+                type_index: 1
+            }]
+        );
+
+        // check function entries
+        assert_eq!(module_entry.function_entries.len(), 4);
+
+        let function_entry0 = &module_entry.function_entries[0];
+        assert_eq!(function_entry0.type_index, 2);
+        assert_eq!(function_entry0.local_list_index, 0);
+        assert_eq!(
+            print_bytecode_as_text(&function_entry0.code),
+            "\
+0x0000  04 0b 00 00  00 00 00 00    extcall           idx:0
+0x0008  02 03 00 00  00 00 00 00    data.load32_i32   off:0x00  idx:0
+0x0010  00 0b 00 00  04 00 00 00    call              idx:4
+0x0018  00 03 00 00  01 00 00 00    data.load64_i64   off:0x00  idx:1
+0x0020  00 0a                       end"
+        );
+
+        let function_entry1 = &module_entry.function_entries[1];
+        assert_eq!(function_entry1.type_index, 3);
+        assert_eq!(function_entry1.local_list_index, 0);
+        assert_eq!(
+            print_bytecode_as_text(&function_entry1.code),
+            "\
+0x0000  01 01                       zero
+0x0002  00 0a                       end"
+        );
+
+        let function_entry2 = &module_entry.function_entries[2];
+        assert_eq!(function_entry2.type_index, 3);
+        assert_eq!(function_entry2.local_list_index, 0);
+        assert_eq!(
+            print_bytecode_as_text(&function_entry2.code),
+            "\
+0x0000  00 01                       nop
+0x0002  00 0a                       end"
+        );
+
+        let function_entry3 = &module_entry.function_entries[3];
+        assert_eq!(function_entry3.type_index, 4);
+        assert_eq!(function_entry3.local_list_index, 1);
+        assert_eq!(
+            print_bytecode_as_text(&function_entry3.code),
+            "\
+0x0000  02 02 00 00  00 00 00 00    local.load32_i32  rev:0   off:0x00  idx:0
+0x0008  02 02 00 00  00 00 01 00    local.load32_i32  rev:0   off:0x00  idx:1
+0x0010  00 0b 00 00  00 00 00 00    call              idx:0
+0x0018  00 0a                       end"
+        );
+
+        // check data entries
+
+        assert_eq!(
+            module_entry.read_only_data_entries,
+            vec![
+                InitedDataEntry {
+                    memory_data_type: MemoryDataType::I64,
+                    data: 0u64.to_le_bytes().to_vec(),
+                    length: 8,
+                    align: 8
+                },
+                InitedDataEntry {
+                    memory_data_type: MemoryDataType::I64,
+                    data: 1u64.to_le_bytes().to_vec(),
+                    length: 8,
+                    align: 8
+                },
+            ]
+        );
+
+        assert_eq!(module_entry.read_write_data_entries.len(), 0);
+        assert_eq!(module_entry.uninit_data_entries.len(), 0);
+
+        // check type entries
+
+        assert_eq!(
+            module_entry.type_entries,
+            vec![
+                TypeEntry {
+                    params: vec![DataType::I32, DataType::I32],
+                    results: vec![DataType::I32]
+                },
+                TypeEntry {
+                    params: vec![],
+                    results: vec![DataType::I32]
+                },
+                TypeEntry {
+                    params: vec![],
+                    results: vec![DataType::I64]
+                },
+                TypeEntry {
+                    params: vec![],
+                    results: vec![]
+                },
+                TypeEntry {
+                    params: vec![DataType::I32, DataType::I32],
+                    results: vec![DataType::I64]
+                },
+            ]
+        );
+
+        // check local list entries
+
+        assert_eq!(
+            module_entry.local_list_entries,
+            vec![
+                LocalListEntry {
+                    local_variable_entries: vec![]
+                },
+                LocalListEntry {
+                    local_variable_entries: vec![
+                        LocalVariableEntry {
+                            memory_data_type: MemoryDataType::I32,
+                            length: 4,
+                            align: 4
+                        },
+                        LocalVariableEntry {
+                            memory_data_type: MemoryDataType::I32,
+                            length: 4,
+                            align: 4
+                        }
+                    ]
+                }
+            ]
+        );
+
+        // check function names
+
+        assert_eq!(
+            module_entry.function_name_entries,
+            vec![
+                FunctionNameEntry {
+                    name_path: "entry".to_owned(),
+                    function_public_index: 1,
+                    export: false
+                },
+                FunctionNameEntry {
+                    name_path: "init".to_owned(),
+                    function_public_index: 2,
+                    export: false
+                },
+                FunctionNameEntry {
+                    name_path: "exit".to_owned(),
+                    function_public_index: 3,
+                    export: false
+                },
+                FunctionNameEntry {
+                    name_path: "utils::add".to_owned(),
+                    function_public_index: 4,
+                    export: true
+                },
+            ]
+        );
+
+        // check data names
+
+        assert_eq!(
+            module_entry.data_name_entries,
+            vec![
+                DataNameEntry {
+                    name_path: "SUCCESS".to_owned(),
+                    data_public_index: 1,
+                    export: false
+                },
+                DataNameEntry {
+                    name_path: "FAILURE".to_owned(),
+                    data_public_index: 2,
+                    export: false
+                }
+            ]
+        )
+    }
 }

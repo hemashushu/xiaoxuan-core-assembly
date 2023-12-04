@@ -16,35 +16,74 @@ use ancvm_types::{
 use crate::AssembleError;
 
 pub fn link(module_entries: &[&ModuleEntry]) -> Result<IndexEntry, AssembleError> {
-    // link functions
+    let function_index_module_entries = link_functions(module_entries)?;
+    let data_index_module_entries = link_data(module_entries)?;
 
-    // TEMPORARY, NO LINKING
-    let function_index_module_entries = module_entries
-        .iter()
-        .enumerate()
-        .map(|(module_index, module_entry)| {
-            let entries = module_entry
-                .function_entries
-                .iter()
-                .enumerate()
-                .map(|(function_public_index, _function_entry)| {
-                    FunctionIndexEntry::new(
-                        function_public_index,
-                        module_index,
-                        function_public_index,
-                    )
-                })
-                .collect::<Vec<_>>();
-            FunctionIndexModuleEntry::new(entries)
-        })
-        .collect::<Vec<_>>();
+    let (
+        unified_external_library_entries,
+        unified_external_function_entries,
+        external_function_index_module_entries,
+    ) = link_external_functions(module_entries)?;
 
+    // todo::
+    // find all constructor functions and the 'entry' function.
+
+    // todo::
+    // find all destructor functions
+
+    Ok(IndexEntry {
+        function_index_module_entries,
+        data_index_module_entries,
+        unified_external_library_entries,
+        unified_external_function_entries,
+        external_function_index_module_entries,
+    })
+}
+
+fn link_functions(
+    module_entries: &[&ModuleEntry],
+) -> Result<Vec<FunctionIndexModuleEntry>, AssembleError> {
+
+    // let function_index_module_entries = module_entries
+    //     .iter()
+    //     .enumerate()
+    //     .map(|(module_index, module_entry)| {
+    //         let entries = module_entry
+    //             .function_entries
+    //             .iter()
+    //             .enumerate()
+    //             .map(|(function_public_index, _function_entry)| {
+    //                 FunctionIndexEntry::new(
+    //                     function_public_index,
+    //                     module_index,
+    //                     function_public_index,
+    //                 )
+    //             })
+    //             .collect::<Vec<_>>();
+    //         FunctionIndexModuleEntry::new(entries)
+    //     })
+    //     .collect::<Vec<_>>();
+
+    let mut function_index_module_entries:Vec<FunctionIndexModuleEntry> = vec![];
+
+    for module_entry in module_entries {
+        let mut index_entries: Vec<FunctionIndexEntry> = vec![];
+
+        // for m in module_entry.
+    }
+
+    Ok(function_index_module_entries)
+}
+
+fn link_data(module_entries: &[&ModuleEntry]) -> Result<Vec<DataIndexModuleEntry>, AssembleError> {
     // link data
 
     // TEMPORARY, NO LINKING
-    // note that data internal index is section relevant.
-    // e.g. there are indices 0,1,2,3... in read-only section, and
-    // there are also indices 0,1,2,3... in read-write section.
+    // note that the 'data internal index' is section relevant.
+    // e.g.
+    // there are indices 0,1,2,3... in read-only section, and
+    // there are also indices 0,1,2,3... in read-write section, and
+    // there are also indices 0,1,2,3... in uninitialized section.
     let data_index_module_entries = module_entries
         .iter()
         .enumerate()
@@ -95,7 +134,18 @@ pub fn link(module_entries: &[&ModuleEntry]) -> Result<IndexEntry, AssembleError
         })
         .collect::<Vec<_>>();
 
-    // link external functions
+    Ok(data_index_module_entries)
+}
+
+type LinkResultForExternalFunctions = (
+    Vec<UnifiedExternalLibraryEntry>,
+    Vec<UnifiedExternalFunctionEntry>,
+    Vec<ExternalFunctionIndexModuleEntry>,
+);
+
+fn link_external_functions(
+    module_entries: &[&ModuleEntry],
+) -> Result<LinkResultForExternalFunctions, AssembleError> {
 
     let mut unified_external_library_entries: Vec<UnifiedExternalLibraryEntry> = vec![];
     let mut unified_external_function_entries: Vec<UnifiedExternalFunctionEntry> = vec![];
@@ -172,13 +222,11 @@ pub fn link(module_entries: &[&ModuleEntry]) -> Result<IndexEntry, AssembleError
         external_function_index_module_entries.push(external_function_index_module_entry);
     }
 
-    Ok(IndexEntry {
-        function_index_module_entries,
-        data_index_module_entries,
+    Ok((
         unified_external_library_entries,
         unified_external_function_entries,
         external_function_index_module_entries,
-    })
+    ))
 }
 
 #[cfg(test)]

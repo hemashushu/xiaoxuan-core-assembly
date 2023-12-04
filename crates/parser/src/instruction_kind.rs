@@ -158,6 +158,8 @@ pub enum InstructionKind {
     //
     Debug,
     Unreachable,
+
+    // (host.addr_function $name)
     HostAddrFunction,
 
     // (macro.get_function_public_index $name)

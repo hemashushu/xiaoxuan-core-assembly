@@ -261,13 +261,13 @@ fn parse_function_node(
     //     (code ...)                   ;; the function body, the instructions sequence, sholud be written inside the node '(code)'
     // )
 
-    // function with 'exported' annotation
-    // (function $add exported ...)
+    // function with 'export' annotation
+    // (function export $add ...)
 
     consume_left_paren(iter, "function")?;
     consume_symbol(iter, "function")?;
+    let export = expect_specified_symbol_optional(iter, "export");
     let name = expect_identifier(iter, "function")?;
-    let exported = expect_specified_symbol_optional(iter, "exported");
     let (params, results) = parse_optional_signature(iter)?;
     let locals: Vec<LocalNode> = parse_optional_local_variables(iter)?;
     let code = parse_code_node(iter)?;
@@ -287,7 +287,7 @@ fn parse_function_node(
 
     let function_node = FunctionNode {
         name,
-        exported,
+        export,
         params,
         results,
         locals,
@@ -767,9 +767,7 @@ fn parse_instruction_with_parentheses(
                     parse_instruction_sequence_node(iter, node_name)?
                 }
                 //
-                InstructionKind::Call => {
-                    parse_instruction_kind_call_by_name_path(iter, "call", true)?
-                }
+                InstructionKind::Call => parse_instruction_kind_call_by_id(iter, "call", true)?,
                 InstructionKind::DynCall => parse_instruction_kind_call_by_operand_num(iter)?,
                 InstructionKind::EnvCall => {
                     parse_instruction_kind_call_by_num(iter, "envcall", true)?
@@ -778,7 +776,7 @@ fn parse_instruction_with_parentheses(
                     parse_instruction_kind_call_by_num(iter, "syscall", false)?
                 }
                 InstructionKind::ExtCall => {
-                    parse_instruction_kind_call_by_name_path(iter, "extcall", false)?
+                    parse_instruction_kind_call_by_id(iter, "extcall", false)?
                 }
                 // macro
                 InstructionKind::MacroGetFunctionPublicIndex => {
@@ -982,7 +980,7 @@ fn parse_instruction_kind_local_load(
     } else {
         Ok(Instruction::DataLoad {
             opcode,
-            name_path: name,
+            id: name,
             offset,
         })
     }
@@ -1023,7 +1021,7 @@ fn parse_instruction_kind_local_store(
     } else {
         Ok(Instruction::DataStore {
             opcode,
-            name_path: name,
+            id: name,
             offset,
             value: Box::new(operand),
         })
@@ -1055,7 +1053,7 @@ fn parse_instruction_kind_local_long_load(
     } else {
         Ok(Instruction::DataLongLoad {
             opcode,
-            name_path: name,
+            id: name,
             offset: Box::new(offset),
         })
     }
@@ -1088,7 +1086,7 @@ fn parse_instruction_kind_local_long_store(
     } else {
         Ok(Instruction::DataLongStore {
             opcode,
-            name_path: name,
+            id: name,
             offset: Box::new(offset),
             value: Box::new(operand),
         })
@@ -1346,14 +1344,14 @@ fn parse_instruction_kind_for(
     })
 }
 
-fn parse_instruction_kind_call_by_name_path(
+fn parse_instruction_kind_call_by_id(
     iter: &mut PeekableIterator<Token>,
     node_name: &str,
     is_call: bool,
 ) -> Result<Instruction, ParseError> {
-    // (call/extcall $name_path ...) ...  //
-    // ^                             ^____// to here
-    // ___________________________________// current token
+    // (call/extcall $id ...) ...  //
+    // ^                      ^____// to here
+    // ____________________________// current token
 
     consume_left_paren(iter, node_name)?;
     consume_symbol(iter, node_name)?;
@@ -1367,9 +1365,15 @@ fn parse_instruction_kind_call_by_name_path(
     consume_right_paren(iter)?;
 
     let instruction = if is_call {
-        Instruction::Call { name_path, args }
+        Instruction::Call {
+            id: name_path,
+            args,
+        }
     } else {
-        Instruction::ExtCall { name_path, args }
+        Instruction::ExtCall {
+            id: name_path,
+            args,
+        }
     };
 
     Ok(instruction)
@@ -1433,16 +1437,16 @@ fn parse_instruction_kind_call_by_operand_num(
 fn parse_instruction_kind_get_function_public_index(
     iter: &mut PeekableIterator<Token>,
 ) -> Result<Instruction, ParseError> {
-    // (macro.get_function_public_index $name_path ...) ...  //
-    // ^                                                ^____// to here
-    // ______________________________________________________// current token
+    // (macro.get_function_public_index $id ...) ...  //
+    // ^                                         ^____// to here
+    // _______________________________________________// current token
 
     consume_left_paren(iter, "macro.get_function_public_index")?;
     consume_symbol(iter, "macro.get_function_public_index")?;
-    let name_path = expect_identifier(iter, "macro.get_function_public_index")?;
+    let id = expect_identifier(iter, "macro.get_function_public_index")?;
     consume_right_paren(iter)?;
 
-    Ok(Instruction::MacroGetFunctionPublicIndex(name_path))
+    Ok(Instruction::MacroGetFunctionPublicIndex { id })
 }
 
 fn parse_instruction_kind_debug(
@@ -1480,16 +1484,16 @@ fn parse_instruction_kind_unreachable(
 fn parse_instruction_kind_host_addr_function(
     iter: &mut PeekableIterator<Token>,
 ) -> Result<Instruction, ParseError> {
-    // (host.addr_function $name_path ...) ...  //
-    // ^                                   ^____// to here
-    // _________________________________________// current token
+    // (host.addr_function $id ...) ...  //
+    // ^                            ^____// to here
+    // __________________________________// current token
 
     consume_left_paren(iter, "host.addr_function")?;
     consume_symbol(iter, "host.addr_function")?;
-    let name_path = expect_identifier(iter, "host.addr_function")?;
+    let id = expect_identifier(iter, "host.addr_function")?;
     consume_right_paren(iter)?;
 
-    Ok(Instruction::HostAddrFunction(name_path))
+    Ok(Instruction::HostAddrFunction { id })
 }
 
 fn parse_data_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNode, ParseError> {
@@ -1511,14 +1515,14 @@ fn parse_data_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNo
     // (data $name (uninit i32))
     // (data $name (uninit (bytes 12 4)))
 
-    // with 'exported' annotation
-    // (data $name exported (read_only i32 123))
+    // with 'export' annotation
+    // (data export $name (read_only i32 123))
 
     consume_left_paren(iter, "data")?;
     consume_symbol(iter, "data")?;
 
+    let export = expect_specified_symbol_optional(iter, "export");
     let name = expect_identifier(iter, "data")?;
-    let exported = expect_specified_symbol_optional(iter, "exported");
     let data_kind = parse_data_kind_node(iter)?;
 
     consume_right_paren(iter)?;
@@ -1534,7 +1538,7 @@ fn parse_data_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNo
 
     let data_node = DataNode {
         name,
-        exported,
+        export,
         data_kind,
     };
 
@@ -2600,7 +2604,7 @@ mod tests {
                 destructor_function_name: None,
                 element_nodes: vec![ModuleElementNode::FunctionNode(FunctionNode {
                     name: "add".to_owned(),
-                    exported: false,
+                    export: false,
                     params: vec![
                         ParamNode {
                             name: "lhs".to_owned(),
@@ -2641,7 +2645,7 @@ mod tests {
                 destructor_function_name: None,
                 element_nodes: vec![ModuleElementNode::FunctionNode(FunctionNode {
                     name: "add".to_owned(),
-                    exported: false,
+                    export: false,
                     params: vec![
                         ParamNode {
                             name: "lhs".to_owned(),
@@ -2659,14 +2663,14 @@ mod tests {
             }
         );
 
-        // test property 'exported'
+        // test property 'export'
 
         assert_eq!(
             parse_from_str(
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (function $add exported (code))
+                (function export $add (code))
             )
             "#
             )
@@ -2679,7 +2683,7 @@ mod tests {
                 destructor_function_name: None,
                 element_nodes: vec![ModuleElementNode::FunctionNode(FunctionNode {
                     name: "add".to_owned(),
-                    exported: true,
+                    export: true,
                     params: vec![],
                     results: vec![],
                     locals: vec![],
@@ -2752,7 +2756,7 @@ mod tests {
                 destructor_function_name: None,
                 element_nodes: vec![ModuleElementNode::FunctionNode(FunctionNode {
                     name: "add".to_owned(),
-                    exported: false,
+                    export: false,
                     params: vec![],
                     results: vec![],
                     locals: vec![
@@ -3076,38 +3080,38 @@ mod tests {
             vec![
                 Instruction::DataLoad {
                     opcode: Opcode::data_load32_i32,
-                    name_path: "sum".to_owned(),
+                    id: "sum".to_owned(),
                     offset: 0
                 },
                 Instruction::DataLoad {
                     opcode: Opcode::data_load64_i64,
-                    name_path: "count".to_owned(),
+                    id: "count".to_owned(),
                     offset: 4
                 },
                 //
                 Instruction::DataStore {
                     opcode: Opcode::data_store32,
-                    name_path: "left".to_owned(),
+                    id: "left".to_owned(),
                     offset: 0,
                     value: Box::new(Instruction::ImmI32(11))
                 },
                 //
                 Instruction::DataStore {
                     opcode: Opcode::data_store64,
-                    name_path: "right".to_owned(),
+                    id: "right".to_owned(),
                     offset: 8,
                     value: Box::new(Instruction::ImmI64(13))
                 },
                 //
                 Instruction::DataLongLoad {
                     opcode: Opcode::data_long_load64_i64,
-                    name_path: "foo".to_owned(),
+                    id: "foo".to_owned(),
                     offset: Box::new(Instruction::ImmI32(17))
                 },
                 //
                 Instruction::DataLongStore {
                     opcode: Opcode::data_long_store64,
-                    name_path: "bar".to_owned(),
+                    id: "bar".to_owned(),
                     offset: Box::new(Instruction::ImmI32(19)),
                     value: Box::new(Instruction::ImmI64(23))
                 },
@@ -3668,7 +3672,7 @@ mod tests {
                 destructor_function_name: None,
                 element_nodes: vec![ModuleElementNode::FunctionNode(FunctionNode {
                     name: "test".to_owned(),
-                    exported: false,
+                    export: false,
                     params: vec![
                         ParamNode {
                             name: "sum".to_owned(),
@@ -3787,7 +3791,7 @@ mod tests {
             ),
             vec![
                 Instruction::Call {
-                    name_path: "add".to_owned(),
+                    id: "add".to_owned(),
                     args: vec![Instruction::ImmI32(11), Instruction::ImmI32(13),]
                 },
                 Instruction::DynCall {
@@ -3823,7 +3827,7 @@ mod tests {
                     ]
                 },
                 Instruction::ExtCall {
-                    name_path: "format".to_owned(),
+                    id: "format".to_owned(),
                     args: vec![
                         Instruction::LocalLoad {
                             opcode: Opcode::local_load64_i64,
@@ -3837,7 +3841,9 @@ mod tests {
                         }
                     ]
                 },
-                Instruction::MacroGetFunctionPublicIndex("add".to_owned()),
+                Instruction::MacroGetFunctionPublicIndex {
+                    id: "add".to_owned()
+                },
             ]
         );
     }
@@ -3891,12 +3897,12 @@ mod tests {
                 },
                 Instruction::DataLoad {
                     opcode: Opcode::host_addr_data,
-                    name_path: "msg".to_owned(),
+                    id: "msg".to_owned(),
                     offset: 0x23,
                 },
                 Instruction::DataLongLoad {
                     opcode: Opcode::host_addr_data_long,
-                    name_path: "title".to_owned(),
+                    id: "title".to_owned(),
                     offset: Box::new(Instruction::ImmI32(0x29)),
                 },
                 Instruction::HeapLoad {
@@ -3904,7 +3910,9 @@ mod tests {
                     offset: 0x31,
                     addr: Box::new(Instruction::ImmI32(0x37)),
                 },
-                Instruction::HostAddrFunction("add".to_owned(),),
+                Instruction::HostAddrFunction {
+                    id: "add".to_owned(),
+                },
                 Instruction::NoParams {
                     opcode: Opcode::host_copy_from_heap,
                     operands: vec![
@@ -3952,7 +3960,7 @@ mod tests {
                 element_nodes: vec![
                     ModuleElementNode::DataNode(DataNode {
                         name: "d0".to_owned(),
-                        exported: false,
+                        export: false,
                         data_kind: DataKindNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::I32,
                             length: 4,
@@ -3962,7 +3970,7 @@ mod tests {
                     }),
                     ModuleElementNode::DataNode(DataNode {
                         name: "d1".to_owned(),
-                        exported: false,
+                        export: false,
                         data_kind: DataKindNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::I64,
                             length: 8,
@@ -3972,7 +3980,7 @@ mod tests {
                     }),
                     ModuleElementNode::DataNode(DataNode {
                         name: "d2".to_owned(),
-                        exported: false,
+                        export: false,
                         data_kind: DataKindNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::F32,
                             length: 4,
@@ -3982,7 +3990,7 @@ mod tests {
                     }),
                     ModuleElementNode::DataNode(DataNode {
                         name: "d3".to_owned(),
-                        exported: false,
+                        export: false,
                         data_kind: DataKindNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::F64,
                             length: 8,
@@ -3992,7 +4000,7 @@ mod tests {
                     }),
                     ModuleElementNode::DataNode(DataNode {
                         name: "d4".to_owned(),
-                        exported: false,
+                        export: false,
                         data_kind: DataKindNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::I32,
                             length: 4,
@@ -4002,7 +4010,7 @@ mod tests {
                     }),
                     ModuleElementNode::DataNode(DataNode {
                         name: "d5".to_owned(),
-                        exported: false,
+                        export: false,
                         data_kind: DataKindNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::F32,
                             length: 4,
@@ -4012,7 +4020,7 @@ mod tests {
                     }),
                     ModuleElementNode::DataNode(DataNode {
                         name: "d6".to_owned(),
-                        exported: false,
+                        export: false,
                         data_kind: DataKindNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::I32,
                             length: 4,
@@ -4045,7 +4053,7 @@ mod tests {
                 element_nodes: vec![
                     ModuleElementNode::DataNode(DataNode {
                         name: "d0".to_owned(),
-                        exported: false,
+                        export: false,
                         data_kind: DataKindNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::Bytes,
                             length: 13,
@@ -4055,7 +4063,7 @@ mod tests {
                     }),
                     ModuleElementNode::DataNode(DataNode {
                         name: "d1".to_owned(),
-                        exported: false,
+                        export: false,
                         data_kind: DataKindNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::Bytes,
                             length: 14,
@@ -4065,7 +4073,7 @@ mod tests {
                     }),
                     ModuleElementNode::DataNode(DataNode {
                         name: "d2".to_owned(),
-                        exported: false,
+                        export: false,
                         data_kind: DataKindNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::Bytes,
                             length: 4,
@@ -4082,8 +4090,8 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (data $d0 exported (read_only i32 123))
-                (data $d1 exported (read_write i32 456))
+                (data export $d0 (read_only i32 123))
+                (data export $d1 (read_write i32 456))
             )
             "#
             )
@@ -4097,7 +4105,7 @@ mod tests {
                 element_nodes: vec![
                     ModuleElementNode::DataNode(DataNode {
                         name: "d0".to_owned(),
-                        exported: true,
+                        export: true,
                         data_kind: DataKindNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::I32,
                             length: 4,
@@ -4107,7 +4115,7 @@ mod tests {
                     }),
                     ModuleElementNode::DataNode(DataNode {
                         name: "d1".to_owned(),
-                        exported: true,
+                        export: true,
                         data_kind: DataKindNode::ReadWrite(InitedData {
                             memory_data_type: MemoryDataType::I32,
                             length: 4,
@@ -4223,7 +4231,7 @@ mod tests {
                 element_nodes: vec![
                     ModuleElementNode::DataNode(DataNode {
                         name: "d0".to_owned(),
-                        exported: false,
+                        export: false,
                         data_kind: DataKindNode::Uninit(UninitData {
                             memory_data_type: MemoryDataType::I32,
                             length: 4,
@@ -4232,7 +4240,7 @@ mod tests {
                     }),
                     ModuleElementNode::DataNode(DataNode {
                         name: "d1".to_owned(),
-                        exported: false,
+                        export: false,
                         data_kind: DataKindNode::Uninit(UninitData {
                             memory_data_type: MemoryDataType::I64,
                             length: 8,
@@ -4241,7 +4249,7 @@ mod tests {
                     }),
                     ModuleElementNode::DataNode(DataNode {
                         name: "d2".to_owned(),
-                        exported: false,
+                        export: false,
                         data_kind: DataKindNode::Uninit(UninitData {
                             memory_data_type: MemoryDataType::F32,
                             length: 4,
@@ -4250,7 +4258,7 @@ mod tests {
                     }),
                     ModuleElementNode::DataNode(DataNode {
                         name: "d3".to_owned(),
-                        exported: false,
+                        export: false,
                         data_kind: DataKindNode::Uninit(UninitData {
                             memory_data_type: MemoryDataType::F64,
                             length: 8,
@@ -4259,7 +4267,7 @@ mod tests {
                     }),
                     ModuleElementNode::DataNode(DataNode {
                         name: "d4".to_owned(),
-                        exported: false,
+                        export: false,
                         data_kind: DataKindNode::Uninit(UninitData {
                             memory_data_type: MemoryDataType::Bytes,
                             length: 12,
@@ -4275,8 +4283,8 @@ mod tests {
                 r#"
             (module $app
                 (runtime_version "1.0")
-                (data $d0 exported (uninit i32))
-                (data $d1 exported (uninit i64))
+                (data export $d0 (uninit i32))
+                (data export $d1 (uninit i64))
             )
             "#
             )
@@ -4290,7 +4298,7 @@ mod tests {
                 element_nodes: vec![
                     ModuleElementNode::DataNode(DataNode {
                         name: "d0".to_owned(),
-                        exported: true,
+                        export: true,
                         data_kind: DataKindNode::Uninit(UninitData {
                             memory_data_type: MemoryDataType::I32,
                             length: 4,
@@ -4299,7 +4307,7 @@ mod tests {
                     }),
                     ModuleElementNode::DataNode(DataNode {
                         name: "d1".to_owned(),
-                        exported: true,
+                        export: true,
                         data_kind: DataKindNode::Uninit(UninitData {
                             memory_data_type: MemoryDataType::I64,
                             length: 8,
