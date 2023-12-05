@@ -220,7 +220,7 @@ enum RenameKind {
     ExternalFunction,
 }
 
-pub fn canonicalize_submodule_nodes(
+pub fn merge_and_canonicalize_submodule_nodes(
     submodule_nodes: &[ModuleNode],
 ) -> Result<MergedModuleNode, AssembleError> {
     // the first submodule is the main submodule of an application or a library.
@@ -1288,10 +1288,10 @@ mod tests {
 
     use crate::preprocessor::{CanonicalDataNode, CanonicalFunctionNode};
 
-    use super::{canonicalize_submodule_nodes, MergedModuleNode};
+    use super::{merge_and_canonicalize_submodule_nodes, MergedModuleNode};
 
-    fn merge_submodules_from_strs(sources: &[&str]) -> MergedModuleNode {
-        let submodule_nodes = sources
+    fn preprocess_from_strs(submodule_sources: &[&str]) -> MergedModuleNode {
+        let submodule_nodes = submodule_sources
             .iter()
             .map(|source| {
                 let mut chars = source.chars();
@@ -1302,13 +1302,13 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        canonicalize_submodule_nodes(&submodule_nodes).unwrap()
+        merge_and_canonicalize_submodule_nodes(&submodule_nodes).unwrap()
     }
 
     #[test]
     fn test_preprocess_merge_functions() {
         assert_eq!(
-            merge_submodules_from_strs(&[
+            preprocess_from_strs(&[
                 r#"
             (module $myapp
                 (runtime_version "1.0")
@@ -1380,7 +1380,7 @@ mod tests {
     #[test]
     fn test_preprocess_merge_datas() {
         assert_eq!(
-            merge_submodules_from_strs(&[
+            preprocess_from_strs(&[
                 r#"
             (module $myapp
                 (runtime_version "1.0")
@@ -1443,7 +1443,7 @@ mod tests {
     #[test]
     fn test_preprocess_canonicalize_identifiers_of_function_instructions() {
         assert_eq!(
-            merge_submodules_from_strs(&[
+            preprocess_from_strs(&[
                 r#"
             (module $myapp
                 (runtime_version "1.0")
@@ -1592,7 +1592,7 @@ mod tests {
     #[test]
     fn test_preprocess_canonicalize_identifiers_of_data_instructions() {
         assert_eq!(
-            merge_submodules_from_strs(&[
+            preprocess_from_strs(&[
                 r#"
             (module $myapp
                 (runtime_version "1.0")
@@ -1759,7 +1759,7 @@ mod tests {
     #[test]
     fn test_preprocess_canonicalize_identifiers_of_external_functions() {
         assert_eq!(
-            merge_submodules_from_strs(&[
+            preprocess_from_strs(&[
                 r#"
             (module $myapp
                 (runtime_version "1.0")
@@ -2011,7 +2011,7 @@ mod tests {
     #[test]
     fn test_preprocess_canonicalize_identifiers_of_import_functions() {
         assert_eq!(
-            merge_submodules_from_strs(&[
+            preprocess_from_strs(&[
                 r#"
             (module $myapp
                 (runtime_version "1.0")
@@ -2265,7 +2265,7 @@ mod tests {
     #[test]
     fn test_preprocess_canonicalize_identifiers_of_import_data() {
         assert_eq!(
-            merge_submodules_from_strs(&[
+            preprocess_from_strs(&[
                 r#"
             (module $myapp
                 (runtime_version "1.0")

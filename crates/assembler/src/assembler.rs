@@ -25,9 +25,9 @@ use crate::{preprocessor::MergedModuleNode, AssembleError, UNREACHABLE_CODE_NO_D
 // the identifier is used for the function calling instructions, and
 // the data loading/storing instructions.
 //
-// unlike the 'path name' in the function name entry(data name entry,
-// import function entry, import data entry), the 'path name' is used
-// for linking.
+// the 'path name' in the function name entry (data name entry,
+// import function entry, import data entry) is different from the identifier,
+// the 'path name' is used for linking.
 struct IdentifierLookupTable {
     function_identifiers: Vec<IdentifierIndex>,
     data_identifiers: Vec<IdentifierIndex>,
@@ -36,6 +36,24 @@ struct IdentifierLookupTable {
 
 struct IdentifierIndex {
     id: String,
+
+    // the function or data public index.
+    //
+    // the index of function item in public
+    //
+    // the function public index includes (and are sorted by the following order):
+    // - the imported functions
+    // - the internal functions
+    //
+    //
+    // the data public index includes (and are sorted by the following order):
+    //
+    // - imported read-only data items
+    // - internal read-only data items
+    // - imported read-write data items
+    // - internal read-write data items
+    // - imported uninitilized data items
+    // - internal uninitilized data items
     public_index: usize,
 }
 
@@ -58,32 +76,14 @@ impl IdentifierLookupTable {
         // external_nodes: &[ExternalNode],
         identifier_source: IdentifierSource,
     ) -> Self {
-        //         let function_identifiers = function_name_entries
-        //             .iter()
-        //             .map(|entry| IdentifierIndex {
-        //                 id: entry.name_path.clone(),
-        //                 public_index: entry.function_public_index,
-        //             })
-        //             .collect::<Vec<_>>();
-        //
-        //         let data_identifiers = data_name_entries
-        //             .iter()
-        //             .map(|entry| IdentifierIndex {
-        //                 id: entry.name_path.clone(),
-        //                 public_index: entry.data_public_index,
-        //             })
-        //             .collect::<Vec<_>>();
-        //
-        //         let external_function_identifiers =
-        //             IdentifierLookupTable::build_external_function_identifier_indices(external_nodes);
-
         let mut function_identifiers: Vec<IdentifierIndex> = vec![];
         let mut data_identifiers: Vec<IdentifierIndex> = vec![];
         let mut external_function_identifiers: Vec<IdentifierIndex> = vec![];
 
-        // fill function ids
-
         let mut function_public_index_offset: usize = 0;
+        let mut data_public_index_offset: usize = 0;
+
+        // fill function ids
 
         function_identifiers.extend(
             identifier_source
@@ -107,8 +107,6 @@ impl IdentifierLookupTable {
 
         // fill read-only data ids
 
-        let mut read_only_data_public_index_offset: usize = 0;
-
         data_identifiers.extend(
             identifier_source
                 .import_read_only_data_ids
@@ -116,22 +114,22 @@ impl IdentifierLookupTable {
                 .enumerate()
                 .map(|(idx, id)| IdentifierIndex {
                     id: id.to_owned(),
-                    public_index: read_only_data_public_index_offset + idx,
+                    public_index: data_public_index_offset + idx,
                 }),
         );
 
-        read_only_data_public_index_offset += identifier_source.import_read_only_data_ids.len();
+        data_public_index_offset += identifier_source.import_read_only_data_ids.len();
 
         data_identifiers.extend(identifier_source.read_only_data_ids.iter().enumerate().map(
             |(idx, id)| IdentifierIndex {
                 id: id.to_owned(),
-                public_index: read_only_data_public_index_offset + idx,
+                public_index: data_public_index_offset + idx,
             },
         ));
 
-        // fill read-write data ids
+        data_public_index_offset += identifier_source.read_only_data_ids.len();
 
-        let mut read_write_data_public_index_offset: usize = 0;
+        // fill read-write data ids
 
         data_identifiers.extend(
             identifier_source
@@ -140,11 +138,11 @@ impl IdentifierLookupTable {
                 .enumerate()
                 .map(|(idx, id)| IdentifierIndex {
                     id: id.to_owned(),
-                    public_index: read_write_data_public_index_offset + idx,
+                    public_index: data_public_index_offset + idx,
                 }),
         );
 
-        read_write_data_public_index_offset += identifier_source.import_read_write_data_ids.len();
+        data_public_index_offset += identifier_source.import_read_write_data_ids.len();
 
         data_identifiers.extend(
             identifier_source
@@ -153,13 +151,13 @@ impl IdentifierLookupTable {
                 .enumerate()
                 .map(|(idx, id)| IdentifierIndex {
                     id: id.to_owned(),
-                    public_index: read_write_data_public_index_offset + idx,
+                    public_index: data_public_index_offset + idx,
                 }),
         );
 
-        // fill uninit data ids
+        data_public_index_offset += identifier_source.read_write_data_ids.len();
 
-        let mut uninit_data_public_index_offset: usize = 0;
+        // fill uninit data ids
 
         data_identifiers.extend(
             identifier_source
@@ -168,16 +166,16 @@ impl IdentifierLookupTable {
                 .enumerate()
                 .map(|(idx, id)| IdentifierIndex {
                     id: id.to_owned(),
-                    public_index: uninit_data_public_index_offset + idx,
+                    public_index: data_public_index_offset + idx,
                 }),
         );
 
-        uninit_data_public_index_offset += identifier_source.import_uninit_data_ids.len();
+        data_public_index_offset += identifier_source.import_uninit_data_ids.len();
 
         data_identifiers.extend(identifier_source.uninit_data_ids.iter().enumerate().map(
             |(idx, id)| IdentifierIndex {
                 id: id.to_owned(),
-                public_index: uninit_data_public_index_offset + idx,
+                public_index: data_public_index_offset + idx,
             },
         ));
 
@@ -202,27 +200,6 @@ impl IdentifierLookupTable {
             external_function_identifiers,
         }
     }
-
-    //     fn build_external_function_identifier_indices(
-    //         external_nodes: &[ExternalNode],
-    //     ) -> Vec<IdentifierIndex> {
-    //         let mut external_function_identifiers: Vec<IdentifierIndex> = vec![];
-    //
-    //         let mut idx: usize = 0;
-    //
-    //         for external_node in external_nodes {
-    //             for external_item in &external_node.external_items {
-    //                 let ExternalItem::ExternalFunction(external_func) = external_item;
-    //                 external_function_identifiers.push(IdentifierIndex {
-    //                     id: external_func.id.clone(),
-    //                     public_index: idx,
-    //                 });
-    //                 idx += 1;
-    //             }
-    //         }
-    //
-    //         external_function_identifiers
-    //     }
 
     pub fn get_function_public_index(&self, identifier: &str) -> Result<usize, AssembleError> {
         match self
@@ -2109,12 +2086,12 @@ mod tests {
     use ancvm_parser::{lexer::lex, parser::parse, peekable_iterator::PeekableIterator};
 
     use crate::{
-        assembler::assemble_merged_module_node, preprocessor::canonicalize_submodule_nodes,
+        assembler::assemble_merged_module_node, preprocessor::merge_and_canonicalize_submodule_nodes,
     };
 
     #[test]
     fn test_assemble() {
-        let sources = &[
+        let submodule_sources = &[
             r#"
         (module $myapp
             (runtime_version "1.0")
@@ -2134,7 +2111,7 @@ mod tests {
             )
             (function $init
                 (code
-                    zero
+                    (data.store32 $module::utils::buf (i32.imm 0))
                 )
             )
             (function $exit
@@ -2159,6 +2136,7 @@ mod tests {
                 )
                 (data $seed "seed" (read_only i32))
             )
+            (data $buf (read_write (bytes 2) d"11131719"))
             (function export $add
                 (param $left i32) (param $right i32)
                 (result i64)
@@ -2173,7 +2151,7 @@ mod tests {
         "#,
         ];
 
-        let submodule_nodes = sources
+        let submodule_nodes = submodule_sources
             .iter()
             .map(|source| {
                 let mut chars = source.chars();
@@ -2184,7 +2162,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let merged_module_node = canonicalize_submodule_nodes(&submodule_nodes).unwrap();
+        let merged_module_node = merge_and_canonicalize_submodule_nodes(&submodule_nodes).unwrap();
         let module_entry = assemble_merged_module_node(&merged_module_node).unwrap();
 
         assert_eq!(module_entry.name, "myapp");
@@ -2271,8 +2249,9 @@ mod tests {
         assert_eq!(
             print_bytecode_as_text(&function_entry1.code),
             "\
-0x0000  01 01                       zero
-0x0002  00 0a                       end"
+0x0000  80 01 00 00  00 00 00 00    i32.imm           0x00000000
+0x0008  09 03 00 00  03 00 00 00    data.store32      off:0x00  idx:3
+0x0010  00 0a                       end"
         );
 
         let function_entry2 = &module_entry.function_entries[2];
@@ -2317,7 +2296,16 @@ mod tests {
             ]
         );
 
-        assert_eq!(module_entry.read_write_data_entries.len(), 0);
+        assert_eq!(
+            module_entry.read_write_data_entries,
+            vec![InitedDataEntry {
+                memory_data_type: MemoryDataType::Bytes,
+                data: vec![0x11u8, 0x13, 0x17, 0x19],
+                length: 4,
+                align: 2
+            },]
+        );
+
         assert_eq!(module_entry.uninit_data_entries.len(), 0);
 
         // check type entries
@@ -2414,6 +2402,11 @@ mod tests {
                 DataNameEntry {
                     name_path: "FAILURE".to_owned(),
                     data_public_index: 2,
+                    export: false
+                },
+                DataNameEntry {
+                    name_path: "utils::buf".to_owned(),
+                    data_public_index: 3,
                     export: false
                 }
             ]

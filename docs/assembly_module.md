@@ -165,6 +165,7 @@ add 'export' annotation after the function name.
 
 ;; data
 (data $name (read_only (bytes ALIGN_NUMBER:i16) d"11-13-17-19"))
+(data $name (read_write (bytes ALIGN_NUMBER:i16) d"11-13-17-19"))
 
 there are two variants of 'bytes': 'string' and 'cstring', e.g.
 
