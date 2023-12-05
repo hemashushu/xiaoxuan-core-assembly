@@ -4,7 +4,7 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancvm_assembler::utils::helper_generate_module_image_binaries_from_single_module_assembly;
+use ancvm_assembler::utils::helper_generate_module_image_binary_from_str;
 use ancvm_binary::bytecode_reader::print_bytecode_as_text;
 use ancvm_program::program_source::ProgramSource;
 use ancvm_process::{
@@ -21,7 +21,7 @@ use pretty_assertions::assert_eq;
 fn test_assemble_envcall_runtime_version() {
     // () -> (i64)
 
-    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(&format!(
+    let module_binary = helper_generate_module_image_binary_from_str(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -35,7 +35,7 @@ fn test_assemble_envcall_runtime_version() {
         ENV_CALL_CODE_RUNTIME_VERSION = (EnvCallCode::runtime_version as u32)
     ));
 
-    let program_source0 = InMemoryProgramSource::new(module_binaries);
+    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
     let program0 = program_source0.build_program().unwrap();
 
     let function_entry = program0.module_images[0]
@@ -71,7 +71,7 @@ fn test_assemble_envcall_runtime_code_name() {
     //        |    |name buffer (8 bytes)
     //        |name length
 
-    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(&format!(
+    let module_binary = helper_generate_module_image_binary_from_str(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -87,7 +87,7 @@ fn test_assemble_envcall_runtime_code_name() {
         ENV_CALL_CODE_RUNTIME_NAME = (EnvCallCode::runtime_name as u32)
     ));
 
-    let program_source0 = InMemoryProgramSource::new(module_binaries);
+    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
     let program0 = program_source0.build_program().unwrap();
 
     let function_entry = program0.module_images[0]

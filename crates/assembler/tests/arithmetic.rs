@@ -4,7 +4,7 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancvm_assembler::utils::helper_generate_module_image_binaries_from_single_module_assembly;
+use ancvm_assembler::utils::helper_generate_module_image_binary_from_str;
 use ancvm_process::{
     in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
 };
@@ -55,7 +55,7 @@ fn test_assemble_arithmetic_i32() {
     //  |      |divisor
     //  |dividend <--------- the result always takes the sign of the dividend.
 
-    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
+    let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -100,7 +100,7 @@ fn test_assemble_arithmetic_i32() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(module_binaries);
+    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
     let program0 = program_source0.build_program().unwrap();
     let mut thread_context0 = program0.create_thread_context();
 
@@ -185,7 +185,7 @@ fn test_assemble_arithmetic_i64() {
     //  |      |divisor
     //  |dividend <--------- the result always takes the sign of the dividend.
 
-    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
+    let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -230,7 +230,7 @@ fn test_assemble_arithmetic_i64() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(module_binaries);
+    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
     let program0 = program_source0.build_program().unwrap();
     let mut thread_context0 = program0.create_thread_context();
 
@@ -285,7 +285,7 @@ fn test_assemble_arithmetic_f32() {
     //   - mul 0 1      -> 5.829922
     //   - div 1 0      -> 2.91584158416
 
-    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
+    let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -305,7 +305,7 @@ fn test_assemble_arithmetic_f32() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(module_binaries);
+    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
     let program0 = program_source0.build_program().unwrap();
     let mut thread_context0 = program0.create_thread_context();
 
@@ -340,7 +340,7 @@ fn test_assemble_arithmetic_f64() {
     //
     // (f64 f64) -> (f64 f64 f64 f64)
 
-    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
+    let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -360,7 +360,7 @@ fn test_assemble_arithmetic_f64() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(module_binaries);
+    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
     let program0 = program_source0.build_program().unwrap();
     let mut thread_context0 = program0.create_thread_context();
 

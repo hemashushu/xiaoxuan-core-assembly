@@ -6,12 +6,12 @@
 
 use std::env;
 
-use ancvm_assembler::utils::helper_generate_module_image_binaries_from_single_module_assembly;
+use ancvm_assembler::utils::helper_generate_module_image_binary_from_str;
 use ancvm_extfunc_util::cstr_pointer_to_str;
-use ancvm_program::{program_settings::ProgramSettings, program_source::ProgramSource};
 use ancvm_process::{
     in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
 };
+use ancvm_program::{program_settings::ProgramSettings, program_source::ProgramSource};
 use ancvm_types::ForeignValue;
 
 use pretty_assertions::assert_eq;
@@ -23,7 +23,7 @@ fn test_assemble_extcall_with_system_libc_getuid() {
     // `man 3 getuid`
     // 'uid_t getuid(void);'
 
-    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
+    let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -39,7 +39,7 @@ fn test_assemble_extcall_with_system_libc_getuid() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(module_binaries);
+    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
     let program0 = program_source0.build_program().unwrap();
     let mut thread_context0 = program0.create_thread_context();
 
@@ -56,7 +56,7 @@ fn test_assemble_extcall_with_system_libc_getenv() {
     // `man 3 getenv`
     // 'char *getenv(const char *name);'
 
-    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
+    let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -75,7 +75,7 @@ fn test_assemble_extcall_with_system_libc_getenv() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(module_binaries);
+    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
     let program0 = program_source0.build_program().unwrap();
     let mut thread_context0 = program0.create_thread_context();
 
@@ -95,7 +95,7 @@ fn test_assemble_extcall_with_user_lib() {
     // 'lib-test-0.so.1'
     // 'int add(int, int)'
 
-    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
+    let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -128,7 +128,7 @@ fn test_assemble_extcall_with_user_lib() {
     let program_source_path = pwd.to_str().unwrap();
 
     let program_source0 = InMemoryProgramSource::with_settings(
-        module_binaries,
+        vec![module_binary],
         &ProgramSettings::new(program_source_path, true, "", ""),
     );
 

@@ -638,4 +638,19 @@ mod tests {
         assert!(index_entry.unified_external_library_entries.is_empty());
         assert!(index_entry.unified_external_function_entries.is_empty());
     }
+
+    #[test]
+    fn test_link_data() {
+        // todo
+    }
+
+    #[test]
+    fn test_link_external_functions() {
+        // todo
+    }
+
+    #[test]
+    fn test_link_constructors_and_destructors() {
+        // todo
+    }
 }

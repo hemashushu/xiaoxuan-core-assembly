@@ -11,9 +11,7 @@ use crate::{
     preprocessor::merge_and_canonicalize_submodule_nodes,
 };
 
-pub fn helper_generate_module_image_binaries_from_single_module_assembly(
-    source: &str,
-) -> Vec<Vec<u8>> {
+pub fn helper_generate_module_image_binary_from_str(source: &str) -> Vec<u8> {
     let mut chars = source.chars();
     let mut char_iter = PeekableIterator::new(&mut chars, 2);
     let mut tokens = lex(&mut char_iter).unwrap().into_iter();
@@ -27,6 +25,5 @@ pub fn helper_generate_module_image_binaries_from_single_module_assembly(
 
     // let program_settings = ProgramSettings::default();
     let index_entry = link(&module_entries).unwrap();
-    let module_image = generate_module_image_binary(&module_entry, Some(&index_entry)).unwrap();
-    vec![module_image]
+    generate_module_image_binary(&module_entry, Some(&index_entry)).unwrap()
 }

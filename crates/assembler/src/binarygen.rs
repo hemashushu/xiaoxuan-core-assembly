@@ -14,6 +14,8 @@ use ancvm_binary::module_image::{
     function_index_section::FunctionIndexSection,
     function_name_section::FunctionNameSection,
     function_section::FunctionSection,
+    import_data_section::ImportDataSection,
+    import_function_section::ImportFunctionSection,
     local_variable_section::LocalVariableSection,
     type_section::TypeSection,
     unified_external_function_section::UnifiedExternalFunctionSection,
@@ -98,6 +100,22 @@ pub fn generate_module_image_binary(
         names_data: &external_function_names_data,
     };
 
+    // import function section
+    let (import_function_items, import_function_data) =
+        ImportFunctionSection::convert_from_entries(&module_entry.import_function_entries);
+    let import_function_section = ImportFunctionSection {
+        items: &import_function_items,
+        names_data: &import_function_data,
+    };
+
+    // import data entries
+    let (import_data_items, import_data) =
+        ImportDataSection::convert_from_entries(&module_entry.import_data_entries);
+    let import_data_section = ImportDataSection {
+        items: &import_data_items,
+        names_data: &import_data,
+    };
+
     // func name section
     let (function_name_items, function_name_data) =
         FunctionNameSection::convert_from_entries(&module_entry.function_name_entries);
@@ -123,6 +141,8 @@ pub fn generate_module_image_binary(
         &uninit_data_section,
         &external_library_section,
         &external_function_section,
+        &import_function_section,
+        &import_data_section,
         &function_name_section,
         &data_name_section,
     ];
@@ -230,11 +250,11 @@ mod tests {
         DataType, ForeignValue, MemoryDataType,
     };
 
-    use crate::utils::helper_generate_module_image_binaries_from_single_module_assembly;
+    use crate::utils::helper_generate_module_image_binary_from_str;
 
     #[test]
     fn test_binarygen() {
-        let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
+        let module_binary = helper_generate_module_image_binary_from_str(
             r#"
         (module $app
             (runtime_version "1.0")
@@ -253,7 +273,7 @@ mod tests {
         "#,
         );
 
-        let program_source0 = InMemoryProgramSource::new(module_binaries);
+        let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
         let program0 = program_source0.build_program().unwrap();
 
         let function_entry = program0.module_images[0]

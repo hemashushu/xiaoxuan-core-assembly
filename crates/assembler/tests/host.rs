@@ -4,13 +4,13 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancvm_assembler::utils::helper_generate_module_image_binaries_from_single_module_assembly;
+use ancvm_assembler::utils::helper_generate_module_image_binary_from_str;
 use ancvm_binary::bytecode_reader::print_bytecode_as_text;
-use ancvm_program::{program_settings::ProgramSettings, program_source::ProgramSource};
 use ancvm_process::{
     in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
     InterpreterError, InterpreterErrorType,
 };
+use ancvm_program::{program_settings::ProgramSettings, program_source::ProgramSource};
 
 use ancvm_types::ForeignValue;
 
@@ -20,7 +20,7 @@ use pretty_assertions::assert_eq;
 fn test_assemble_host_panic() {
     // () -> ()
 
-    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
+    let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -34,7 +34,7 @@ fn test_assemble_host_panic() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(module_binaries);
+    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
     let program0 = program_source0.build_program().unwrap();
 
     let mut thread_context0 = program0.create_thread_context();
@@ -53,7 +53,7 @@ fn test_assemble_host_panic() {
 fn test_assemble_host_debug() {
     // () -> ()
 
-    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
+    let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -67,7 +67,7 @@ fn test_assemble_host_debug() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(module_binaries);
+    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
     let program0 = program_source0.build_program().unwrap();
 
     let mut thread_context0 = program0.create_thread_context();
@@ -86,7 +86,7 @@ fn test_assemble_host_debug() {
 fn test_assemble_host_unreachable() {
     // () -> ()
 
-    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
+    let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -100,7 +100,7 @@ fn test_assemble_host_unreachable() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(module_binaries);
+    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
     let program0 = program_source0.build_program().unwrap();
 
     let mut thread_context0 = program0.create_thread_context();
@@ -168,7 +168,7 @@ fn test_assemble_host_address_of_data_and_local_vars() {
     //
     // read the values of data and local vars through the host address.
 
-    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
+    let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -219,7 +219,7 @@ fn test_assemble_host_address_of_data_and_local_vars() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(module_binaries);
+    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
     let program0 = program_source0.build_program().unwrap();
 
     let function_entry = program0.module_images[0]
@@ -315,7 +315,7 @@ fn test_assemble_host_address_long_of_data_and_local_vars() {
     //
     // read the values of data and local vars through the host address.
 
-    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
+    let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -348,7 +348,7 @@ fn test_assemble_host_address_long_of_data_and_local_vars() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(module_binaries);
+    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
     let program0 = program_source0.build_program().unwrap();
 
     let function_entry = program0.module_images[0]
@@ -419,7 +419,7 @@ fn test_assemble_host_address_heap() {
     //
     // () -> (i64,i64,i64,i64,i64)
 
-    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
+    let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -456,7 +456,7 @@ fn test_assemble_host_address_heap() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(module_binaries);
+    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
     let program0 = program_source0.build_program().unwrap();
 
     let function_entry = program0.module_images[0]
@@ -525,7 +525,7 @@ fn test_assemble_host_heap_copy() {
     // host |01234567|
     //      src_ptr
 
-    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
+    let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -558,7 +558,7 @@ fn test_assemble_host_heap_copy() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(module_binaries);
+    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
     let program0 = program_source0.build_program().unwrap();
     let mut thread_context0 = program0.create_thread_context();
 
@@ -607,7 +607,7 @@ fn test_assemble_host_addr_function_and_callback_function() {
     // calling path:
     // (11,13) -> func0(VM) -> do_something(C) -> func1(VM) -> do_something(C) -> func0(VM) -> (11*2+13)
 
-    let module_binaries = helper_generate_module_image_binaries_from_single_module_assembly(
+    let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -657,7 +657,7 @@ fn test_assemble_host_addr_function_and_callback_function() {
     let program_source_path = pwd.to_str().unwrap();
 
     let program_source0 = InMemoryProgramSource::with_settings(
-        module_binaries,
+        vec![module_binary],
         &ProgramSettings::new(program_source_path, true, "", ""),
     );
 
