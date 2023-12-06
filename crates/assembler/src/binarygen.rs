@@ -8,6 +8,7 @@ use ancvm_binary::module_image::{
     data_index_section::DataIndexSection,
     data_name_section::DataNameSection,
     data_section::{ReadOnlyDataSection, ReadWriteDataSection, UninitDataSection},
+    exit_function_list_section::ExitFunctionListSection,
     external_function_index_section::ExternalFunctionIndexSection,
     external_function_section::ExternalFunctionSection,
     external_library_section::ExternalLibrarySection,
@@ -17,6 +18,7 @@ use ancvm_binary::module_image::{
     import_data_section::ImportDataSection,
     import_function_section::ImportFunctionSection,
     local_variable_section::LocalVariableSection,
+    start_function_list_section::StartFunctionListSection,
     type_section::TypeSection,
     unified_external_function_section::UnifiedExternalFunctionSection,
     unified_external_library_section::UnifiedExternalLibrarySection,
@@ -194,12 +196,27 @@ pub fn generate_module_image_binary(
             items: &external_function_items,
         };
 
+        let start_function_index_items = StartFunctionListSection::convert_from_entries(
+            &index_entry.start_function_index_entries,
+        );
+        let start_function_list_section = StartFunctionListSection {
+            items: &start_function_index_items,
+        };
+
+        let exit_function_index_items =
+            ExitFunctionListSection::convert_from_entries(&index_entry.exit_function_index_entries);
+        let exit_function_list_section = ExitFunctionListSection {
+            items: &exit_function_index_items,
+        };
+
         let mut index_section_entries: Vec<&dyn SectionEntry> = vec![
             &function_index_section,
             &data_index_section,
             &unified_external_library_section,
             &unified_external_function_section,
             &external_function_index_section,
+            &start_function_list_section,
+            &exit_function_list_section,
         ];
 
         section_entries.append(&mut index_section_entries);
@@ -253,7 +270,7 @@ mod tests {
     use crate::utils::helper_generate_module_image_binary_from_str;
 
     #[test]
-    fn test_binarygen() {
+    fn test_binarygen_base() {
         let module_binary = helper_generate_module_image_binary_from_str(
             r#"
         (module $app
@@ -333,5 +350,10 @@ mod tests {
         );
 
         assert_eq!(result0.unwrap(), vec![ForeignValue::U32(24)]);
+    }
+
+    #[test]
+    fn test_binarygen_other_sections_todo() {
+        // todo
     }
 }

@@ -8,7 +8,8 @@ use ancvm_types::{
     entry::{
         DataIndexEntry, DataIndexModuleEntry, ExternalFunctionIndexEntry,
         ExternalFunctionIndexModuleEntry, FunctionIndexEntry, FunctionIndexModuleEntry, IndexEntry,
-        ModuleEntry, UnifiedExternalFunctionEntry, UnifiedExternalLibraryEntry,
+        ModuleEntry, ModuleFunctionIndexEntry, UnifiedExternalFunctionEntry,
+        UnifiedExternalLibraryEntry,
     },
     DataSectionType,
 };
@@ -19,6 +20,33 @@ use crate::AssembleError;
 // - function public index table
 // - data public index table
 // - external function index table
+//
+// the module entries must be ordered by 'top most -> deep most', and
+// the first entry should be the application (includes test) module.
+//
+// consider there is an application with the following dependencies tree:
+//
+//           modules
+//
+//            [a] app
+//    /----<--/|\-->----\
+//    |        |        |
+//   [b]      [e]<--\  [c]
+//    |        |    |   |
+//    v       [f]   |  [d]
+//    \-------\|    \---/
+//            [g]
+//
+// in the search path of the tree above,
+// the depth of node 'e' can be either 1 or 3, we should select the largest one (i.e., 3)
+// as its final depth. it is similar to the node 'g', its deapth can be 2, 3 and 5,
+// so the 5 should be selectd.
+//
+// so the module order shoudl be:
+//
+// depth:   0       1       2      3      4      5
+// order:  (a) -> (b,c) -> (d) -> (e) -> (f) -> (g)
+
 pub fn link(module_entries: &[&ModuleEntry]) -> Result<IndexEntry, AssembleError> {
     let function_index_module_entries = link_functions(module_entries)?;
     let data_index_module_entries = link_data(module_entries)?;
@@ -28,11 +56,8 @@ pub fn link(module_entries: &[&ModuleEntry]) -> Result<IndexEntry, AssembleError
         external_function_index_module_entries,
     ) = link_external_functions(module_entries)?;
 
-    // todo::
-    // find all constructor functions and the 'entry' function in the first module.
-
-    // todo::
-    // find all destructor functions
+    let start_function_index_entries = get_constructors(module_entries);
+    let exit_function_index_entries = get_destructors(module_entries);
 
     Ok(IndexEntry {
         function_index_module_entries,
@@ -40,6 +65,8 @@ pub fn link(module_entries: &[&ModuleEntry]) -> Result<IndexEntry, AssembleError
         unified_external_library_entries,
         unified_external_function_entries,
         external_function_index_module_entries,
+        start_function_index_entries,
+        exit_function_index_entries,
     })
 }
 
@@ -444,12 +471,48 @@ fn find_exported_data_index(
     }
 }
 
+fn get_constructors(module_entries: &[&ModuleEntry]) -> Vec<ModuleFunctionIndexEntry> {
+    module_entries
+        .iter()
+        .enumerate()
+        .map(|(module_idx, module_entry)| {
+            module_entry
+                .constructor_function_public_index
+                .map(|function_idx| (module_idx, function_idx as usize))
+        })
+        .filter_map(|item| {
+            item.map(|(module_index, function_public_index)| {
+                ModuleFunctionIndexEntry::new(module_index, function_public_index)
+            })
+        })
+        .collect::<Vec<_>>()
+}
+
+fn get_destructors(module_entries: &[&ModuleEntry]) -> Vec<ModuleFunctionIndexEntry> {
+    module_entries
+        .iter()
+        .enumerate()
+        .map(|(module_idx, module_entry)| {
+            module_entry
+                .destructor_function_public_index
+                .map(|function_idx| (module_idx, function_idx as usize))
+        })
+        .filter_map(|item| {
+            item.map(|(module_index, function_public_index)| {
+                ModuleFunctionIndexEntry::new(module_index, function_public_index)
+            })
+        })
+        .collect::<Vec<_>>()
+}
+
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
 
     use ancvm_parser::{lexer::lex, parser::parse, peekable_iterator::PeekableIterator};
-    use ancvm_types::entry::{FunctionIndexEntry, FunctionIndexModuleEntry, ModuleEntry};
+    use ancvm_types::entry::{
+        FunctionIndexEntry, FunctionIndexModuleEntry, ModuleEntry, ModuleFunctionIndexEntry,
+    };
 
     use crate::{
         assembler::assemble_merged_module_node, linker::link,
@@ -529,11 +592,8 @@ mod tests {
             "#,
         ]);
 
-        // println!("{:#?}", module_entries);
-
         let ref_module_entries = module_entries.iter().collect::<Vec<_>>();
         let index_entry = link(&ref_module_entries).unwrap();
-        // println!("{:#?}", index_entry);
 
         let function_index_module_entries = &index_entry.function_index_module_entries;
         assert_eq!(function_index_module_entries.len(), 3);
@@ -651,6 +711,81 @@ mod tests {
 
     #[test]
     fn test_link_constructors_and_destructors() {
-        // todo
+        let module_entries = assemble_from_strs(vec![
+            r#"
+            (module $myapp
+                (runtime_version "1.0")
+                (constructor $start)
+                (function $start (code))    ;; 0,0  start
+            )
+            "#,
+            r#"
+            (module $mod_a
+                (runtime_version "1.0")
+                (constructor $start_a)
+                (destructor $exit_a)
+                (function $start_a (code))  ;; 1,0  start
+                (function $exit_a (code))   ;; 1,1  exit
+            )
+            "#,
+            r#"
+            (module $mod_b
+                (runtime_version "1.0")
+                (constructor $start_b)
+                (function $start_b (code))  ;; 2,0  start
+            )
+            "#,
+            r#"
+            (module $mod_c
+                (runtime_version "1.0")
+            )
+            "#,
+            r#"
+            (module $mod_d
+                (runtime_version "1.0")
+                (destructor $exit_d)
+                (function $exit_d (code))   ;; 4,0  exit
+            )
+            "#,
+            r#"
+            (module $mod_e
+                (runtime_version "1.0")
+                (constructor $start_e)
+                (destructor $exit_e)
+                (function $start_e (code))  ;; 5,0  start
+                (function $exit_e (code))   ;; 5,1  exit
+            )
+            "#,
+            r#"
+            (module $mod_f
+                (runtime_version "1.0")
+                (destructor $exit_f)
+                (function $exit_f (code))   ;; 6,0  exit
+            )
+            "#,
+        ]);
+
+        let ref_module_entries = module_entries.iter().collect::<Vec<_>>();
+        let index_entry = link(&ref_module_entries).unwrap();
+
+        assert_eq!(
+            index_entry.start_function_index_entries,
+            vec![
+                ModuleFunctionIndexEntry::new(0, 0),
+                ModuleFunctionIndexEntry::new(1, 0),
+                ModuleFunctionIndexEntry::new(2, 0),
+                ModuleFunctionIndexEntry::new(5, 0),
+            ]
+        );
+
+        assert_eq!(
+            index_entry.exit_function_index_entries,
+            vec![
+                ModuleFunctionIndexEntry::new(1, 1),
+                ModuleFunctionIndexEntry::new(4, 0),
+                ModuleFunctionIndexEntry::new(5, 1),
+                ModuleFunctionIndexEntry::new(6, 0),
+            ]
+        );
     }
 }
