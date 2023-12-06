@@ -449,6 +449,10 @@ impl FlowStack {
     }
 }
 
+// note:
+// the entry function 'entry' of an application should be
+// inserted before assemble, as well as the auto-generated
+// functions '_start' and '_exit'.
 pub fn assemble_merged_module_node(
     merged_module_node: &MergedModuleNode,
 ) -> Result<ModuleEntry, AssembleError> {
@@ -2036,7 +2040,7 @@ fn assemble_external_nodes(
             name: external_library_node.name.clone(),
             external_library_type: external_library_node.external_library_type,
         };
-        let external_library_index = external_function_entries.len();
+        let external_library_index = external_library_entries.len();
         external_library_entries.push(external_library_entry);
 
         for external_item in &external_node.external_items {
