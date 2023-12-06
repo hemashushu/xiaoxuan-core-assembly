@@ -8,8 +8,7 @@ use ancvm_types::{
     entry::{
         DataIndexEntry, DataIndexModuleEntry, ExternalFunctionIndexEntry,
         ExternalFunctionIndexModuleEntry, FunctionIndexEntry, FunctionIndexModuleEntry, IndexEntry,
-        ModuleEntry, ModuleFunctionIndexEntry, UnifiedExternalFunctionEntry,
-        UnifiedExternalLibraryEntry,
+        ModuleEntry, UnifiedExternalFunctionEntry, UnifiedExternalLibraryEntry,
     },
     DataSectionType,
 };
@@ -56,8 +55,8 @@ pub fn link(module_entries: &[&ModuleEntry]) -> Result<IndexEntry, AssembleError
         external_function_index_module_entries,
     ) = link_external_functions(module_entries)?;
 
-    let start_function_index_entries = get_constructors(module_entries);
-    let exit_function_index_entries = get_destructors(module_entries);
+    // let start_function_index_entries = get_constructors(module_entries);
+    // let exit_function_index_entries = get_destructors(module_entries);
 
     Ok(IndexEntry {
         function_index_module_entries,
@@ -65,8 +64,8 @@ pub fn link(module_entries: &[&ModuleEntry]) -> Result<IndexEntry, AssembleError
         unified_external_library_entries,
         unified_external_function_entries,
         external_function_index_module_entries,
-        start_function_index_entries,
-        exit_function_index_entries,
+        // start_function_index_entries,
+        // exit_function_index_entries,
     })
 }
 
@@ -505,39 +504,39 @@ fn find_exported_data_internal_index(
     }
 }
 
-fn get_constructors(module_entries: &[&ModuleEntry]) -> Vec<ModuleFunctionIndexEntry> {
-    module_entries
-        .iter()
-        .enumerate()
-        .map(|(module_idx, module_entry)| {
-            module_entry
-                .constructor_function_public_index
-                .map(|function_idx| (module_idx, function_idx as usize))
-        })
-        .filter_map(|item| {
-            item.map(|(module_index, function_public_index)| {
-                ModuleFunctionIndexEntry::new(module_index, function_public_index)
-            })
-        })
-        .collect::<Vec<_>>()
-}
-
-fn get_destructors(module_entries: &[&ModuleEntry]) -> Vec<ModuleFunctionIndexEntry> {
-    module_entries
-        .iter()
-        .enumerate()
-        .map(|(module_idx, module_entry)| {
-            module_entry
-                .destructor_function_public_index
-                .map(|function_idx| (module_idx, function_idx as usize))
-        })
-        .filter_map(|item| {
-            item.map(|(module_index, function_public_index)| {
-                ModuleFunctionIndexEntry::new(module_index, function_public_index)
-            })
-        })
-        .collect::<Vec<_>>()
-}
+// fn get_constructors(module_entries: &[&ModuleEntry]) -> Vec<ModuleFunctionIndexEntry> {
+//     module_entries
+//         .iter()
+//         .enumerate()
+//         .map(|(module_idx, module_entry)| {
+//             module_entry
+//                 .constructor_function_public_index
+//                 .map(|function_idx| (module_idx, function_idx as usize))
+//         })
+//         .filter_map(|item| {
+//             item.map(|(module_index, function_public_index)| {
+//                 ModuleFunctionIndexEntry::new(module_index, function_public_index)
+//             })
+//         })
+//         .collect::<Vec<_>>()
+// }
+//
+// fn get_destructors(module_entries: &[&ModuleEntry]) -> Vec<ModuleFunctionIndexEntry> {
+//     module_entries
+//         .iter()
+//         .enumerate()
+//         .map(|(module_idx, module_entry)| {
+//             module_entry
+//                 .destructor_function_public_index
+//                 .map(|function_idx| (module_idx, function_idx as usize))
+//         })
+//         .filter_map(|item| {
+//             item.map(|(module_index, function_public_index)| {
+//                 ModuleFunctionIndexEntry::new(module_index, function_public_index)
+//             })
+//         })
+//         .collect::<Vec<_>>()
+// }
 
 #[cfg(test)]
 mod tests {
@@ -737,8 +736,8 @@ mod tests {
         assert!(index_entry.unified_external_library_entries.is_empty());
         assert!(index_entry.unified_external_function_entries.is_empty());
 
-        assert!(index_entry.start_function_index_entries.is_empty());
-        assert!(index_entry.exit_function_index_entries.is_empty());
+        // assert!(index_entry.start_function_index_entries.is_empty());
+        // assert!(index_entry.exit_function_index_entries.is_empty());
     }
 
     #[test]
@@ -917,8 +916,8 @@ mod tests {
         assert!(index_entry.unified_external_library_entries.is_empty());
         assert!(index_entry.unified_external_function_entries.is_empty());
 
-        assert!(index_entry.start_function_index_entries.is_empty());
-        assert!(index_entry.exit_function_index_entries.is_empty());
+        // assert!(index_entry.start_function_index_entries.is_empty());
+        // assert!(index_entry.exit_function_index_entries.is_empty());
     }
 
     #[test]
@@ -1199,8 +1198,8 @@ mod tests {
             ]
         );
 
-        assert!(index_entry.start_function_index_entries.is_empty());
-        assert!(index_entry.exit_function_index_entries.is_empty());
+        // assert!(index_entry.start_function_index_entries.is_empty());
+        // assert!(index_entry.exit_function_index_entries.is_empty());
     }
 
     #[test]
