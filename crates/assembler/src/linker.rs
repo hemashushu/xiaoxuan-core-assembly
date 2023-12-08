@@ -542,7 +542,7 @@ fn find_exported_data_internal_index(
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use ancvm_parser::{lexer::lex, parser::parse, peekable_iterator::PeekableIterator};
+    use ancasm_parser::{lexer::lex, parser::parse, peekable_iterator::PeekableIterator};
     use ancvm_types::{
         entry::{
             DataIndexEntry, ExternalFunctionIndexEntry, FunctionIndexEntry,

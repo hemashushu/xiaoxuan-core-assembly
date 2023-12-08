@@ -4,7 +4,7 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancvm_parser::{
+use ancasm_parser::{
     ast::{
         BranchCase, DataKindNode, DataNode, ExternalFunctionNode, ExternalItem, ExternalNode,
         FunctionNode, ImportDataNode, ImportFunctionNode, ImportItem, ImportNode, Instruction,
@@ -1275,7 +1275,7 @@ mod tests {
     use ancvm_types::{opcode::Opcode, ExternalLibraryType, MemoryDataType, ModuleShareType};
     use pretty_assertions::assert_eq;
 
-    use ancvm_parser::{
+    use ancasm_parser::{
         ast::{
             DataKindNode, ExternalFunctionNode, ExternalItem, ExternalLibraryNode, ExternalNode,
             ImportDataNode, ImportFunctionNode, ImportItem, ImportModuleNode, ImportNode,

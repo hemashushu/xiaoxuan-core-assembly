@@ -4,7 +4,7 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancvm_parser::{lexer::lex, parser::parse, peekable_iterator::PeekableIterator};
+use ancasm_parser::{lexer::lex, parser::parse, peekable_iterator::PeekableIterator};
 
 use crate::{
     assembler::assemble_merged_module_node, binarygen::generate_module_image_binary, linker::link,

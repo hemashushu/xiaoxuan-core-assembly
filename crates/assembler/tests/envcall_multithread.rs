@@ -6,7 +6,7 @@
 
 use std::time::Instant;
 
-use ancvm_assembler::utils::helper_generate_module_image_binary_from_str;
+use ancasm_assembler::utils::helper_generate_module_image_binary_from_str;
 use ancvm_process::{
     in_memory_program_source::InMemoryProgramSource,
     multithread_program::run_program_in_multithread,

@@ -4,11 +4,11 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancvm_binary::bytecode_writer::BytecodeWriter;
-use ancvm_parser::ast::{
+use ancasm_parser::ast::{
     DataKindNode, ExternalItem, ExternalNode, ImportItem, ImportNode, SimplifiedDataKindNode,
 };
-use ancvm_parser::ast::{ImmF32, ImmF64, Instruction, LocalNode, ParamNode};
+use ancasm_parser::ast::{ImmF32, ImmF64, Instruction, LocalNode, ParamNode};
+use ancvm_binary::bytecode_writer::BytecodeWriter;
 use ancvm_types::entry::{
     DataNameEntry, ExternalFunctionEntry, ExternalLibraryEntry, FunctionEntry, FunctionNameEntry,
     ImportDataEntry, ImportFunctionEntry, ImportModuleEntry, InitedDataEntry, LocalListEntry,
@@ -2087,10 +2087,11 @@ mod tests {
     };
     use pretty_assertions::assert_eq;
 
-    use ancvm_parser::{lexer::lex, parser::parse, peekable_iterator::PeekableIterator};
+    use ancasm_parser::{lexer::lex, parser::parse, peekable_iterator::PeekableIterator};
 
     use crate::{
-        assembler::assemble_merged_module_node, preprocessor::merge_and_canonicalize_submodule_nodes,
+        assembler::assemble_merged_module_node,
+        preprocessor::merge_and_canonicalize_submodule_nodes,
     };
 
     #[test]

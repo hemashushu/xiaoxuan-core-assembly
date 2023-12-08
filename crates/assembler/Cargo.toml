@@ -1,12 +1,13 @@
 [package]
-name = "ancvm_assembler"
+name = "ancasm_assembler"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ancvm_parser = { path = "../parser" }
+ancasm_parser = { path = "../parser" }
+
 ancvm_types = { path = "../../../xiaoxuan-core-vm/crates/types" }
 ancvm_binary = { path = "../../../xiaoxuan-core-vm/crates/binary" }
 ancvm_program = { path = "../../../xiaoxuan-core-vm/crates/program" }

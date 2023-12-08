@@ -6,7 +6,7 @@
 
 use std::env;
 
-use ancvm_assembler::utils::helper_generate_module_image_binary_from_str;
+use ancasm_assembler::utils::helper_generate_module_image_binary_from_str;
 use ancvm_extfunc_util::cstr_pointer_to_str;
 use ancvm_process::{
     in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
