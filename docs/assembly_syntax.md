@@ -66,11 +66,15 @@ Example of numbers:
 
 `211`, `223_211`, `0x1113`, `0x1719_abcd`, `0b1100`, `3.14`, `2.998e8`, `6.626e-34`, `+2017`, `-2027`
 
-Floating point numbers can also be represented in hexadecimal, which is the value of a floating pointer number encoded in memory using the [IEEE 754 standard](https://en.wikipedia.org/wiki/IEEE_754). Do not confuse this with [the hexadecimal floating pointer literals](https://en.cppreference.com/w/c/language/floating_constant) in C/C++. Also, hexadecimal and binary do not support the addition of minus sign.
-
 Example of invalid numbers:
 
 `-0xaabb`, `-0b1100`, `0x3.14`, `0b11.10`
+
+### Hexadecimal Floating Point Liternal
+
+Floating point numbers can also be represented in decimal or hexadecimal, [the hexadecimal floating pointer literals](https://en.cppreference.com/w/c/language/floating_constant) format is `0xh.hhhp±d`, which is the same as it is in C/C++.
+
+e.g., `0x1.23p4` means `(1x16^0 + 2x16^-1 + 3x16^-2) x 2^4 = (1.13671875 x 16)`, its value is `18.1875`.
 
 ## String
 

@@ -21,6 +21,7 @@ pub enum Token {
 pub enum NumberToken {
     Decimal(String),
     Hex(String),
+    HexFloat(String),
     Binary(String),
 }
 
@@ -282,12 +283,23 @@ fn lex_number_hex(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError
     iter.next();
     iter.next();
 
+    let mut is_hex: bool = false;
     let mut num_string = String::new();
 
     while let Some(current_char) = iter.peek(0) {
         match *current_char {
             '0'..='9' | 'a'..='f' | 'A'..='F' | '_' => {
                 // valid digits for hex number
+                num_string.push(*current_char);
+                iter.next();
+            }
+            '.' | 'p' => {
+                // it is hex floating point literal
+                is_hex = true;
+                num_string.push(*current_char);
+                iter.next();
+            }
+            '+' | '-' if is_hex => {
                 num_string.push(*current_char);
                 iter.next();
             }
@@ -307,7 +319,11 @@ fn lex_number_hex(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError
     if num_string.is_empty() {
         Err(ParseError::new("Incomplete hex number"))
     } else {
-        Ok(Token::Number(NumberToken::Hex(num_string)))
+        Ok(Token::Number(if is_hex {
+            NumberToken::HexFloat(format!("{}{}", "0x", num_string))
+        } else {
+            NumberToken::Hex(num_string)
+        }))
     }
 }
 
@@ -817,6 +833,10 @@ impl Token {
         Token::Number(NumberToken::Hex(s.to_owned()))
     }
 
+    pub fn new_hex_float_number(s: &str) -> Self {
+        Token::Number(NumberToken::HexFloat(s.to_owned()))
+    }
+
     pub fn new_bin_number(s: &str) -> Self {
         Token::Number(NumberToken::Binary(s.to_owned()))
     }
@@ -966,6 +986,18 @@ mod tests {
             vec![Token::new_dec_number("6.626e-34")]
         );
 
+        //3.1415927f32
+        assert_eq!(
+            lex_from_str("0x1.921fb6p1").unwrap(),
+            vec![Token::new_hex_float_number("0x1.921fb6p1")]
+        );
+
+        // 2.718281828459045f64
+        assert_eq!(
+            lex_from_str("0x1.5bf0a8b145769p+1").unwrap(),
+            vec![Token::new_hex_float_number("0x1.5bf0a8b145769p+1")]
+        );
+
         assert_eq!(
             lex_from_str("+2017").unwrap(),
             vec![Token::new_dec_number("2017")]
@@ -1050,12 +1082,6 @@ mod tests {
         // neg hex number
         assert!(matches!(
             lex_from_str("-0xaabb"),
-            Err(ParseError { message: _ })
-        ));
-
-        // unsupported hex number expression
-        assert!(matches!(
-            lex_from_str("0xee_ff.1122"),
             Err(ParseError { message: _ })
         ));
 

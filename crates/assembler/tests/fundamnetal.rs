@@ -5,10 +5,10 @@
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
 use ancasm_assembler::utils::helper_generate_module_image_binary_from_str;
-use ancvm_program::program_source::ProgramSource;
 use ancvm_process::{
     in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
 };
+use ancvm_program::program_source::ProgramSource;
 use ancvm_types::ForeignValue;
 
 use pretty_assertions::assert_eq;
@@ -284,10 +284,10 @@ fn test_assemble_fundamental_immediate_float_hex() {
                 (runtime_version "1.0")
                 (function $test (results f32 f64 f32 f64)
                     (code
-                        (f32.imm 0x40490fdb)            ;; Pi
-                        (f64.imm 0x3ff6a09e_667f3bcd)   ;; sqrt(2)
-                        (f32.imm 0xc02df854)            ;; -E
-                        (f64.imm 0xbfe0c152_382d7366)   ;; -Pi/6
+                        (f32.imm 3.1415927)
+                        (f64.imm 2.718281828459045)
+                        (f32.imm 0x1.921fb6p1)
+                        (f64.imm 0x1.5bf0a8b145769p1)
                     )
                 )
             )
@@ -303,9 +303,9 @@ fn test_assemble_fundamental_immediate_float_hex() {
         result0.unwrap(),
         vec![
             ForeignValue::F32(std::f32::consts::PI),
-            ForeignValue::F64(std::f64::consts::SQRT_2),
-            ForeignValue::F32(-std::f32::consts::E),
-            ForeignValue::F64(-std::f64::consts::FRAC_PI_6),
+            ForeignValue::F64(std::f64::consts::E),
+            ForeignValue::F32(std::f32::consts::PI),
+            ForeignValue::F64(std::f64::consts::E),
         ]
     );
 }

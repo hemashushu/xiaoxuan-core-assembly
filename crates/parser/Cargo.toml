@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 ancvm_types = { path = "../../../xiaoxuan-core-vm/crates/types" }
+hexfloat2 = "0.1.3"
 
 [dev-dependencies]
 pretty_assertions = "1.4.0"

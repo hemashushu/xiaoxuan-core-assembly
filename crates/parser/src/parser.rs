@@ -76,9 +76,9 @@ use ancvm_types::{opcode::Opcode, DataType, ExternalLibraryType, MemoryDataType,
 use crate::{
     ast::{
         BranchCase, DataKindNode, DataNode, ExternalFunctionNode, ExternalItem,
-        ExternalLibraryNode, ExternalNode, FunctionNode, ImmF32, ImmF64, ImportDataNode,
-        ImportFunctionNode, ImportItem, ImportModuleNode, ImportNode, InitedData, Instruction,
-        LocalNode, ModuleElementNode, ModuleNode, ParamNode, SimplifiedDataKindNode, UninitData,
+        ExternalLibraryNode, ExternalNode, FunctionNode, ImportDataNode, ImportFunctionNode,
+        ImportItem, ImportModuleNode, ImportNode, InitedData, Instruction, LocalNode,
+        ModuleElementNode, ModuleNode, ParamNode, SimplifiedDataKindNode, UninitData,
     },
     instruction_kind::{init_instruction_kind_table, InstructionKind, INSTRUCTION_KIND_TABLE},
     lexer::{NumberToken, Token},
@@ -1675,11 +1675,8 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
             }
             "f32" => {
                 let value_token = expect_number(iter, "data")?;
-                let value_imm = parse_f32_string(&value_token)?;
-                let bytes = match value_imm {
-                    ImmF32::Float(value) => value.to_le_bytes().to_vec(),
-                    ImmF32::Hex(value) => value.to_be_bytes().to_vec(),
-                };
+                let value = parse_f32_string(&value_token)?;
+                let bytes = value.to_le_bytes().to_vec();
 
                 InitedData {
                     memory_data_type: MemoryDataType::F32,
@@ -1690,11 +1687,8 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
             }
             "f64" => {
                 let value_token = expect_number(iter, "data")?;
-                let value_imm = parse_f64_string(&value_token)?;
-                let bytes = match value_imm {
-                    ImmF64::Float(value) => value.to_le_bytes().to_vec(),
-                    ImmF64::Hex(value) => value.to_be_bytes().to_vec(),
-                };
+                let value = parse_f64_string(&value_token)?;
+                let bytes = value.to_le_bytes().to_vec();
 
                 InitedData {
                     memory_data_type: MemoryDataType::F64,
@@ -2330,7 +2324,7 @@ fn get_instruction_kind(inst_name: &str) -> Option<&InstructionKind> {
 
 fn parse_u16_string(number_token: &NumberToken) -> Result<u16, ParseError> {
     let e = ParseError::new(&format!(
-        "\"{:?}\" is not a valid integer number.",
+        "\"{:?}\" is not a valid 16-bit integer literal.",
         number_token
     ));
 
@@ -2350,6 +2344,7 @@ fn parse_u16_string(number_token: &NumberToken) -> Result<u16, ParseError> {
             ns.retain(|c| c != '_');
             ns.as_str().parse::<i16>().map_err(|_| e)? as u16
         }
+        NumberToken::HexFloat(_) => return Err(e),
     };
 
     Ok(num)
@@ -2357,7 +2352,7 @@ fn parse_u16_string(number_token: &NumberToken) -> Result<u16, ParseError> {
 
 fn parse_u32_string(number_token: &NumberToken) -> Result<u32, ParseError> {
     let e = ParseError::new(&format!(
-        "\"{:?}\" is not a valid integer number.",
+        "\"{:?}\" is not a valid 32-bit integer literal.",
         number_token
     ));
 
@@ -2377,6 +2372,7 @@ fn parse_u32_string(number_token: &NumberToken) -> Result<u32, ParseError> {
             ns.retain(|c| c != '_');
             ns.as_str().parse::<i32>().map_err(|_| e)? as u32
         }
+        NumberToken::HexFloat(_) => return Err(e),
     };
 
     Ok(num)
@@ -2384,7 +2380,7 @@ fn parse_u32_string(number_token: &NumberToken) -> Result<u32, ParseError> {
 
 fn parse_u64_string(number_token: &NumberToken) -> Result<u64, ParseError> {
     let e = ParseError::new(&format!(
-        "\"{:?}\" is not a valid integer number.",
+        "\"{:?}\" is not a valid 64-bit integer literal.",
         number_token
     ));
 
@@ -2404,69 +2400,54 @@ fn parse_u64_string(number_token: &NumberToken) -> Result<u64, ParseError> {
             ns.retain(|c| c != '_');
             ns.as_str().parse::<i64>().map_err(|_| e)? as u64
         }
+        NumberToken::HexFloat(_) => return Err(e),
     };
 
     Ok(num)
 }
 
-fn parse_f32_string(number_token: &NumberToken) -> Result<ImmF32, ParseError> {
+fn parse_f32_string(number_token: &NumberToken) -> Result<f32, ParseError> {
     let e = ParseError::new(&format!(
-        "\"{:?}\" is not a valid float number.",
+        "\"{:?}\" is not a valid 32-bit floating point literal.",
         number_token
     ));
 
-    let imm_f32 = match number_token {
-        NumberToken::Hex(ns_ref) => {
+    match number_token {
+        NumberToken::HexFloat(ns_ref) => {
             let mut ns = ns_ref.to_owned();
             ns.retain(|c| c != '_'); // remove underscores
-            let value = u32::from_str_radix(&ns, 16).map_err(|_| e)?;
-            ImmF32::Hex(value)
-        }
-        NumberToken::Binary(ns_ref) => {
-            let mut ns = ns_ref.to_owned();
-            ns.retain(|c| c != '_');
-            let value = u32::from_str_radix(&ns, 2).map_err(|_| e)?;
-            ImmF32::Hex(value)
+            hexfloat2::parse::<f32>(&ns).map_err(|_| e)
         }
         NumberToken::Decimal(ns_ref) => {
             let mut ns = ns_ref.to_owned();
             ns.retain(|c| c != '_');
-            let value = ns.as_str().parse::<f32>().map_err(|_| e)?;
-            ImmF32::Float(value)
+            ns.as_str().parse::<f32>().map_err(|_| e)
         }
-    };
-
-    Ok(imm_f32)
+        NumberToken::Hex(_) => Err(e),
+        NumberToken::Binary(_) => Err(e),
+    }
 }
 
-fn parse_f64_string(number_token: &NumberToken) -> Result<ImmF64, ParseError> {
+fn parse_f64_string(number_token: &NumberToken) -> Result<f64, ParseError> {
     let e = ParseError::new(&format!(
-        "\"{:?}\" is not a valid float number.",
+        "\"{:?}\" is not a valid 64-bit floating point literal.",
         number_token
     ));
 
-    let imm_f64 = match number_token {
-        NumberToken::Hex(ns_ref) => {
+    match number_token {
+        NumberToken::HexFloat(ns_ref) => {
             let mut ns = ns_ref.to_owned();
             ns.retain(|c| c != '_'); // remove underscores
-            let value = u64::from_str_radix(&ns, 16).map_err(|_| e)?;
-            ImmF64::Hex(value)
-        }
-        NumberToken::Binary(ns_ref) => {
-            let mut ns = ns_ref.to_owned();
-            ns.retain(|c| c != '_');
-            let value = u64::from_str_radix(&ns, 2).map_err(|_| e)?;
-            ImmF64::Hex(value)
+            hexfloat2::parse::<f64>(&ns).map_err(|_| e)
         }
         NumberToken::Decimal(ns_ref) => {
             let mut ns = ns_ref.to_owned();
             ns.retain(|c| c != '_');
-            let value = ns.as_str().parse::<f64>().map_err(|_| e)?;
-            ImmF64::Float(value)
+            ns.as_str().parse::<f64>().map_err(|_| e)
         }
-    };
-
-    Ok(imm_f64)
+        NumberToken::Hex(_) => Err(e),
+        NumberToken::Binary(_) => Err(e),
+    }
 }
 
 #[cfg(test)]
@@ -2482,10 +2463,9 @@ mod tests {
     use crate::{
         ast::{
             BranchCase, DataKindNode, DataNode, ExternalFunctionNode, ExternalItem,
-            ExternalLibraryNode, ExternalNode, FunctionNode, ImmF32, ImmF64, ImportDataNode,
-            ImportFunctionNode, ImportItem, ImportModuleNode, ImportNode, InitedData, Instruction,
-            LocalNode, ModuleElementNode, ModuleNode, ParamNode, SimplifiedDataKindNode,
-            UninitData,
+            ExternalLibraryNode, ExternalNode, FunctionNode, ImportDataNode, ImportFunctionNode,
+            ImportItem, ImportModuleNode, ImportNode, InitedData, Instruction, LocalNode,
+            ModuleElementNode, ModuleNode, ParamNode, SimplifiedDataKindNode, UninitData,
         },
         lexer::lex,
         peekable_iterator::PeekableIterator,
@@ -2912,29 +2892,29 @@ mod tests {
                 (function $test
                     (code
                         (f32.imm 3.1415927)
-                        (f32.imm 0x40490fdb)
+                        (f32.imm 0x1.921fb6p1)
                         (f32.imm 2.7182817)
-                        (f32.imm 0x402df854)
+                        (f32.imm 0x1.5bf0a8p1)
 
                         (f64.imm 3.141592653589793)
-                        (f64.imm 0x400921fb54442d18)
+                        (f64.imm 0x1.921fb54442d18p1)
                         (f64.imm 2.718281828459045)
-                        (f64.imm 0x4005bf0a8b145769)
+                        (f64.imm 0x1.5bf0a8b145769p1)
                     )
                 )
             )
             "#
             ),
             vec![
-                Instruction::ImmF32(ImmF32::Float(std::f32::consts::PI)),
-                Instruction::ImmF32(ImmF32::Hex(0x40490fdb)),
-                Instruction::ImmF32(ImmF32::Float(std::f32::consts::E)),
-                Instruction::ImmF32(ImmF32::Hex(0x402df854)),
+                Instruction::ImmF32(std::f32::consts::PI),
+                Instruction::ImmF32(std::f32::consts::PI),
+                Instruction::ImmF32(std::f32::consts::E),
+                Instruction::ImmF32(std::f32::consts::E),
                 //
-                Instruction::ImmF64(ImmF64::Float(std::f64::consts::PI)),
-                Instruction::ImmF64(ImmF64::Hex(0x400921fb54442d18)),
-                Instruction::ImmF64(ImmF64::Float(std::f64::consts::E)),
-                Instruction::ImmF64(ImmF64::Hex(0x4005bf0a8b145769)),
+                Instruction::ImmF64(std::f64::consts::PI),
+                Instruction::ImmF64(std::f64::consts::PI),
+                Instruction::ImmF64(std::f64::consts::E),
+                Instruction::ImmF64(std::f64::consts::E),
             ]
         );
     }
@@ -3945,7 +3925,7 @@ mod tests {
                 (data $d2 (read_only f32 3.1415927))
                 (data $d3 (read_only f64 2.718281828459045))
                 (data $d4 (read_only i32 0xaabb_ccdd))
-                (data $d5 (read_only f32 0xdb0f_4940))
+                (data $d5 (read_only f32 0x1.921fb6p1))
                 (data $d6 (read_only i32 0b1010_0101))
             )
             "#

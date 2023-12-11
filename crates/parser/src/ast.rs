@@ -162,10 +162,10 @@ pub enum Instruction {
     ImmI64(u64),
 
     // bytecode: (param immediate_number:i32)
-    ImmF32(ImmF32),
+    ImmF32(f32),
 
     // bytecode: (param immediate_number_low:i32, immediate_number_high:i32)
-    ImmF64(ImmF64),
+    ImmF64(f64),
 
     // bytecode: (param reversed_index:i16 offset_bytes:i16 local_variable_index:i16)
     LocalLoad {
@@ -388,17 +388,17 @@ pub enum Instruction {
     },
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum ImmF32 {
-    Float(f32),
-    Hex(u32),
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum ImmF64 {
-    Float(f64),
-    Hex(u64),
-}
+// #[derive(Debug, PartialEq, Clone)]
+// pub enum ImmF32 {
+//     Float(f32),
+//     Hex(u32),
+// }
+//
+// #[derive(Debug, PartialEq, Clone)]
+// pub enum ImmF64 {
+//     Float(f64),
+//     Hex(u64),
+// }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct BranchCase {

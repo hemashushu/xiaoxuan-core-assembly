@@ -7,7 +7,7 @@
 use ancasm_parser::ast::{
     DataKindNode, ExternalItem, ExternalNode, ImportItem, ImportNode, SimplifiedDataKindNode,
 };
-use ancasm_parser::ast::{ImmF32, ImmF64, Instruction, LocalNode, ParamNode};
+use ancasm_parser::ast::{Instruction, LocalNode, ParamNode};
 use ancvm_binary::bytecode_writer::BytecodeWriter;
 use ancvm_types::entry::{
     DataNameEntry, ExternalFunctionEntry, ExternalLibraryEntry, FunctionEntry, FunctionNameEntry,
@@ -936,22 +936,12 @@ fn assemble_instruction(
         Instruction::ImmI64(value) => {
             bytecode_writer.write_opcode_pesudo_i64(Opcode::i64_imm, *value);
         }
-        Instruction::ImmF32(imm_f32) => match imm_f32 {
-            ImmF32::Float(value) => {
-                bytecode_writer.write_opcode_pesudo_f32(Opcode::f32_imm, *value);
-            }
-            ImmF32::Hex(value) => {
-                bytecode_writer.write_opcode_i32(Opcode::f32_imm, *value);
-            }
-        },
-        Instruction::ImmF64(imm_f64) => match imm_f64 {
-            ImmF64::Float(value) => {
-                bytecode_writer.write_opcode_pesudo_f64(Opcode::f64_imm, *value);
-            }
-            ImmF64::Hex(value) => {
-                bytecode_writer.write_opcode_pesudo_i64(Opcode::f64_imm, *value);
-            }
-        },
+        Instruction::ImmF32(value) => {
+            bytecode_writer.write_opcode_pesudo_f32(Opcode::f32_imm, *value);
+        }
+        Instruction::ImmF64(value) => {
+            bytecode_writer.write_opcode_pesudo_f64(Opcode::f64_imm, *value);
+        }
         Instruction::LocalLoad {
             opcode,
             name,
