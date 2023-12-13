@@ -642,6 +642,10 @@ fn init_instruction_kind_table_internal() {
         InstructionKind::UnaryOp(Opcode::i32_leading_zeros),
     ); // UnaryOp
     add(
+        "i32.leading_ones",
+        InstructionKind::UnaryOp(Opcode::i32_leading_ones),
+    ); // UnaryOp
+    add(
         "i32.trailing_zeros",
         InstructionKind::UnaryOp(Opcode::i32_trailing_zeros),
     ); // UnaryOp
@@ -679,6 +683,10 @@ fn init_instruction_kind_table_internal() {
         InstructionKind::UnaryOp(Opcode::i64_leading_zeros),
     ); // UnaryOp
     add(
+        "i64.leading_ones",
+        InstructionKind::UnaryOp(Opcode::i64_leading_ones),
+    ); // UnaryOp
+    add(
         "i64.trailing_zeros",
         InstructionKind::UnaryOp(Opcode::i64_trailing_zeros),
     ); // UnaryOp
@@ -688,6 +696,12 @@ fn init_instruction_kind_table_internal() {
     ); // UnaryOp
 
     // math
+    add("i32.abs", InstructionKind::UnaryOp(Opcode::i32_abs));
+    add("i32.neg", InstructionKind::UnaryOp(Opcode::i32_neg));
+    //
+    add("i64.abs", InstructionKind::UnaryOp(Opcode::i64_abs));
+    add("i64.neg", InstructionKind::UnaryOp(Opcode::i64_neg));
+    //
     add("f32.abs", InstructionKind::UnaryOp(Opcode::f32_abs));
     add("f32.neg", InstructionKind::UnaryOp(Opcode::f32_neg));
     add("f32.ceil", InstructionKind::UnaryOp(Opcode::f32_ceil));
@@ -695,6 +709,10 @@ fn init_instruction_kind_table_internal() {
     add(
         "f32.round_half_away_from_zero",
         InstructionKind::UnaryOp(Opcode::f32_round_half_away_from_zero),
+    );
+    add(
+        "f32.round_half_to_even",
+        InstructionKind::UnaryOp(Opcode::f32_round_half_to_even),
     );
     add("f32.trunc", InstructionKind::UnaryOp(Opcode::f32_trunc));
     add("f32.fract", InstructionKind::UnaryOp(Opcode::f32_fract));
@@ -711,8 +729,14 @@ fn init_instruction_kind_table_internal() {
     add("f32.asin", InstructionKind::UnaryOp(Opcode::f32_asin));
     add("f32.acos", InstructionKind::UnaryOp(Opcode::f32_acos));
     add("f32.atan", InstructionKind::UnaryOp(Opcode::f32_atan));
+    add(
+        "f32.copysign",
+        InstructionKind::BinaryOp(Opcode::f32_copysign),
+    ); // BinaryOp
     add("f32.pow", InstructionKind::BinaryOp(Opcode::f32_pow)); // BinaryOp
     add("f32.log", InstructionKind::BinaryOp(Opcode::f32_log)); // BinaryOp
+    add("f32.min", InstructionKind::BinaryOp(Opcode::f32_min)); // BinaryOp
+    add("f32.max", InstructionKind::BinaryOp(Opcode::f32_max)); // BinaryOp
 
     add("f64.abs", InstructionKind::UnaryOp(Opcode::f64_abs));
     add("f64.neg", InstructionKind::UnaryOp(Opcode::f64_neg));
@@ -721,6 +745,10 @@ fn init_instruction_kind_table_internal() {
     add(
         "f64.round_half_away_from_zero",
         InstructionKind::UnaryOp(Opcode::f64_round_half_away_from_zero),
+    );
+    add(
+        "f64.round_half_to_even",
+        InstructionKind::UnaryOp(Opcode::f64_round_half_to_even),
     );
     add("f64.trunc", InstructionKind::UnaryOp(Opcode::f64_trunc));
     add("f64.fract", InstructionKind::UnaryOp(Opcode::f64_fract));
@@ -737,8 +765,14 @@ fn init_instruction_kind_table_internal() {
     add("f64.asin", InstructionKind::UnaryOp(Opcode::f64_asin));
     add("f64.acos", InstructionKind::UnaryOp(Opcode::f64_acos));
     add("f64.atan", InstructionKind::UnaryOp(Opcode::f64_atan));
+    add(
+        "f64.copysign",
+        InstructionKind::BinaryOp(Opcode::f64_copysign),
+    ); // BinaryOp
     add("f64.pow", InstructionKind::BinaryOp(Opcode::f64_pow)); // BinaryOp
     add("f64.log", InstructionKind::BinaryOp(Opcode::f64_log)); // BinaryOp
+    add("f64.min", InstructionKind::BinaryOp(Opcode::f64_min)); // BinaryOp
+    add("f64.max", InstructionKind::BinaryOp(Opcode::f64_max)); // BinaryOp
 
     // control flow
     // note: all instructions in this catalog are replaced with pesudo instructions
