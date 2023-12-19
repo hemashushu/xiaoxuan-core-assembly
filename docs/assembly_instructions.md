@@ -44,14 +44,14 @@
 ## Fundamnetal
 
 zero
-(drop OPERAND)
-(duplicate OPERAND)
-(swap OPERAND_LEFT OPERAND_RIGHT)
+(drop VALUE)
+(duplicate VALUE)
+(swap LEFT RIGHT)
 
 (select_nez
-    OPERAND_WHEN_TRUE
-    OPERAND_WHEN_FALSE
-    OPERAND_FOR_TEST
+    VALUE_WHEN_TRUE
+    VALUE_WHEN_FALSE
+    VALUE_FOR_TEST
 )
 
 (select_nez
@@ -67,13 +67,14 @@ immediate number
 (f32.imm FLOATING_POINT_NUMBER)
 (f64.imm FLOATING_POINT_NUMBER)
 
-both INTEGER_NUMBER and FLOATING_POINT_NUMBER can be decimal, dexadecimal, binary.
+INTEGER_NUMBER can be decimal, dexadecimal and binary liternals.
+FLOATING_POINT_NUMBER can be decimal and dexadecimal liternals.
 
 ## Local variable
 
 ### local variable loading and storing
 
-(local.load64_i64 $VARIABLE_NAME OPTIONAL_OFFSET_NUMBER:i16)
+(local.load64_i64 $VARIABLE_NAME OPTIONAL_OFFSET:i16)
 
 local loading instruction variants:
 
@@ -88,7 +89,7 @@ local loading instruction variants:
 
 local storing
 
-(local.store64 $VARIABLE_NAME OPTIONAL_OFFSET_NUMBER:i16 OPERAND_FOR_STORING)
+(local.store64 $VARIABLE_NAME OPTIONAL_OFFSET:i16 VALUE)
 
 variants:
 
@@ -99,7 +100,7 @@ variants:
 
 ### local variable loading and storing with dynamical offset
 
-(local.long_load64_i64 $VARIABLE_NAME OPERAND_FOR_OFFSET:i32)
+(local.long_load64_i64 $VARIABLE_NAME OFFSET_I32)
 
 variants:
 
@@ -114,7 +115,7 @@ variants:
 
 storing
 
-(local.long_store64 $VARIABLE_NAME OPERAND_FOR_OFFSET:i32 OPERAND_FOR_STORING)
+(local.long_store64 $VARIABLE_NAME OFFSET_I32 VALUE)
 
 - `local.long_store64`
 - `local.long_store32`
@@ -125,7 +126,7 @@ storing
 
 ### data loading and storing
 
-(data.load64_i64 $DATA_NAME_PATH OPTIONAL_OFFSET_NUMBER:i16)
+(data.load64_i64 $DATA_NAME_PATH OPTIONAL_OFFSET:i16)
 
 variants
 
@@ -144,7 +145,7 @@ variants
 
 storing
 
-(data.store64 $DATA_NAME_PATH OPTIONAL_OFFSET_NUMBER:i16 OPERAND_FOR_STORING)
+(data.store64 $DATA_NAME_PATH OPTIONAL_OFFSET:i16 VALUE)
 
 - `data.store64`
 - `data.store32`
@@ -153,7 +154,7 @@ storing
 
 ### data loading and storing with dynamical offset
 
-(data.long_load64_i64 $DATA_NAME_PATH OPERAND_FOR_OFFSET:i32)
+(data.long_load64_i64 $DATA_NAME_PATH OFFSET_I32)
 
 variants:
 
@@ -168,7 +169,7 @@ variants:
 
 storing
 
-(data.long_store64 $DATA_NAME_PATH OPERAND_FOR_OFFSET:i32 OPERAND_FOR_STORING)
+(data.long_store64 $DATA_NAME_PATH OFFSET_I32 VALUE)
 
 variants:
 
@@ -181,7 +182,7 @@ variants:
 
 ### heap loading and storing
 
-(heap.load64_i64 OPTIONAL_OFFSET_NUMBER:i16 OPERAND_FOR_ADDR)
+(heap.load64_i64 OPTIONAL_OFFSET:i16 ADDR)
 
 variants:
 
@@ -196,7 +197,7 @@ variants:
 
 storing
 
-(heap.store64 OPTIONAL_OFFSET_NUMBER:i16 OPERAND_FOR_ADDR OPERAND_FOR_STORING)
+(heap.store64 OPTIONAL_OFFSET:i16 ADDR VALUE)
 
 variants:
 
@@ -208,252 +209,252 @@ variants:
 ### heap memory
 
 (heap.fill
-    OPERAND_FOR_ADDR:i64
-    OPERAND_FOR_VALUE:i8
-    OPERAND_FOR_LENGTH:i64)
+    ADDR_I64
+    VALUE_I8
+    LENGTH_I64)
 
 (heap.copy
-    OPERAND_FOR_DST_ADDR:i64
-    OPERAND_FOR_SRC_ADDR:i64
-    OPERAND_FOR_LENGTH:i64)
+    DST_ADDR_I64
+    SRC_ADDR_I64
+    LENGTH_I64)
 
 heap.capacity
 
-(heap.resize OPERAND_FOR_PAGES)
+(heap.resize PAGES)
 
 ## Conversion
 
 ### extend and truncate
 
-(i64.extend_i32_s OPERAND:i32)
-(i64.extend_i32_u OPERAND:i32)
-(i32.truncate_i64 OPERAND:i64)
+(i64.extend_i32_s VALUE_I32)
+(i64.extend_i32_u VALUE_I32)
+(i32.truncate_i64 VALUE_I64)
 
 ### demote and promote
 
-(f64.promote_f32 OPERAND:f32)
-(f32.demote_f64 OPERAND:f64)
+(f64.promote_f32 VALUE_F32)
+(f32.demote_f64 VALUE_I64)
 
 ### floating point to integer
 
-(i32.convert_f32_s OPERAND)
-(i32.convert_f32_u OPERAND)
-(i32.convert_f64_s OPERAND)
-(i32.convert_f64_u OPERAND)
+(i32.convert_f32_s VALUE)
+(i32.convert_f32_u VALUE)
+(i32.convert_f64_s VALUE)
+(i32.convert_f64_u VALUE)
 
-(i64.convert_f32_s OPERAND)
-(i64.convert_f32_u OPERAND)
-(i64.convert_f64_s OPERAND)
-(i64.convert_f64_u OPERAND)
+(i64.convert_f32_s VALUE)
+(i64.convert_f32_u VALUE)
+(i64.convert_f64_s VALUE)
+(i64.convert_f64_u VALUE)
 
 ### integer to floating point
 
-(f32.convert_i32_s OPERAND)
-(f32.convert_i32_u OPERAND)
-(f32.convert_i64_s OPERAND)
-(f32.convert_i64_u OPERAND)
+(f32.convert_i32_s VALUE)
+(f32.convert_i32_u VALUE)
+(f32.convert_i64_s VALUE)
+(f32.convert_i64_u VALUE)
 
-(f64.convert_i64_s OPERAND)
-(f64.convert_i64_u OPERAND)
-(f64.convert_i32_s OPERAND)
-(f64.convert_i32_u OPERAND)
+(f64.convert_i64_s VALUE)
+(f64.convert_i64_u VALUE)
+(f64.convert_i32_s VALUE)
+(f64.convert_i32_u VALUE)
 
 ## Comparison
 
 ### i32
 
-(i32.eqz OPERAND)
-(i32.nez OPERAND)
+(i32.eqz VALUE)
+(i32.nez VALUE)
 
-(i32.eq OPERAND_LEFT OPERAND_RIGHT)
-(i32.ne OPERAND_LEFT OPERAND_RIGHT)
-(i32.lt_s OPERAND_LEFT OPERAND_RIGHT)
-(i32.lt_u OPERAND_LEFT OPERAND_RIGHT)
-(i32.gt_s OPERAND_LEFT OPERAND_RIGHT)
-(i32.gt_u OPERAND_LEFT OPERAND_RIGHT)
-(i32.le_s OPERAND_LEFT OPERAND_RIGHT)
-(i32.le_u OPERAND_LEFT OPERAND_RIGHT)
-(i32.ge_s OPERAND_LEFT OPERAND_RIGHT)
-(i32.ge_u OPERAND_LEFT OPERAND_RIGHT)
+(i32.eq LEFT RIGHT)
+(i32.ne LEFT RIGHT)
+(i32.lt_s LEFT RIGHT)
+(i32.lt_u LEFT RIGHT)
+(i32.gt_s LEFT RIGHT)
+(i32.gt_u LEFT RIGHT)
+(i32.le_s LEFT RIGHT)
+(i32.le_u LEFT RIGHT)
+(i32.ge_s LEFT RIGHT)
+(i32.ge_u LEFT RIGHT)
 
 ### i64
 
-(i64.eqz OPERAND)
-(i64.nez OPERAND)
+(i64.eqz VALUE)
+(i64.nez VALUE)
 
-(i64.eq OPERAND_LEFT OPERAND_RIGHT)
-(i64.ne OPERAND_LEFT OPERAND_RIGHT)
-(i64.lt_s OPERAND_LEFT OPERAND_RIGHT)
-(i64.lt_u OPERAND_LEFT OPERAND_RIGHT)
-(i64.gt_s OPERAND_LEFT OPERAND_RIGHT)
-(i64.gt_u OPERAND_LEFT OPERAND_RIGHT)
-(i64.le_s OPERAND_LEFT OPERAND_RIGHT)
-(i64.le_u OPERAND_LEFT OPERAND_RIGHT)
-(i64.ge_s OPERAND_LEFT OPERAND_RIGHT)
-(i64.ge_u OPERAND_LEFT OPERAND_RIGHT)
+(i64.eq LEFT RIGHT)
+(i64.ne LEFT RIGHT)
+(i64.lt_s LEFT RIGHT)
+(i64.lt_u LEFT RIGHT)
+(i64.gt_s LEFT RIGHT)
+(i64.gt_u LEFT RIGHT)
+(i64.le_s LEFT RIGHT)
+(i64.le_u LEFT RIGHT)
+(i64.ge_s LEFT RIGHT)
+(i64.ge_u LEFT RIGHT)
 
 ### f32
 
-(f32.eq OPERAND_LEFT OPERAND_RIGHT)
-(f32.ne OPERAND_LEFT OPERAND_RIGHT)
-(f32.lt OPERAND_LEFT OPERAND_RIGHT)
-(f32.gt OPERAND_LEFT OPERAND_RIGHT)
-(f32.le OPERAND_LEFT OPERAND_RIGHT)
-(f32.ge OPERAND_LEFT OPERAND_RIGHT)
+(f32.eq LEFT RIGHT)
+(f32.ne LEFT RIGHT)
+(f32.lt LEFT RIGHT)
+(f32.gt LEFT RIGHT)
+(f32.le LEFT RIGHT)
+(f32.ge LEFT RIGHT)
 
 ### f64
 
-(f64.eq OPERAND_LEFT OPERAND_RIGHT)
-(f64.ne OPERAND_LEFT OPERAND_RIGHT)
-(f64.lt OPERAND_LEFT OPERAND_RIGHT)
-(f64.gt OPERAND_LEFT OPERAND_RIGHT)
-(f64.le OPERAND_LEFT OPERAND_RIGHT)
-(f64.ge OPERAND_LEFT OPERAND_RIGHT)
+(f64.eq LEFT RIGHT)
+(f64.ne LEFT RIGHT)
+(f64.lt LEFT RIGHT)
+(f64.gt LEFT RIGHT)
+(f64.le LEFT RIGHT)
+(f64.ge LEFT RIGHT)
 
 ## Arithmetic
 
 ### i32
-(i32.add OPERAND_LEFT OPERAND_RIGHT)
+(i32.add LEFT RIGHT)
 wrapping add, e.g. 0xffff_ffff + 2 = 1 (-1 + 2 = 1)
 
-(i32.sub OPERAND_LEFT OPERAND_RIGHT)
+(i32.sub LEFT RIGHT)
 wrapping sub, e.g. 11 - 211 = -200
 
-(i32.mul OPERAND_LEFT OPERAND_RIGHT)
+(i32.mul LEFT RIGHT)
 wrapping mul, e.g. 0xf0e0d0c0 * 2 = 0xf0e0d0c0 << 1
 
-(i32.div_s OPERAND_LEFT OPERAND_RIGHT)
-(i32.div_u OPERAND_LEFT OPERAND_RIGHT)
-(i32.rem_s OPERAND_LEFT OPERAND_RIGHT)
-(i32.rem_u OPERAND_LEFT OPERAND_RIGHT)
+(i32.div_s LEFT RIGHT)
+(i32.div_u LEFT RIGHT)
+(i32.rem_s LEFT RIGHT)
+(i32.rem_u LEFT RIGHT)
 
-(i32.inc AMOUNT_NUMBER:i16 OPERAND)
+(i32.inc IMM:i16 VALUE)
 wrapping inc, e.g. 0xffff_ffff inc 2 = 1
 
-(i32.dec AMOUNT_NUMBER:i16 OPERAND)
+(i32.dec IMM:i16 VALUE)
 wrapping dec, e.g. 0x1 dec 2 = 0xffff_ffff
 
 ### i64
 
-(i64.add OPERAND_LEFT OPERAND_RIGHT)
-(i64.sub OPERAND_LEFT OPERAND_RIGHT)
-(i64.mul OPERAND_LEFT OPERAND_RIGHT)
-(i64.div_s OPERAND_LEFT OPERAND_RIGHT)
-(i64.div_u OPERAND_LEFT OPERAND_RIGHT)
-(i64.rem_s OPERAND_LEFT OPERAND_RIGHT)
-(i64.rem_u OPERAND_LEFT OPERAND_RIGHT)
+(i64.add LEFT RIGHT)
+(i64.sub LEFT RIGHT)
+(i64.mul LEFT RIGHT)
+(i64.div_s LEFT RIGHT)
+(i64.div_u LEFT RIGHT)
+(i64.rem_s LEFT RIGHT)
+(i64.rem_u LEFT RIGHT)
 
-(i64.inc AMOUNT_NUMBER:i16 OPERAND)
-(i64.dec AMOUNT_NUMBER:i16 OPERAND)
+(i64.inc IMM:i16 VALUE)
+(i64.dec IMM:i16 VALUE)
 
 ### f32
 
-(f32.add OPERAND_LEFT OPERAND_RIGHT)
-(f32.sub OPERAND_LEFT OPERAND_RIGHT)
-(f32.mul OPERAND_LEFT OPERAND_RIGHT)
-(f32.div OPERAND_LEFT OPERAND_RIGHT)
+(f32.add LEFT RIGHT)
+(f32.sub LEFT RIGHT)
+(f32.mul LEFT RIGHT)
+(f32.div LEFT RIGHT)
 
 ### f64
 
-(f64.add OPERAND_LEFT OPERAND_RIGHT)
-(f64.sub OPERAND_LEFT OPERAND_RIGHT)
-(f64.mul OPERAND_LEFT OPERAND_RIGHT)
-(f64.div OPERAND_LEFT OPERAND_RIGHT)
+(f64.add LEFT RIGHT)
+(f64.sub LEFT RIGHT)
+(f64.mul LEFT RIGHT)
+(f64.div LEFT RIGHT)
 
 ## Bitwise
 
 ### i32
 
-(i32.and OPERAND_LEFT OPERAND_RIGHT)
-(i32.or OPERAND_LEFT OPERAND_RIGHT)
-(i32.xor OPERAND_LEFT OPERAND_RIGHT)
-(i32.shift_left OPERAND_LEFT OPERAND_RIGHT)
-(i32.shift_right_s OPERAND_LEFT OPERAND_RIGHT)
-(i32.shift_right_u OPERAND_LEFT OPERAND_RIGHT)
-(i32.rotate_left OPERAND_LEFT OPERAND_RIGHT)
-(i32.rotate_right OPERAND_LEFT OPERAND_RIGHT)
+(i32.and LEFT RIGHT)
+(i32.or LEFT RIGHT)
+(i32.xor LEFT RIGHT)
+(i32.shift_left LEFT RIGHT)
+(i32.shift_right_s LEFT RIGHT)
+(i32.shift_right_u LEFT RIGHT)
+(i32.rotate_left LEFT RIGHT)
+(i32.rotate_right LEFT RIGHT)
 
-(i32.not OPERAND)
-(i32.leading_zeros OPERAND)
-(i32.trailing_zeros OPERAND)
-(i32.count_ones OPERAND)
+(i32.not VALUE)
+(i32.leading_zeros VALUE)
+(i32.trailing_zeros VALUE)
+(i32.count_ones VALUE)
 
 ### i64
 
-(i64.and OPERAND_LEFT OPERAND_RIGHT)
-(i64.or OPERAND_LEFT OPERAND_RIGHT)
-(i64.xor OPERAND_LEFT OPERAND_RIGHT)
-(i64.shift_left OPERAND_LEFT OPERAND_RIGHT)
-(i64.shift_right_s OPERAND_LEFT OPERAND_RIGHT)
-(i64.shift_right_u OPERAND_LEFT OPERAND_RIGHT)
-(i64.rotate_left OPERAND_LEFT OPERAND_RIGHT)
-(i64.rotate_right OPERAND_LEFT OPERAND_RIGHT)
+(i64.and LEFT RIGHT)
+(i64.or LEFT RIGHT)
+(i64.xor LEFT RIGHT)
+(i64.shift_left LEFT RIGHT)
+(i64.shift_right_s LEFT RIGHT)
+(i64.shift_right_u LEFT RIGHT)
+(i64.rotate_left LEFT RIGHT)
+(i64.rotate_right LEFT RIGHT)
 
-(i64.not OPERAND)
-(i64.leading_zeros OPERAND)
-(i64.trailing_zeros OPERAND)
-(i64.count_ones OPERAND)
+(i64.not VALUE)
+(i64.leading_zeros VALUE)
+(i64.trailing_zeros VALUE)
+(i64.count_ones VALUE)
 
 ## Math
 
 ### f32
 
-(f32.abs OPERAND)
-(f32.neg OPERAND)
-(f32.ceil OPERAND)
-(f32.floor OPERAND)
-(f32.round_half_away_from_zero OPERAND)
-(f32.trunc OPERAND)
-(f32.fract OPERAND)
-(f32.sqrt OPERAND)
-(f32.cbrt OPERAND)
-(f32.exp OPERAND)
-(f32.exp2 OPERAND)
-(f32.ln OPERAND)
-(f32.log2 OPERAND)
-(f32.log10 OPERAND)
-(f32.sin OPERAND)
-(f32.cos OPERAND)
-(f32.tan OPERAND)
-(f32.asin OPERAND)
-(f32.acos OPERAND)
-(f32.atan OPERAND)
-(f32.pow OPERAND_LEFT OPERAND_RIGHT)
-(f32.log OPERAND_LEFT OPERAND_RIGHT)
+(f32.abs VALUE)
+(f32.neg VALUE)
+(f32.ceil VALUE)
+(f32.floor VALUE)
+(f32.round_half_away_from_zero VALUE)
+(f32.trunc VALUE)
+(f32.fract VALUE)
+(f32.sqrt VALUE)
+(f32.cbrt VALUE)
+(f32.exp VALUE)
+(f32.exp2 VALUE)
+(f32.ln VALUE)
+(f32.log2 VALUE)
+(f32.log10 VALUE)
+(f32.sin VALUE)
+(f32.cos VALUE)
+(f32.tan VALUE)
+(f32.asin VALUE)
+(f32.acos VALUE)
+(f32.atan VALUE)
+(f32.pow LEFT RIGHT)
+(f32.log LEFT RIGHT)
 
 ### f64
 
-(f64.abs OPERAND)
-(f64.neg OPERAND)
-(f64.ceil OPERAND)
-(f64.floor OPERAND)
-(f64.round_half_away_from_zero OPERAND)
-(f64.trunc OPERAND)
-(f64.fract OPERAND)
-(f64.sqrt OPERAND)
-(f64.cbrt OPERAND)
-(f64.exp OPERAND)
-(f64.exp2 OPERAND)
-(f64.ln OPERAND)
-(f64.log2 OPERAND)
-(f64.log10 OPERAND)
-(f64.sin OPERAND)
-(f64.cos OPERAND)
-(f64.tan OPERAND)
-(f64.asin OPERAND)
-(f64.acos OPERAND)
-(f64.atan OPERAND)
+(f64.abs VALUE)
+(f64.neg VALUE)
+(f64.ceil VALUE)
+(f64.floor VALUE)
+(f64.round_half_away_from_zero VALUE)
+(f64.trunc VALUE)
+(f64.fract VALUE)
+(f64.sqrt VALUE)
+(f64.cbrt VALUE)
+(f64.exp VALUE)
+(f64.exp2 VALUE)
+(f64.ln VALUE)
+(f64.log2 VALUE)
+(f64.log10 VALUE)
+(f64.sin VALUE)
+(f64.cos VALUE)
+(f64.tan VALUE)
+(f64.asin VALUE)
+(f64.acos VALUE)
+(f64.atan VALUE)
 
-(f64.pow OPERAND_LEFT OPERAND_RIGHT)
-(f64.log OPERAND_LEFT OPERAND_RIGHT)
+(f64.pow LEFT RIGHT)
+(f64.log LEFT RIGHT)
 
 ## Function Calling
 
-(call $id OPERAND_FOR_ARGS...)
-(dyncall OPERAND_FOR_FUNC_PUBLIC_INDEX:i32 OPERAND_FOR_ARGS...)
-(envcall ENV_CALL_NUMBER:i32 OPERAND_FOR_ARGS...)
-(syscall SYS_CALL_NUMBER:i32 OPERAND_FOR_ARGS...)
-(extcall $id OPERAND_FOR_ARGS...)
+(call $id ARG_0 ARG_1 ... ARG_N)
+(dyncall FUNC_PUBLIC_INDEX_I32 ARG_0 ARG_1 ... ARG_N)
+(envcall ENV_CALL_NUMBER:i32 ARG_0 ARG_1 ... ARG_N)
+(syscall SYS_CALL_NUMBER:i32 ARG_0 ARG_1 ... ARG_N)
+(extcall $id ARG_0 ARG_1 ... ARG_N)
 
 > NOTE:
 > the `id` in the instructions `call`, data loading and data storing can be a full name path (a path that combined with the path of namespace and the identifier), e.g. `mylib::msg`, `mylib::utils::buf`.
@@ -464,20 +465,23 @@ wrapping dec, e.g. 0x1 dec 2 = 0xffff_ffff
 
 (nop)
 (panic)
-(unreachable CODE_NUMBER:i32)
-(debug CODE_NUMBER:i32)
-(host.addr_local $VARIABLE_NAME OPTIONAL_OFFSET_NUMBER:i16)
-(host.addr_local_long $VARIABLE_NAME OPERAND_FOR_OFFSET:i32)
-(host.addr_data $DATA_NAME_PATH OPTIONAL_OFFSET_NUMBER:i16)
-(host.addr_data_long $DATA_NAME_PATH OPERAND_FOR_OFFSET:i32)
-(host.addr_heap OPTIONAL_OFFSET_NUMBER:i16 OPERAND_FOR_ADDR)
+(unreachable CODE:i32)
+(debug CODE:i32)
+
+(host.addr_local $VARIABLE_NAME OPTIONAL_OFFSET:i16)
+(host.addr_local_long $VARIABLE_NAME OFFSET_I32)
+(host.addr_data $DATA_NAME_PATH OPTIONAL_OFFSET:i16)
+(host.addr_data_long $DATA_NAME_PATH OFFSET_I32)
+(host.addr_heap OPTIONAL_OFFSET:i16 ADDR)
+
 (host.addr_function $name)
+
 (host.copy_from_heap
-    OPERAND_FOR_dst_pointer:i64
-    OPERAND_FOR_src_offset:i64
-    OPERAND_FOR_length_in_bytes:i64)
+    DST_POINTER_I64
+    SRC_OFFSET_I64
+    LENGTH_IN_BYTES_I64)
 
 (host.copy_to_heap
-    OPERAND_FOR_dst_offset:i64
-    OPERAND_FOR_src_pointer:i64
-    OPERAND_FOR_length_in_bytes:i64)
+    DST_OFFSET_I64
+    SRC_POINTER_I64
+    LENGTH_IN_BYTES_I64)

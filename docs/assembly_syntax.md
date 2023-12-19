@@ -60,14 +60,25 @@ Example of valid identifiers:
 
 ## Number
 
-_XiaoXuan Core Assembly_ supports three types of integer number representation: decimal, hexadecimal and binary. An addition of plus or minus sign is supported. In addition, arbitrary underscores can be added between digits.
+_XiaoXuan Core Assembly_ supports integer number literals and floating point number literals.
 
-Example of numbers:
+### Integer Number
+
+Three types of integer number representation are supported: decimal, hexadecimal and binary. An addition of plus or minus sign is supported. In addition, arbitrary underscores can be added between digits.
+
+Example of integer numbers:
 
 - `211`, `223_211`, `+2017`, `-2027`
 - `0x1113`, `0x1719_abcd`, `-0xaabb`
 - `0b1100`, `0b1010_0001`, `-0b1100`
-- `3.14`, `2.998e8`, `6.626e-34`, `-1.7588e11`
+
+### Floating Pointer Number
+
+Floating point numbers can be represented in decimal.
+
+Example of floating point numbers:
+
+`3.14`, `2.998e8`, `6.626e-34`, `-1.7588e11`
 
 Example of invalid numbers:
 
@@ -75,7 +86,7 @@ Example of invalid numbers:
 
 ### Hexadecimal Floating Point Number
 
-Floating point numbers can be represented in either decimal or hexadecimal, the format of [hexadecimal floating pointer literals](https://en.cppreference.com/w/c/language/floating_constant) is `0xh.hhhp±d`, which is the same as it is in C/C++.
+Floating point numbers can be represented in hexadecimal also, the format of [hexadecimal floating pointer literals](https://en.cppreference.com/w/c/language/floating_constant) is `0xh.hhhp±d`, which is the same as it is in C/C++.
 
 e.g., `0x1.23p4` means `(1x16^0 + 2x16^-1 + 3x16^-2) x 2^4 = (1.13671875 x 16)`, its value is `18.1875`.
 

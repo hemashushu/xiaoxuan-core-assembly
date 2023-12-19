@@ -17,10 +17,10 @@ pub struct ModuleNode {
     pub runtime_version_minor: u16,
 
     // the relative name path of constructor function
-    pub constructor_function_name: Option<String>,
+    pub constructor_function_name_path: Option<String>,
 
     // the relative name path of destructor function
-    pub destructor_function_name: Option<String>,
+    pub destructor_function_name_path: Option<String>,
 
     pub element_nodes: Vec<ModuleElementNode>,
 }
@@ -253,14 +253,14 @@ pub enum Instruction {
     // bytecode: ()
     UnaryOp {
         opcode: Opcode,
-        number: Box<Instruction>,
+        source: Box<Instruction>,
     },
 
-    // bytecode: (param amount:i16)
-    UnaryOpParamI16 {
+    // bytecode: (param imm:i16)
+    UnaryOpWithImmI16 {
         opcode: Opcode,
-        amount: u16,
-        number: Box<Instruction>,
+        imm: u16,
+        source: Box<Instruction>,
     },
 
     // bytecode: ()
@@ -345,7 +345,7 @@ pub enum Instruction {
 
     // bytecode: ()
     DynCall {
-        num: Box<Instruction>,
+        public_index: Box<Instruction>,
         args: Vec<Instruction>,
     },
 
@@ -368,8 +368,13 @@ pub enum Instruction {
         args: Vec<Instruction>,
     },
 
-    Debug(/* code */ u32),
-    Unreachable(/* code */ u32),
+    Debug {
+        code: u32,
+    },
+
+    Unreachable {
+        code: u32,
+    },
 
     // id:
     // the function identifier (name), or the (relative/absolute) name path
@@ -387,18 +392,6 @@ pub enum Instruction {
         id: String,
     },
 }
-
-// #[derive(Debug, PartialEq, Clone)]
-// pub enum ImmF32 {
-//     Float(f32),
-//     Hex(u32),
-// }
-//
-// #[derive(Debug, PartialEq, Clone)]
-// pub enum ImmF64 {
-//     Float(f64),
-//     Hex(u64),
-// }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct BranchCase {

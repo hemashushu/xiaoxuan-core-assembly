@@ -80,7 +80,7 @@ use crate::{
         ImportItem, ImportModuleNode, ImportNode, InitedData, Instruction, LocalNode,
         ModuleElementNode, ModuleNode, ParamNode, SimplifiedDataKindNode, UninitData,
     },
-    instruction_kind::{init_instruction_kind_table, InstructionKind, INSTRUCTION_KIND_TABLE},
+    core_assembly_instruction::{init_instruction_map, InstructionSyntaxKind, INSTRUCTION_MAP},
     lexer::{NumberToken, Token},
     peekable_iterator::PeekableIterator,
     ParseError, NAME_PATH_SEPARATOR,
@@ -88,7 +88,7 @@ use crate::{
 
 pub fn parse(iter: &mut PeekableIterator<Token>) -> Result<ModuleNode, ParseError> {
     // initialize the instruction kind table
-    init_instruction_kind_table();
+    init_instruction_map();
 
     // there is only one node 'module' in a assembly text
     parse_module_node(iter)
@@ -101,54 +101,54 @@ pub fn parse_module_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleNod
 
     // the node 'module' syntax:
     //
-    // (module $name (runtime_version "1.0") ...)  ;; base
+    // (module $name (runtime_version "1.0") ...)   ;; base
     // (module $name (runtime_version "1.0")
-    //                                          ;; optional parameters
-    //      (constructor $function_name)            ;; similar to GCC '__attribute__((constructor))', run before main()
-    //      (destructor $function_name)             ;; similar to GCC '__attribute__((destructor))', run after main()
+    //                                              ;; optional parameters
+    //      (constructor $function_name_path)       ;; similar to GCC '__attribute__((constructor))', run before main()
+    //      (destructor $function_name_path)        ;; similar to GCC '__attribute__((destructor))', run after main()
     //      ...
     // )
 
     consume_left_paren(iter, "module")?;
     consume_symbol(iter, "module")?;
 
-    let name = expect_identifier(iter, "module name")?;
+    let name_path = expect_identifier(iter, "module.name")?;
     let (runtime_version_major, runtime_version_minor) = parse_module_runtime_version_node(iter)?;
 
     // optional parameters
-    let is_sub_module = name.contains(NAME_PATH_SEPARATOR);
-    let constructor_function_name = if exist_child_node(iter, "constructor") {
+    let is_sub_module = name_path.contains(NAME_PATH_SEPARATOR);
+    let constructor_function_name_path = if exist_child_node(iter, "constructor") {
         if is_sub_module {
             return Err(ParseError::new(&format!(
                 "Only the main module can define the constructor function, current submodule: {}",
-                name
+                name_path
             )));
         }
 
-        consume_left_paren(iter, "constructor")?;
+        consume_left_paren(iter, "module.constructor")?;
         consume_symbol(iter, "constructor")?;
-        let id = expect_identifier(iter, "constructor")?;
+        let name_path = expect_identifier(iter, "constructor")?;
         consume_right_paren(iter)?;
 
-        Some(id)
+        Some(name_path)
     } else {
         None
     };
 
-    let destructor_function_name = if exist_child_node(iter, "destructor") {
+    let destructor_function_name_path = if exist_child_node(iter, "destructor") {
         if is_sub_module {
             return Err(ParseError::new(&format!(
                 "Only the main module can define the constructor function, current submodule: {}",
-                name
+                name_path
             )));
         }
 
-        consume_left_paren(iter, "destructor")?;
+        consume_left_paren(iter, "module.destructor")?;
         consume_symbol(iter, "destructor")?;
-        let id = expect_identifier(iter, "destructor")?;
+        let name_path = expect_identifier(iter, "destructor")?;
         consume_right_paren(iter)?;
 
-        Some(id)
+        Some(name_path)
     } else {
         None
     };
@@ -179,11 +179,11 @@ pub fn parse_module_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleNod
     consume_right_paren(iter)?;
 
     let module_node = ModuleNode {
-        name_path: name,
+        name_path,
         runtime_version_major,
         runtime_version_minor,
-        constructor_function_name,
-        destructor_function_name,
+        constructor_function_name_path,
+        destructor_function_name_path,
         element_nodes,
     };
 
@@ -197,9 +197,9 @@ fn parse_module_runtime_version_node(
     // ^                       ^____// to here
     // |____________________________// current token
 
-    consume_left_paren(iter, "module runtime version")?;
+    consume_left_paren(iter, "module.runtime_version")?;
     consume_symbol(iter, "runtime_version")?;
-    let ver_string = expect_string(iter, "module runtime version")?;
+    let ver_string = expect_string(iter, "module.runtime_version")?;
     consume_right_paren(iter)?;
 
     parse_version(&ver_string)
@@ -416,7 +416,7 @@ fn parse_data_type(iter: &mut PeekableIterator<Token>) -> Result<DataType, Parse
     // ^   ^____// to here
     // |________// current token
 
-    let data_type_name = expect_symbol(iter, "data type")?;
+    let data_type_name = expect_symbol(iter, "data.type")?;
     let data_type = match data_type_name.as_str() {
         "i32" => DataType::I32,
         "i64" => DataType::I64,
@@ -464,11 +464,11 @@ fn parse_local_node(iter: &mut PeekableIterator<Token>) -> Result<LocalNode, Par
     // |______________________// current token
 
     // also:
-    // (local $name (bytes DATA_LENGTH_NUMBER:i32 ALIGN_NUMBER:i16))
+    // (local $name (bytes DATA_LENGTH:i32 ALIGN:i16))
 
     consume_left_paren(iter, "local")?;
     consume_symbol(iter, "local")?;
-    let name = expect_identifier(iter, "local")?;
+    let name = expect_identifier(iter, "local.name")?;
     let (memory_data_type, data_length, align) = parse_memory_data_type(iter)?;
 
     consume_right_paren(iter)?;
@@ -494,12 +494,15 @@ fn parse_local_node(iter: &mut PeekableIterator<Token>) -> Result<LocalNode, Par
 fn parse_memory_data_type(
     iter: &mut PeekableIterator<Token>,
 ) -> Result<(MemoryDataType, u32, u16), ParseError> {
-    // (local $name i32) ...  //
-    //              ^  ^______// to here
-    //              |_________// current token
+    // i32 ...  //
+    // ^   ^____// to here
+    // |________// current token
 
     // also:
-    // (local $name (bytes DATA_LENGTH_NUMBER:i32 ALIGN_NUMBER:i16))
+    // i64
+    // f32
+    // f64
+    // (bytes DATA_LENGTH:i32 ALIGN:i16)
 
     if iter.look_ahead_equals(0, &Token::LeftParen) {
         parse_memory_data_type_bytes(iter)
@@ -519,7 +522,7 @@ fn parse_memory_data_type_primitive(
     // ^   ^____// to here
     // |________// current token
 
-    let memory_data_type_name = expect_symbol(iter, "memory data type")?;
+    let memory_data_type_name = expect_symbol(iter, "data.type")?;
     let memory_data_type_detail = match memory_data_type_name.as_str() {
         "i32" => (MemoryDataType::I32, 4, 4),
         "i64" => (MemoryDataType::I64, 8, 8),
@@ -540,15 +543,15 @@ fn parse_memory_data_type_primitive(
 fn parse_memory_data_type_bytes(
     iter: &mut PeekableIterator<Token>,
 ) -> Result<(MemoryDataType, u32, u16), ParseError> {
-    // (bytes DATA_LENGTH_NUMBER:i32 ALIGN_NUMBER:i16)) ...  //
-    // ^                                                ^____// to here
-    // |_____________________________________________________// current token
+    // (bytes DATA_LENGTH:i32 ALIGN:i16)) ...  //
+    // ^                                  ^____// to here
+    // |_______________________________________// current token
 
-    consume_left_paren(iter, "bytes")?;
+    consume_left_paren(iter, "data.type.bytes")?;
     consume_symbol(iter, "bytes")?;
 
-    let length_number_token = expect_number(iter, "the length of memory data type bytes")?;
-    let align_number_token = expect_number(iter, "the align of memory data type bytes")?;
+    let length_number_token = expect_number(iter, "data.type.bytes.length")?;
+    let align_number_token = expect_number(iter, "data.type.bytes.align")?;
 
     let length = parse_u32_string(&length_number_token).map_err(|_| {
         ParseError::new(&format!(
@@ -598,9 +601,9 @@ fn parse_instruction_sequence_node(
     iter: &mut PeekableIterator<Token>,
     node_name: &str,
 ) -> Result<Instruction, ParseError> {
-    // - (do ...) ...  //
-    // ^          ^____// to here
-    // |_______________// current token
+    // (do ...) ...  //
+    // ^        ^____// to here
+    // |_____________// current token
 
     // other sequence nodes:
     //
@@ -609,7 +612,7 @@ fn parse_instruction_sequence_node(
     // - (return ...)
     // - (rerun ...)
 
-    consume_left_paren(iter, node_name)?;
+    consume_left_paren(iter, &format!("instruction.{}", node_name))?;
     consume_symbol(iter, node_name)?;
     let mut instructions = vec![];
 
@@ -654,7 +657,7 @@ fn parse_next_instruction_optional(
 
 fn parse_next_instruction_operand(
     iter: &mut PeekableIterator<Token>,
-    for_which_inst: &str,
+    for_what: &str,
 ) -> Result<Instruction, ParseError> {
     let instruction = if let Some(token) = iter.peek(0) {
         match token {
@@ -668,15 +671,15 @@ fn parse_next_instruction_operand(
             }
             _ => {
                 return Err(ParseError::new(&format!(
-                    "Expect operand for instruction \"{}\", actual {:?}",
-                    for_which_inst, token
+                    "Expect operand for \"{}\", actual {:?}",
+                    for_what, token
                 )))
             }
         }
     } else {
         return Err(ParseError::new(&format!(
-            "Missing operand for instruction \"{}\"",
-            for_which_inst
+            "Missing operand for \"{}\"",
+            for_what
         )));
     };
 
@@ -697,94 +700,95 @@ fn parse_instruction_with_parentheses(
     //
     // also:
     //
-    // (inst_name PARAM0 PARAM1 ...)
-    // (inst_name OPERAND0 OPERAND1 ...)
-    // (inst_name PARAM0 ... OPERAND0 ...)
-    // (pesudo_inst_name ...)
+    // (inst_name PARAM_0 PARAM_1 ...)
+    // (inst_name OPERAND_0 OPERAND_1 ...)
+    // (inst_name PARAM_0 ... OPERAND_0 ...)
 
     if let Some(Token::Symbol(child_node_name)) = iter.peek(1) {
         let owned_name = child_node_name.to_owned();
         let inst_name = owned_name.as_str();
         let instruction = if let Some(kind) = get_instruction_kind(inst_name) {
             match *kind {
-                InstructionKind::NoParams(opcode, operand_count) => {
+                InstructionSyntaxKind::NoParams(opcode, operand_count) => {
                     parse_instruction_kind_no_params(iter, inst_name, opcode, operand_count)?
                 }
                 //
-                InstructionKind::LocalLoad(opcode) => {
+                InstructionSyntaxKind::LocalLoad(opcode) => {
                     parse_instruction_kind_local_load(iter, inst_name, opcode, true)?
                 }
-                InstructionKind::LocalStore(opcode) => {
+                InstructionSyntaxKind::LocalStore(opcode) => {
                     parse_instruction_kind_local_store(iter, inst_name, opcode, true)?
                 }
-                InstructionKind::LocalLongLoad(opcode) => {
+                InstructionSyntaxKind::LocalLongLoad(opcode) => {
                     parse_instruction_kind_local_long_load(iter, inst_name, opcode, true)?
                 }
-                InstructionKind::LocalLongStore(opcode) => {
+                InstructionSyntaxKind::LocalLongStore(opcode) => {
                     parse_instruction_kind_local_long_store(iter, inst_name, opcode, true)?
                 }
-                InstructionKind::DataLoad(opcode) => {
+                InstructionSyntaxKind::DataLoad(opcode) => {
                     parse_instruction_kind_local_load(iter, inst_name, opcode, false)?
                 }
-                InstructionKind::DataStore(opcode) => {
+                InstructionSyntaxKind::DataStore(opcode) => {
                     parse_instruction_kind_local_store(iter, inst_name, opcode, false)?
                 }
-                InstructionKind::DataLongLoad(opcode) => {
+                InstructionSyntaxKind::DataLongLoad(opcode) => {
                     parse_instruction_kind_local_long_load(iter, inst_name, opcode, false)?
                 }
-                InstructionKind::DataLongStore(opcode) => {
+                InstructionSyntaxKind::DataLongStore(opcode) => {
                     parse_instruction_kind_local_long_store(iter, inst_name, opcode, false)?
                 }
                 //
-                InstructionKind::HeapLoad(opcode) => {
+                InstructionSyntaxKind::HeapLoad(opcode) => {
                     parse_instruction_kind_heap_load(iter, inst_name, opcode)?
                 }
-                InstructionKind::HeapStore(opcode) => {
+                InstructionSyntaxKind::HeapStore(opcode) => {
                     parse_instruction_kind_heap_store(iter, inst_name, opcode)?
                 }
                 //
-                InstructionKind::UnaryOp(opcode) => {
+                InstructionSyntaxKind::UnaryOp(opcode) => {
                     parse_instruction_kind_unary_op(iter, inst_name, opcode)?
                 }
-                InstructionKind::UnaryOpParamI16(opcode) => {
-                    parse_instruction_kind_unary_op_param_i16(iter, inst_name, opcode)?
+                InstructionSyntaxKind::UnaryOpWithImmI16(opcode) => {
+                    parse_instruction_kind_unary_op_with_imm_i16(iter, inst_name, opcode)?
                 }
-                InstructionKind::BinaryOp(opcode) => {
+                InstructionSyntaxKind::BinaryOp(opcode) => {
                     parse_instruction_kind_binary_op(iter, inst_name, opcode)?
                 }
                 //
-                InstructionKind::ImmI32 => parse_instruction_kind_imm_i32(iter)?,
-                InstructionKind::ImmI64 => parse_instruction_kind_imm_i64(iter)?,
-                InstructionKind::ImmF32 => parse_instruction_kind_imm_f32(iter)?,
-                InstructionKind::ImmF64 => parse_instruction_kind_imm_f64(iter)?,
+                InstructionSyntaxKind::ImmI32 => parse_instruction_kind_imm_i32(iter)?,
+                InstructionSyntaxKind::ImmI64 => parse_instruction_kind_imm_i64(iter)?,
+                InstructionSyntaxKind::ImmF32 => parse_instruction_kind_imm_f32(iter)?,
+                InstructionSyntaxKind::ImmF64 => parse_instruction_kind_imm_f64(iter)?,
                 //
-                InstructionKind::When => parse_instruction_kind_when(iter)?,
-                InstructionKind::If => parse_instruction_kind_if(iter)?,
-                InstructionKind::Branch => parse_instruction_kind_branch(iter)?,
-                InstructionKind::For => parse_instruction_kind_for(iter)?,
+                InstructionSyntaxKind::When => parse_instruction_kind_when(iter)?,
+                InstructionSyntaxKind::If => parse_instruction_kind_if(iter)?,
+                InstructionSyntaxKind::Branch => parse_instruction_kind_branch(iter)?,
+                InstructionSyntaxKind::For => parse_instruction_kind_for(iter)?,
 
-                InstructionKind::Sequence(node_name) => {
+                InstructionSyntaxKind::Sequence(node_name) => {
                     parse_instruction_sequence_node(iter, node_name)?
                 }
                 //
-                InstructionKind::Call => parse_instruction_kind_call_by_id(iter, "call", true)?,
-                InstructionKind::DynCall => parse_instruction_kind_call_by_operand_num(iter)?,
-                InstructionKind::EnvCall => {
+                InstructionSyntaxKind::Call => {
+                    parse_instruction_kind_call_by_id(iter, "call", true)?
+                }
+                InstructionSyntaxKind::DynCall => parse_instruction_kind_call_by_operand_num(iter)?,
+                InstructionSyntaxKind::EnvCall => {
                     parse_instruction_kind_call_by_num(iter, "envcall", true)?
                 }
-                InstructionKind::SysCall => {
+                InstructionSyntaxKind::SysCall => {
                     parse_instruction_kind_call_by_num(iter, "syscall", false)?
                 }
-                InstructionKind::ExtCall => {
+                InstructionSyntaxKind::ExtCall => {
                     parse_instruction_kind_call_by_id(iter, "extcall", false)?
                 }
                 // macro
-                InstructionKind::MacroGetFunctionPublicIndex => {
+                InstructionSyntaxKind::MacroGetFunctionPublicIndex => {
                     parse_instruction_kind_get_function_public_index(iter)?
                 }
-                InstructionKind::Debug => parse_instruction_kind_debug(iter)?,
-                InstructionKind::Unreachable => parse_instruction_kind_unreachable(iter)?,
-                InstructionKind::HostAddrFunction => {
+                InstructionSyntaxKind::Debug => parse_instruction_kind_debug(iter)?,
+                InstructionSyntaxKind::Unreachable => parse_instruction_kind_unreachable(iter)?,
+                InstructionSyntaxKind::HostAddrFunction => {
                     parse_instruction_kind_host_addr_function(iter)?
                 }
             }
@@ -819,7 +823,7 @@ fn parse_instruction_without_parentheses(
 
     if let Some(kind) = get_instruction_kind(inst_name) {
         match kind {
-            InstructionKind::NoParams(opcode, operand_cound) => {
+            InstructionSyntaxKind::NoParams(opcode, operand_cound) => {
                 if *operand_cound > 0 {
                     Err(ParseError::new(&format!(
                         "Instruction \"{}\" has operands and should be written with parentheses.",
@@ -857,17 +861,17 @@ fn parse_instruction_kind_no_params(
     //
     // also:
     // (name OPERAND_0 ... OPERAND_N) ...  //
-    // ^                             ^____// to here
-    // |__________________________________// current token
+    // ^                              ^____// to here
+    // |___________________________________// current token
 
     let mut operands = vec![];
 
-    consume_left_paren(iter, "instruction")?;
+    consume_left_paren(iter, &format!("instruction.{}", inst_name))?;
     consume_symbol(iter, inst_name)?;
 
     // operands
     for _ in 0..operand_count {
-        let operand = parse_next_instruction_operand(iter, inst_name)?;
+        let operand = parse_next_instruction_operand(iter, &format!("instruction.{}", inst_name))?;
         operands.push(operand);
     }
 
@@ -883,9 +887,9 @@ fn parse_instruction_kind_imm_i32(
     // ^             ^___// to here
     // |_________________// current token
 
-    consume_left_paren(iter, "i32.imm")?;
+    consume_left_paren(iter, "instruction.i32.imm")?;
     consume_symbol(iter, "i32.imm")?;
-    let number_token = expect_number(iter, "i32.imm")?;
+    let number_token = expect_number(iter, "instruction.i32.imm.value")?;
     consume_right_paren(iter)?;
 
     Ok(Instruction::ImmI32(parse_u32_string(&number_token)?))
@@ -898,9 +902,9 @@ fn parse_instruction_kind_imm_i64(
     // ^             ^___// to here
     // |_________________// current token
 
-    consume_left_paren(iter, "i64.imm")?;
+    consume_left_paren(iter, "instruction.i64.imm")?;
     consume_symbol(iter, "i64.imm")?;
-    let number_token = expect_number(iter, "i64.imm")?;
+    let number_token = expect_number(iter, "instruction.i64.imm.value")?;
     consume_right_paren(iter)?;
 
     Ok(Instruction::ImmI64(parse_u64_string(&number_token)?))
@@ -914,13 +918,11 @@ fn parse_instruction_kind_imm_f32(
     // |__________________// current token
     //
     // also:
-    // (f32.imm 0x40490fdb)
-    // (f32.imm 0b0_000_0011)
-    // the hex string is the little-endian bytes in the memory
+    // (f32.imm 0x1.23p+4)
 
-    consume_left_paren(iter, "f32.imm")?;
+    consume_left_paren(iter, "instruction.f32.imm")?;
     consume_symbol(iter, "f32.imm")?;
-    let number_token = expect_number(iter, "f32.imm")?;
+    let number_token = expect_number(iter, "instruction.f32.imm.value")?;
     consume_right_paren(iter)?;
 
     let imm_f32 = parse_f32_string(&number_token)?;
@@ -935,13 +937,11 @@ fn parse_instruction_kind_imm_f64(
     // |__________________// current token
     //
     // also:
-    // (f64.imm 0x400921fb54442d18)
-    // (f64.imm 0b0_000_0011)
-    // the hex string is the little-endian bytes in the memory
+    // (f64.imm 0x1.23p+4)
 
-    consume_left_paren(iter, "f64.imm")?;
+    consume_left_paren(iter, "instruction.f64.imm")?;
     consume_symbol(iter, "f64.imm")?;
-    let number_token = expect_number(iter, "f64.imm")?;
+    let number_token = expect_number(iter, "instruction.f64.imm.value")?;
     consume_right_paren(iter)?;
 
     let imm_f64 = parse_f64_string(&number_token)?;
@@ -959,11 +959,11 @@ fn parse_instruction_kind_local_load(
     // |____________________________// current token
     //
     // also:
-    // (local.load64_i64 $name OFFSET_NUMBER:i16)
+    // (local.load64_i64 $name OFFSET:i16)
 
-    consume_left_paren(iter, "instruction")?;
+    consume_left_paren(iter, &format!("instruction.{}", inst_name))?;
     consume_symbol(iter, inst_name)?;
-    let name = expect_identifier(iter, inst_name)?;
+    let name = expect_identifier(iter, &format!("instruction.{}.name", inst_name))?;
     let offset = if let Some(offset_number_token) = expect_number_optional(iter) {
         parse_u16_string(&offset_number_token)?
     } else {
@@ -992,23 +992,23 @@ fn parse_instruction_kind_local_store(
     opcode: Opcode,
     is_local: bool,
 ) -> Result<Instruction, ParseError> {
-    // (local.store $name OPERAND) ... //
-    // ^                           ^___// to here
-    // |_______________________________// current token
+    // (local.store $name VALUE) ... //
+    // ^                         ^___// to here
+    // |_____________________________// current token
     //
     // also:
-    // (local.store $name OFFSET_NUMBER:i16 OPERAND)
+    // (local.store $name OFFSET:i16 VALUE)
 
-    consume_left_paren(iter, "instruction")?;
+    consume_left_paren(iter, &format!("instruction.{}", inst_name))?;
     consume_symbol(iter, inst_name)?;
-    let name = expect_identifier(iter, inst_name)?;
+    let name = expect_identifier(iter, &format!("instruction.{}.name", inst_name))?;
     let offset = if let Some(offset_number_token) = expect_number_optional(iter) {
         parse_u16_string(&offset_number_token)?
     } else {
         0
     };
 
-    let operand = parse_next_instruction_operand(iter, inst_name)?;
+    let operand = parse_next_instruction_operand(iter, &format!("instruction.{}", inst_name))?;
     consume_right_paren(iter)?;
 
     if is_local {
@@ -1034,14 +1034,14 @@ fn parse_instruction_kind_local_long_load(
     opcode: Opcode,
     is_local: bool,
 ) -> Result<Instruction, ParseError> {
-    // (local.long_load $name OPERAND_FOR_OFFSET:i32) ... //
-    // ^                                              ^___// to here
-    // |__________________________________________________// current token
+    // (local.long_load $name OFFSET:i32) ... //
+    // ^                                  ^___// to here
+    // |______________________________________// current token
 
-    consume_left_paren(iter, "instruction")?;
+    consume_left_paren(iter, &format!("instruction.{}", inst_name))?;
     consume_symbol(iter, inst_name)?;
-    let name = expect_identifier(iter, inst_name)?;
-    let offset = parse_next_instruction_operand(iter, inst_name)?;
+    let name = expect_identifier(iter, &format!("instruction.{}.name", inst_name))?;
+    let offset = parse_next_instruction_operand(iter, &format!("instruction.{}", inst_name))?;
     consume_right_paren(iter)?;
 
     if is_local {
@@ -1065,15 +1065,15 @@ fn parse_instruction_kind_local_long_store(
     opcode: Opcode,
     is_local: bool,
 ) -> Result<Instruction, ParseError> {
-    // (local.long_store $name OPERAND_FOR_OFFSET:i32 OPERAND) ... //
-    // ^                                                       ^___// to here
-    // |___________________________________________________________// current token
+    // (local.long_store $name OFFSET:i32 VALUE) ... //
+    // ^                                         ^___// to here
+    // |_____________________________________________// current token
 
-    consume_left_paren(iter, "instruction")?;
+    consume_left_paren(iter, &format!("instruction.{}", inst_name))?;
     consume_symbol(iter, inst_name)?;
-    let name = expect_identifier(iter, inst_name)?;
-    let offset = parse_next_instruction_operand(iter, inst_name)?;
-    let operand = parse_next_instruction_operand(iter, inst_name)?;
+    let name = expect_identifier(iter, &format!("instruction.{}.name", inst_name))?;
+    let offset = parse_next_instruction_operand(iter, &format!("instruction.{}", inst_name))?;
+    let operand = parse_next_instruction_operand(iter, &format!("instruction.{}", inst_name))?;
     consume_right_paren(iter)?;
 
     if is_local {
@@ -1098,14 +1098,14 @@ fn parse_instruction_kind_heap_load(
     inst_name: &str,
     opcode: Opcode,
 ) -> Result<Instruction, ParseError> {
-    // (heap.load OPERAND_FOR_ADDR) ... //
-    // ^                            ^___// to here
-    // |________________________________// current token
+    // (heap.load ADDR) ... //
+    // ^                ^___// to here
+    // |____________________// current token
     //
     // also:
-    // (heap.load OFFSET_NUMBER:i16 OPERAND_FOR_ADDR)
+    // (heap.load OFFSET:i16 ADDR)
 
-    consume_left_paren(iter, "instruction")?;
+    consume_left_paren(iter, &format!("instruction.{}", inst_name))?;
     consume_symbol(iter, inst_name)?;
 
     let offset = if let Some(offset_token_number) = expect_number_optional(iter) {
@@ -1114,7 +1114,7 @@ fn parse_instruction_kind_heap_load(
         0
     };
 
-    let addr = parse_next_instruction_operand(iter, inst_name)?;
+    let addr = parse_next_instruction_operand(iter, &format!("instruction.{}.addr", inst_name))?;
     consume_right_paren(iter)?;
 
     Ok(Instruction::HeapLoad {
@@ -1129,14 +1129,14 @@ fn parse_instruction_kind_heap_store(
     inst_name: &str,
     opcode: Opcode,
 ) -> Result<Instruction, ParseError> {
-    // (heap.store OPERAND_FOR_ADDR OPERAND) ... //
-    // ^                                     ^___// to here
-    // |_________________________________________// current token
+    // (heap.store ADDR VALUE) ... //
+    // ^                       ^___// to here
+    // |___________________________// current token
     //
     // also:
-    // (heap.store OFFSET_NUMBER:i16 OPERAND_FOR_ADDR OPERAND)
+    // (heap.store OFFSET:i16 ADDR VALUE)
 
-    consume_left_paren(iter, "instruction")?;
+    consume_left_paren(iter, &format!("instruction.{}", inst_name))?;
     consume_symbol(iter, inst_name)?;
 
     let offset = if let Some(offset_number_token) = expect_number_optional(iter) {
@@ -1145,8 +1145,8 @@ fn parse_instruction_kind_heap_store(
         0
     };
 
-    let addr = parse_next_instruction_operand(iter, inst_name)?;
-    let operand = parse_next_instruction_operand(iter, inst_name)?;
+    let addr = parse_next_instruction_operand(iter, &format!("instruction.{}.addr", inst_name))?;
+    let value = parse_next_instruction_operand(iter, &format!("instruction.{}.value", inst_name))?;
 
     consume_right_paren(iter)?;
 
@@ -1154,7 +1154,7 @@ fn parse_instruction_kind_heap_store(
         opcode,
         offset,
         addr: Box::new(addr),
-        value: Box::new(operand),
+        value: Box::new(value),
     })
 }
 
@@ -1163,41 +1163,43 @@ fn parse_instruction_kind_unary_op(
     inst_name: &str,
     opcode: Opcode,
 ) -> Result<Instruction, ParseError> {
-    // (i32.not OPERAND) ... //
-    // ^                 ^___// to here
-    // |_____________________// current token
+    // (i32.not VALUE) ... //
+    // ^               ^___// to here
+    // |___________________// current token
 
-    consume_left_paren(iter, "instruction")?;
+    consume_left_paren(iter, &format!("instruction.{}", inst_name))?;
     consume_symbol(iter, inst_name)?;
-    let operand = parse_next_instruction_operand(iter, inst_name)?;
+    let source =
+        parse_next_instruction_operand(iter, &format!("instruction.{}.source", inst_name))?;
     consume_right_paren(iter)?;
 
     Ok(Instruction::UnaryOp {
         opcode,
-        number: Box::new(operand),
+        source: Box::new(source),
     })
 }
 
-fn parse_instruction_kind_unary_op_param_i16(
+fn parse_instruction_kind_unary_op_with_imm_i16(
     iter: &mut PeekableIterator<Token>,
     inst_name: &str,
     opcode: Opcode,
 ) -> Result<Instruction, ParseError> {
-    // (i32.inc NUM:i16 OPERAND) ... //
-    // ^                         ^___// to here
-    // |_____________________________// current token
+    // (i32.inc imm:i16 VALUE) ... //
+    // ^                       ^___// to here
+    // |___________________________// current token
 
-    consume_left_paren(iter, "instruction")?;
+    consume_left_paren(iter, &format!("instruction.{}", inst_name))?;
     consume_symbol(iter, inst_name)?;
-    let number_token = expect_number(iter, inst_name)?;
-    let param_i16 = parse_u16_string(&number_token)?;
-    let operand = parse_next_instruction_operand(iter, inst_name)?;
+    let imm_token = expect_number(iter, &format!("instruction.{}.imm", inst_name))?;
+    let imm_i16 = parse_u16_string(&imm_token)?;
+    let source =
+        parse_next_instruction_operand(iter, &format!("instruction.{}.source", inst_name))?;
     consume_right_paren(iter)?;
 
-    Ok(Instruction::UnaryOpParamI16 {
+    Ok(Instruction::UnaryOpWithImmI16 {
         opcode,
-        amount: param_i16,
-        number: Box::new(operand),
+        imm: imm_i16,
+        source: Box::new(source),
     })
 }
 
@@ -1206,14 +1208,14 @@ fn parse_instruction_kind_binary_op(
     inst_name: &str,
     opcode: Opcode,
 ) -> Result<Instruction, ParseError> {
-    // (i32.add OPERAND_LHS OPERAND_RHS) ... //
-    // ^                                 ^___// to here
-    // |_____________________________________// current token
+    // (i32.add LHS RHS) ... //
+    // ^                 ^___// to here
+    // |_____________________// current token
 
-    consume_left_paren(iter, "instruction")?;
+    consume_left_paren(iter, &format!("instruction.{}", inst_name))?;
     consume_symbol(iter, inst_name)?;
-    let left = parse_next_instruction_operand(iter, inst_name)?;
-    let right = parse_next_instruction_operand(iter, inst_name)?;
+    let left = parse_next_instruction_operand(iter, &format!("instruction.{}.left", inst_name))?;
+    let right = parse_next_instruction_operand(iter, &format!("instruction.{}.right", inst_name))?;
     consume_right_paren(iter)?;
 
     Ok(Instruction::BinaryOp {
@@ -1230,11 +1232,11 @@ fn parse_instruction_kind_when(
     // ^                      ^___// to here
     // |__________________________// current token
 
-    consume_left_paren(iter, "when")?;
+    consume_left_paren(iter, "instruction.when")?;
     consume_symbol(iter, "when")?;
-    let test = parse_next_instruction_operand(iter, "when.test")?;
+    let test = parse_next_instruction_operand(iter, "instruction.when.test")?;
     // let locals = parse_optional_local_variables(iter)?;
-    let consequent = parse_next_instruction_operand(iter, "when.consequent")?;
+    let consequent = parse_next_instruction_operand(iter, "instruction.when.consequent")?;
     consume_right_paren(iter)?;
 
     Ok(Instruction::When {
@@ -1251,13 +1253,13 @@ fn parse_instruction_kind_if(
     // ^                                          ^___// to here
     // |______________________________________________// current token
 
-    consume_left_paren(iter, "if")?;
+    consume_left_paren(iter, "instruction.if")?;
     consume_symbol(iter, "if")?;
     let results = parse_optional_signature_results_only(iter)?;
-    let test = parse_next_instruction_operand(iter, "if.test")?;
+    let test = parse_next_instruction_operand(iter, "instruction.if.test")?;
     // let locals = parse_optional_local_variables(iter)?;
-    let consequent = parse_next_instruction_operand(iter, "if.consequent")?;
-    let alternate = parse_next_instruction_operand(iter, "if.alternate")?;
+    let consequent = parse_next_instruction_operand(iter, "instruction.if.consequent")?;
+    let alternate = parse_next_instruction_operand(iter, "instruction.if.alternate")?;
     consume_right_paren(iter)?;
 
     Ok(Instruction::If {
@@ -1282,17 +1284,18 @@ fn parse_instruction_kind_branch(
     // ^     ^___// to here
     // |_________// current token
 
-    consume_left_paren(iter, "branch")?;
+    consume_left_paren(iter, "instruction.branch")?;
     consume_symbol(iter, "branch")?;
     let results = parse_optional_signature_results_only(iter)?;
     // let locals = parse_optional_local_variables(iter)?;
     let mut cases = vec![];
 
     while exist_child_node(iter, "case") {
-        consume_left_paren(iter, "case")?;
+        consume_left_paren(iter, "instruction.branch.case")?;
         consume_symbol(iter, "case")?;
-        let test = parse_next_instruction_operand(iter, "case")?;
-        let consequent = parse_next_instruction_operand(iter, "case")?;
+        let test = parse_next_instruction_operand(iter, "instruction.branch.case.test")?;
+        let consequent =
+            parse_next_instruction_operand(iter, "instruction.branch.case.consequent")?;
         consume_right_paren(iter)?;
 
         cases.push(BranchCase {
@@ -1303,9 +1306,9 @@ fn parse_instruction_kind_branch(
 
     let mut default = None;
     if exist_child_node(iter, "default") {
-        consume_left_paren(iter, "default")?;
+        consume_left_paren(iter, "instruction.branch.default")?;
         consume_symbol(iter, "default")?;
-        let consequent = parse_next_instruction_operand(iter, "default")?;
+        let consequent = parse_next_instruction_operand(iter, "instruction.branch.default")?;
         consume_right_paren(iter)?;
 
         default = Some(Box::new(consequent));
@@ -1329,11 +1332,11 @@ fn parse_instruction_kind_for(
     // ^                                                   ^___// to here
     // |_______________________________________________________// current token
 
-    consume_left_paren(iter, "for")?;
+    consume_left_paren(iter, "instruction.for")?;
     consume_symbol(iter, "for")?;
     let (params, results) = parse_optional_signature(iter)?;
     let locals = parse_optional_local_variables(iter)?;
-    let code = parse_next_instruction_operand(iter, "for (code)")?;
+    let code = parse_next_instruction_operand(iter, "instruction.for.code")?;
     consume_right_paren(iter)?;
 
     Ok(Instruction::For {
@@ -1353,9 +1356,9 @@ fn parse_instruction_kind_call_by_id(
     // ^                      ^____// to here
     // ____________________________// current token
 
-    consume_left_paren(iter, node_name)?;
+    consume_left_paren(iter, &format!("instruction.{}", node_name))?;
     consume_symbol(iter, node_name)?;
-    let name_path = expect_identifier(iter, node_name)?;
+    let name_path = expect_identifier(iter, &format!("instruction.{}.name", node_name))?;
 
     let mut args = vec![];
     while let Some(arg) = parse_next_instruction_optional(iter)? {
@@ -1384,13 +1387,13 @@ fn parse_instruction_kind_call_by_num(
     node_name: &str,
     is_envcall: bool,
 ) -> Result<Instruction, ParseError> {
-    // (envcall/syscall num ...) ...  //
+    // (envcall/syscall NUM ...) ...  //
     // ^                         ^____// to here
     // _______________________________// current token
 
     consume_left_paren(iter, node_name)?;
     consume_symbol(iter, node_name)?;
-    let number_token = expect_number(iter, node_name)?;
+    let number_token = expect_number(iter, &format!("instruction.{}.number", node_name))?;
     let num = parse_u32_string(&number_token)?;
 
     let mut args = vec![];
@@ -1412,14 +1415,15 @@ fn parse_instruction_kind_call_by_num(
 fn parse_instruction_kind_call_by_operand_num(
     iter: &mut PeekableIterator<Token>,
 ) -> Result<Instruction, ParseError> {
-    // (dyncall OPERAND_FOR_NUM ...) ...  //
-    // ^                             ^____// to here
-    // ___________________________________// current token
+    // (dyncall FUNC_INDEX ...) ...  //
+    // ^                        ^____// to here
+    // ______________________________// current token
 
-    consume_left_paren(iter, "dyncall")?;
+    consume_left_paren(iter, "instruction.dyncall")?;
     consume_symbol(iter, "dyncall")?;
 
-    let num = parse_next_instruction_operand(iter, "dyncall")?;
+    // function public index
+    let public_index = parse_next_instruction_operand(iter, "instruction.dyncall")?;
 
     let mut args = vec![];
     while let Some(arg) = parse_next_instruction_optional(iter)? {
@@ -1429,7 +1433,7 @@ fn parse_instruction_kind_call_by_operand_num(
     consume_right_paren(iter)?;
 
     Ok(Instruction::DynCall {
-        num: Box::new(num),
+        public_index: Box::new(public_index),
         args,
     })
 }
@@ -1443,7 +1447,7 @@ fn parse_instruction_kind_get_function_public_index(
 
     consume_left_paren(iter, "macro.get_function_public_index")?;
     consume_symbol(iter, "macro.get_function_public_index")?;
-    let id = expect_identifier(iter, "macro.get_function_public_index")?;
+    let id = expect_identifier(iter, "macro.get_function_public_index.name")?;
     consume_right_paren(iter)?;
 
     Ok(Instruction::MacroGetFunctionPublicIndex { id })
@@ -1456,13 +1460,13 @@ fn parse_instruction_kind_debug(
     // ^               ^____// to here
     // _____________________// current token
 
-    consume_left_paren(iter, "debug")?;
+    consume_left_paren(iter, "instruction.debug")?;
     consume_symbol(iter, "debug")?;
-    let number_token = expect_number(iter, "debug")?;
-    let num = parse_u32_string(&number_token)?;
+    let code_token = expect_number(iter, "instruction.debug.code")?;
+    let code = parse_u32_string(&code_token)?;
     consume_right_paren(iter)?;
 
-    Ok(Instruction::Debug(num))
+    Ok(Instruction::Debug { code })
 }
 
 fn parse_instruction_kind_unreachable(
@@ -1472,13 +1476,13 @@ fn parse_instruction_kind_unreachable(
     // ^                     ^____// to here
     // ___________________________// current token
 
-    consume_left_paren(iter, "unreachable")?;
+    consume_left_paren(iter, "instruction.unreachable")?;
     consume_symbol(iter, "unreachable")?;
-    let number_token = expect_number(iter, "unreachable")?;
-    let num = parse_u32_string(&number_token)?;
+    let code_token = expect_number(iter, "instruction.unreachable.code")?;
+    let code = parse_u32_string(&code_token)?;
     consume_right_paren(iter)?;
 
-    Ok(Instruction::Unreachable(num))
+    Ok(Instruction::Unreachable { code })
 }
 
 fn parse_instruction_kind_host_addr_function(
@@ -1488,9 +1492,9 @@ fn parse_instruction_kind_host_addr_function(
     // ^                            ^____// to here
     // __________________________________// current token
 
-    consume_left_paren(iter, "host.addr_function")?;
+    consume_left_paren(iter, "instruction.host.addr_function")?;
     consume_symbol(iter, "host.addr_function")?;
-    let id = expect_identifier(iter, "host.addr_function")?;
+    let id = expect_identifier(iter, "instruction.host.addr_function.name")?;
     consume_right_paren(iter)?;
 
     Ok(Instruction::HostAddrFunction { id })
@@ -1522,7 +1526,7 @@ fn parse_data_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNo
     consume_symbol(iter, "data")?;
 
     let export = expect_specified_symbol_optional(iter, "export");
-    let name = expect_identifier(iter, "data")?;
+    let name = expect_identifier(iter, "data.name")?;
     let data_kind = parse_data_kind_node(iter)?;
 
     consume_right_paren(iter)?;
@@ -1578,9 +1582,9 @@ fn parse_data_kind_node_read_only(
     // also:
     // (read_only string "Hello, World!")    ;; UTF-8 encoding string
     // (read_only cstring "Hello, World!")   ;; type `cstring` will append '\0' at the end of string
-    // (read_only (bytes ALIGN_NUMBER:i16) d"11-13-17-19")
+    // (read_only (bytes ALIGN:i16) d"11-13-17-19")
 
-    consume_left_paren(iter, "read_only")?;
+    consume_left_paren(iter, "data.read_only")?;
     consume_symbol(iter, "read_only")?;
 
     let inited_data = parse_inited_data(iter)?;
@@ -1600,9 +1604,9 @@ fn parse_data_kind_node_read_write(
     // also:
     // (read_write string "Hello, World!")    ;; UTF-8 encoding string
     // (read_write cstring "Hello, World!")   ;; type `cstring` will append '\0' at the end of string
-    // (read_write (bytes ALIGN_NUMBER:i16) d"11-13-17-19")
+    // (read_write (bytes ALIGN:i16) d"11-13-17-19")
 
-    consume_left_paren(iter, "read_write")?;
+    consume_left_paren(iter, "data.read_write")?;
     consume_symbol(iter, "read_write")?;
 
     let inited_data = parse_inited_data(iter)?;
@@ -1622,7 +1626,7 @@ fn parse_data_kind_node_uninit(
     // also:
     // (uninit (bytes 12 4))
 
-    consume_left_paren(iter, "uninit")?;
+    consume_left_paren(iter, "data.uninit")?;
     consume_symbol(iter, "uninit")?;
 
     let (memory_data_type, data_length, align) = parse_memory_data_type(iter)?;
@@ -1645,12 +1649,12 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
     // also:
     // (read_write string "Hello, World!")    ;; UTF-8 encoding string
     // (read_write cstring "Hello, World!")   ;; type `cstring` will append '\0' at the end of string
-    // (read_write (bytes ALIGN_NUMBER:i16) d"11-13-17-19")
+    // (read_write (bytes ALIGN:i16) d"11-13-17-19")
 
     let inited_data = match iter.next() {
         Some(Token::Symbol(inited_data_type)) => match inited_data_type.as_str() {
             "i32" => {
-                let value_token = expect_number(iter, "data")?;
+                let value_token = expect_number(iter, "data.i32.value")?;
                 let value = parse_u32_string(&value_token)?;
                 let bytes = value.to_le_bytes().to_vec();
 
@@ -1662,7 +1666,7 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
                 }
             }
             "i64" => {
-                let value_token = expect_number(iter, "data")?;
+                let value_token = expect_number(iter, "data.i64.value")?;
                 let value = parse_u64_string(&value_token)?;
                 let bytes = value.to_le_bytes().to_vec();
 
@@ -1674,7 +1678,7 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
                 }
             }
             "f32" => {
-                let value_token = expect_number(iter, "data")?;
+                let value_token = expect_number(iter, "data.f32.value")?;
                 let value = parse_f32_string(&value_token)?;
                 let bytes = value.to_le_bytes().to_vec();
 
@@ -1686,7 +1690,7 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
                 }
             }
             "f64" => {
-                let value_token = expect_number(iter, "data")?;
+                let value_token = expect_number(iter, "data.f64.value")?;
                 let value = parse_f64_string(&value_token)?;
                 let bytes = value.to_le_bytes().to_vec();
 
@@ -1698,7 +1702,7 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
                 }
             }
             "string" => {
-                let value = expect_string(iter, "data")?;
+                let value = expect_string(iter, "data.string.value")?;
                 let bytes = value.as_bytes().to_vec();
                 InitedData {
                     memory_data_type: MemoryDataType::Bytes,
@@ -1708,7 +1712,7 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
                 }
             }
             "cstring" => {
-                let value = expect_string(iter, "data")?;
+                let value = expect_string(iter, "data.cstring.value")?;
                 let mut bytes = value.as_bytes().to_vec();
                 bytes.push(0); // append '\0'
 
@@ -1729,16 +1733,16 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
         Some(Token::LeftParen)
             if iter.look_ahead_equals(0, &Token::Symbol("bytes".to_string())) =>
         {
-            // (bytes ALIGH_NUMBER:i16) DATA ...  //
+            // (bytes ALIGH:i16) DATA ...  //
             //  ^                            ^____//
             //  |_________________________________//
 
             consume_symbol(iter, "bytes")?;
-            let align_token = expect_number(iter, "bytes")?;
+            let align_token = expect_number(iter, "data.bytes.align")?;
             let align = parse_u16_string(&align_token)?;
             consume_right_paren(iter)?;
 
-            let bytes = expect_bytes(iter, "data")?;
+            let bytes = expect_bytes(iter, "data.bytes.value")?;
 
             InitedData {
                 memory_data_type: MemoryDataType::Bytes,
@@ -1809,10 +1813,10 @@ fn parse_external_library_node(
     // (library system "libc.so.6")
     // (library user "lib-test-0.so.1")
 
-    consume_left_paren(iter, "library")?;
+    consume_left_paren(iter, "external.library")?;
     consume_symbol(iter, "library")?;
 
-    let external_library_type_str = expect_symbol(iter, "library")?;
+    let external_library_type_str = expect_symbol(iter, "external.library.type")?;
     let external_library_type = match external_library_type_str.as_str() {
         "share" => ExternalLibraryType::Share,
         "system" => ExternalLibraryType::System,
@@ -1824,7 +1828,7 @@ fn parse_external_library_node(
         }
     };
 
-    let name = expect_string(iter, "library")?;
+    let name = expect_string(iter, "external.library.name")?;
     consume_right_paren(iter)?;
 
     Ok(ExternalLibraryNode {
@@ -1848,8 +1852,8 @@ fn parse_external_function_node(
     consume_left_paren(iter, "external.function)")?;
     consume_symbol(iter, "function")?;
 
-    let id = expect_identifier(iter, "external.function")?;
-    let name = expect_string(iter, "external.function")?;
+    let id = expect_identifier(iter, "external.function.id")?;
+    let name = expect_string(iter, "external.function.name")?;
     let (params, results) = parse_optional_simplified_signature(iter)?;
 
     consume_right_paren(iter)?;
@@ -2044,10 +2048,10 @@ fn parse_import_function_node(
     consume_left_paren(iter, "import.function)")?;
     consume_symbol(iter, "function")?;
 
-    let id = expect_identifier(iter, "import.function")?;
+    let id = expect_identifier(iter, "import.function.id")?;
 
     // the original exported name path (excludes the module name)
-    let name_path = expect_string(iter, "import.function")?;
+    let name_path = expect_string(iter, "import.function.name")?;
 
     let (params, results) = parse_optional_simplified_signature(iter)?;
 
@@ -2082,10 +2086,10 @@ fn parse_import_data_node(iter: &mut PeekableIterator<Token>) -> Result<ImportIt
     consume_left_paren(iter, "import.data)")?;
     consume_symbol(iter, "data")?;
 
-    let id = expect_identifier(iter, "import.data")?;
+    let id = expect_identifier(iter, "import.data.id")?;
 
     // the original exported name path (excludes the module name)
-    let name_path = expect_string(iter, "import.data")?;
+    let name_path = expect_string(iter, "import.data.name")?;
     let data_kind_node = parse_simplified_data_kind_node(iter)?;
 
     consume_right_paren(iter)?;
@@ -2119,7 +2123,7 @@ fn parse_simplified_data_kind_node(
 
     consume_left_paren(iter, "import.data.kind")?;
     let kind = expect_symbol(iter, "import.data.kind")?;
-    let memory_data_type_str = expect_symbol(iter, "import.data.memory_data_type")?;
+    let memory_data_type_str = expect_symbol(iter, "import.data.type")?;
     consume_right_paren(iter)?;
 
     let memory_data_type = parse_simplified_memory_data_type(&memory_data_type_str)?;
@@ -2190,18 +2194,10 @@ fn consume_left_paren(
     iter: &mut PeekableIterator<Token>,
     for_what: &str,
 ) -> Result<(), ParseError> {
-    let opt_token = iter.next();
-    if let Some(token) = opt_token {
-        if token == Token::LeftParen {
-            Ok(())
-        } else {
-            Err(ParseError::new(&format!("Expect a node for {}", for_what)))
-        }
+    if let Some(Token::LeftParen) = iter.next() {
+        Ok(())
     } else {
-        Err(ParseError::new(&format!(
-            "Missing a node for: {}",
-            for_what
-        )))
+        Err(ParseError::new(&format!("Expect a node for {}", for_what)))
     }
 }
 
@@ -2228,16 +2224,12 @@ fn expect_number(
 
 fn expect_number_optional(iter: &mut PeekableIterator<Token>) -> Option<NumberToken> {
     match iter.peek(0) {
-        Some(token) => {
-            if let Token::Number(number_token) = token {
-                let number_token_clone = number_token.to_owned();
-                iter.next();
-                Some(number_token_clone)
-            } else {
-                None
-            }
+        Some(Token::Number(n)) => {
+            let value = n.to_owned();
+            iter.next();
+            Some(value)
         }
-        None => None,
+        _ => None,
     }
 }
 
@@ -2312,9 +2304,9 @@ fn exist_child_node(iter: &mut PeekableIterator<Token>, child_node_name: &str) -
     }
 }
 
-fn get_instruction_kind(inst_name: &str) -> Option<&InstructionKind> {
+fn get_instruction_kind(inst_name: &str) -> Option<&InstructionSyntaxKind> {
     unsafe {
-        if let Some(table_ref) = &INSTRUCTION_KIND_TABLE {
+        if let Some(table_ref) = &INSTRUCTION_MAP {
             table_ref.get(inst_name)
         } else {
             panic!("The instruction table is not initialized yet.")
@@ -2506,8 +2498,8 @@ mod tests {
                 name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                constructor_function_name: None,
-                destructor_function_name: None,
+                constructor_function_name_path: None,
+                destructor_function_name_path: None,
                 element_nodes: vec![]
             }
         );
@@ -2527,8 +2519,8 @@ mod tests {
                 name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 2,
-                constructor_function_name: Some("abc".to_string()),
-                destructor_function_name: Some("xyz".to_string()),
+                constructor_function_name_path: Some("abc".to_string()),
+                destructor_function_name_path: Some("xyz".to_string()),
                 element_nodes: vec![]
             }
         );
@@ -2580,8 +2572,8 @@ mod tests {
                 name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                constructor_function_name: None,
-                destructor_function_name: None,
+                constructor_function_name_path: None,
+                destructor_function_name_path: None,
                 element_nodes: vec![ModuleElementNode::FunctionNode(FunctionNode {
                     name: "add".to_owned(),
                     export: false,
@@ -2621,8 +2613,8 @@ mod tests {
                 name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                constructor_function_name: None,
-                destructor_function_name: None,
+                constructor_function_name_path: None,
+                destructor_function_name_path: None,
                 element_nodes: vec![ModuleElementNode::FunctionNode(FunctionNode {
                     name: "add".to_owned(),
                     export: false,
@@ -2659,8 +2651,8 @@ mod tests {
                 name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                constructor_function_name: None,
-                destructor_function_name: None,
+                constructor_function_name_path: None,
+                destructor_function_name_path: None,
                 element_nodes: vec![ModuleElementNode::FunctionNode(FunctionNode {
                     name: "add".to_owned(),
                     export: true,
@@ -2732,8 +2724,8 @@ mod tests {
                 name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                constructor_function_name: None,
-                destructor_function_name: None,
+                constructor_function_name_path: None,
+                destructor_function_name_path: None,
                 element_nodes: vec![ModuleElementNode::FunctionNode(FunctionNode {
                     name: "add".to_owned(),
                     export: false,
@@ -2947,13 +2939,13 @@ mod tests {
                 // 11 == 0
                 Instruction::UnaryOp {
                     opcode: Opcode::i32_eqz,
-                    number: Box::new(Instruction::ImmI32(11))
+                    source: Box::new(Instruction::ImmI32(11))
                 },
                 // 13 + 1
-                Instruction::UnaryOpParamI16 {
+                Instruction::UnaryOpWithImmI16 {
                     opcode: Opcode::i32_inc,
-                    amount: 1,
-                    number: Box::new(Instruction::ImmI32(13))
+                    imm: 1,
+                    source: Box::new(Instruction::ImmI32(13))
                 },
                 // 17 + 19
                 Instruction::BinaryOp {
@@ -3432,7 +3424,7 @@ mod tests {
                     BranchCase {
                         test: Box::new(Instruction::UnaryOp {
                             opcode: Opcode::i32_not,
-                            number: Box::new(noparams_nooperands(Opcode::zero))
+                            source: Box::new(noparams_nooperands(Opcode::zero))
                         }),
                         consequent: Box::new(Instruction::ImmI32(17))
                     }
@@ -3544,10 +3536,10 @@ mod tests {
                         opcode: Opcode::local_store32,
                         name: "n".to_owned(),
                         offset: 0,
-                        value: Box::new(Instruction::UnaryOpParamI16 {
+                        value: Box::new(Instruction::UnaryOpWithImmI16 {
                             opcode: Opcode::i32_dec,
-                            amount: 1,
-                            number: Box::new(Instruction::LocalLoad {
+                            imm: 1,
+                            source: Box::new(Instruction::LocalLoad {
                                 opcode: Opcode::local_load32_i32,
                                 name: "n".to_owned(),
                                 offset: 0
@@ -3648,8 +3640,8 @@ mod tests {
                 name_path: "lib".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                constructor_function_name: None,
-                destructor_function_name: None,
+                constructor_function_name_path: None,
+                destructor_function_name_path: None,
                 element_nodes: vec![ModuleElementNode::FunctionNode(FunctionNode {
                     name: "test".to_owned(),
                     export: false,
@@ -3670,10 +3662,10 @@ mod tests {
                             opcode: Opcode::local_store32,
                             name: "n".to_owned(),
                             offset: 0,
-                            value: Box::new(Instruction::UnaryOpParamI16 {
+                            value: Box::new(Instruction::UnaryOpWithImmI16 {
                                 opcode: Opcode::i32_dec,
-                                amount: 1,
-                                number: Box::new(Instruction::LocalLoad {
+                                imm: 1,
+                                source: Box::new(Instruction::LocalLoad {
                                     opcode: Opcode::local_load32_i32,
                                     name: "n".to_owned(),
                                     offset: 0
@@ -3775,7 +3767,7 @@ mod tests {
                     args: vec![Instruction::ImmI32(11), Instruction::ImmI32(13),]
                 },
                 Instruction::DynCall {
-                    num: Box::new(Instruction::LocalLoad {
+                    public_index: Box::new(Instruction::LocalLoad {
                         opcode: Opcode::local_load32_i32,
                         name: "filter".to_owned(),
                         offset: 0
@@ -3863,8 +3855,8 @@ mod tests {
             ),
             vec![
                 noparams_nooperands(Opcode::panic),
-                Instruction::Unreachable(0x11),
-                Instruction::Debug(0x13),
+                Instruction::Unreachable { code: 0x11 },
+                Instruction::Debug { code: 0x13 },
                 Instruction::LocalLoad {
                     opcode: Opcode::host_addr_local,
                     name: "num".to_owned(),
@@ -3935,8 +3927,8 @@ mod tests {
                 name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                constructor_function_name: None,
-                destructor_function_name: None,
+                constructor_function_name_path: None,
+                destructor_function_name_path: None,
                 element_nodes: vec![
                     ModuleElementNode::DataNode(DataNode {
                         name: "d0".to_owned(),
@@ -4028,8 +4020,8 @@ mod tests {
                 name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                constructor_function_name: None,
-                destructor_function_name: None,
+                constructor_function_name_path: None,
+                destructor_function_name_path: None,
                 element_nodes: vec![
                     ModuleElementNode::DataNode(DataNode {
                         name: "d0".to_owned(),
@@ -4080,8 +4072,8 @@ mod tests {
                 name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                constructor_function_name: None,
-                destructor_function_name: None,
+                constructor_function_name_path: None,
+                destructor_function_name_path: None,
                 element_nodes: vec![
                     ModuleElementNode::DataNode(DataNode {
                         name: "d0".to_owned(),
@@ -4206,8 +4198,8 @@ mod tests {
                 name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                constructor_function_name: None,
-                destructor_function_name: None,
+                constructor_function_name_path: None,
+                destructor_function_name_path: None,
                 element_nodes: vec![
                     ModuleElementNode::DataNode(DataNode {
                         name: "d0".to_owned(),
@@ -4273,8 +4265,8 @@ mod tests {
                 name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                constructor_function_name: None,
-                destructor_function_name: None,
+                constructor_function_name_path: None,
+                destructor_function_name_path: None,
                 element_nodes: vec![
                     ModuleElementNode::DataNode(DataNode {
                         name: "d0".to_owned(),
@@ -4349,8 +4341,8 @@ mod tests {
                 name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                constructor_function_name: None,
-                destructor_function_name: None,
+                constructor_function_name_path: None,
+                destructor_function_name_path: None,
                 element_nodes: vec![
                     ModuleElementNode::ExternalNode(ExternalNode {
                         external_library_node: ExternalLibraryNode {
@@ -4506,8 +4498,8 @@ mod tests {
                 name_path: "app".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                constructor_function_name: None,
-                destructor_function_name: None,
+                constructor_function_name_path: None,
+                destructor_function_name_path: None,
                 element_nodes: vec![
                     ModuleElementNode::ImportNode(ImportNode {
                         import_module_node: ImportModuleNode {

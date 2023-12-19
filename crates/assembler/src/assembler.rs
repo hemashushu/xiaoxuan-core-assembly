@@ -524,7 +524,7 @@ pub fn assemble_merged_module_node(
 
     // find the public index of constructor and destructor
     let constructor_function_public_index =
-        if let Some(function_name) = &merged_module_node.constructor_function_name {
+        if let Some(function_name) = &merged_module_node.constructor_function_name_path {
             let entry_opt = function_name_entries
                 .iter()
                 .find(|entry| &entry.name_path == function_name);
@@ -544,7 +544,7 @@ pub fn assemble_merged_module_node(
         };
 
     let destructor_function_public_index =
-        if let Some(function_name) = &merged_module_node.destructor_function_name {
+        if let Some(function_name) = &merged_module_node.destructor_function_name_path {
             let entry_opt = function_name_entries
                 .iter()
                 .find(|entry| &entry.name_path == function_name);
@@ -1165,7 +1165,10 @@ fn assemble_instruction(
             // bytecode: (param offset_bytes:i16)
             bytecode_writer.write_opcode_i16(*opcode, *offset);
         }
-        Instruction::UnaryOp { opcode, number } => {
+        Instruction::UnaryOp {
+            opcode,
+            source: number,
+        } => {
             assemble_instruction(
                 number,
                 identifier_lookup_table,
@@ -1177,10 +1180,10 @@ fn assemble_instruction(
 
             bytecode_writer.write_opcode(*opcode);
         }
-        Instruction::UnaryOpParamI16 {
+        Instruction::UnaryOpWithImmI16 {
             opcode,
-            amount,
-            number,
+            imm: amount,
+            source: number,
         } => {
             assemble_instruction(
                 number,
@@ -1736,7 +1739,10 @@ fn assemble_instruction(
             let function_public_index = identifier_lookup_table.get_function_public_index(id)?;
             bytecode_writer.write_opcode_i32(Opcode::call, function_public_index as u32);
         }
-        Instruction::DynCall { num, args } => {
+        Instruction::DynCall {
+            public_index: num,
+            args,
+        } => {
             for instruction in args {
                 assemble_instruction(
                     instruction,
@@ -1810,10 +1816,10 @@ fn assemble_instruction(
             let function_public_index = identifier_lookup_table.get_function_public_index(id)?;
             bytecode_writer.write_opcode_i32(Opcode::i32_imm, function_public_index as u32);
         }
-        Instruction::Debug(code) => {
+        Instruction::Debug { code } => {
             bytecode_writer.write_opcode_i32(Opcode::debug, *code);
         }
-        Instruction::Unreachable(code) => {
+        Instruction::Unreachable { code } => {
             bytecode_writer.write_opcode_i32(Opcode::unreachable, *code);
         }
         Instruction::HostAddrFunction { id } => {

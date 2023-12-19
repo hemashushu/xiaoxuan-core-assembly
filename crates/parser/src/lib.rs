@@ -9,7 +9,7 @@ use std::{any::Any, fmt::Display};
 use ancvm_types::VMError;
 
 pub mod ast;
-pub mod instruction_kind;
+pub mod core_assembly_instruction;
 pub mod lexer;
 pub mod parser;
 pub mod peekable_iterator;

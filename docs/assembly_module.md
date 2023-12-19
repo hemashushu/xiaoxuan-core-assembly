@@ -138,7 +138,7 @@ local variable data types:
 
 bytes syntax:
 
-(bytes DATA_LENGTH_NUMBER:i32 ALIGN_NUMBER:i16)
+(bytes DATA_LENGTH:i32 ALIGN:i16)
 
 e.g.
 
@@ -156,16 +156,15 @@ add 'export' annotation after the function name.
 ## The `data` node
 
 (data $name (read_only i32 123))
+(data $name (read_only i32 0xaabb_ccdd))
+(data $name (read_only i32 0b1010_0101))
 (data $name (read_only i64 123_456))
 (data $name (read_only f32 3.1415927))
+(data $name (read_only f32 0x1.23p4))
 (data $name (read_only f64 2.718281828459045))
-(data $name (read_only i32 0xaabb_ccdd))
-(data $name (read_only f32 0xdb0f_4940))    ;; Pi
-(data $name (read_only i32 0b1010_0101))
-
 ;; data
-(data $name (read_only (bytes ALIGN_NUMBER:i16) d"11-13-17-19"))
-(data $name (read_write (bytes ALIGN_NUMBER:i16) d"11-13-17-19"))
+(data $name (read_only (bytes ALIGN:i16) d"11-13-17-19"))
+(data $name (read_write (bytes ALIGN:i16) d"11-13-17-19"))
 
 there are two variants of 'bytes': 'string' and 'cstring', e.g.
 
@@ -185,7 +184,7 @@ read-write section:
 uninitialized section:
 (data $name (uninit i32))
 (data $name (uninit (bytes 12 4)))
-(data $name (uninit (bytes DATA_LENGTH_NUMBER:i32 ALIGN_NUMBER:i16)))
+(data $name (uninit (bytes DATA_LENGTH:i32 ALIGN:i16)))
 
 with 'export' annotation
 (data $name export (read_only i32 123))

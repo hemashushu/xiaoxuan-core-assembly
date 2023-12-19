@@ -39,8 +39,8 @@ fn test_assemble_envcall_time_now() {
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     let results0 = result0.unwrap();
 
-    let secs = results0[0].as_u64();
-    let nanos = results0[1].as_u32();
+    let secs = results0[0].as_u64().unwrap();
+    let nanos = results0[1].as_u32().unwrap();
     let dur_before = Duration::new(secs, nanos);
 
     let mut t: timespec = timespec {

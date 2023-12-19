@@ -131,8 +131,8 @@ pub struct MergedModuleNode {
     pub runtime_version_major: u16,
     pub runtime_version_minor: u16,
 
-    pub constructor_function_name: Option<String>,
-    pub destructor_function_name: Option<String>,
+    pub constructor_function_name_path: Option<String>,
+    pub destructor_function_name_path: Option<String>,
 
     pub function_nodes: Vec<CanonicalFunctionNode>,
     pub read_only_data_nodes: Vec<CanonicalDataNode>,
@@ -229,8 +229,8 @@ pub fn merge_and_canonicalize_submodule_nodes(
     let name = submodule_nodes[0].name_path.clone();
     let runtime_version_major = submodule_nodes[0].runtime_version_major;
     let runtime_version_minor = submodule_nodes[0].runtime_version_minor;
-    let constructor_function_name = submodule_nodes[0].constructor_function_name.clone();
-    let destructor_function_name = submodule_nodes[0].destructor_function_name.clone();
+    let constructor_function_name = submodule_nodes[0].constructor_function_name_path.clone();
+    let destructor_function_name = submodule_nodes[0].destructor_function_name_path.clone();
 
     // check submodules name path and runtime version
 
@@ -661,8 +661,8 @@ pub fn merge_and_canonicalize_submodule_nodes(
         name,
         runtime_version_major,
         runtime_version_minor,
-        constructor_function_name,
-        destructor_function_name,
+        constructor_function_name_path: constructor_function_name,
+        destructor_function_name_path: destructor_function_name,
         function_nodes: canonical_function_nodes,
         read_only_data_nodes: canonical_read_only_data_nodes,
         read_write_data_nodes: canonical_read_write_data_nodes,
@@ -924,22 +924,25 @@ fn canonicalize_identifiers_of_instruction(
                 rename_item_modules,
             )?),
         },
-        Instruction::UnaryOp { opcode, number } => Instruction::UnaryOp {
+        Instruction::UnaryOp {
+            opcode,
+            source: number,
+        } => Instruction::UnaryOp {
             opcode: *opcode,
-            number: Box::new(canonicalize_identifiers_of_instruction(
+            source: Box::new(canonicalize_identifiers_of_instruction(
                 number,
                 module_name_path,
                 rename_item_modules,
             )?),
         },
-        Instruction::UnaryOpParamI16 {
+        Instruction::UnaryOpWithImmI16 {
             opcode,
-            amount,
-            number,
-        } => Instruction::UnaryOpParamI16 {
+            imm: amount,
+            source: number,
+        } => Instruction::UnaryOpWithImmI16 {
             opcode: *opcode,
-            amount: *amount,
-            number: Box::new(canonicalize_identifiers_of_instruction(
+            imm: *amount,
+            source: Box::new(canonicalize_identifiers_of_instruction(
                 number,
                 module_name_path,
                 rename_item_modules,
@@ -1098,8 +1101,11 @@ fn canonicalize_identifiers_of_instruction(
                 rename_item_modules,
             )?,
         },
-        Instruction::DynCall { num, args } => Instruction::DynCall {
-            num: Box::new(canonicalize_identifiers_of_instruction(
+        Instruction::DynCall {
+            public_index: num,
+            args,
+        } => Instruction::DynCall {
+            public_index: Box::new(canonicalize_identifiers_of_instruction(
                 num,
                 module_name_path,
                 rename_item_modules,
@@ -1142,8 +1148,8 @@ fn canonicalize_identifiers_of_instruction(
                 rename_item_modules,
             )?,
         },
-        Instruction::Debug(_) => instruction.clone(),
-        Instruction::Unreachable(_) => instruction.clone(),
+        Instruction::Debug { .. } => instruction.clone(),
+        Instruction::Unreachable { .. } => instruction.clone(),
         Instruction::HostAddrFunction { id } => Instruction::HostAddrFunction {
             id: canonicalize_name_path_in_instruction(
                 RenameKind::Function,
@@ -1328,8 +1334,8 @@ mod tests {
                 name: "myapp".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                constructor_function_name: None,
-                destructor_function_name: None,
+                constructor_function_name_path: None,
+                destructor_function_name_path: None,
                 function_nodes: vec![
                     CanonicalFunctionNode {
                         id: "myapp::entry".to_owned(),
@@ -1399,8 +1405,8 @@ mod tests {
                 name: "myapp".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                constructor_function_name: None,
-                destructor_function_name: None,
+                constructor_function_name_path: None,
+                destructor_function_name_path: None,
                 function_nodes: vec![],
                 read_only_data_nodes: vec![CanonicalDataNode {
                     id: "myapp::code".to_owned(),
@@ -1482,8 +1488,8 @@ mod tests {
                 name: "myapp".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                constructor_function_name: None,
-                destructor_function_name: None,
+                constructor_function_name_path: None,
+                destructor_function_name_path: None,
                 function_nodes: vec![
                     CanonicalFunctionNode {
                         id: "myapp::add".to_owned(),
@@ -1631,8 +1637,8 @@ mod tests {
                 name: "myapp".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                constructor_function_name: None,
-                destructor_function_name: None,
+                constructor_function_name_path: None,
+                destructor_function_name_path: None,
                 function_nodes: vec![
                     CanonicalFunctionNode {
                         id: "myapp::test".to_owned(),
@@ -1829,8 +1835,8 @@ mod tests {
                 name: "myapp".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                constructor_function_name: None,
-                destructor_function_name: None,
+                constructor_function_name_path: None,
+                destructor_function_name_path: None,
                 function_nodes: vec![
                     CanonicalFunctionNode {
                         id: "myapp::test".to_owned(),
@@ -2081,8 +2087,8 @@ mod tests {
                 name: "myapp".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                constructor_function_name: None,
-                destructor_function_name: None,
+                constructor_function_name_path: None,
+                destructor_function_name_path: None,
                 function_nodes: vec![
                     CanonicalFunctionNode {
                         id: "myapp::test".to_owned(),
@@ -2335,8 +2341,8 @@ mod tests {
                 name: "myapp".to_owned(),
                 runtime_version_major: 1,
                 runtime_version_minor: 0,
-                constructor_function_name: None,
-                destructor_function_name: None,
+                constructor_function_name_path: None,
+                destructor_function_name_path: None,
                 function_nodes: vec![
                     CanonicalFunctionNode {
                         id: "myapp::test".to_owned(),
