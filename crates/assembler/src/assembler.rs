@@ -2137,7 +2137,7 @@ mod tests {
                 )
                 (data $seed "seed" (read_only i32))
             )
-            (data $buf (read_write (bytes 2) d"11131719"))
+            (data $buf (read_write (bytes 2) h"11131719"))
             (function export $add
                 (param $left i32) (param $right i32)
                 (result i64)

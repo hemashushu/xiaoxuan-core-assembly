@@ -476,12 +476,17 @@ wrapping dec, e.g. 0x1 dec 2 = 0xffff_ffff
 
 (host.addr_function $name)
 
-(host.copy_from_heap
+(host.copy_heap_to_memory
     DST_POINTER_I64
     SRC_OFFSET_I64
     LENGTH_IN_BYTES_I64)
 
-(host.copy_to_heap
+(host.copy_memory_to_heap
     DST_OFFSET_I64
+    SRC_POINTER_I64
+    LENGTH_IN_BYTES_I64)
+
+(host.memory_copy
+    DST_POINTER_I64
     SRC_POINTER_I64
     LENGTH_IN_BYTES_I64)

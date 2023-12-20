@@ -163,8 +163,8 @@ add 'export' annotation after the function name.
 (data $name (read_only f32 0x1.23p4))
 (data $name (read_only f64 2.718281828459045))
 ;; data
-(data $name (read_only (bytes ALIGN:i16) d"11-13-17-19"))
-(data $name (read_write (bytes ALIGN:i16) d"11-13-17-19"))
+(data $name (read_only (bytes ALIGN:i16) h"11-13-17-19"))
+(data $name (read_write (bytes ALIGN:i16) h"11-13-17-19"))
 
 there are two variants of 'bytes': 'string' and 'cstring', e.g.
 

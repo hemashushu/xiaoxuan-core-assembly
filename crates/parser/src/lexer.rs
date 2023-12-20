@@ -49,7 +49,7 @@ pub fn lex(iter: &mut PeekableIterator<char>) -> Result<Vec<Token>, ParseError> 
             '0'..='9' | '+' | '-' => {
                 tokens.push(lex_number(iter)?);
             }
-            'd' if iter.look_ahead_equals(1, &'"') => {
+            'h' if iter.look_ahead_equals(1, &'"') => {
                 tokens.push(lex_bytes_data(iter)?);
             }
             'r' if iter.look_ahead_equals(1, &'"') => {
@@ -657,14 +657,14 @@ fn lex_paragraph_string(iter: &mut PeekableIterator<char>) -> Result<Token, Pars
 }
 
 fn lex_bytes_data(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError> {
-    // b"0011aabb"?  //
+    // h"0011aabb"?  //
     // ^          ^__// to here
     // |_____________// current char
 
     let mut bytes: Vec<u8> = Vec::new();
     let mut byte_buf = String::with_capacity(2);
 
-    iter.next(); // consume char 'b'
+    iter.next(); // consume char 'h'
     iter.next(); // consume quote '"'
 
     loop {
@@ -1416,7 +1416,7 @@ mod tests {
         assert_eq!(
             lex_from_str(
                 r#"
-            d""
+            h""
             "#
             )
             .unwrap(),
@@ -1426,7 +1426,7 @@ mod tests {
         assert_eq!(
             lex_from_str(
                 r#"
-            d"11131719"
+            h"11131719"
             "#
             )
             .unwrap(),
@@ -1436,7 +1436,7 @@ mod tests {
         assert_eq!(
             lex_from_str(
                 r#"
-            d"11 13 1719"
+            h"11 13 1719"
             "#
             )
             .unwrap(),
@@ -1446,7 +1446,7 @@ mod tests {
         assert_eq!(
             lex_from_str(
                 r#"
-            d"11-13-1719"
+            h"11-13-1719"
             "#
             )
             .unwrap(),
@@ -1456,7 +1456,7 @@ mod tests {
         assert_eq!(
             lex_from_str(
                 r#"
-            d"11:13:1719"
+            h"11:13:1719"
             "#
             )
             .unwrap(),
@@ -1466,7 +1466,7 @@ mod tests {
         assert_eq!(
             lex_from_str(
                 "
-            d\"1113\n17\t19\"
+            h\"1113\n17\t19\"
             "
             )
             .unwrap(),
@@ -1477,7 +1477,7 @@ mod tests {
         assert!(matches!(
             lex_from_str(
                 r#"
-            d"1113171"
+            h"1113171"
             "#
             ),
             Err(ParseError { message: _ })
@@ -1487,7 +1487,7 @@ mod tests {
         assert!(matches!(
             lex_from_str(
                 r#"
-            d"1113171z"
+            h"1113171z"
             "#
             ),
             Err(ParseError { message: _ })
@@ -1497,7 +1497,7 @@ mod tests {
         assert!(matches!(
             lex_from_str(
                 r#"
-            d"11131719
+            h"11131719
             "#
             ),
             Err(ParseError { message: _ })

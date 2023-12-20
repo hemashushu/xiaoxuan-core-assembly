@@ -182,15 +182,15 @@ In the above example, since there are 4 leading space characters in the first li
 
 ## Byte Data
 
-Byte data is used to represent a piece of binary data in memory or on the storage, starting with the letter `d` followed by a pair of double quotes. Inside the quotes is the content of the data, which uses two letters `[0-9a-zA-Z]` to represent a byte, and the characters `[ -:\t\r\n]` are ignored in the content. For example, the following represents the same 4-byte data:
+Byte data is used to represent a piece of binary data in memory or on the storage, starting with the letter `h` followed by a pair of double quotes. Inside the quotes is the content of the data, which uses two letters `[0-9a-zA-Z]` to represent a byte, and the characters `[ -:\t\r\n]` are ignored in the content. For example, the following represents the same 4-byte data:
 
 ```text
-d"0011aabb",
-d"0011AABB",
-d"00 11 aa bb",
-d"00-11-aa-bb",
-d"00:11:aa:bb",
-d"00 11
+h"0011aabb",
+h"0011AABB",
+h"00 11 aa bb",
+h"00-11-aa-bb",
+h"00:11:aa:bb",
+h"00 11
   aa bb"
 ```
 

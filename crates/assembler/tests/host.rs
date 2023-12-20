@@ -319,8 +319,8 @@ fn test_assemble_host_address_long_of_data_and_local_vars() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (data $d0 (read_only (bytes 8) d"02-03-05-07"))
-            (data $d1 (read_only (bytes 8) d"11-13-17-19"))
+            (data $d0 (read_only (bytes 8) h"02-03-05-07"))
+            (data $d1 (read_only (bytes 8) h"11-13-17-19"))
             (function $test
                 (results i64 i64 i64 i64 i64 i64 i64 i64)
                 (local $reserved (bytes 64 8))
@@ -538,18 +538,72 @@ fn test_assemble_host_heap_copy() {
                         (heap.resize (i32.imm 1))
                     )
 
-                    ;; (host.copy_to_heap dst_offset src_ptr length)
-                    ;; (host.copy_from_heap dst_ptr src_offset length)
+                    ;; (host.copy_memory_to_heap dst_offset src_ptr length)
+                    ;; (host.copy_heap_to_memory dst_ptr src_offset length)
 
-                    (host.copy_to_heap
+                    (host.copy_memory_to_heap
                         (i64.imm 0x100)
                         (local.load64_i64 $src_ptr)
                         (i64.imm 8)
                     )
 
-                    (host.copy_from_heap
+                    (host.copy_heap_to_memory
                         (local.load64_i64 $dst_ptr)
                         (i64.imm 0x100)
+                        (i64.imm 8)
+                    )
+                )
+            )
+        )
+        "#,
+    );
+
+    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
+    let program0 = program_source0.build_program().unwrap();
+    let mut thread_context0 = program0.create_thread_context();
+
+    let src_buf: &[u8; 8] = b"hello.vm";
+    let dst_buf: [u8; 8] = [0; 8];
+
+    let src_ptr = src_buf.as_ptr();
+    let dst_ptr = dst_buf.as_ptr();
+
+    let result0 = process_function(
+        &mut thread_context0,
+        0,
+        0,
+        &[
+            ForeignValue::U64(src_ptr as usize as u64),
+            ForeignValue::U64(dst_ptr as usize as u64),
+        ],
+    );
+    result0.unwrap();
+
+    assert_eq!(&dst_buf, b"hello.vm");
+}
+
+#[test]
+fn test_assemble_host_memory_copy() {
+    // fn(src_ptr, dst_ptr) -> ()
+
+    // copy src_ptr -> dst_ptr
+    //
+    // src_ptr                  dst_ptr
+    // host |01234567|      --> host |01234567|
+
+    let module_binary = helper_generate_module_image_binary_from_str(
+        r#"
+        (module $app
+            (runtime_version "1.0")
+            (function $test
+                (param $src_ptr i64)
+                (param $dst_ptr i64)
+                (code
+                    ;; (host.memory_copy dst_ptr src_ptr length)
+
+                    (host.memory_copy
+                        (local.load64_i64 $dst_ptr)
+                        (local.load64_i64 $src_ptr)
                         (i64.imm 8)
                     )
                 )

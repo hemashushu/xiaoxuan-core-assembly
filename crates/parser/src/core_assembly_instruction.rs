@@ -173,7 +173,10 @@ fn init_instruction_map_internal() {
     add("nop", InstructionSyntaxKind::NoParams(Opcode::nop, 0));
     add("zero", InstructionSyntaxKind::NoParams(Opcode::zero, 0));
     add("drop", InstructionSyntaxKind::NoParams(Opcode::drop, 1));
-    add("duplicate", InstructionSyntaxKind::NoParams(Opcode::duplicate, 1));
+    add(
+        "duplicate",
+        InstructionSyntaxKind::NoParams(Opcode::duplicate, 1),
+    );
     add("swap", InstructionSyntaxKind::NoParams(Opcode::swap, 2));
     add(
         "select_nez",
@@ -431,8 +434,14 @@ fn init_instruction_map_internal() {
         InstructionSyntaxKind::HeapStore(Opcode::heap_store8),
     );
 
-    add("heap.fill", InstructionSyntaxKind::NoParams(Opcode::heap_fill, 3));
-    add("heap.copy", InstructionSyntaxKind::NoParams(Opcode::heap_copy, 3));
+    add(
+        "heap.fill",
+        InstructionSyntaxKind::NoParams(Opcode::heap_fill, 3),
+    );
+    add(
+        "heap.copy",
+        InstructionSyntaxKind::NoParams(Opcode::heap_copy, 3),
+    );
     add(
         "heap.capacity",
         InstructionSyntaxKind::NoParams(Opcode::heap_capacity, 0),
@@ -535,27 +544,75 @@ fn init_instruction_map_internal() {
     add("i32.nez", InstructionSyntaxKind::UnaryOp(Opcode::i32_nez)); // UnaryOp
     add("i32.eq", InstructionSyntaxKind::BinaryOp(Opcode::i32_eq));
     add("i32.ne", InstructionSyntaxKind::BinaryOp(Opcode::i32_ne));
-    add("i32.lt_s", InstructionSyntaxKind::BinaryOp(Opcode::i32_lt_s));
-    add("i32.lt_u", InstructionSyntaxKind::BinaryOp(Opcode::i32_lt_u));
-    add("i32.gt_s", InstructionSyntaxKind::BinaryOp(Opcode::i32_gt_s));
-    add("i32.gt_u", InstructionSyntaxKind::BinaryOp(Opcode::i32_gt_u));
-    add("i32.le_s", InstructionSyntaxKind::BinaryOp(Opcode::i32_le_s));
-    add("i32.le_u", InstructionSyntaxKind::BinaryOp(Opcode::i32_le_u));
-    add("i32.ge_s", InstructionSyntaxKind::BinaryOp(Opcode::i32_ge_s));
-    add("i32.ge_u", InstructionSyntaxKind::BinaryOp(Opcode::i32_ge_u));
+    add(
+        "i32.lt_s",
+        InstructionSyntaxKind::BinaryOp(Opcode::i32_lt_s),
+    );
+    add(
+        "i32.lt_u",
+        InstructionSyntaxKind::BinaryOp(Opcode::i32_lt_u),
+    );
+    add(
+        "i32.gt_s",
+        InstructionSyntaxKind::BinaryOp(Opcode::i32_gt_s),
+    );
+    add(
+        "i32.gt_u",
+        InstructionSyntaxKind::BinaryOp(Opcode::i32_gt_u),
+    );
+    add(
+        "i32.le_s",
+        InstructionSyntaxKind::BinaryOp(Opcode::i32_le_s),
+    );
+    add(
+        "i32.le_u",
+        InstructionSyntaxKind::BinaryOp(Opcode::i32_le_u),
+    );
+    add(
+        "i32.ge_s",
+        InstructionSyntaxKind::BinaryOp(Opcode::i32_ge_s),
+    );
+    add(
+        "i32.ge_u",
+        InstructionSyntaxKind::BinaryOp(Opcode::i32_ge_u),
+    );
 
     add("i64.eqz", InstructionSyntaxKind::UnaryOp(Opcode::i64_eqz)); // UnaryOp
     add("i64.nez", InstructionSyntaxKind::UnaryOp(Opcode::i64_nez)); // UnaryOp
     add("i64.eq", InstructionSyntaxKind::BinaryOp(Opcode::i64_eq));
     add("i64.ne", InstructionSyntaxKind::BinaryOp(Opcode::i64_ne));
-    add("i64.lt_s", InstructionSyntaxKind::BinaryOp(Opcode::i64_lt_s));
-    add("i64.lt_u", InstructionSyntaxKind::BinaryOp(Opcode::i64_lt_u));
-    add("i64.gt_s", InstructionSyntaxKind::BinaryOp(Opcode::i64_gt_s));
-    add("i64.gt_u", InstructionSyntaxKind::BinaryOp(Opcode::i64_gt_u));
-    add("i64.le_s", InstructionSyntaxKind::BinaryOp(Opcode::i64_le_s));
-    add("i64.le_u", InstructionSyntaxKind::BinaryOp(Opcode::i64_le_u));
-    add("i64.ge_s", InstructionSyntaxKind::BinaryOp(Opcode::i64_ge_s));
-    add("i64.ge_u", InstructionSyntaxKind::BinaryOp(Opcode::i64_ge_u));
+    add(
+        "i64.lt_s",
+        InstructionSyntaxKind::BinaryOp(Opcode::i64_lt_s),
+    );
+    add(
+        "i64.lt_u",
+        InstructionSyntaxKind::BinaryOp(Opcode::i64_lt_u),
+    );
+    add(
+        "i64.gt_s",
+        InstructionSyntaxKind::BinaryOp(Opcode::i64_gt_s),
+    );
+    add(
+        "i64.gt_u",
+        InstructionSyntaxKind::BinaryOp(Opcode::i64_gt_u),
+    );
+    add(
+        "i64.le_s",
+        InstructionSyntaxKind::BinaryOp(Opcode::i64_le_s),
+    );
+    add(
+        "i64.le_u",
+        InstructionSyntaxKind::BinaryOp(Opcode::i64_le_u),
+    );
+    add(
+        "i64.ge_s",
+        InstructionSyntaxKind::BinaryOp(Opcode::i64_ge_s),
+    );
+    add(
+        "i64.ge_u",
+        InstructionSyntaxKind::BinaryOp(Opcode::i64_ge_u),
+    );
 
     add("f32.eq", InstructionSyntaxKind::BinaryOp(Opcode::f32_eq));
     add("f32.ne", InstructionSyntaxKind::BinaryOp(Opcode::f32_ne));
@@ -575,22 +632,58 @@ fn init_instruction_map_internal() {
     add("i32.add", InstructionSyntaxKind::BinaryOp(Opcode::i32_add));
     add("i32.sub", InstructionSyntaxKind::BinaryOp(Opcode::i32_sub));
     add("i32.mul", InstructionSyntaxKind::BinaryOp(Opcode::i32_mul));
-    add("i32.div_s", InstructionSyntaxKind::BinaryOp(Opcode::i32_div_s));
-    add("i32.div_u", InstructionSyntaxKind::BinaryOp(Opcode::i32_div_u));
-    add("i32.rem_s", InstructionSyntaxKind::BinaryOp(Opcode::i32_rem_s));
-    add("i32.rem_u", InstructionSyntaxKind::BinaryOp(Opcode::i32_rem_u));
-    add("i32.inc", InstructionSyntaxKind::UnaryOpWithImmI16(Opcode::i32_inc)); // UnaryOpParamI16
-    add("i32.dec", InstructionSyntaxKind::UnaryOpWithImmI16(Opcode::i32_dec)); // UnaryOpParamI16
+    add(
+        "i32.div_s",
+        InstructionSyntaxKind::BinaryOp(Opcode::i32_div_s),
+    );
+    add(
+        "i32.div_u",
+        InstructionSyntaxKind::BinaryOp(Opcode::i32_div_u),
+    );
+    add(
+        "i32.rem_s",
+        InstructionSyntaxKind::BinaryOp(Opcode::i32_rem_s),
+    );
+    add(
+        "i32.rem_u",
+        InstructionSyntaxKind::BinaryOp(Opcode::i32_rem_u),
+    );
+    add(
+        "i32.inc",
+        InstructionSyntaxKind::UnaryOpWithImmI16(Opcode::i32_inc),
+    ); // UnaryOpParamI16
+    add(
+        "i32.dec",
+        InstructionSyntaxKind::UnaryOpWithImmI16(Opcode::i32_dec),
+    ); // UnaryOpParamI16
 
     add("i64.add", InstructionSyntaxKind::BinaryOp(Opcode::i64_add));
     add("i64.sub", InstructionSyntaxKind::BinaryOp(Opcode::i64_sub));
     add("i64.mul", InstructionSyntaxKind::BinaryOp(Opcode::i64_mul));
-    add("i64.div_s", InstructionSyntaxKind::BinaryOp(Opcode::i64_div_s));
-    add("i64.div_u", InstructionSyntaxKind::BinaryOp(Opcode::i64_div_u));
-    add("i64.rem_s", InstructionSyntaxKind::BinaryOp(Opcode::i64_rem_s));
-    add("i64.rem_u", InstructionSyntaxKind::BinaryOp(Opcode::i64_rem_u));
-    add("i64.inc", InstructionSyntaxKind::UnaryOpWithImmI16(Opcode::i64_inc)); // UnaryOpParamI16
-    add("i64.dec", InstructionSyntaxKind::UnaryOpWithImmI16(Opcode::i64_dec)); // UnaryOpParamI16
+    add(
+        "i64.div_s",
+        InstructionSyntaxKind::BinaryOp(Opcode::i64_div_s),
+    );
+    add(
+        "i64.div_u",
+        InstructionSyntaxKind::BinaryOp(Opcode::i64_div_u),
+    );
+    add(
+        "i64.rem_s",
+        InstructionSyntaxKind::BinaryOp(Opcode::i64_rem_s),
+    );
+    add(
+        "i64.rem_u",
+        InstructionSyntaxKind::BinaryOp(Opcode::i64_rem_u),
+    );
+    add(
+        "i64.inc",
+        InstructionSyntaxKind::UnaryOpWithImmI16(Opcode::i64_inc),
+    ); // UnaryOpParamI16
+    add(
+        "i64.dec",
+        InstructionSyntaxKind::UnaryOpWithImmI16(Opcode::i64_dec),
+    ); // UnaryOpParamI16
 
     add("f32.add", InstructionSyntaxKind::BinaryOp(Opcode::f32_add));
     add("f32.sub", InstructionSyntaxKind::BinaryOp(Opcode::f32_sub));
@@ -695,7 +788,10 @@ fn init_instruction_map_internal() {
     add("f32.abs", InstructionSyntaxKind::UnaryOp(Opcode::f32_abs));
     add("f32.neg", InstructionSyntaxKind::UnaryOp(Opcode::f32_neg));
     add("f32.ceil", InstructionSyntaxKind::UnaryOp(Opcode::f32_ceil));
-    add("f32.floor", InstructionSyntaxKind::UnaryOp(Opcode::f32_floor));
+    add(
+        "f32.floor",
+        InstructionSyntaxKind::UnaryOp(Opcode::f32_floor),
+    );
     add(
         "f32.round_half_away_from_zero",
         InstructionSyntaxKind::UnaryOp(Opcode::f32_round_half_away_from_zero),
@@ -704,15 +800,24 @@ fn init_instruction_map_internal() {
         "f32.round_half_to_even",
         InstructionSyntaxKind::UnaryOp(Opcode::f32_round_half_to_even),
     );
-    add("f32.trunc", InstructionSyntaxKind::UnaryOp(Opcode::f32_trunc));
-    add("f32.fract", InstructionSyntaxKind::UnaryOp(Opcode::f32_fract));
+    add(
+        "f32.trunc",
+        InstructionSyntaxKind::UnaryOp(Opcode::f32_trunc),
+    );
+    add(
+        "f32.fract",
+        InstructionSyntaxKind::UnaryOp(Opcode::f32_fract),
+    );
     add("f32.sqrt", InstructionSyntaxKind::UnaryOp(Opcode::f32_sqrt));
     add("f32.cbrt", InstructionSyntaxKind::UnaryOp(Opcode::f32_cbrt));
     add("f32.exp", InstructionSyntaxKind::UnaryOp(Opcode::f32_exp));
     add("f32.exp2", InstructionSyntaxKind::UnaryOp(Opcode::f32_exp2));
     add("f32.ln", InstructionSyntaxKind::UnaryOp(Opcode::f32_ln));
     add("f32.log2", InstructionSyntaxKind::UnaryOp(Opcode::f32_log2));
-    add("f32.log10", InstructionSyntaxKind::UnaryOp(Opcode::f32_log10));
+    add(
+        "f32.log10",
+        InstructionSyntaxKind::UnaryOp(Opcode::f32_log10),
+    );
     add("f32.sin", InstructionSyntaxKind::UnaryOp(Opcode::f32_sin));
     add("f32.cos", InstructionSyntaxKind::UnaryOp(Opcode::f32_cos));
     add("f32.tan", InstructionSyntaxKind::UnaryOp(Opcode::f32_tan));
@@ -731,7 +836,10 @@ fn init_instruction_map_internal() {
     add("f64.abs", InstructionSyntaxKind::UnaryOp(Opcode::f64_abs));
     add("f64.neg", InstructionSyntaxKind::UnaryOp(Opcode::f64_neg));
     add("f64.ceil", InstructionSyntaxKind::UnaryOp(Opcode::f64_ceil));
-    add("f64.floor", InstructionSyntaxKind::UnaryOp(Opcode::f64_floor));
+    add(
+        "f64.floor",
+        InstructionSyntaxKind::UnaryOp(Opcode::f64_floor),
+    );
     add(
         "f64.round_half_away_from_zero",
         InstructionSyntaxKind::UnaryOp(Opcode::f64_round_half_away_from_zero),
@@ -740,15 +848,24 @@ fn init_instruction_map_internal() {
         "f64.round_half_to_even",
         InstructionSyntaxKind::UnaryOp(Opcode::f64_round_half_to_even),
     );
-    add("f64.trunc", InstructionSyntaxKind::UnaryOp(Opcode::f64_trunc));
-    add("f64.fract", InstructionSyntaxKind::UnaryOp(Opcode::f64_fract));
+    add(
+        "f64.trunc",
+        InstructionSyntaxKind::UnaryOp(Opcode::f64_trunc),
+    );
+    add(
+        "f64.fract",
+        InstructionSyntaxKind::UnaryOp(Opcode::f64_fract),
+    );
     add("f64.sqrt", InstructionSyntaxKind::UnaryOp(Opcode::f64_sqrt));
     add("f64.cbrt", InstructionSyntaxKind::UnaryOp(Opcode::f64_cbrt));
     add("f64.exp", InstructionSyntaxKind::UnaryOp(Opcode::f64_exp));
     add("f64.exp2", InstructionSyntaxKind::UnaryOp(Opcode::f64_exp2));
     add("f64.ln", InstructionSyntaxKind::UnaryOp(Opcode::f64_ln));
     add("f64.log2", InstructionSyntaxKind::UnaryOp(Opcode::f64_log2));
-    add("f64.log10", InstructionSyntaxKind::UnaryOp(Opcode::f64_log10));
+    add(
+        "f64.log10",
+        InstructionSyntaxKind::UnaryOp(Opcode::f64_log10),
+    );
     add("f64.sin", InstructionSyntaxKind::UnaryOp(Opcode::f64_sin));
     add("f64.cos", InstructionSyntaxKind::UnaryOp(Opcode::f64_cos));
     add("f64.tan", InstructionSyntaxKind::UnaryOp(Opcode::f64_tan));
@@ -795,15 +912,21 @@ fn init_instruction_map_internal() {
         "host.addr_heap",
         InstructionSyntaxKind::HeapLoad(Opcode::host_addr_heap),
     );
-    add("host.addr_function", InstructionSyntaxKind::HostAddrFunction);
     add(
-        "host.copy_from_heap",
-        InstructionSyntaxKind::NoParams(Opcode::host_copy_from_heap, 3),
+        "host.addr_function",
+        InstructionSyntaxKind::HostAddrFunction,
     );
-
     add(
-        "host.copy_to_heap",
-        InstructionSyntaxKind::NoParams(Opcode::host_copy_to_heap, 3),
+        "host.copy_heap_to_memory",
+        InstructionSyntaxKind::NoParams(Opcode::host_copy_heap_to_memory, 3),
+    );
+    add(
+        "host.copy_memory_to_heap",
+        InstructionSyntaxKind::NoParams(Opcode::host_copy_memory_to_heap, 3),
+    );
+    add(
+        "host.memory_copy",
+        InstructionSyntaxKind::NoParams(Opcode::host_memory_copy, 3),
     );
 
     // pesudo instructions

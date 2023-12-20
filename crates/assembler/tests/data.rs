@@ -64,7 +64,7 @@ fn test_assemble_data_load_and_store_initialized() {
             (runtime_version "1.0")
             (data $d0 (read_only i32 0x19171311))
             (data $d1 (read_only i32 0xf0e0d0c0))
-            (data $d2 (read_write (bytes 8) d"00-11-22-33-44-55-66-77"))    ;; random data
+            (data $d2 (read_write (bytes 8) h"00-11-22-33-44-55-66-77"))    ;; random data
             (data $d3 (read_write f32 3.1415927))
             (data $d4 (read_write f64 2.718281828459045))
             (data $d5 (read_write i64 0))
