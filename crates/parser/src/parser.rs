@@ -2788,8 +2788,8 @@ mod tests {
                         nop
                         zero
                         (drop zero)
-                        (duplicate zero)
-                        (swap zero zero)
+                        ;; (duplicate zero)
+                        ;; (swap zero zero)
                         (select_nez zero zero zero)
                     )
                 )
@@ -2803,17 +2803,17 @@ mod tests {
                     opcode: Opcode::drop,
                     operands: vec![noparams_nooperands(Opcode::zero),]
                 },
-                Instruction::NoParams {
-                    opcode: Opcode::duplicate,
-                    operands: vec![noparams_nooperands(Opcode::zero),]
-                },
-                Instruction::NoParams {
-                    opcode: Opcode::swap,
-                    operands: vec![
-                        noparams_nooperands(Opcode::zero),
-                        noparams_nooperands(Opcode::zero)
-                    ]
-                },
+                // Instruction::NoParams {
+                //     opcode: Opcode::duplicate,
+                //     operands: vec![noparams_nooperands(Opcode::zero),]
+                // },
+                // Instruction::NoParams {
+                //     opcode: Opcode::swap,
+                //     operands: vec![
+                //         noparams_nooperands(Opcode::zero),
+                //         noparams_nooperands(Opcode::zero)
+                //     ]
+                // },
                 Instruction::NoParams {
                     opcode: Opcode::select_nez,
                     operands: vec![

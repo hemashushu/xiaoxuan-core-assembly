@@ -173,11 +173,11 @@ fn init_instruction_map_internal() {
     add("nop", InstructionSyntaxKind::NoParams(Opcode::nop, 0));
     add("zero", InstructionSyntaxKind::NoParams(Opcode::zero, 0));
     add("drop", InstructionSyntaxKind::NoParams(Opcode::drop, 1));
-    add(
-        "duplicate",
-        InstructionSyntaxKind::NoParams(Opcode::duplicate, 1),
-    );
-    add("swap", InstructionSyntaxKind::NoParams(Opcode::swap, 2));
+    // add(
+    //     "duplicate",
+    //     InstructionSyntaxKind::NoParams(Opcode::duplicate, 1),
+    // );
+    // add("swap", InstructionSyntaxKind::NoParams(Opcode::swap, 2));
     add(
         "select_nez",
         InstructionSyntaxKind::NoParams(Opcode::select_nez, 3),

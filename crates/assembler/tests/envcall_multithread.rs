@@ -111,37 +111,183 @@ fn test_assemble_multithread_thread_create() {
 }
 
 #[test]
+fn test_assemble_multithread_thread_local_storage() {
+    // the signature of 'thread start function' must be
+    // () -> (i64)
+
+    let module_binary = helper_generate_module_image_binary_from_str(&format!(
+        r#"
+        (module $app
+            (runtime_version "1.0")
+            (data $buf (read_write i32 0))
+            (function $test (result i64)
+                (local $tid i32)
+                (code
+                    ;; resize heap to 1 page
+                    (drop
+                        (heap.resize (i32.imm 1))
+                    )
+
+                    ;; write value to data
+                    (data.store32 $buf (i32.imm 0x11))
+
+                    ;; write value to heap at address 0x100
+                    (heap.store32
+                        (i64.imm 0x100)     ;; address
+                        (i32.imm 0x13)      ;; data
+                    )
+
+                    ;; create child thread
+                    (local.store32 $tid
+                        (envcall {ENV_CALL_CODE_THREAD_CREATE}
+                            (macro.get_function_public_index $child)   ;; function pub index
+                            (i32.imm 0)         ;; thread_start_data_address
+                            (i32.imm 0)         ;; thread_start_data_length
+                        )
+                    )
+
+                    ;; pause 500ms to ensure the child thread is running
+                    (envcall {ENV_CALL_CODE_THREAD_SLEEP} (i64.imm 500))
+
+                    ;; wait and collect the child thread
+                    (drop
+                        (envcall {ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT}
+                            (local.load32_i32 $tid)
+                        )
+                    )
+
+                    ;; check value in data
+                    (when
+                        (i32.ne
+                            (data.load32_i32 $buf)
+                            (i32.imm 0x11)
+                        )
+                        (debug 0)
+                    )
+
+                    ;; check value in heap
+                    (when
+                        (i32.ne
+                            (heap.load32_i32
+                                (i64.imm 0x100)
+                            )
+                            (i32.imm 0x13)
+                        )
+                        (debug 1)
+                    )
+
+                    ;; set thread_exit_code
+                    (i64.imm 0)
+                )
+            )
+
+            (function $child (result i64)
+                (code
+                    ;; resize heap to 1 page
+                    (drop
+                        (heap.resize (i32.imm 1))
+                    )
+
+                    ;; check value in data
+                    (when
+                        (i32.ne
+                            (data.load32_i32 $buf)
+                            (i32.imm 0)
+                        )
+                        (debug 0)
+                    )
+
+                    ;; the initial data of heap should be garbage
+                    ;; so it doesn't need to be checked
+
+                    ;; write value to data
+                    (data.store32 $buf (i32.imm 0x23))
+
+                    ;; write value to heap at address 0x100
+                    (heap.store32
+                        (i64.imm 0x100)     ;; address
+                        (i32.imm 0x29)      ;; data
+                    )
+
+                    ;; set thread_exit_code
+                    (i64.imm 0)
+                )
+            )
+        )
+        "#,
+        ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT = (EnvCallCode::thread_wait_and_collect as u32),
+        ENV_CALL_CODE_THREAD_SLEEP = (EnvCallCode::thread_sleep as u32),
+        ENV_CALL_CODE_THREAD_CREATE = (EnvCallCode::thread_create as u32)
+    ));
+
+    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
+    let result0 = run_program_in_multithread(program_source0, vec![]);
+    assert_eq!(result0.unwrap(), 0);
+}
+
+#[test]
+fn test_assemble_multithread_thread_sleep() {
+    // the signature of 'thread start function' must be
+    // () -> (i64)
+
+    let module_binary = helper_generate_module_image_binary_from_str(&format!(
+        r#"
+        (module $app
+            (runtime_version "1.0")
+            (function $test
+                (result i64)
+                (code
+                    (envcall {ENV_CALL_CODE_THREAD_SLEEP}
+                        (i64.imm 1000)
+                    )
+                    ;; exit code
+                    (i64.imm 0x13)
+                )
+            )
+        )
+        "#,
+        ENV_CALL_CODE_THREAD_SLEEP = (EnvCallCode::thread_sleep as u32)
+    ));
+
+    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
+
+    let before = Instant::now();
+    let result0 = run_program_in_multithread(program_source0, vec![]);
+    assert_eq!(result0.unwrap(), 0x13);
+    let after = Instant::now();
+
+    let duration = after.duration_since(before);
+    let ms = duration.as_millis() as u64;
+    assert!(ms > 500);
+}
+
+#[test]
 fn test_assemble_multithread_thread_start_data() {
     // the signature of 'thread start function' must be
     // () -> (i64)
 
     // start data: 0x11, 0x13, 0x17, 0x19, 0x23, 0x29, 0x31, 0x37
     //
-    //                     0   3  4   7   (offset in byte)
-    //                    |=====  =====|
-    //                     |      | copy 4 bytes
-    //                     |      |
-    //              /------|------/
-    //              |      |
-    //              v      v
-    //              0   3  4   7  (offset in byte)
-    // heap: 0x200 |=====  =====|
-    //       0x23, 0x29, 0x31, 0x37, 0x11, 0x13, 0x17, 0x19
-    //       ----------------------------------------------
-    //       |
-    //       \---> exit code 0x19171311_37312923
+    //               0   3  4   7   (offset in byte)
+    //              |=====||=====|
+    //  copy 4 bytes |      | copy 4 bytes
+    //               |      |
+    //               |      \----------\
+    //               |                 |
+    //               v                 v
+    //               0   3             0   3
+    //  local part0 |=====|    part 1 |=====|
+    //
+    //        i32 0x19171311     i32 0x37312923
 
     let module_binary = helper_generate_module_image_binary_from_str(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
             (function $test (result i64)
+                (local $part0 i32)
+                (local $part1 i32)
                 (code
-                    ;; resize heap to 1 page, because the heap is required to read the thread_start_data.
-                    (drop
-                        (heap.resize (i32.imm 1))
-                    )
-
                     ;; check the data length
                     (when
                         (i32.ne
@@ -151,34 +297,52 @@ fn test_assemble_multithread_thread_start_data() {
                         (debug 0)
                     )
 
-                    ;; read 4 bytes data from offset 0 to heap (0x100+4)
+                    ;; read 4 bytes data from offset 0 to local variable $part0
                     (when
                         (i32.ne
                             (envcall {ENV_CALL_CODE_THREAD_START_DATA_READ}
-                                (i32.imm 0)         ;; offset
-                                (i32.imm 4)         ;; length
-                                (i64.imm 0x104)     ;; dst address
+                                (i32.imm 0)                 ;; offset
+                                (i32.imm 4)                 ;; length
+                                (host.addr_local $part0)    ;; dst address
                             )
                             (i32.imm 4)
                         )
                         (debug 1)
                     )
 
-                    ;; read 8 bytes data from offset 4 to heap (0x100)
-                    ;; actual read length should be 4
+                    ;; check value
                     (when
                         (i32.ne
-                            (envcall {ENV_CALL_CODE_THREAD_START_DATA_READ}
-                                (i32.imm 4)         ;; offset
-                                (i32.imm 8)         ;; length
-                                (i64.imm 0x100)     ;; temporary dst address
-                            )
-                            (i32.imm 4)
+                            (local.load32_i32 $part0)
+                            (i32.imm 0x19171311)
                         )
                         (debug 2)
                     )
 
-                    (heap.load64_i64 0 (i64.imm 0x100))
+                    ;; read 8 bytes data from offset 4 to local variable $part0
+                    ;; actual read length should be 4
+                    (when
+                        (i32.ne
+                            (envcall {ENV_CALL_CODE_THREAD_START_DATA_READ}
+                                (i32.imm 4)                 ;; offset
+                                (i32.imm 8)                 ;; length
+                                (host.addr_local $part1)    ;; dst address
+                            )
+                            (i32.imm 4)
+                        )
+                        (debug 3)
+                    )
+
+                    ;; check value
+                    (when
+                        (i32.ne
+                            (local.load32_i32 $part1)
+                            (i32.imm 0x37312923)
+                        )
+                        (debug 4)
+                    )
+
+                    (i64.imm 0)
                 )
             )
         )
@@ -192,7 +356,7 @@ fn test_assemble_multithread_thread_start_data() {
         program_source0,
         vec![0x11, 0x13, 0x17, 0x19, 0x23, 0x29, 0x31, 0x37],
     );
-    assert_eq!(result0.unwrap(), 0x19171311_37312923);
+    assert_eq!(result0.unwrap(), 0);
 }
 
 #[test]
@@ -449,17 +613,13 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
         r#"
         (module $app
             (runtime_version "1.0")
+            (data $buf (read_write i32 0))
             (function $test (result i64)
                 (local $tid i32)
                 (local $last_length i32)
                 (local $last_result i32)
                 (local $last_status i32)
                 (code
-                    ;; resize heap to 1 page, because the heap is required to send/receive the message.
-                    (drop
-                        (heap.resize (i32.imm 1))
-                    )
-
                     ;; create new thread
                     (local.store32 $tid
                         (envcall {ENV_CALL_CODE_THREAD_CREATE}
@@ -469,9 +629,8 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                         )
                     )
 
-                    ;; write data 0x11 (to be sent) to heap at address 0x100
-                    (heap.store32 0
-                        (i64.imm 0x100)     ;; address
+                    ;; write the data to be sent
+                    (data.store32 $buf
                         (i32.imm 0x11)      ;; data
                     )
 
@@ -479,7 +638,7 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                     (local.store32 $last_result
                         (envcall {ENV_CALL_CODE_THREAD_SEND_MSG}
                             (local.load32_i32 $tid)     ;; child thread id
-                            (i64.imm 0x100)             ;; data src address
+                            (host.addr_data $buf)       ;; data src address
                             (i32.imm 4)                 ;; data length
                         )
                     )
@@ -532,9 +691,9 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                     ;; try to read 8 bytes, actually read 4 bytes
                     (local.store32 $last_length
                         (envcall {ENV_CALL_CODE_THREAD_MSG_READ}
-                            (i32.imm 0)         ;; offset
-                            (i32.imm 8)         ;; length
-                            (i64.imm 0x200)     ;; dst address
+                            (i32.imm 0)             ;; offset
+                            (i32.imm 8)             ;; length
+                            (host.addr_data $buf)   ;; dst address
                         )
                     )
 
@@ -550,7 +709,7 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                     ;; check the received data
                     (when
                         (i32.ne
-                            (heap.load32_i32 0 (i64.imm 0x200))
+                            (data.load32_i32 $buf)
                             (i32.imm 0x13)
                         )
                         (debug 5)
@@ -597,11 +756,6 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                 (local $last_length i32)
                 (local $last_result i32)
                 (code
-                    ;; resize heap to 1 page, because the heap is required to send/receive the message.
-                    (drop
-                        (heap.resize (i32.imm 1))
-                    )
-
                     ;; receive data from parent
                     (local.store32 $last_length
                         (envcall {ENV_CALL_CODE_THREAD_RECEIVE_MSG_FROM_PARENT})
@@ -634,9 +788,9 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                     ;; try to read 8 bytes, actually read 4 bytes
                     (local.store32 $last_length
                         (envcall {ENV_CALL_CODE_THREAD_MSG_READ}
-                            (i32.imm 0)         ;; offset
-                            (i32.imm 8)         ;; length
-                            (i64.imm 0x100)     ;; dst address
+                            (i32.imm 0)             ;; offset
+                            (i32.imm 8)             ;; length
+                            (host.addr_data $buf)   ;; dst address
                         )
                     )
 
@@ -652,22 +806,21 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                     ;; check the received data
                     (when
                         (i32.ne
-                            (heap.load32_i32 0 (i64.imm 0x100))
+                            (data.load32_i32 $buf)
                             (i32.imm 0x11)
                         )
                         (debug 3)
                     )
 
                     ;; set the data to be sent
-                    (heap.store32 0
-                        (i64.imm 0x200)     ;; address
+                    (data.store32 $buf
                         (i32.imm 0x13)      ;; data
                     )
 
                     ;; send data to parent
                     (local.store32 $last_result
                         (envcall {ENV_CALL_CODE_THREAD_SEND_MSG_TO_PARENT}
-                            (i64.imm 0x200)
+                            (host.addr_data $buf)
                             (i32.imm 4)
                         )
                     )
@@ -721,15 +874,11 @@ fn test_assemble_multithread_thread_message_forward() {
         r#"
         (module $app
             (runtime_version "1.0")
+            (data $buf (read_write i32 0))
             (function $test (result i64)
                 (local $tid0 i32)
                 (local $tid1 i32)
                 (code
-                    ;; resize heap to 1 page, because the heap is required to send/receive the message.
-                    (drop
-                        (heap.resize (i32.imm 1))
-                    )
-
                     ;; create child thread 0 (t0)
                     (local.store32 $tid0
                         (envcall {ENV_CALL_CODE_THREAD_CREATE}
@@ -753,17 +902,17 @@ fn test_assemble_multithread_thread_message_forward() {
                         (local.load32_i32 $tid0)
                     )
 
-                    ;; read message to heap
+                    ;; read message to $buf
                     (envcall {ENV_CALL_CODE_THREAD_MSG_READ}
-                        (i32.imm 0)         ;; offset
-                        (i32.imm 4)         ;; length
-                        (i64.imm 0x100)     ;; dst address
+                        (i32.imm 0)             ;; offset
+                        (i32.imm 4)             ;; length
+                        (host.addr_data $buf)   ;; dst address
                     )
 
                     ;; send message to t1
                     (envcall {ENV_CALL_CODE_THREAD_SEND_MSG}
                         (local.load32_i32 $tid1)    ;; child thread id
-                        (i64.imm 0x100)             ;; data src address
+                        (host.addr_data $buf)       ;; data src address
                         (i32.imm 4)                 ;; data length
                     )
 
@@ -801,20 +950,14 @@ fn test_assemble_multithread_thread_message_forward() {
 
             (function $child0 (result i64)
                 (code
-                    ;; resize heap to 1 page, because the heap is required to send/receive the message.
-                    (drop
-                        (heap.resize (i32.imm 1))
-                    )
-
                     ;; set the data to be sent
-                    (heap.store32 0
-                        (i64.imm 0x100)     ;; address
+                    (data.store32 $buf
                         (i32.imm 0x11)      ;; data
                     )
 
                     ;; send data to parent
                     (envcall {ENV_CALL_CODE_THREAD_SEND_MSG_TO_PARENT}
-                        (i64.imm 0x100)
+                        (host.addr_data $buf)
                         (i32.imm 4)
                     )
 
@@ -825,24 +968,19 @@ fn test_assemble_multithread_thread_message_forward() {
 
             (function $child1 (result i64)
                 (code
-                    ;; resize heap to 1 page, because the heap is required to send/receive the message.
-                    (drop
-                        (heap.resize (i32.imm 1))
-                    )
-
                     ;; receive data from parent
                     (envcall {ENV_CALL_CODE_THREAD_RECEIVE_MSG_FROM_PARENT})
 
                     (envcall {ENV_CALL_CODE_THREAD_MSG_READ}
-                        (i32.imm 0)         ;; offset
-                        (i32.imm 4)         ;; length
-                        (i64.imm 0x100)     ;; dst address
+                        (i32.imm 0)             ;; offset
+                        (i32.imm 4)             ;; length
+                        (host.addr_data $buf)   ;; dst address
                     )
 
                     ;; check the received data
                     (when
                         (i32.ne
-                            (heap.load32_i32 0 (i64.imm 0x100))
+                            (data.load32_i32 $buf)
                             (i32.imm 0x11)
                         )
                         (debug 0)
@@ -867,40 +1005,4 @@ fn test_assemble_multithread_thread_message_forward() {
     let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
     let result0 = run_program_in_multithread(program_source0, vec![]);
     assert_eq!(result0.unwrap(), 0x19);
-}
-
-#[test]
-fn test_assemble_multithread_thread_sleep() {
-    // the signature of 'thread start function' must be
-    // () -> (i64)
-
-    let module_binary = helper_generate_module_image_binary_from_str(&format!(
-        r#"
-        (module $app
-            (runtime_version "1.0")
-            (function $test
-                (result i64)
-                (code
-                    (envcall {ENV_CALL_CODE_THREAD_SLEEP}
-                        (i64.imm 1000)
-                    )
-                    ;; exit code
-                    (i64.imm 0x13)
-                )
-            )
-        )
-        "#,
-        ENV_CALL_CODE_THREAD_SLEEP = (EnvCallCode::thread_sleep as u32)
-    ));
-
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-
-    let before = Instant::now();
-    let result0 = run_program_in_multithread(program_source0, vec![]);
-    assert_eq!(result0.unwrap(), 0x13);
-    let after = Instant::now();
-
-    let duration = after.duration_since(before);
-    let ms = duration.as_millis() as u64;
-    assert!(ms > 500);
 }

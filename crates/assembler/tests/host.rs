@@ -588,8 +588,8 @@ fn test_assemble_host_memory_copy() {
 
     // copy src_ptr -> dst_ptr
     //
-    // src_ptr                  dst_ptr
-    // host |01234567|      --> host |01234567|
+    // host src_ptr  local var     host dst_ptr
+    // |01234567| -> |45670123| -> |45670123|
 
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
@@ -598,12 +598,24 @@ fn test_assemble_host_memory_copy() {
             (function $test
                 (param $src_ptr i64)
                 (param $dst_ptr i64)
+                (local $buf i64)
                 (code
                     ;; (host.memory_copy dst_ptr src_ptr length)
+                    (host.memory_copy
+                        (host.addr_local $buf 4)
+                        (local.load64_i64 $src_ptr)
+                        (i64.imm 4)
+                    )
+
+                    (host.memory_copy
+                        (host.addr_local $buf 0)
+                        (i64.inc 4 (local.load64_i64 $src_ptr))
+                        (i64.imm 4)
+                    )
 
                     (host.memory_copy
                         (local.load64_i64 $dst_ptr)
-                        (local.load64_i64 $src_ptr)
+                        (host.addr_local $buf 0)
                         (i64.imm 8)
                     )
                 )
@@ -616,7 +628,7 @@ fn test_assemble_host_memory_copy() {
     let program0 = program_source0.build_program().unwrap();
     let mut thread_context0 = program0.create_thread_context();
 
-    let src_buf: &[u8; 8] = b"hello.vm";
+    let src_buf: &[u8; 8] = b"whatever";
     let dst_buf: [u8; 8] = [0; 8];
 
     let src_ptr = src_buf.as_ptr();
@@ -633,7 +645,7 @@ fn test_assemble_host_memory_copy() {
     );
     result0.unwrap();
 
-    assert_eq!(&dst_buf, b"hello.vm");
+    assert_eq!(&dst_buf, b"everwhat");
 }
 
 #[test]
