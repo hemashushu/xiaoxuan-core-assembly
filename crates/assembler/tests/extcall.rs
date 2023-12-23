@@ -92,14 +92,14 @@ fn test_assemble_extcall_with_system_libc_getenv() {
 fn test_assemble_extcall_with_user_lib() {
     // (i32,i32) -> (i32)
 
-    // 'lib-test-0.so.1'
+    // 'libtest0.so.1'
     // 'int add(int, int)'
 
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
             (runtime_version "1.0")
-            (external (library user "lib-test-0.so.1")
+            (external (library user "libtest0.so.1")
                 (function $add "add" (params i32 i32) (result i32))
             )
             (function $test (param $a i32) (param $b i32) (result i32)

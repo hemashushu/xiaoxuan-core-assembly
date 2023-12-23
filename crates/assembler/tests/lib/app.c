@@ -15,7 +15,7 @@ int main(void)
 {
     // note that when the file path contains '/', function 'dlopen' loads from
     // the specified path, otherwise it loads from the system (see `man ldconfig`)
-    void *libhandle = dlopen("./lib-test-0.so.1", RTLD_LAZY);
+    void *libhandle = dlopen("./libtest0.so.1", RTLD_LAZY);
     if (libhandle == NULL)
     {
         const char *err = dlerror();

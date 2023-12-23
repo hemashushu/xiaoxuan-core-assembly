@@ -650,7 +650,7 @@ fn test_assemble_host_memory_copy() {
 
 #[test]
 fn test_assemble_host_addr_function_and_callback_function() {
-    // C function in "lib-test-0.so.1"
+    // C function in "libtest0.so.1"
     // ===============================
     // int do_something(int (*callback_func)(int), int a, int b)
     // {
@@ -677,7 +677,7 @@ fn test_assemble_host_addr_function_and_callback_function() {
         r#"
         (module $app
             (runtime_version "1.0")
-            (external (library user "lib-test-0.so.1")
+            (external (library user "libtest0.so.1")
                 (function $do_something "do_something"
                     (params i64 i32 i32)
                     (result i32)

@@ -1838,7 +1838,7 @@ fn parse_external_library_node(
 
     // also:
     // (library system "libc.so.6")
-    // (library user "lib-test-0.so.1")
+    // (library user "libtest0.so.1")
 
     consume_left_paren(iter, "external.library")?;
     consume_symbol(iter, "library")?;
@@ -2104,13 +2104,13 @@ fn parse_import_function_node(
 }
 
 fn parse_import_data_node(iter: &mut PeekableIterator<Token>) -> Result<ImportItem, ParseError> {
-    // (data $sum "sum" (read_write i32)) ...  //
-    // ^                                  ^____// to here
-    // |_______________________________________// current token
+    // (data $msg "msg" i32 read_only) ...  //
+    // ^                               ^____// to here
+    // |____________________________________// current token
 
     // also
-    // (data $msg "msg" (read_only i64))
-    // (data $buf "utils::buf" (uninit bytes))
+    // (data $sum "sum" i64 read_write)
+    // (data $buf "utils::buf" bytes uninit)
 
     consume_left_paren(iter, "import.data)")?;
     consume_symbol(iter, "data")?;

@@ -23,7 +23,8 @@ int do_something(int (*callback_func)(int), int a, int b)
 }
 
 // compile this file with the command:
-// `$ gcc -Wall -g -fpic -shared -Wl,-soname,lib-test-0.so.1 -o lib-test-0.so.1.0.0 lib-test-0.c`
+// `$ gcc -Wall -g -fpic -shared -Wl,-soname,libtest0.so.1 -o libtest0.so.1.0.0 libtest0.c`
 //
 // it is recommended to create a symbolic link to this shared library:
-// `ln -s lib-test-0.so.1.0.0 lib-test-0.so.1`
+// `ln -s libtest0.so.1.0.0 libtest0.so.1`
+// `ln -s libtest0.so.1.0.0 libtest0.so`

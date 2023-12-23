@@ -204,7 +204,7 @@ there is no identifier in the 'param' nodes, and the parameters can be writtern 
 library type:
 - (library share "math.so.1")
 - (library system "libc.so.6")
-- (library user "lib-test-0.so.1")
+- (library user "libtest0.so.1")
 
 (external (library system "libc.so.6")
     (function $getuid "getuid" (result i32))
