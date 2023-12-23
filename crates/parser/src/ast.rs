@@ -4,7 +4,7 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancvm_types::{opcode::Opcode, DataType, ExternalLibraryType, MemoryDataType, ModuleShareType};
+use ancvm_types::{opcode::Opcode, DataType, ExternalLibraryType, MemoryDataType, ModuleShareType, DataSectionType};
 
 #[derive(Debug, PartialEq)]
 pub struct ModuleNode {
@@ -144,7 +144,12 @@ pub struct ImportDataNode {
     // the name path of data 'buf' in module 'myapp' is 'buf',
     // the name path of data 'buf' in submodule 'myapp:utils' is 'utils::buf'.
     pub name_path: String,
-    pub data_kind_node: SimplifiedDataKindNode,
+
+    // pub data_kind_node: SimplifiedDataKindNode,
+
+    pub memory_data_type: MemoryDataType,
+
+    pub data_section_type: DataSectionType
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -438,10 +443,11 @@ pub struct UninitData {
     pub align: u16,
 }
 
-// for imported data node
+/*
 #[derive(Debug, PartialEq, Clone)]
 pub enum SimplifiedDataKindNode {
     ReadOnly(MemoryDataType),
     ReadWrite(MemoryDataType),
     Uninit(MemoryDataType),
 }
+*/

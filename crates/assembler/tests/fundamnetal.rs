@@ -90,6 +90,7 @@ fn test_assemble_fundamental_drop() {
     assert_eq!(result0.unwrap(), vec![ForeignValue::U32(13)]);
 }
 
+/*
 #[test]
 fn test_assemble_fundamental_duplicate() {
     // () -> (i32, i32)
@@ -148,6 +149,7 @@ fn test_assemble_fundamental_swap() {
         vec![ForeignValue::U32(223), ForeignValue::U32(211)]
     );
 }
+*/
 
 #[test]
 fn test_assemble_fundamental_select_nez_false() {

@@ -332,7 +332,8 @@ fn lex_number_hex(iter: &mut PeekableIterator<char>, is_neg: bool) -> Result<Tok
     if num_string.is_empty() {
         Err(ParseError::new("Incomplete hex number"))
     } else {
-        Ok(Token::Number(if is_floating_point_number {
+        #[allow(clippy::collapsible_else_if)]
+        let num = if is_floating_point_number {
             if is_neg {
                 NumberToken::HexFloat(format!("-0x{}", num_string))
             } else {
@@ -344,7 +345,8 @@ fn lex_number_hex(iter: &mut PeekableIterator<char>, is_neg: bool) -> Result<Tok
             } else {
                 NumberToken::Hex(num_string)
             }
-        }))
+        };
+        Ok(Token::Number(num))
     }
 }
 

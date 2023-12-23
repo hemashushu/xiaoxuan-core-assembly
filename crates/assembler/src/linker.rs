@@ -753,10 +753,10 @@ mod tests {
             (module $myapp
                 (runtime_version "1.0")
                 (import (module share "std" "1.0")
-                    (data $foo "foo" (read_only i32))
+                    (data $foo "foo" i32 read_only)
                 )
                 (import (module share "format" "1.0")
-                    (data $hello "hello" (read_write i32))
+                    (data $hello "hello" i32 read_write)
                 )
                 (data $alice (read_only i32 23))
                 (data $bob (read_write i64 29))
@@ -768,8 +768,8 @@ mod tests {
             (module $format
                 (runtime_version "1.0")
                 (import (module share "std" "1.0")
-                    (data $foo "foo" (read_only i32))
-                    (data $bar "bar" (read_write i32))
+                    (data $foo "foo" i32 read_only)
+                    (data $bar "bar" i32 read_write)
                 )
                 (data export $baz (read_only i32 17))
                 (data export $hello (read_write i32 19))

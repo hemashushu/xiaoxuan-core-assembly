@@ -223,9 +223,9 @@ import functions:
 import data:
 
 (import (module user "format" "1.2")
-    (data $msg "msg" (read_only i32))
-    (data $sum "sum" (read_write i64))
-    (data $buf "utils::buf" (uninit bytes))
+    (data $msg "msg" i32 read_only)
+    (data $sum "sum" i64 read_write)
+    (data $buf "utils::buf" bytes uninit)
 )
 
 for the variants of 'bytes' such as 'string' and 'cstring', use 'bytes' instead in the data-import node.

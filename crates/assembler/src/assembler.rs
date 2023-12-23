@@ -4,9 +4,7 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancasm_parser::ast::{
-    DataKindNode, ExternalItem, ExternalNode, ImportItem, ImportNode, SimplifiedDataKindNode,
-};
+use ancasm_parser::ast::{DataKindNode, ExternalItem, ExternalNode, ImportItem, ImportNode};
 use ancasm_parser::ast::{Instruction, LocalNode, ParamNode};
 use ancvm_binary::bytecode_writer::BytecodeWriter;
 use ancvm_types::entry::{
@@ -15,6 +13,7 @@ use ancvm_types::entry::{
     LocalVariableEntry, ModuleEntry, TypeEntry, UninitDataEntry,
 };
 use ancvm_types::DataSectionType;
+
 use ancvm_types::{opcode::Opcode, DataType};
 
 use crate::preprocessor::{CanonicalDataNode, CanonicalFunctionNode};
@@ -1970,31 +1969,25 @@ fn assemble_import_nodes(
                     import_function_entries.push(import_function_entry);
                 }
                 ImportItem::ImportData(import_data_node) => {
-                    let (data_section_type, memory_data_type) =
-                        match import_data_node.data_kind_node {
-                            SimplifiedDataKindNode::ReadOnly(memory_data_type) => {
-                                // add data id
-                                import_read_only_data_ids.push(import_data_node.id.clone());
-                                (DataSectionType::ReadOnly, memory_data_type)
-                            }
-                            SimplifiedDataKindNode::ReadWrite(memory_data_type) => {
-                                // add data id
-                                import_read_write_data_ids.push(import_data_node.id.clone());
-                                (DataSectionType::ReadWrite, memory_data_type)
-                            }
-                            SimplifiedDataKindNode::Uninit(memory_data_type) => {
-                                // add data id
-                                import_uninit_data_ids.push(import_data_node.id.clone());
-                                (DataSectionType::Uninit, memory_data_type)
-                            }
-                        };
+                    // add data id
+                    match import_data_node.data_section_type {
+                        DataSectionType::ReadOnly => {
+                            import_read_only_data_ids.push(import_data_node.id.clone());
+                        }
+                        DataSectionType::ReadWrite => {
+                            import_read_write_data_ids.push(import_data_node.id.clone());
+                        }
+                        DataSectionType::Uninit => {
+                            import_uninit_data_ids.push(import_data_node.id.clone());
+                        }
+                    };
 
                     // add import data entry
                     let import_data_entry = ImportDataEntry {
                         name_path: import_data_node.name_path.clone(),
                         import_module_index,
-                        data_section_type,
-                        memory_data_type,
+                        data_section_type: import_data_node.data_section_type,
+                        memory_data_type: import_data_node.memory_data_type,
                     };
                     import_data_entries.push(import_data_entry);
                 }
@@ -2135,7 +2128,7 @@ mod tests {
                     (params i32 i32)
                     (result i32)
                 )
-                (data $seed "seed" (read_only i32))
+                (data $seed "seed" i32 read_only)
             )
             (data $buf (read_write (bytes 2) h"11131719"))
             (function export $add

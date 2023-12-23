@@ -71,14 +71,16 @@
 //    )
 //    ```
 
-use ancvm_types::{opcode::Opcode, DataType, ExternalLibraryType, MemoryDataType, ModuleShareType};
+use ancvm_types::{
+    opcode::Opcode, DataSectionType, DataType, ExternalLibraryType, MemoryDataType, ModuleShareType,
+};
 
 use crate::{
     ast::{
         BranchCase, DataKindNode, DataNode, ExternalFunctionNode, ExternalItem,
         ExternalLibraryNode, ExternalNode, FunctionNode, ImportDataNode, ImportFunctionNode,
         ImportItem, ImportModuleNode, ImportNode, InitedData, Instruction, LocalNode,
-        ModuleElementNode, ModuleNode, ParamNode, SimplifiedDataKindNode, UninitData,
+        ModuleElementNode, ModuleNode, ParamNode, UninitData,
     },
     core_assembly_instruction::{init_instruction_map, InstructionSyntaxKind, INSTRUCTION_MAP},
     lexer::{NumberToken, Token},
@@ -1939,7 +1941,9 @@ fn parse_optional_identifier_less_signature(
     Ok((params, results))
 }
 
-fn parse_identifier_less_param_node(iter: &mut PeekableIterator<Token>) -> Result<DataType, ParseError> {
+fn parse_identifier_less_param_node(
+    iter: &mut PeekableIterator<Token>,
+) -> Result<DataType, ParseError> {
     // (param i32) ...  //
     // ^           ^____// to here
     // |________________// current token
@@ -2115,7 +2119,12 @@ fn parse_import_data_node(iter: &mut PeekableIterator<Token>) -> Result<ImportIt
 
     // the original exported name path (excludes the module name)
     let name_path = expect_string(iter, "import.data.name")?;
-    let data_kind_node = parse_simplified_data_kind_node(iter)?;
+
+    let memory_data_type_str = expect_symbol(iter, "import.data.type")?;
+    let memory_data_type = parse_memory_data_type(&memory_data_type_str)?;
+
+    let data_section_type_str = expect_symbol(iter, "import.data.section")?;
+    let data_section_type = parse_data_section_kind(&data_section_type_str)?;
 
     consume_right_paren(iter)?;
 
@@ -2131,33 +2140,23 @@ fn parse_import_data_node(iter: &mut PeekableIterator<Token>) -> Result<ImportIt
     Ok(ImportItem::ImportData(ImportDataNode {
         id,
         name_path,
-        data_kind_node,
+        // data_kind_node,
+        memory_data_type,
+        data_section_type,
     }))
 }
 
-fn parse_simplified_data_kind_node(
-    iter: &mut PeekableIterator<Token>,
-) -> Result<SimplifiedDataKindNode, ParseError> {
-    // (read_write i32) ...  //
-    // ^                ^____// to here
-    // |_____________________// current token
+fn parse_data_section_kind(kind: &str) -> Result<DataSectionType, ParseError> {
+    // "read_only"
+    // "read_write"
+    // "uninit"
 
-    // also:
-    // (read_only i64)
-    // (uninit bytes)
-
-    consume_left_paren(iter, "import.data.kind")?;
-    let kind = expect_symbol(iter, "import.data.kind")?;
-    let memory_data_type_str = expect_symbol(iter, "import.data.type")?;
-    consume_right_paren(iter)?;
-
-    let memory_data_type = parse_memory_data_type(&memory_data_type_str)?;
-    match kind.as_str() {
-        "read_only" => Ok(SimplifiedDataKindNode::ReadOnly(memory_data_type)),
-        "read_write" => Ok(SimplifiedDataKindNode::ReadWrite(memory_data_type)),
-        "uninit" => Ok(SimplifiedDataKindNode::Uninit(memory_data_type)),
+    match kind {
+        "read_only" => Ok(DataSectionType::ReadOnly),
+        "read_write" => Ok(DataSectionType::ReadWrite),
+        "uninit" => Ok(DataSectionType::Uninit),
         _ => Err(ParseError::new(&format!(
-            "Unknown import data kind: {}, only supports \"read_only\", \"read_write\", \"uninit\"",
+            "Unknown data section type: {}, only \"read_only\", \"read_write\", \"uninit\" are supported.",
             kind
         ))),
     }
@@ -2446,7 +2445,8 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use ancvm_types::{
-        opcode::Opcode, DataType, ExternalLibraryType, MemoryDataType, ModuleShareType,
+        opcode::Opcode, DataSectionType, DataType, ExternalLibraryType, MemoryDataType,
+        ModuleShareType,
     };
 
     use crate::{
@@ -2454,7 +2454,7 @@ mod tests {
             BranchCase, DataKindNode, DataNode, ExternalFunctionNode, ExternalItem,
             ExternalLibraryNode, ExternalNode, FunctionNode, ImportDataNode, ImportFunctionNode,
             ImportItem, ImportModuleNode, ImportNode, InitedData, Instruction, LocalNode,
-            ModuleElementNode, ModuleNode, ParamNode, SimplifiedDataKindNode, UninitData,
+            ModuleElementNode, ModuleNode, ParamNode, UninitData,
         },
         lexer::lex,
         peekable_iterator::PeekableIterator,
@@ -4483,9 +4483,9 @@ mod tests {
                     (function $add_wrap "wrap::add" (params i32 i32) (results i32))
                 )
                 (import (module user "format" "1.2")
-                    (data $msg "msg" (read_only i32))
-                    (data $sum "sum" (read_write i64))
-                    (data $buf "utils::buf" (uninit bytes))
+                    (data $msg "msg" i32 read_only)
+                    (data $sum "sum" i64 read_write)
+                    (data $buf "utils::buf" bytes uninit)
                 )
             )
             "#
@@ -4531,23 +4531,20 @@ mod tests {
                             ImportItem::ImportData(ImportDataNode {
                                 id: "msg".to_owned(),
                                 name_path: "msg".to_owned(),
-                                data_kind_node: SimplifiedDataKindNode::ReadOnly(
-                                    MemoryDataType::I32
-                                )
+                                memory_data_type: MemoryDataType::I32,
+                                data_section_type: DataSectionType::ReadOnly
                             }),
                             ImportItem::ImportData(ImportDataNode {
                                 id: "sum".to_owned(),
                                 name_path: "sum".to_owned(),
-                                data_kind_node: SimplifiedDataKindNode::ReadWrite(
-                                    MemoryDataType::I64
-                                )
+                                memory_data_type: MemoryDataType::I64,
+                                data_section_type: DataSectionType::ReadWrite
                             }),
                             ImportItem::ImportData(ImportDataNode {
                                 id: "buf".to_owned(),
                                 name_path: "utils::buf".to_owned(),
-                                data_kind_node: SimplifiedDataKindNode::Uninit(
-                                    MemoryDataType::Bytes
-                                )
+                                memory_data_type: MemoryDataType::Bytes,
+                                data_section_type: DataSectionType::Uninit
                             })
                         ]
                     }),

@@ -484,7 +484,8 @@ pub fn merge_and_canonicalize_submodule_nodes(
                         let canonical_import_data_node = ImportDataNode {
                             id: expect_identifier,
                             name_path,
-                            data_kind_node: original_import_data.data_kind_node.clone(),
+                            memory_data_type: original_import_data.memory_data_type,
+                            data_section_type: original_import_data.data_section_type, // data_kind_node: original_import_data.data_kind_node.clone(),
                         };
 
                         ImportItem::ImportData(canonical_import_data_node)
@@ -1278,14 +1279,16 @@ fn canonicalize_name_path_in_instruction(
 
 #[cfg(test)]
 mod tests {
-    use ancvm_types::{opcode::Opcode, ExternalLibraryType, MemoryDataType, ModuleShareType};
+    use ancvm_types::{
+        opcode::Opcode, DataSectionType, ExternalLibraryType, MemoryDataType, ModuleShareType,
+    };
     use pretty_assertions::assert_eq;
 
     use ancasm_parser::{
         ast::{
             DataKindNode, ExternalFunctionNode, ExternalItem, ExternalLibraryNode, ExternalNode,
             ImportDataNode, ImportFunctionNode, ImportItem, ImportModuleNode, ImportNode,
-            InitedData, Instruction, SimplifiedDataKindNode, UninitData,
+            InitedData, Instruction, UninitData,
         },
         lexer::lex,
         parser::parse,
@@ -2276,11 +2279,11 @@ mod tests {
             (module $myapp
                 (runtime_version "1.0")
                 (import (module share "math" "1.0")
-                    (data $count "count" (read_only i32))
-                    (data $sum "wrap::sum" (read_write i64))
+                    (data $count "count" i32 read_only)
+                    (data $sum "wrap::sum" i64 read_write)
                 )
                 (import (module user "match" "1.2")
-                    (data $score "score" (read_write f32))
+                    (data $score "score" f32 read_write)
                 )
                 (function $test (code
                     ;; group 0
@@ -2309,14 +2312,14 @@ mod tests {
             (module $myapp::utils
                 (runtime_version "1.0")
                 (import (module share "math" "1.0")
-                    (data $d0 "count" (read_only i32))  ;; duplicate
-                    (data $d1 "increment" (uninit i32)) ;; new
+                    (data $d0 "count" i32 read_only)  ;; duplicate
+                    (data $d1 "increment" i32 uninit) ;; new
                 )
                 (import (module user "match" "1.2")
-                    (data $d2 "score" (read_write f32)) ;; duplicate
+                    (data $d2 "score" f32 read_write) ;; duplicate
                 )
                 (import (module share "random" "2.3")   ;; new
-                    (data $d3 "seed" (read_write i64))  ;; new
+                    (data $d3 "seed" i64 read_write)  ;; new
                 )
                 (function $test (code
                     ;; group 0
@@ -2493,21 +2496,20 @@ mod tests {
                             ImportItem::ImportData(ImportDataNode {
                                 id: "math::count".to_owned(),
                                 name_path: "count".to_owned(),
-                                data_kind_node: SimplifiedDataKindNode::ReadOnly(
-                                    MemoryDataType::I32
-                                )
+                                memory_data_type: MemoryDataType::I32,
+                                data_section_type: DataSectionType::ReadOnly
                             }),
                             ImportItem::ImportData(ImportDataNode {
                                 id: "math::wrap::sum".to_owned(),
                                 name_path: "wrap::sum".to_owned(),
-                                data_kind_node: SimplifiedDataKindNode::ReadWrite(
-                                    MemoryDataType::I64
-                                )
+                                memory_data_type: MemoryDataType::I64,
+                                data_section_type: DataSectionType::ReadWrite
                             }),
                             ImportItem::ImportData(ImportDataNode {
                                 id: "math::increment".to_owned(),
                                 name_path: "increment".to_owned(),
-                                data_kind_node: SimplifiedDataKindNode::Uninit(MemoryDataType::I32)
+                                memory_data_type: MemoryDataType::I32,
+                                data_section_type: DataSectionType::Uninit
                             }),
                         ]
                     },
@@ -2521,7 +2523,8 @@ mod tests {
                         import_items: vec![ImportItem::ImportData(ImportDataNode {
                             id: "match::score".to_owned(),
                             name_path: "score".to_owned(),
-                            data_kind_node: SimplifiedDataKindNode::ReadWrite(MemoryDataType::F32)
+                            memory_data_type: MemoryDataType::F32,
+                            data_section_type: DataSectionType::ReadWrite
                         }),]
                     },
                     ImportNode {
@@ -2534,7 +2537,8 @@ mod tests {
                         import_items: vec![ImportItem::ImportData(ImportDataNode {
                             id: "random::seed".to_owned(),
                             name_path: "seed".to_owned(),
-                            data_kind_node: SimplifiedDataKindNode::ReadWrite(MemoryDataType::I64)
+                            memory_data_type: MemoryDataType::I64,
+                            data_section_type: DataSectionType::ReadWrite
                         }),]
                     }
                 ]
