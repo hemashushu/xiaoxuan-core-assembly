@@ -45,36 +45,36 @@ pub enum InstructionSyntaxKind {
     ImmF64,
 
     // (local.load $name)
-    // (host.addr_local $name)
     // (local.load $name offset)                ;; optional offset
+    // (host.addr_local $name)
     LocalLoad(Opcode),
 
     // (local.store $name VALUE)
-    // (local.store $name offset VALUE)         ;; optional offset
+    // (local.store $name VALUE offset)         ;; optional offset
     LocalStore(Opcode),
 
-    // (local.load_long $name OFFSET)
-    // (host.addr_local_long OFFSET)
-    LocalLongLoad(Opcode),
+    // (local.load_offset $name OFFSET)
+    // (host.addr_local_offset OFFSET)
+    LocalOffsetLoad(Opcode),
 
-    // (local.long_store $name OFFSET VALUE)
-    LocalLongStore(Opcode),
+    // (local.offset_store $name OFFSET VALUE)
+    LocalOffsetStore(Opcode),
 
     // (data.load $name)
-    // (host.addr_data $name)
     // (data.load $name offset)                 ;; optional offset
+    // (host.addr_data $name)
     DataLoad(Opcode),
 
     // (data.store $name VALUE)
-    // (data.store $name offset VALUE)          ;; optional offset
+    // (data.store $name VALUE offset)          ;; optional offset
     DataStore(Opcode),
 
-    // (data.load_long $name OFFSET)
-    // (host.addr_data_long $name OFFSET)
-    DataLongLoad(Opcode),
+    // (data.load_offset $name OFFSET)
+    // (host.addr_data_offset $name OFFSET)
+    DataOffsetLoad(Opcode),
 
-    // (data.long_store $name OFFSET VALUE)
-    DataLongStore(Opcode),
+    // (data.offset_store $name OFFSET VALUE)
+    DataOffsetStore(Opcode),
 
     // (heap.load ADDR)
     // (host.addr_help ADDR)
@@ -237,52 +237,52 @@ fn init_instruction_map_internal() {
     );
 
     add(
-        "local.long_load64_i64",
-        InstructionSyntaxKind::LocalLongLoad(Opcode::local_long_load64_i64),
+        "local.offset_load64_i64",
+        InstructionSyntaxKind::LocalOffsetLoad(Opcode::local_offset_load64_i64),
     );
     add(
-        "local.long_load64_f64",
-        InstructionSyntaxKind::LocalLongLoad(Opcode::local_long_load64_f64),
+        "local.offset_load64_f64",
+        InstructionSyntaxKind::LocalOffsetLoad(Opcode::local_offset_load64_f64),
     );
     add(
-        "local.long_load32_i32",
-        InstructionSyntaxKind::LocalLongLoad(Opcode::local_long_load32_i32),
+        "local.offset_load32_i32",
+        InstructionSyntaxKind::LocalOffsetLoad(Opcode::local_offset_load32_i32),
     );
     add(
-        "local.long_load32_i16_s",
-        InstructionSyntaxKind::LocalLongLoad(Opcode::local_long_load32_i16_s),
+        "local.offset_load32_i16_s",
+        InstructionSyntaxKind::LocalOffsetLoad(Opcode::local_offset_load32_i16_s),
     );
     add(
-        "local.long_load32_i16_u",
-        InstructionSyntaxKind::LocalLongLoad(Opcode::local_long_load32_i16_u),
+        "local.offset_load32_i16_u",
+        InstructionSyntaxKind::LocalOffsetLoad(Opcode::local_offset_load32_i16_u),
     );
     add(
-        "local.long_load32_i8_s",
-        InstructionSyntaxKind::LocalLongLoad(Opcode::local_long_load32_i8_s),
+        "local.offset_load32_i8_s",
+        InstructionSyntaxKind::LocalOffsetLoad(Opcode::local_offset_load32_i8_s),
     );
     add(
-        "local.long_load32_i8_u",
-        InstructionSyntaxKind::LocalLongLoad(Opcode::local_long_load32_i8_u),
+        "local.offset_load32_i8_u",
+        InstructionSyntaxKind::LocalOffsetLoad(Opcode::local_offset_load32_i8_u),
     );
     add(
-        "local.long_load32_f32",
-        InstructionSyntaxKind::LocalLongLoad(Opcode::local_long_load32_f32),
+        "local.offset_load32_f32",
+        InstructionSyntaxKind::LocalOffsetLoad(Opcode::local_offset_load32_f32),
     );
     add(
-        "local.long_store64",
-        InstructionSyntaxKind::LocalLongStore(Opcode::local_long_store64),
+        "local.offset_store64",
+        InstructionSyntaxKind::LocalOffsetStore(Opcode::local_offset_store64),
     );
     add(
-        "local.long_store32",
-        InstructionSyntaxKind::LocalLongStore(Opcode::local_long_store32),
+        "local.offset_store32",
+        InstructionSyntaxKind::LocalOffsetStore(Opcode::local_offset_store32),
     );
     add(
-        "local.long_store16",
-        InstructionSyntaxKind::LocalLongStore(Opcode::local_long_store16),
+        "local.offset_store16",
+        InstructionSyntaxKind::LocalOffsetStore(Opcode::local_offset_store16),
     );
     add(
-        "local.long_store8",
-        InstructionSyntaxKind::LocalLongStore(Opcode::local_long_store8),
+        "local.offset_store8",
+        InstructionSyntaxKind::LocalOffsetStore(Opcode::local_offset_store8),
     );
 
     // data
@@ -336,52 +336,52 @@ fn init_instruction_map_internal() {
     );
 
     add(
-        "data.long_load64_i64",
-        InstructionSyntaxKind::DataLongLoad(Opcode::data_long_load64_i64),
+        "data.offset_load64_i64",
+        InstructionSyntaxKind::DataOffsetLoad(Opcode::data_offset_load64_i64),
     );
     add(
-        "data.long_load64_f64",
-        InstructionSyntaxKind::DataLongLoad(Opcode::data_long_load64_f64),
+        "data.offset_load64_f64",
+        InstructionSyntaxKind::DataOffsetLoad(Opcode::data_offset_load64_f64),
     );
     add(
-        "data.long_load32_i32",
-        InstructionSyntaxKind::DataLongLoad(Opcode::data_long_load32_i32),
+        "data.offset_load32_i32",
+        InstructionSyntaxKind::DataOffsetLoad(Opcode::data_offset_load32_i32),
     );
     add(
-        "data.long_load32_i16_s",
-        InstructionSyntaxKind::DataLongLoad(Opcode::data_long_load32_i16_s),
+        "data.offset_load32_i16_s",
+        InstructionSyntaxKind::DataOffsetLoad(Opcode::data_offset_load32_i16_s),
     );
     add(
-        "data.long_load32_i16_u",
-        InstructionSyntaxKind::DataLongLoad(Opcode::data_long_load32_i16_u),
+        "data.offset_load32_i16_u",
+        InstructionSyntaxKind::DataOffsetLoad(Opcode::data_offset_load32_i16_u),
     );
     add(
-        "data.long_load32_i8_s",
-        InstructionSyntaxKind::DataLongLoad(Opcode::data_long_load32_i8_s),
+        "data.offset_load32_i8_s",
+        InstructionSyntaxKind::DataOffsetLoad(Opcode::data_offset_load32_i8_s),
     );
     add(
-        "data.long_load32_i8_u",
-        InstructionSyntaxKind::DataLongLoad(Opcode::data_long_load32_i8_u),
+        "data.offset_load32_i8_u",
+        InstructionSyntaxKind::DataOffsetLoad(Opcode::data_offset_load32_i8_u),
     );
     add(
-        "data.long_load32_f32",
-        InstructionSyntaxKind::DataLongLoad(Opcode::data_long_load32_f32),
+        "data.offset_load32_f32",
+        InstructionSyntaxKind::DataOffsetLoad(Opcode::data_offset_load32_f32),
     );
     add(
-        "data.long_store64",
-        InstructionSyntaxKind::DataLongStore(Opcode::data_long_store64),
+        "data.offset_store64",
+        InstructionSyntaxKind::DataOffsetStore(Opcode::data_offset_store64),
     );
     add(
-        "data.long_store32",
-        InstructionSyntaxKind::DataLongStore(Opcode::data_long_store32),
+        "data.offset_store32",
+        InstructionSyntaxKind::DataOffsetStore(Opcode::data_offset_store32),
     );
     add(
-        "data.long_store16",
-        InstructionSyntaxKind::DataLongStore(Opcode::data_long_store16),
+        "data.offset_store16",
+        InstructionSyntaxKind::DataOffsetStore(Opcode::data_offset_store16),
     );
     add(
-        "data.long_store8",
-        InstructionSyntaxKind::DataLongStore(Opcode::data_long_store8),
+        "data.offset_store8",
+        InstructionSyntaxKind::DataOffsetStore(Opcode::data_offset_store8),
     );
 
     // heap
@@ -897,16 +897,16 @@ fn init_instruction_map_internal() {
         InstructionSyntaxKind::LocalLoad(Opcode::host_addr_local),
     );
     add(
-        "host.addr_local_long",
-        InstructionSyntaxKind::LocalLongLoad(Opcode::host_addr_local_long),
+        "host.addr_local_offset",
+        InstructionSyntaxKind::LocalOffsetLoad(Opcode::host_addr_local_offset),
     );
     add(
         "host.addr_data",
         InstructionSyntaxKind::DataLoad(Opcode::host_addr_data),
     );
     add(
-        "host.addr_data_long",
-        InstructionSyntaxKind::DataLongLoad(Opcode::host_addr_data_long),
+        "host.addr_data_offset",
+        InstructionSyntaxKind::DataOffsetLoad(Opcode::host_addr_data_offset),
     );
     add(
         "host.addr_heap",

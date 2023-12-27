@@ -84,16 +84,16 @@ fn test_assemble_arithmetic_i32() {
                     (i32.rem_u (local.load32_i32 $a2) (local.load32_i32 $a1))
 
                     ;; group 2
-                    (i32.inc 3 (local.load32_i32 $a0))
-                    (i32.dec 3 (local.load32_i32 $a0))
-                    (i32.inc 3 (local.load32_i32 $a2))
-                    (i32.dec 3 (local.load32_i32 $a2))
+                    (i32.inc (local.load32_i32 $a0) 3)
+                    (i32.dec (local.load32_i32 $a0) 3)
+                    (i32.inc (local.load32_i32 $a2) 3)
+                    (i32.dec (local.load32_i32 $a2) 3)
 
                     ;; group 3
                     (i32.add (i32.imm 0xffff_ffff) (i32.imm 0x2))
                     (i32.mul (i32.imm 0xf0e0_d0c0) (i32.imm 0x2))
-                    (i32.inc 2 (i32.imm 0xffff_ffff))
-                    (i32.dec 2 (i32.imm 0x1))
+                    (i32.inc (i32.imm 0xffff_ffff) 2)
+                    (i32.dec (i32.imm 0x1) 2)
                 )
             )
         )
@@ -214,16 +214,16 @@ fn test_assemble_arithmetic_i64() {
                     (i64.rem_u (local.load64_i64 $a2) (local.load64_i64 $a1))
 
                     ;; group 2
-                    (i64.inc 3 (local.load64_i64 $a0))
-                    (i64.dec 3 (local.load64_i64 $a0))
-                    (i64.inc 3 (local.load64_i64 $a2))
-                    (i64.dec 3 (local.load64_i64 $a2))
+                    (i64.inc (local.load64_i64 $a0) 3)
+                    (i64.dec (local.load64_i64 $a0) 3)
+                    (i64.inc (local.load64_i64 $a2) 3)
+                    (i64.dec (local.load64_i64 $a2) 3)
 
                     ;; group 3
                     (i64.add (i64.imm 0xffff_ffff_ffff_ffff) (i64.imm 0x2))
                     (i64.mul (i64.imm 0xf0e0_d0c0_b0a0_9080) (i64.imm 0x2))
-                    (i64.inc 2 (i64.imm 0xffff_ffff_ffff_ffff))
-                    (i64.dec 2 (i64.imm 0x1))
+                    (i64.inc (i64.imm 0xffff_ffff_ffff_ffff) 2)
+                    (i64.dec (i64.imm 0x1) 2)
                 )
             )
         )

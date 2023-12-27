@@ -62,9 +62,9 @@ fn test_assemble_local_load_store() {
                 (code
                     ;; store i32, i16, i8, i8. imm -> a2
                     (local.store32 $a2   (i32.imm 0x19171311))
-                    (local.store16 $a2 4 (i32.imm 0xd0c0))
-                    (local.store8  $a2 6 (i32.imm 0xe0))
-                    (local.store8  $a2 7 (i32.imm 0xf0))
+                    (local.store16 $a2 (i32.imm 0xd0c0) 4)
+                    (local.store8  $a2 (i32.imm 0xe0) 6)
+                    (local.store8  $a2 (i32.imm 0xf0) 7)
 
                     ;; load and store f32, f64. args a0, a1 -> a3, a4
                     (local.store32 $a3 (local.load32_f32 $a0))
@@ -131,7 +131,7 @@ fn test_assemble_local_load_store() {
 }
 
 #[test]
-fn test_assemble_local_long_load_and_store() {
+fn test_assemble_local_offset_load_and_store() {
     //       |low address                                 high address|
     //       |                                                        |
     // index |0                                  1                    |
@@ -169,30 +169,30 @@ fn test_assemble_local_long_load_and_store() {
             (local $a1 (bytes 8 8))
             (code
                 ;; store i32, i16, i8, i8. imm -> a0
-                (local.long_store32 $a0 (i32.imm 0) (i32.imm 0x19171311))
-                (local.long_store16 $a0 (i32.imm 4) (i32.imm 0xd0c0))
-                (local.long_store8  $a0 (i32.imm 6) (i32.imm 0xe0))
-                (local.long_store8  $a0 (i32.imm 7) (i32.imm 0xf0))
+                (local.offset_store32 $a0 (i32.imm 0) (i32.imm 0x19171311))
+                (local.offset_store16 $a0 (i32.imm 4) (i32.imm 0xd0c0))
+                (local.offset_store8  $a0 (i32.imm 6) (i32.imm 0xe0))
+                (local.offset_store8  $a0 (i32.imm 7) (i32.imm 0xf0))
 
                 ;; load i64, store i64. a0 -> a1
-                (local.long_store64 $a1
+                (local.offset_store64 $a1
                     (i32.imm 0)
-                    (local.long_load64_i64 $a0 (i32.imm 0))
+                    (local.offset_load64_i64 $a0 (i32.imm 0))
                 )
 
                 ;; load i64, i32, i16u, i16s, i8u, i8s. (a0 -> results)
-                (local.long_load64_i64   $a0 (i32.imm 0))
-                (local.long_load32_i32   $a0 (i32.imm 4))
-                (local.long_load32_i16_u $a0 (i32.imm 6))
-                (local.long_load32_i16_s $a0 (i32.imm 6))
-                (local.long_load32_i8_u  $a0 (i32.imm 7))
-                (local.long_load32_i8_s  $a0 (i32.imm 7))
+                (local.offset_load64_i64   $a0 (i32.imm 0))
+                (local.offset_load32_i32   $a0 (i32.imm 4))
+                (local.offset_load32_i16_u $a0 (i32.imm 6))
+                (local.offset_load32_i16_s $a0 (i32.imm 6))
+                (local.offset_load32_i8_u  $a0 (i32.imm 7))
+                (local.offset_load32_i8_s  $a0 (i32.imm 7))
 
                 ;; load i64, i32, i16u, i8u. (a1 -> results)
-                (local.long_load64_i64   $a1 (i32.imm 0))
-                (local.long_load32_i32   $a1 (i32.imm 0))
-                (local.long_load32_i16_u $a1 (i32.imm 0))
-                (local.long_load32_i8_u  $a1 (i32.imm 0))
+                (local.offset_load64_i64   $a1 (i32.imm 0))
+                (local.offset_load32_i32   $a1 (i32.imm 0))
+                (local.offset_load32_i16_u $a1 (i32.imm 0))
+                (local.offset_load32_i8_u  $a1 (i32.imm 0))
             )
         )
     )

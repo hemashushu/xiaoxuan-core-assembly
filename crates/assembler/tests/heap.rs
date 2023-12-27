@@ -105,72 +105,92 @@ fn test_assemble_heap_load_and_store() {
                         (heap.resize (i32.imm 1)))
 
                     ;; store imm
-                    (heap.store32 0
+                    (heap.store32
                         (i64.imm 0x100)
-                        (i32.imm 0x19171311))
+                        (i32.imm 0x19171311)
+                        0
+                    )
 
-                    (heap.store16 4
+                    (heap.store16
                         (i64.imm 0x100)
-                        (i32.imm 0xd0c0))
+                        (i32.imm 0xd0c0)
+                        4
+                    )
 
-                    (heap.store8 6
+                    (heap.store8
                         (i64.imm 0x100)
-                        (i32.imm 0xe0))
+                        (i32.imm 0xe0)
+                        6
+                    )
 
-                    (heap.store8 7
+                    (heap.store8
                         (i64.imm 0x100)
-                        (i32.imm 0xf0))
+                        (i32.imm 0xf0)
+                        7
+                    )
 
                     ;; load from args, store to heap
-                    (heap.store64 (; ommit the param 'offset' ;)
+                    (heap.store64
                         (i64.imm 0x300)
-                        (local.load64_f64 $a1))
+                        (local.load64_f64 $a1)
+                        (; ommit the param 'offset' ;)
+                    )
 
-                    (heap.store32 (; ommit the param 'offset' ;)
+                    (heap.store32
                         (i64.imm 0x200)
-                        (local.load32_f32 $a0))
+                        (local.load32_f32 $a0)
+                        (; ommit the param 'offset' ;)
+                    )
 
                     ;; load and store
-                    (heap.store64 0
+                    (heap.store64
                         (i64.imm 0x400)
-                        (heap.load64_i64 (i64.imm 0x100)))
+                        (heap.load64_i64 (i64.imm 0x100))
+                        0
+                    )
 
-                    (heap.store32 0
+                    (heap.store32
                         (i64.imm 0x500)
-                        (heap.load64_i64 (i64.imm 0x100)))
+                        (heap.load64_i64 (i64.imm 0x100))
+                        0
+                    )
 
                     ;; load heaps, group 0
-                    (heap.load64_i64 0
-                        (i64.imm 0x100))
+                    (heap.load64_i64
+                        (i64.imm 0x100) 0)
 
-                    (heap.load32_i32 4
-                        (i64.imm 0x100))
+                    (heap.load32_i32
+                        (i64.imm 0x100) 4)
 
-                    (heap.load32_i16_u 6
-                        (i64.imm 0x100))
+                    (heap.load32_i16_u
+                        (i64.imm 0x100) 6)
 
-                    (heap.load32_i16_s 6
-                        (i64.imm 0x100))
+                    (heap.load32_i16_s
+                        (i64.imm 0x100) 6)
 
-                    (heap.load32_i8_u 7
-                        (i64.imm 0x100))
+                    (heap.load32_i8_u
+                        (i64.imm 0x100) 7)
 
-                    (heap.load32_i8_s 7
-                        (i64.imm 0x100))
+                    (heap.load32_i8_s
+                        (i64.imm 0x100) 7)
 
                     ;; load heaps, group 1
-                    (heap.load32_f32 0
-                        (i64.imm 0x200))
+                    (heap.load32_f32
+                        (i64.imm 0x200) 0)
 
-                    (heap.load64_f64 0
-                        (i64.imm 0x300))
+                    (heap.load64_f64
+                        (i64.imm 0x300) 0)
 
                     ;; load heaps, group 2
-                    (heap.load64_i64 (; ommit the param 'offset' ;)
-                        (i64.imm 0x400))
+                    (heap.load64_i64
+                        (i64.imm 0x400)
+                        (; ommit the param 'offset' ;)
+                    )
 
-                    (heap.load32_i32 (; ommit the param 'offset' ;)
-                        (i64.imm 0x500))
+                    (heap.load32_i32
+                        (i64.imm 0x500)
+                        (; ommit the param 'offset' ;)
+                    )
                 )
             )
         )

@@ -89,7 +89,7 @@ local loading instruction variants:
 
 local storing
 
-(local.store64 $VARIABLE_NAME OPTIONAL_OFFSET:i16 VALUE)
+(local.store64 $VARIABLE_NAME VALUE OPTIONAL_OFFSET:i16)
 
 variants:
 
@@ -100,27 +100,27 @@ variants:
 
 ### local variable loading and storing with dynamical offset
 
-(local.long_load64_i64 $VARIABLE_NAME OFFSET_I32)
+(local.offset_load64_i64 $VARIABLE_NAME OFFSET_I32)
 
 variants:
 
-- `local.long_load64_i64`
-- `local.long_load64_f64`
-- `local.long_load32_i32`
-- `local.long_load32_i16_s`
-- `local.long_load32_i16_u`
-- `local.long_load32_i8_s`
-- `local.long_load32_i8_u`
-- `local.long_load32_f32`
+- `local.offset_load64_i64`
+- `local.offset_load64_f64`
+- `local.offset_load32_i32`
+- `local.offset_load32_i16_s`
+- `local.offset_load32_i16_u`
+- `local.offset_load32_i8_s`
+- `local.offset_load32_i8_u`
+- `local.offset_load32_f32`
 
 storing
 
-(local.long_store64 $VARIABLE_NAME OFFSET_I32 VALUE)
+(local.offset_store64 $VARIABLE_NAME OFFSET_I32 VALUE)
 
-- `local.long_store64`
-- `local.long_store32`
-- `local.long_store16`
-- `local.long_store8`
+- `local.offset_store64`
+- `local.offset_store32`
+- `local.offset_store16`
+- `local.offset_store8`
 
 ## Data
 
@@ -145,7 +145,7 @@ variants
 
 storing
 
-(data.store64 $DATA_NAME_PATH OPTIONAL_OFFSET:i16 VALUE)
+(data.store64 $DATA_NAME_PATH VALUE OPTIONAL_OFFSET:i16)
 
 - `data.store64`
 - `data.store32`
@@ -154,35 +154,35 @@ storing
 
 ### data loading and storing with dynamical offset
 
-(data.long_load64_i64 $DATA_NAME_PATH OFFSET_I32)
+(data.offset_load64_i64 $DATA_NAME_PATH OFFSET_I32)
 
 variants:
 
-- `data.long_load64_i64`
-- `data.long_load64_f64`
-- `data.long_load32_i32`
-- `data.long_load32_i16_s`
-- `data.long_load32_i16_u`
-- `data.long_load32_i8_s`
-- `data.long_load32_i8_u`
-- `data.long_load32_f32`
+- `data.offset_load64_i64`
+- `data.offset_load64_f64`
+- `data.offset_load32_i32`
+- `data.offset_load32_i16_s`
+- `data.offset_load32_i16_u`
+- `data.offset_load32_i8_s`
+- `data.offset_load32_i8_u`
+- `data.offset_load32_f32`
 
 storing
 
-(data.long_store64 $DATA_NAME_PATH OFFSET_I32 VALUE)
+(data.offset_store64 $DATA_NAME_PATH OFFSET_I32 VALUE)
 
 variants:
 
-- `data.long_store64`
-- `data.long_store32`
-- `data.long_store16`
-- `data.long_store8`
+- `data.offset_store64`
+- `data.offset_store32`
+- `data.offset_store16`
+- `data.offset_store8`
 
 ## Heap
 
 ### heap loading and storing
 
-(heap.load64_i64 OPTIONAL_OFFSET:i16 ADDR)
+(heap.load64_i64 ADDR OPTIONAL_OFFSET:i16)
 
 variants:
 
@@ -197,7 +197,7 @@ variants:
 
 storing
 
-(heap.store64 OPTIONAL_OFFSET:i16 ADDR VALUE)
+(heap.store64 ADDR VALUE OPTIONAL_OFFSET:i16)
 
 variants:
 
@@ -328,10 +328,10 @@ wrapping mul, e.g. 0xf0e0d0c0 * 2 = 0xf0e0d0c0 << 1
 (i32.rem_s LEFT RIGHT)
 (i32.rem_u LEFT RIGHT)
 
-(i32.inc IMM:i16 VALUE)
+(i32.inc VALUE IMM:i16)
 wrapping inc, e.g. 0xffff_ffff inc 2 = 1
 
-(i32.dec IMM:i16 VALUE)
+(i32.dec VALUE IMM:i16)
 wrapping dec, e.g. 0x1 dec 2 = 0xffff_ffff
 
 ### i64
@@ -344,8 +344,8 @@ wrapping dec, e.g. 0x1 dec 2 = 0xffff_ffff
 (i64.rem_s LEFT RIGHT)
 (i64.rem_u LEFT RIGHT)
 
-(i64.inc IMM:i16 VALUE)
-(i64.dec IMM:i16 VALUE)
+(i64.inc VALUE IMM:i16)
+(i64.dec VALUE IMM:i16)
 
 ### f32
 
@@ -469,10 +469,10 @@ wrapping dec, e.g. 0x1 dec 2 = 0xffff_ffff
 (debug CODE:i32)
 
 (host.addr_local $VARIABLE_NAME OPTIONAL_OFFSET:i16)
-(host.addr_local_long $VARIABLE_NAME OFFSET_I32)
+(host.addr_local_offset $VARIABLE_NAME OFFSET_I32)
 (host.addr_data $DATA_NAME_PATH OPTIONAL_OFFSET:i16)
-(host.addr_data_long $DATA_NAME_PATH OFFSET_I32)
-(host.addr_heap OPTIONAL_OFFSET:i16 ADDR)
+(host.addr_data_offset $DATA_NAME_PATH OFFSET_I32)
+(host.addr_heap ADDR OPTIONAL_OFFSET:i16)
 
 (host.addr_function $name)
 

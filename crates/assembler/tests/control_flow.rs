@@ -283,9 +283,9 @@ fn test_assemble_control_flow_block_with_local_vars_equ_structure_for() {
                 (local $d i32)
                 (code
                     (local.store32 $c
-                        (i32.inc 1 (local.load32_i32 $a)))
+                        (i32.inc (local.load32_i32 $a) 1))
                     (local.store32 $d
-                        (i32.inc 1 (local.load32_i32 $b)))
+                        (i32.inc (local.load32_i32 $b) 1))
 
                     (for
                         (results i32 i32 i32 i32)
@@ -293,9 +293,9 @@ fn test_assemble_control_flow_block_with_local_vars_equ_structure_for() {
                         (local $q i32)
                         (do
                             (local.store32 $a
-                                (i32.dec 1 (local.load32_i32 $a)))
+                                (i32.dec (local.load32_i32 $a) 1))
                             (local.store32 $b
-                                (i32.dec 1 (local.load32_i32 $b)))
+                                (i32.dec (local.load32_i32 $b) 1))
                             (local.store32 $p
                                 (i32.add
                                     (local.load32_i32 $c)
@@ -317,9 +317,9 @@ fn test_assemble_control_flow_block_with_local_vars_equ_structure_for() {
                                 (results i32 i32)
                                 (do
                                     (local.store32 $d
-                                        (i32.inc 1 (local.load32_i32 $d)))
+                                        (i32.inc (local.load32_i32 $d) 1))
                                     (local.store32 $q
-                                        (i32.dec 1 (local.load32_i32 $q)))
+                                        (i32.dec (local.load32_i32 $q) 1))
                                     (i32.add
                                         (local.load32_i32 $x)
                                         (local.load32_i32 $q)
@@ -1520,8 +1520,9 @@ fn test_assemble_control_flow_structure_loop() {
                                 )
                             )
                             (local.store32 $n
-                                (i32.dec 1
+                                (i32.dec
                                     (local.load32_i32 $n)
+                                    1
                                 )
                             )
                             (recur)
@@ -1632,8 +1633,9 @@ fn test_assemble_control_flow_structure_loop_with_block_parameters() {
                                     (local.load32_i32 $n)
                                 )
 
-                                (i32.dec 1
+                                (i32.dec
                                     (local.load32_i32 $n)
+                                    1
                                 )
                             )
                         )
@@ -1742,8 +1744,9 @@ fn test_assemble_control_flow_structure_loop_with_if() {
                                         (local.load32_i32 $n)
                                     )
 
-                                    (i32.dec 1
+                                    (i32.dec
                                         (local.load32_i32 $n)
+                                        1
                                     )
                                 )
                             )
@@ -1845,8 +1848,9 @@ fn test_assemble_control_flow_function_tail_call() {
                         )
                     )
                     (local.store32 $n
-                        (i32.dec 1
+                        (i32.dec
                             (local.load32_i32 $n)
+                            1
                         )
                     )
                     (when
@@ -1961,8 +1965,9 @@ fn test_assemble_control_flow_function_tail_call_with_if() {
                                 (local.load32_i32 $sum)
                                 (local.load32_i32 $n)
                             )
-                            (i32.dec 1
+                            (i32.dec
                                 (local.load32_i32 $n)
+                                1
                             )
 
                         )

@@ -34,15 +34,23 @@
 //    `(local $sum i32)` =/= `(local i32 $sum)`
 //
 // 5. some of the parameters can be omitted, in this case, the parameters must
-//    still be in their original order. e.g.
+//    still be in their original order. commonly such parameters are placed at
+//    the end side of the node.
+//    e.g.
 //
-//   `(local.load32_i32 $db (offset 0))` == `(local.load32_i32 $db)`
-//   ;; the child node '(offset ...)' above can be omitted.
+//   `(local.load32_i32 $db 4)` == `(local.load32_i32 $db)`
+//   ;; the optional parameter '4' above can be omitted.
 
 // the instruction syntax
 // ----------------------
 //
-// `(instruction_name param_0 ... param_N operand_0 ... operand_N)`
+// ```
+// (instruction_name
+//      param_0 ... param_N
+//      operand_0 ... operand_N
+//      optional_param_0 ... optional_param_N
+// )
+// ```
 //
 // 1. instructions with NO parameters and NO operands, can be written
 //    with or without parentheses, e.g.
@@ -748,11 +756,11 @@ fn parse_instruction_with_parentheses(
                 InstructionSyntaxKind::LocalStore(opcode) => {
                     parse_instruction_kind_local_store(iter, inst_name, opcode, true)?
                 }
-                InstructionSyntaxKind::LocalLongLoad(opcode) => {
-                    parse_instruction_kind_local_long_load(iter, inst_name, opcode, true)?
+                InstructionSyntaxKind::LocalOffsetLoad(opcode) => {
+                    parse_instruction_kind_local_offset_load(iter, inst_name, opcode, true)?
                 }
-                InstructionSyntaxKind::LocalLongStore(opcode) => {
-                    parse_instruction_kind_local_long_store(iter, inst_name, opcode, true)?
+                InstructionSyntaxKind::LocalOffsetStore(opcode) => {
+                    parse_instruction_kind_local_offset_store(iter, inst_name, opcode, true)?
                 }
                 InstructionSyntaxKind::DataLoad(opcode) => {
                     parse_instruction_kind_local_load(iter, inst_name, opcode, false)?
@@ -760,11 +768,11 @@ fn parse_instruction_with_parentheses(
                 InstructionSyntaxKind::DataStore(opcode) => {
                     parse_instruction_kind_local_store(iter, inst_name, opcode, false)?
                 }
-                InstructionSyntaxKind::DataLongLoad(opcode) => {
-                    parse_instruction_kind_local_long_load(iter, inst_name, opcode, false)?
+                InstructionSyntaxKind::DataOffsetLoad(opcode) => {
+                    parse_instruction_kind_local_offset_load(iter, inst_name, opcode, false)?
                 }
-                InstructionSyntaxKind::DataLongStore(opcode) => {
-                    parse_instruction_kind_local_long_store(iter, inst_name, opcode, false)?
+                InstructionSyntaxKind::DataOffsetStore(opcode) => {
+                    parse_instruction_kind_local_offset_store(iter, inst_name, opcode, false)?
                 }
                 //
                 InstructionSyntaxKind::HeapLoad(opcode) => {
@@ -988,7 +996,9 @@ fn parse_instruction_kind_local_load(
     // |____________________________// current token
     //
     // also:
-    // (local.load64_i64 $name OFFSET:i16)
+    // (local.load64_i64 $name OPTIONAL_OFFSET:i16)
+    // (data.load64_i64 $name)
+    // (data.load64_i64 $name OPTIONAL_OFFSET:i16)
 
     consume_left_paren(iter, &format!("instruction.{}", inst_name))?;
     consume_symbol(iter, inst_name)?;
@@ -1026,18 +1036,19 @@ fn parse_instruction_kind_local_store(
     // |_____________________________// current token
     //
     // also:
-    // (local.store $name OFFSET:i16 VALUE)
+    // (local.store $name VALUE OPTIONAL_OFFSET:i16)
+    // (data.store $name VALUE)
+    // (data.store $name VALUE OPTIONAL_OFFSET:i16)
 
     consume_left_paren(iter, &format!("instruction.{}", inst_name))?;
     consume_symbol(iter, inst_name)?;
     let name = expect_identifier(iter, &format!("instruction.{}.name", inst_name))?;
+    let operand = parse_next_operand(iter, &format!("instruction.{}", inst_name))?;
     let offset = if let Some(offset_number_token) = expect_number_optional(iter) {
         parse_u16_string(&offset_number_token)?
     } else {
         0
     };
-
-    let operand = parse_next_operand(iter, &format!("instruction.{}", inst_name))?;
     consume_right_paren(iter)?;
 
     if is_local {
@@ -1057,15 +1068,15 @@ fn parse_instruction_kind_local_store(
     }
 }
 
-fn parse_instruction_kind_local_long_load(
+fn parse_instruction_kind_local_offset_load(
     iter: &mut PeekableIterator<Token>,
     inst_name: &str,
     opcode: Opcode,
     is_local: bool,
 ) -> Result<Instruction, ParseError> {
-    // (local.long_load $name OFFSET:i32) ... //
-    // ^                                  ^___// to here
-    // |______________________________________// current token
+    // (local.offset_load $name OFFSET_I32) ... //
+    // ^                                    ^___// to here
+    // |________________________________________// current token
 
     consume_left_paren(iter, &format!("instruction.{}", inst_name))?;
     consume_symbol(iter, inst_name)?;
@@ -1088,15 +1099,15 @@ fn parse_instruction_kind_local_long_load(
     }
 }
 
-fn parse_instruction_kind_local_long_store(
+fn parse_instruction_kind_local_offset_store(
     iter: &mut PeekableIterator<Token>,
     inst_name: &str,
     opcode: Opcode,
     is_local: bool,
 ) -> Result<Instruction, ParseError> {
-    // (local.long_store $name OFFSET:i32 VALUE) ... //
-    // ^                                         ^___// to here
-    // |_____________________________________________// current token
+    // (local.offset_store $name OFFSET_I32 VALUE) ... //
+    // ^                                           ^___// to here
+    // |_______________________________________________// current token
 
     consume_left_paren(iter, &format!("instruction.{}", inst_name))?;
     consume_symbol(iter, inst_name)?;
@@ -1132,18 +1143,16 @@ fn parse_instruction_kind_heap_load(
     // |____________________// current token
     //
     // also:
-    // (heap.load OFFSET:i16 ADDR)
+    // (heap.load ADDR OPTIONAL_OFFSET:i16)
 
     consume_left_paren(iter, &format!("instruction.{}", inst_name))?;
     consume_symbol(iter, inst_name)?;
-
+    let addr = parse_next_operand(iter, &format!("instruction.{}.addr", inst_name))?;
     let offset = if let Some(offset_token_number) = expect_number_optional(iter) {
         parse_u16_string(&offset_token_number)?
     } else {
         0
     };
-
-    let addr = parse_next_operand(iter, &format!("instruction.{}.addr", inst_name))?;
     consume_right_paren(iter)?;
 
     Ok(Instruction::HeapLoad {
@@ -1163,19 +1172,17 @@ fn parse_instruction_kind_heap_store(
     // |___________________________// current token
     //
     // also:
-    // (heap.store OFFSET:i16 ADDR VALUE)
+    // (heap.store ADDR VALUE OPTIONAL_OFFSET:i16)
 
     consume_left_paren(iter, &format!("instruction.{}", inst_name))?;
     consume_symbol(iter, inst_name)?;
-
+    let addr = parse_next_operand(iter, &format!("instruction.{}.addr", inst_name))?;
+    let value = parse_next_operand(iter, &format!("instruction.{}.value", inst_name))?;
     let offset = if let Some(offset_number_token) = expect_number_optional(iter) {
         parse_u16_string(&offset_number_token)?
     } else {
         0
     };
-
-    let addr = parse_next_operand(iter, &format!("instruction.{}.addr", inst_name))?;
-    let value = parse_next_operand(iter, &format!("instruction.{}.value", inst_name))?;
 
     consume_right_paren(iter)?;
 
@@ -1212,15 +1219,15 @@ fn parse_instruction_kind_unary_op_with_imm_i16(
     inst_name: &str,
     opcode: Opcode,
 ) -> Result<Instruction, ParseError> {
-    // (i32.inc imm:i16 VALUE) ... //
+    // (i32.inc VALUE imm:i16) ... //
     // ^                       ^___// to here
     // |___________________________// current token
 
     consume_left_paren(iter, &format!("instruction.{}", inst_name))?;
     consume_symbol(iter, inst_name)?;
+    let source = parse_next_operand(iter, &format!("instruction.{}.source", inst_name))?;
     let imm_token = expect_number(iter, &format!("instruction.{}.imm", inst_name))?;
     let imm_i16 = parse_u16_string(&imm_token)?;
-    let source = parse_next_operand(iter, &format!("instruction.{}.source", inst_name))?;
     consume_right_paren(iter)?;
 
     Ok(Instruction::UnaryOpWithImmI16 {
@@ -2918,7 +2925,7 @@ mod tests {
                 (function $test
                     (code
                         (i32.eqz (i32.imm 11))
-                        (i32.inc 1 (i32.imm 13))
+                        (i32.inc (i32.imm 13) 1)
                         (i32.add (i32.imm 17) (i32.imm 19))
                         (i32.add
                             (i32.mul
@@ -2976,9 +2983,9 @@ mod tests {
                         (local.load32_i32 $sum)
                         (local.load64_i64 $count 4)
                         (local.store32 $left (i32.imm 11))
-                        (local.store64 $right 8 (i64.imm 13))
-                        (local.long_load64_i64 $foo (i32.imm 17))
-                        (local.long_store64 $bar (i32.imm 19) (i64.imm 23))
+                        (local.store64 $right (i64.imm 13) 8)
+                        (local.offset_load64_i64 $foo (i32.imm 17))
+                        (local.offset_store64 $bar (i32.imm 19) (i64.imm 23))
                     )
                 )
             )
@@ -3011,13 +3018,13 @@ mod tests {
                 },
                 //
                 Instruction::LocalLongLoad {
-                    opcode: Opcode::local_long_load64_i64,
+                    opcode: Opcode::local_offset_load64_i64,
                     name: "foo".to_owned(),
                     offset: Box::new(Instruction::ImmI32(17))
                 },
                 //
                 Instruction::LocalLongStore {
-                    opcode: Opcode::local_long_store64,
+                    opcode: Opcode::local_offset_store64,
                     name: "bar".to_owned(),
                     offset: Box::new(Instruction::ImmI32(19)),
                     value: Box::new(Instruction::ImmI64(23))
@@ -3038,9 +3045,9 @@ mod tests {
                         (data.load32_i32 $sum)
                         (data.load64_i64 $count 4)
                         (data.store32 $left (i32.imm 11))
-                        (data.store64 $right 8 (i64.imm 13))
-                        (data.long_load64_i64 $foo (i32.imm 17))
-                        (data.long_store64 $bar (i32.imm 19) (i64.imm 23))
+                        (data.store64 $right (i64.imm 13) 8)
+                        (data.offset_load64_i64 $foo (i32.imm 17))
+                        (data.offset_store64 $bar (i32.imm 19) (i64.imm 23))
                     )
                 )
             )
@@ -3073,13 +3080,13 @@ mod tests {
                 },
                 //
                 Instruction::DataLongLoad {
-                    opcode: Opcode::data_long_load64_i64,
+                    opcode: Opcode::data_offset_load64_i64,
                     id: "foo".to_owned(),
                     offset: Box::new(Instruction::ImmI32(17))
                 },
                 //
                 Instruction::DataLongStore {
-                    opcode: Opcode::data_long_store64,
+                    opcode: Opcode::data_offset_store64,
                     id: "bar".to_owned(),
                     offset: Box::new(Instruction::ImmI32(19)),
                     value: Box::new(Instruction::ImmI64(23))
@@ -3098,9 +3105,9 @@ mod tests {
                 (function $test
                     (code
                         (heap.load32_i32 (i32.imm 11))
-                        (heap.load64_i64 4 (i32.imm 13))
+                        (heap.load64_i64 (i32.imm 13) 4)
                         (heap.store32 (i32.imm 17) (i32.imm 19))
-                        (heap.store64 8 (i32.imm 23) (i32.imm 29))
+                        (heap.store64 (i32.imm 23) (i32.imm 29) 8)
                     )
                 )
             )
@@ -3483,7 +3490,7 @@ mod tests {
                         (for (param $sum i32) (param $n i32) (result i32) (local $temp i32)
                             (do
                                 ;; n = n - 1
-                                (local.store32 $n (i32.dec 1 (local.load32_i32 $n)))
+                                (local.store32 $n (i32.dec (local.load32_i32 $n) 1))
                                 (if
                                     ;; if n == 0
                                     (i32.eq (local.load32_i32 $n) zero)
@@ -3607,7 +3614,7 @@ mod tests {
                 (function $test (param $sum i32) (param $n i32) (result i32)
                     (code
                         ;; n = n - 1
-                        (local.store32 $n (i32.dec 1 (local.load32_i32 $n)))
+                        (local.store32 $n (i32.dec (local.load32_i32 $n) 1))
                         (if
                             ;; if n == 0
                             (i32.eq (local.load32_i32 $n) zero)
@@ -3830,10 +3837,10 @@ mod tests {
                         (unreachable 0x11)
                         (debug 0x13)
                         (host.addr_local $num 0x17)
-                        (host.addr_local_long $sum (i32.imm 0x19))
+                        (host.addr_local_offset $sum (i32.imm 0x19))
                         (host.addr_data $msg 0x23)
-                        (host.addr_data_long $title (i32.imm 0x29))
-                        (host.addr_heap 0x31 (i32.imm 0x37))
+                        (host.addr_data_offset $title (i32.imm 0x29))
+                        (host.addr_heap (i32.imm 0x37) 0x31)
                         (host.addr_function $add)
                         (host.copy_heap_to_memory
                             (i32.imm 0x41)
@@ -3844,6 +3851,11 @@ mod tests {
                             (i32.imm 0x53)
                             (i32.imm 0x59)
                             (i32.imm 0x61)
+                        )
+                        (host.memory_copy
+                            (i32.imm 0x67)
+                            (i32.imm 0x71)
+                            (i32.imm 0x73)
                         )
                     )
                 )
@@ -3860,7 +3872,7 @@ mod tests {
                     offset: 0x17
                 },
                 Instruction::LocalLongLoad {
-                    opcode: Opcode::host_addr_local_long,
+                    opcode: Opcode::host_addr_local_offset,
                     name: "sum".to_owned(),
                     offset: Box::new(Instruction::ImmI32(0x19)),
                 },
@@ -3870,7 +3882,7 @@ mod tests {
                     offset: 0x23,
                 },
                 Instruction::DataLongLoad {
-                    opcode: Opcode::host_addr_data_long,
+                    opcode: Opcode::host_addr_data_offset,
                     id: "title".to_owned(),
                     offset: Box::new(Instruction::ImmI32(0x29)),
                 },
@@ -3896,6 +3908,14 @@ mod tests {
                         Instruction::ImmI32(0x53),
                         Instruction::ImmI32(0x59),
                         Instruction::ImmI32(0x61),
+                    ],
+                },
+                Instruction::NoParams {
+                    opcode: Opcode::host_memory_copy,
+                    operands: vec![
+                        Instruction::ImmI32(0x67),
+                        Instruction::ImmI32(0x71),
+                        Instruction::ImmI32(0x73),
                     ],
                 },
             ]

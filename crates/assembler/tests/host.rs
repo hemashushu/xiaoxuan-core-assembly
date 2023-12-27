@@ -279,7 +279,7 @@ fn test_assemble_host_address_of_data_and_local_vars() {
 }
 
 #[test]
-fn test_assemble_host_address_long_of_data_and_local_vars() {
+fn test_assemble_host_address_offset_of_data_and_local_vars() {
     //        read-only data section
     //        ======================
     //
@@ -333,15 +333,15 @@ fn test_assemble_host_address_long_of_data_and_local_vars() {
 
                     ;; get host address of data
 
-                    (host.addr_data_long $d0 (i32.imm 0))
-                    (host.addr_data_long $d0 (i32.imm 2))
-                    (host.addr_data_long $d1 (i32.imm 2))
-                    (host.addr_data_long $d1 (i32.imm 3))
+                    (host.addr_data_offset $d0 (i32.imm 0))
+                    (host.addr_data_offset $d0 (i32.imm 2))
+                    (host.addr_data_offset $d1 (i32.imm 2))
+                    (host.addr_data_offset $d1 (i32.imm 3))
 
-                    (host.addr_local_long $n1 (i32.imm 0))
-                    (host.addr_local_long $n1 (i32.imm 3))
-                    (host.addr_local_long $n1 (i32.imm 6))
-                    (host.addr_local_long $n1 (i32.imm 7))
+                    (host.addr_local_offset $n1 (i32.imm 0))
+                    (host.addr_local_offset $n1 (i32.imm 3))
+                    (host.addr_local_offset $n1 (i32.imm 6))
+                    (host.addr_local_offset $n1 (i32.imm 7))
                 )
             )
         )
@@ -365,21 +365,21 @@ fn test_assemble_host_address_long_of_data_and_local_vars() {
         41 43 47 53
 0x000c  08 02 00 00  00 00 01 00    local.store64     rev:0   off:0x00  idx:1
 0x0014  80 01 00 00  00 00 00 00    i32.imm           0x00000000
-0x001c  06 0c 00 00  00 00 00 00    host.addr_data_long  idx:0
+0x001c  06 0c 00 00  00 00 00 00    host.addr_data_offset  idx:0
 0x0024  80 01 00 00  02 00 00 00    i32.imm           0x00000002
-0x002c  06 0c 00 00  00 00 00 00    host.addr_data_long  idx:0
+0x002c  06 0c 00 00  00 00 00 00    host.addr_data_offset  idx:0
 0x0034  80 01 00 00  02 00 00 00    i32.imm           0x00000002
-0x003c  06 0c 00 00  01 00 00 00    host.addr_data_long  idx:1
+0x003c  06 0c 00 00  01 00 00 00    host.addr_data_offset  idx:1
 0x0044  80 01 00 00  03 00 00 00    i32.imm           0x00000003
-0x004c  06 0c 00 00  01 00 00 00    host.addr_data_long  idx:1
+0x004c  06 0c 00 00  01 00 00 00    host.addr_data_offset  idx:1
 0x0054  80 01 00 00  00 00 00 00    i32.imm           0x00000000
-0x005c  04 0c 00 00  01 00 00 00    host.addr_local_long  rev:0   idx:1
+0x005c  04 0c 00 00  01 00 00 00    host.addr_local_offset  rev:0   idx:1
 0x0064  80 01 00 00  03 00 00 00    i32.imm           0x00000003
-0x006c  04 0c 00 00  01 00 00 00    host.addr_local_long  rev:0   idx:1
+0x006c  04 0c 00 00  01 00 00 00    host.addr_local_offset  rev:0   idx:1
 0x0074  80 01 00 00  06 00 00 00    i32.imm           0x00000006
-0x007c  04 0c 00 00  01 00 00 00    host.addr_local_long  rev:0   idx:1
+0x007c  04 0c 00 00  01 00 00 00    host.addr_local_offset  rev:0   idx:1
 0x0084  80 01 00 00  07 00 00 00    i32.imm           0x00000007
-0x008c  04 0c 00 00  01 00 00 00    host.addr_local_long  rev:0   idx:1
+0x008c  04 0c 00 00  01 00 00 00    host.addr_local_offset  rev:0   idx:1
 0x0094  00 0a                       end"
     );
 
@@ -444,12 +444,12 @@ fn test_assemble_host_address_heap() {
 
                     ;; get host address of heap
 
-                    (host.addr_heap 0 (i64.imm 0x100))
-                    (host.addr_heap 2 (i64.imm 0x100))
+                    (host.addr_heap (i64.imm 0x100) 0)
+                    (host.addr_heap (i64.imm 0x100) 2)
 
-                    (host.addr_heap 0 (i64.imm 0x200))
-                    (host.addr_heap 4 (i64.imm 0x200))
-                    (host.addr_heap 7 (i64.imm 0x200))
+                    (host.addr_heap (i64.imm 0x200) 0)
+                    (host.addr_heap (i64.imm 0x200) 4)
+                    (host.addr_heap (i64.imm 0x200) 7)
                 )
             )
         )
@@ -609,7 +609,7 @@ fn test_assemble_host_memory_copy() {
 
                     (host.memory_copy
                         (host.addr_local $buf 0)
-                        (i64.inc 4 (local.load64_i64 $src_ptr))
+                        (i64.inc (local.load64_i64 $src_ptr) 4)
                         (i64.imm 4)
                     )
 
@@ -711,10 +711,11 @@ fn test_assemble_host_addr_function_and_callback_function() {
 
     let mut pwd = std::env::current_dir().unwrap();
     if !pwd.ends_with("assembler") {
-        // in the VSCode `Debug` environment, the `current_dir()`
-        // the project root folder.
-        // while in both `$ cargo test` and VSCode `Run Test` environment
-        // the `current_dir()` return the current crate path.
+        // in the VSCode editor `Debug` environment, the `current_dir()` returns
+        // the project's root folder.
+        // while in both `$ cargo test` and VSCode editor `Run Test` environment,
+        // the `current_dir()` returns the current crate path.
+        // here canonicalize the test resources path.
         pwd.push("crates");
         pwd.push("assembler");
     }

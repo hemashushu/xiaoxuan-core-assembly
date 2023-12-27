@@ -80,14 +80,14 @@ fn test_assemble_data_load_and_store_initialized() {
                     (data.store32 $d2
                         (data.load32_i32 $d0))
 
-                    (data.store16 $d2 4
-                        (data.load32_i16_u $d1))
+                    (data.store16 $d2
+                        (data.load32_i16_u $d1) 4)
 
-                    (data.store8 $d2 6
-                        (data.load32_i8_u $d1 2))
+                    (data.store8 $d2
+                        (data.load32_i8_u $d1 2) 6)
 
-                    (data.store8 $d2 7
-                        (data.load32_i8_u $d1 3))
+                    (data.store8 $d2
+                        (data.load32_i8_u $d1 3) 7)
 
                     ;; load and store
                     (data.store64 $d5
@@ -217,14 +217,14 @@ fn test_assemble_data_load_and_store_uninitialized() {
                     (data.store32 $d2
                         (data.load32_i32 $d0))
 
-                    (data.store16 $d2 4
-                        (data.load32_i16_u $d1))
+                    (data.store16 $d2
+                        (data.load32_i16_u $d1) 4)
 
-                    (data.store8 $d2 6
-                        (data.load32_i8_u $d1 2))
+                    (data.store8 $d2
+                        (data.load32_i8_u $d1 2) 6)
 
-                    (data.store8 $d2 7
-                        (data.load32_i8_u $d1 3))
+                    (data.store8 $d2
+                        (data.load32_i8_u $d1 3) 7)
 
                     ;; load and store. args a0, a1-> data d3, d4
                     (data.store32 $d3
@@ -293,7 +293,7 @@ fn test_assemble_data_load_and_store_uninitialized() {
 }
 
 #[test]
-fn test_assemble_data_long_load_and_store() {
+fn test_assemble_data_offset_load_and_store() {
     //        uninitialized data section
     //        ==========================
     //
@@ -335,41 +335,41 @@ fn test_assemble_data_long_load_and_store() {
                         )
                 (code
                     ;; store imm
-                    (data.long_store32 $d0
+                    (data.offset_store32 $d0
                         (i32.imm 0)
                         (i32.imm 0x19171311))
 
-                    (data.long_store16 $d0
+                    (data.offset_store16 $d0
                         (i32.imm 4)
                         (i32.imm 0xd0c0))
 
-                    (data.long_store8 $d0
+                    (data.offset_store8 $d0
                         (i32.imm 6)
                         (i32.imm 0xe0))
 
-                    (data.long_store8 $d0
+                    (data.offset_store8 $d0
                         (i32.imm 7)
                         (i32.imm 0xf0))
 
                     ;; load and store
 
-                    (data.long_store64 $d1
+                    (data.offset_store64 $d1
                         (i32.imm 0)
-                        (data.long_load64_i64 $d0 (i32.imm 0)))
+                        (data.offset_load64_i64 $d0 (i32.imm 0)))
 
                     ;; load datas
-                    (data.long_load64_i64 $d0 (i32.imm 0))
-                    (data.long_load32_i32 $d0 (i32.imm 4))
-                    (data.long_load32_i16_u $d0 (i32.imm 6))
-                    (data.long_load32_i16_s $d0 (i32.imm 6))
-                    (data.long_load32_i8_u $d0 (i32.imm 7))
-                    (data.long_load32_i8_s $d0 (i32.imm 7))
+                    (data.offset_load64_i64 $d0 (i32.imm 0))
+                    (data.offset_load32_i32 $d0 (i32.imm 4))
+                    (data.offset_load32_i16_u $d0 (i32.imm 6))
+                    (data.offset_load32_i16_s $d0 (i32.imm 6))
+                    (data.offset_load32_i8_u $d0 (i32.imm 7))
+                    (data.offset_load32_i8_s $d0 (i32.imm 7))
 
                     ;; load datas
-                    (data.long_load64_i64 $d1 (i32.imm 0))
-                    (data.long_load32_i32 $d1 (i32.imm 0))
-                    (data.long_load32_i16_u $d1 (i32.imm 0))
-                    (data.long_load32_i8_u $d1 (i32.imm 0))
+                    (data.offset_load64_i64 $d1 (i32.imm 0))
+                    (data.offset_load32_i32 $d1 (i32.imm 0))
+                    (data.offset_load32_i16_u $d1 (i32.imm 0))
+                    (data.offset_load32_i8_u $d1 (i32.imm 0))
                 )
             )
         )

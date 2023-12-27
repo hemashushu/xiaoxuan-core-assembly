@@ -4,8 +4,6 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use std::env;
-
 use ancasm_assembler::utils::helper_generate_module_image_binary_from_str;
 use ancvm_extfunc_util::cstr_pointer_to_str;
 use ancvm_process::{
@@ -114,12 +112,13 @@ fn test_assemble_extcall_with_user_lib() {
         "#,
     );
 
-    let mut pwd = env::current_dir().unwrap();
+    let mut pwd = std::env::current_dir().unwrap();
     if !pwd.ends_with("assembler") {
-        // in the VSCode `Debug` environment, the `current_dir()`
-        // the project root folder.
-        // while in both `$ cargo test` and VSCode `Run Test` environment
-        // the `current_dir()` return the current crate path.
+        // in the VSCode editor `Debug` environment, the `current_dir()` returns
+        // the project's root folder.
+        // while in both `$ cargo test` and VSCode editor `Run Test` environment,
+        // the `current_dir()` returns the current crate path.
+        // here canonicalize the test resources path.
         pwd.push("crates");
         pwd.push("assembler");
     }

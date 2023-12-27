@@ -163,8 +163,8 @@ add 'export' annotation after the function name.
 (data $name (read_only f32 0x1.23p4))
 (data $name (read_only f64 2.718281828459045))
 ;; data
-(data $name (read_only (bytes ALIGN:i16) h"11-13-17-19"))
-(data $name (read_write (bytes ALIGN:i16) h"11-13-17-19"))
+(data $name (read_only bytes h"11-13-17-19" OPTIONAL_ALIGN:i16))
+(data $name (read_write bytes h"11-13-17-19" OPTIONAL_ALIGN:i16)) <<====
 
 there are two variants of 'bytes': 'string' and 'cstring', e.g.
 
@@ -183,46 +183,55 @@ read-write section:
 
 uninitialized section:
 (data $name (uninit i32))
-(data $name (uninit (bytes 12 4)))
-(data $name (uninit (bytes DATA_LENGTH:i32 ALIGN:i16)))
+(data $name (uninit bytes DATA_LENGTH:i32 OPTIONAL_ALIGN:i16)) <<====
+(data $name (uninit bytes 12 4))
 
 with 'export' annotation
 (data $name export (read_only i32 123))
 
+## The 'depend' node <<====
+
+(depend
+    (module $math "math" "1.0" share)
+    (library $libc "libc.so.6" share)
+)
+
+module type:
+- share: `(module "math" "1.0" share)`
+- user: `(module "format" "1.2" user)`
+
+library type:
+- share: `(library "math.so.1" share)`
+- system: `(library "libc.so.6" system)`
+- user: `(library "libtest0.so.1" user)`
+
 ## The 'external' node
 
-(external (library share "math.so.1")
+(external $user
     (function $add "add" (param i32) (param i32) (result i32))
     (function $sub_i32 "sub" (params i32 i32) (result i32))
     (function $pause "pause_1s")
 )
 
+### the external function node
+
 there is no identifier in the 'param' nodes, and the parameters can be writtern as compact mode, e.g.
 
 (function $add "add" (params i32 i32) (result i32))
-
-library type:
-- (library share "math.so.1")
-- (library system "libc.so.6")
-- (library user "libtest0.so.1")
-
-(external (library system "libc.so.6")
-    (function $getuid "getuid" (result i32))
-    (function $getenv "getenv" (param (;name;) i64) (result i64))
-)
+(function $getenv "getenv" (param (;name;) i64) (result i64))
 
 ## The 'import' node
 
 import functions:
 
-(import (module share "math" "1.0")
+(import $math <<====
     (function $add "add" (param i32) (param i32) (result i32))
     (function $add_wrap "wrap::add" (params i32 i32) (results i32))
 )
 
 import data:
 
-(import (module user "format" "1.2")
+(import $format <<====
     (data $msg "msg" i32 read_only)
     (data $sum "sum" i64 read_write)
     (data $buf "utils::buf" bytes uninit)

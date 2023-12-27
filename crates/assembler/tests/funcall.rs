@@ -75,8 +75,9 @@ fn test_assemble_function_call() {
                                         (local.load32_i32 $sum)
                                         (call $square (local.load32_i32 $n))
                                     )
-                                    (i32.dec 1
+                                    (i32.dec
                                         (local.load32_i32 $n)
+                                        1
                                     )
                                 )
                             )
