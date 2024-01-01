@@ -4,7 +4,9 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancvm_types::{opcode::Opcode, DataType, ExternalLibraryType, MemoryDataType, ModuleShareType, DataSectionType};
+use ancvm_types::{
+    opcode::Opcode, DataSectionType, DataType, ExternalLibraryType, MemoryDataType, ModuleShareType, EffectiveVersion,
+};
 
 #[derive(Debug, PartialEq)]
 pub struct ModuleNode {
@@ -13,8 +15,7 @@ pub struct ModuleNode {
     // note that the module names within an application (or a module) can not be duplicated
     pub name_path: String,
 
-    pub runtime_version_major: u16,
-    pub runtime_version_minor: u16,
+    pub compiler_version: Option<EffectiveVersion>,
 
     // the relative name path of constructor function
     pub constructor_function_name_path: Option<String>,
@@ -22,7 +23,35 @@ pub struct ModuleNode {
     // the relative name path of destructor function
     pub destructor_function_name_path: Option<String>,
 
+    pub depend_node: Option<DependNode>,
+
     pub element_nodes: Vec<ModuleElementNode>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct DependNode {
+    pub depend_items: Vec<DependItem>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum DependItem {
+    DependentModule(DependentModuleNode),
+    DependentLibrary(DependentLibraryNode),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct DependentModuleNode {
+    pub module_share_type: ModuleShareType,
+    pub name: String,
+    // pub version_major: u16,
+    // pub version_minor: u16,
+    pub module_version: EffectiveVersion,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct DependentLibraryNode {
+    pub external_library_type: ExternalLibraryType,
+    pub name: String, // the library link name
 }
 
 #[derive(Debug, PartialEq)]
@@ -71,19 +100,14 @@ pub struct LocalNode {
 
 #[derive(Debug, PartialEq)]
 pub struct ExternalNode {
-    pub external_library_node: ExternalLibraryNode,
+    // pub external_library_node: ExternalLibraryNode,
+    pub library_id: String,
     pub external_items: Vec<ExternalItem>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum ExternalItem {
     ExternalFunction(ExternalFunctionNode),
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct ExternalLibraryNode {
-    pub external_library_type: ExternalLibraryType,
-    pub name: String,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -96,7 +120,8 @@ pub struct ExternalFunctionNode {
 
 #[derive(Debug, PartialEq)]
 pub struct ImportNode {
-    pub import_module_node: ImportModuleNode,
+    // pub import_module_node: ImportModuleNode,
+    pub module_id: String,
     pub import_items: Vec<ImportItem>,
 }
 
@@ -104,14 +129,6 @@ pub struct ImportNode {
 pub enum ImportItem {
     ImportFunction(ImportFunctionNode),
     ImportData(ImportDataNode),
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct ImportModuleNode {
-    pub module_share_type: ModuleShareType,
-    pub name: String,
-    pub version_major: u16,
-    pub version_minor: u16,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -146,10 +163,9 @@ pub struct ImportDataNode {
     pub name_path: String,
 
     // pub data_kind_node: SimplifiedDataKindNode,
-
     pub memory_data_type: MemoryDataType,
 
-    pub data_section_type: DataSectionType
+    pub data_section_type: DataSectionType,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -410,11 +426,11 @@ pub struct DataNode {
     // including the name of imported data.
     pub name: String,
     pub export: bool,
-    pub data_kind: DataKindNode,
+    pub data_detail: DataDetailNode,
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum DataKindNode {
+pub enum DataDetailNode {
     ReadOnly(InitedData),
     ReadWrite(InitedData),
     Uninit(UninitData),
@@ -442,12 +458,3 @@ pub struct UninitData {
     // currently the MIN value is 1.
     pub align: u16,
 }
-
-/*
-#[derive(Debug, PartialEq, Clone)]
-pub enum SimplifiedDataKindNode {
-    ReadOnly(MemoryDataType),
-    ReadWrite(MemoryDataType),
-    Uninit(MemoryDataType),
-}
-*/

@@ -4,7 +4,7 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancasm_parser::ast::{DataKindNode, ExternalItem, ExternalNode, ImportItem, ImportNode};
+use ancasm_parser::ast::{DataDetailNode, ExternalItem, ExternalNode, ImportItem, ImportNode};
 use ancasm_parser::ast::{Instruction, LocalNode, ParamNode};
 use ancvm_binary::bytecode_writer::BytecodeWriter;
 use ancvm_types::entry::{
@@ -1870,7 +1870,7 @@ fn assemble_data_nodes(
     let read_only_data_entries = read_only_data_nodes
         .iter()
         .map(|node| match &node.data_kind {
-            DataKindNode::ReadOnly(src) => InitedDataEntry {
+            DataDetailNode::ReadOnly(src) => InitedDataEntry {
                 memory_data_type: src.memory_data_type,
                 data: src.value.clone(),
                 length: src.length,
@@ -1883,7 +1883,7 @@ fn assemble_data_nodes(
     let read_write_data_entries = read_write_data_nodes
         .iter()
         .map(|node| match &node.data_kind {
-            DataKindNode::ReadWrite(src) => InitedDataEntry {
+            DataDetailNode::ReadWrite(src) => InitedDataEntry {
                 memory_data_type: src.memory_data_type,
                 data: src.value.clone(),
                 length: src.length,
@@ -1896,7 +1896,7 @@ fn assemble_data_nodes(
     let uninit_data_entries = uninit_data_nodes
         .iter()
         .map(|node| match &node.data_kind {
-            DataKindNode::Uninit(src) => UninitDataEntry {
+            DataDetailNode::Uninit(src) => UninitDataEntry {
                 memory_data_type: src.memory_data_type,
                 length: src.length,
                 align: src.align,

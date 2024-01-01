@@ -6,7 +6,7 @@
 
 use ancasm_parser::{
     ast::{
-        BranchCase, DataKindNode, DataNode, ExternalFunctionNode, ExternalItem, ExternalNode,
+        BranchCase, DataDetailNode, DataNode, ExternalFunctionNode, ExternalItem, ExternalNode,
         FunctionNode, ImportDataNode, ImportFunctionNode, ImportItem, ImportNode, Instruction,
         LocalNode, ModuleElementNode, ModuleNode, ParamNode,
     },
@@ -184,7 +184,7 @@ pub struct CanonicalDataNode {
     pub name_path: String,
 
     pub export: bool,
-    pub data_kind: DataKindNode,
+    pub data_kind: DataDetailNode,
 }
 
 struct RenameItemModule {
@@ -609,7 +609,7 @@ pub fn merge_and_canonicalize_submodule_nodes(
             .iter()
             .filter_map(|node| match node {
                 ModuleElementNode::DataNode(data_node)
-                    if matches!(data_node.data_kind, DataKindNode::ReadOnly(_)) =>
+                    if matches!(data_node.data_detail, DataDetailNode::ReadOnly(_)) =>
                 {
                     Some(data_node)
                 }
@@ -625,7 +625,7 @@ pub fn merge_and_canonicalize_submodule_nodes(
             .iter()
             .filter_map(|node| match node {
                 ModuleElementNode::DataNode(data_node)
-                    if matches!(data_node.data_kind, DataKindNode::ReadWrite(_)) =>
+                    if matches!(data_node.data_detail, DataDetailNode::ReadWrite(_)) =>
                 {
                     Some(data_node)
                 }
@@ -641,7 +641,7 @@ pub fn merge_and_canonicalize_submodule_nodes(
             .iter()
             .filter_map(|node| match node {
                 ModuleElementNode::DataNode(data_node)
-                    if matches!(data_node.data_kind, DataKindNode::Uninit(_)) =>
+                    if matches!(data_node.data_detail, DataDetailNode::Uninit(_)) =>
                 {
                     Some(data_node)
                 }
@@ -721,7 +721,7 @@ fn canonicalize_data_node(
         id: data_full_name,
         name_path: data_name_path,
         export: data_node.export,
-        data_kind: data_node.data_kind.clone(),
+        data_kind: data_node.data_detail.clone(),
     }
 }
 
@@ -1286,8 +1286,8 @@ mod tests {
 
     use ancasm_parser::{
         ast::{
-            DataKindNode, ExternalFunctionNode, ExternalItem, ExternalLibraryNode, ExternalNode,
-            ImportDataNode, ImportFunctionNode, ImportItem, ImportModuleNode, ImportNode,
+            DataDetailNode, ExternalFunctionNode, ExternalItem, DependentLibraryNode, ExternalNode,
+            ImportDataNode, ImportFunctionNode, ImportItem, DependentModuleNode, ImportNode,
             InitedData, Instruction, UninitData,
         },
         lexer::lex,
@@ -1415,7 +1415,7 @@ mod tests {
                     id: "myapp::code".to_owned(),
                     name_path: "code".to_owned(),
                     export: false,
-                    data_kind: DataKindNode::ReadOnly(InitedData {
+                    data_kind: DataDetailNode::ReadOnly(InitedData {
                         memory_data_type: MemoryDataType::I32,
                         length: 4,
                         align: 4,
@@ -1426,7 +1426,7 @@ mod tests {
                     id: "myapp::utils::count".to_owned(),
                     name_path: "utils::count".to_owned(),
                     export: false,
-                    data_kind: DataKindNode::ReadWrite(InitedData {
+                    data_kind: DataDetailNode::ReadWrite(InitedData {
                         memory_data_type: MemoryDataType::I32,
                         length: 4,
                         align: 4,
@@ -1437,7 +1437,7 @@ mod tests {
                     id: "myapp::utils::sum".to_owned(),
                     name_path: "utils::sum".to_owned(),
                     export: false,
-                    data_kind: DataKindNode::Uninit(UninitData {
+                    data_kind: DataDetailNode::Uninit(UninitData {
                         memory_data_type: MemoryDataType::I32,
                         length: 4,
                         align: 4,
@@ -1738,7 +1738,7 @@ mod tests {
                         id: "myapp::d0".to_owned(),
                         name_path: "d0".to_owned(),
                         export: false,
-                        data_kind: DataKindNode::ReadOnly(InitedData {
+                        data_kind: DataDetailNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::I32,
                             length: 4,
                             align: 4,
@@ -1749,7 +1749,7 @@ mod tests {
                         id: "myapp::utils::d0".to_owned(),
                         name_path: "utils::d0".to_owned(),
                         export: false,
-                        data_kind: DataKindNode::ReadOnly(InitedData {
+                        data_kind: DataDetailNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::I64,
                             length: 8,
                             align: 8,
@@ -1958,7 +1958,7 @@ mod tests {
                 uninit_data_nodes: vec![],
                 external_nodes: vec![
                     ExternalNode {
-                        external_library_node: ExternalLibraryNode {
+                        external_library_node: DependentLibraryNode {
                             external_library_type: ExternalLibraryType::User,
                             name: "math.so.1".to_owned()
                         },
@@ -1984,7 +1984,7 @@ mod tests {
                         ]
                     },
                     ExternalNode {
-                        external_library_node: ExternalLibraryNode {
+                        external_library_node: DependentLibraryNode {
                             external_library_type: ExternalLibraryType::Share,
                             name: "std.so.1".to_owned()
                         },
@@ -1998,7 +1998,7 @@ mod tests {
                         ),]
                     },
                     ExternalNode {
-                        external_library_node: ExternalLibraryNode {
+                        external_library_node: DependentLibraryNode {
                             external_library_type: ExternalLibraryType::System,
                             name: "libc.so.6".to_owned()
                         },
@@ -2211,7 +2211,7 @@ mod tests {
                 external_nodes: vec![],
                 import_nodes: vec![
                     ImportNode {
-                        import_module_node: ImportModuleNode {
+                        import_module_node: DependentModuleNode {
                             module_share_type: ModuleShareType::Share,
                             name: "math".to_owned(),
                             version_major: 1,
@@ -2239,7 +2239,7 @@ mod tests {
                         ]
                     },
                     ImportNode {
-                        import_module_node: ImportModuleNode {
+                        import_module_node: DependentModuleNode {
                             module_share_type: ModuleShareType::User,
                             name: "format".to_owned(),
                             version_major: 1,
@@ -2253,7 +2253,7 @@ mod tests {
                         }),]
                     },
                     ImportNode {
-                        import_module_node: ImportModuleNode {
+                        import_module_node: DependentModuleNode {
                             module_share_type: ModuleShareType::Share,
                             name: "random".to_owned(),
                             version_major: 2,
@@ -2486,7 +2486,7 @@ mod tests {
                 external_nodes: vec![],
                 import_nodes: vec![
                     ImportNode {
-                        import_module_node: ImportModuleNode {
+                        import_module_node: DependentModuleNode {
                             module_share_type: ModuleShareType::Share,
                             name: "math".to_owned(),
                             version_major: 1,
@@ -2514,7 +2514,7 @@ mod tests {
                         ]
                     },
                     ImportNode {
-                        import_module_node: ImportModuleNode {
+                        import_module_node: DependentModuleNode {
                             module_share_type: ModuleShareType::User,
                             name: "match".to_owned(),
                             version_major: 1,
@@ -2528,7 +2528,7 @@ mod tests {
                         }),]
                     },
                     ImportNode {
-                        import_module_node: ImportModuleNode {
+                        import_module_node: DependentModuleNode {
                             module_share_type: ModuleShareType::Share,
                             name: "random".to_owned(),
                             version_major: 2,

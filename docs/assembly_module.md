@@ -138,12 +138,12 @@ local variable data types:
 
 bytes syntax:
 
-(bytes DATA_LENGTH:i32 ALIGN:i16)
+bytes DATA_LENGTH:i32 ALIGN:i16
 
 e.g.
 
 (function $function_name
-    (local $buf (bytes 12 4))
+    (local $buf bytes 12 4)
     (code ...)
 )
 
@@ -232,9 +232,9 @@ import functions:
 import data:
 
 (import $format <<====
-    (data $msg "msg" i32 read_only)
-    (data $sum "sum" i64 read_write)
-    (data $buf "utils::buf" bytes uninit)
+    (data $msg "msg" read_only i32)
+    (data $sum "sum" read_write i64)
+    (data $buf "utils::buf" uninit bytes)
 )
 
 for the variants of 'bytes' such as 'string' and 'cstring', use 'bytes' instead in the data-import node.

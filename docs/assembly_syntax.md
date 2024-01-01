@@ -7,16 +7,20 @@
 - [Symbol](#symbol)
 - [Identifier](#identifier)
 - [Number](#number)
+  - [Integer Number](#integer-number)
+  - [Floating Pointer Number](#floating-pointer-number)
+  - [Hexadecimal Floating Point Number](#hexadecimal-floating-point-number)
 - [String](#string)
   - [Long String](#long-string)
   - [Multi-line String](#multi-line-string)
   - [Raw String](#raw-string)
-  - [Paragraph String](#paragraph-string)
+  - [Auto-trimmed String](#auto-trimmed-string)
 - [Byte Data](#byte-data)
 - [Comments](#comments)
   - [Line Comment](#line-comment)
   - [Block Comment](#block-comment)
-  - [Node Comment](#node-comment)
+  - [Document Comment](#document-comment)
+  - [Mix Comments](#mix-comments)
 
 <!-- /code_chunk_output -->
 
@@ -158,14 +162,14 @@ Since raw strings don't support escaping characters, if you need to output the "
 
 `r#"One "two" three"#` is equivalent to `"One \"two\" three"`.
 
-### Paragraph String
+### Auto-trimmed String
 
-Paragraph strings are used to write long text, where characters are not escaped and leading whitespace on each line is automatically trimmed based on the number of leading spaces in the first line of text.
+Auto-trimmed strings are used to write long text, it's similar to the raw string, where characters are not escaped, but the leading whitespace on each line is automatically trimmed based on the number of leading spaces in the first line.
 
-A paragraph string uses `###` on a separate line to indicate the start and end markers, for example:
+Auto-trimmed string starts with `|"`, and ends with a separate line which only contains symbol `"|`, for example:
 
 ```text
-    """
+|"
     NAME
         ls - list directory contents
 
@@ -173,12 +177,10 @@ A paragraph string uses `###` on a separate line to indicate the start and end m
         List information about the FILEs (the current directory by default).
         Sort entries alphabetically if none of -cftuvSUX nor --sort is
         specified.
-    """
+"|
 ```
 
-In the above example, since there are 4 leading space characters in the first line, each line truncates 4 leading spaces.
-
-> Note that the `###` must be on a separate line.
+In the above example, since there are 4 leading space characters in the first line, so each line truncates max 4 leading spaces.
 
 ## Byte Data
 
@@ -223,37 +225,102 @@ Block comments start with the symbol `(;` and end with the symbol `;)`, and nest
 )
 ```
 
-Block comments have the highest priority, and line comments within block comments are ignored, e.g.
-
-```clojure
-(module
-    (; block comment // still block comment ;)
-)
-```
-
+<!--
 ### Node Comment
 
 Adding the `#` sign before left parenthesis of a node will comment out that node and all children of that node, nested node comments are also supported, e.g.
 
 ```clojure
 (module
-    #(function $test
-        #(param $left i32) (param $right i32)
+    (function $test
+        #(param $left i32)
+        (param $left i64)
     )
 )
 ```
 
 In the examaple above, the entire node `fn` is commented.
 
-Node comments have the lowest priority, and block and line comments within node comments are still valid, e.g.
+When modifying assembly text, node comments provide a convenient way to temporarily switch some parameters or child nodes.
+-->
+
+### Document Comment
+
+Document comments are used to write long text related to modules, structures, functions and so on.
+
+Document comments starts with `###`, and ends with a separate line which only contains symbol `###`, for example:
+
+```text
+###
+    Calculate the sum of two integers.
+
+    left:
+        The first number
+    right:
+        The second number
+    return:
+        Tht sum of two integers.
+###
+```
+
+It's similar to the auto-trimmed string, the leading whitespace on each line is automatically trimmed based on the number of leading spaces in the first line.
+
+### Mix Comments
+
+Line comment symbol `;;` and document comment symbol `"""` within valid block comments are ignored, e.g.
+
+```clojure
+(module
+    (; block comment ;; still block comment ;)
+)
+```
+
+```clojure
+(module
+    (;
+    block comment part 1
+        ;; (;
+        block comment part 2
+        ;)
+    block comment part 3
+    ;)
+)
+```
+
+```clojure
+(module
+    (; block comment
+        """
+        still block comment
+        """
+    ;)
+)
+```
+
+Practically any type of comment symbol is ignored in other types of valid comments, including:
+
+- Block comment symbol `(;` and document comment symbol `"""` within valid line comments
+- Block comment symbol `(;` and line comment symbol `;;` within valid document comments
+
+<!--
+e.g.
+
+```clojure
+(module
+    // line comment (; still line comment
+)
+```
+-->
+
+<!--
+Node comments have the lowest priority, block comments and line comments within node comments are still valid, e.g.
 
 ```clojure
 (module
     #(function $test
-        // this right paren ')' does not end the node comment
-        (; this right paren ')' also does not end the node comment ;)
+        ;; valid line comment
+        (; valid block comment ;)
     )
 )
 ```
-
-When modifying assembly text, node comments provide a convenient way to temporarily switch some parameters or child nodes.
+-->
