@@ -2313,16 +2313,16 @@ fn expect_string(iter: &mut PeekableIterator<Token>, for_what: &str) -> Result<S
     }
 }
 
-fn expect_string_optional(iter: &mut PeekableIterator<Token>) -> Option<String> {
-    match iter.peek(0) {
-        Some(Token::String_(s)) => {
-            let value = s.to_owned();
-            iter.next();
-            Some(value)
-        }
-        _ => None,
-    }
-}
+// fn expect_string_optional(iter: &mut PeekableIterator<Token>) -> Option<String> {
+//     match iter.peek(0) {
+//         Some(Token::String_(s)) => {
+//             let value = s.to_owned();
+//             iter.next();
+//             Some(value)
+//         }
+//         _ => None,
+//     }
+// }
 
 fn expect_bytes(iter: &mut PeekableIterator<Token>, for_what: &str) -> Result<Vec<u8>, ParseError> {
     match iter.next() {
@@ -4120,7 +4120,6 @@ mod tests {
         );
     }
 
-    /*
     #[test]
     fn test_parse_data_read_only_and_read_write() {
         assert_eq!(
@@ -4141,10 +4140,10 @@ mod tests {
             .unwrap(),
             ModuleNode {
                 name_path: "app".to_owned(),
-                compiler_version: Some(EffectiveVersion::new(1,0)),
-
+                compiler_version: Some(EffectiveVersion::new(1, 0)),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
+                depend_node: None,
                 element_nodes: vec![
                     ModuleElementNode::DataNode(DataNode {
                         name: "d0".to_owned(),
@@ -4220,6 +4219,7 @@ mod tests {
             }
         );
 
+        // data type 'bytes'
         assert_eq!(
             parse_from_str(
                 r#"
@@ -4227,17 +4227,18 @@ mod tests {
                 (compiler_version "1.0")
                 (data $d0 (read_only string "Hello, World!"))
                 (data $d1 (read_only cstring "Hello, World!"))
-                (data $d2 (read_only (bytes 2) h"11-13-17-19"))
+                (data $d2 (read_only bytes h"11-13-17-19"))
+                (data $d3 (read_only bytes h"23:29" 2))
             )
             "#
             )
             .unwrap(),
             ModuleNode {
                 name_path: "app".to_owned(),
-                compiler_version: Some(EffectiveVersion::new(1,0)),
-
+                compiler_version: Some(EffectiveVersion::new(1, 0)),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
+                depend_node: None,
                 element_nodes: vec![
                     ModuleElementNode::DataNode(DataNode {
                         name: "d0".to_owned(),
@@ -4265,14 +4266,25 @@ mod tests {
                         data_detail: DataDetailNode::ReadOnly(InitedData {
                             memory_data_type: MemoryDataType::Bytes,
                             length: 4,
-                            align: 2,
+                            align: 1,
                             value: [0x11, 0x13, 0x17, 0x19].to_vec()
+                        })
+                    }),
+                    ModuleElementNode::DataNode(DataNode {
+                        name: "d3".to_owned(),
+                        export: false,
+                        data_detail: DataDetailNode::ReadOnly(InitedData {
+                            memory_data_type: MemoryDataType::Bytes,
+                            length: 2,
+                            align: 2,
+                            value: [0x23, 0x29].to_vec()
                         })
                     }),
                 ]
             }
         );
 
+        // annotation 'export'
         assert_eq!(
             parse_from_str(
                 r#"
@@ -4286,10 +4298,10 @@ mod tests {
             .unwrap(),
             ModuleNode {
                 name_path: "app".to_owned(),
-                compiler_version: Some(EffectiveVersion::new(1,0)),
-
+                compiler_version: Some(EffectiveVersion::new(1, 0)),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
+                depend_node: None,
                 element_nodes: vec![
                     ModuleElementNode::DataNode(DataNode {
                         name: "d0".to_owned(),
@@ -4315,7 +4327,7 @@ mod tests {
             }
         );
 
-        // unknown data kind
+        // err: unknown data section type
         assert!(matches!(
             parse_from_str(
                 r#"
@@ -4328,7 +4340,7 @@ mod tests {
             Err(ParseError { message: _ })
         ));
 
-        // missing data name
+        // err: missing data name
         assert!(matches!(
             parse_from_str(
                 r#"
@@ -4341,7 +4353,7 @@ mod tests {
             Err(ParseError { message: _ })
         ));
 
-        // data name contains path separator
+        // err: data name contains path separator
         assert!(matches!(
             parse_from_str(
                 r#"
@@ -4354,7 +4366,7 @@ mod tests {
             Err(ParseError { message: _ })
         ));
 
-        // missing value
+        // err: missing value
         assert!(matches!(
             parse_from_str(
                 r#"
@@ -4367,26 +4379,39 @@ mod tests {
             Err(ParseError { message: _ })
         ));
 
-        // 'bytes' should be written as a node
+        // err: missing data type 'bytes' value
         assert!(matches!(
             parse_from_str(
                 r#"
             (module $app
                 (compiler_version "1.0")
-                (data $d0 (read_only bytes 2 h"11-13-17-19"))
+                (data $d0 (read_only bytes))
             )
             "#
             ),
             Err(ParseError { message: _ })
         ));
 
-        // missing align
+        // err: invalid data type 'bytes' value
         assert!(matches!(
             parse_from_str(
                 r#"
             (module $app
                 (compiler_version "1.0")
-                (data $d0 (read_only (bytes) h"11-13-17-19"))
+                (data $d0 (read_only bytes 1234))
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
+        // err: invalid data type 'bytes' align
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (compiler_version "1.0")
+                (data $d0 (read_only bytes h"11" abc))
             )
             "#
             ),
@@ -4405,17 +4430,18 @@ mod tests {
                 (data $d1 (uninit i64))
                 (data $d2 (uninit f32))
                 (data $d3 (uninit f64))
-                (data $d4 (uninit (bytes 12 4)))
+                (data $d4 (uninit bytes 12))
+                (data $d5 (uninit bytes 48 4))
             )
             "#
             )
             .unwrap(),
             ModuleNode {
                 name_path: "app".to_owned(),
-                compiler_version: Some(EffectiveVersion::new(1,0)),
-
+                compiler_version: Some(EffectiveVersion::new(1, 0)),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
+                depend_node: None,
                 element_nodes: vec![
                     ModuleElementNode::DataNode(DataNode {
                         name: "d0".to_owned(),
@@ -4459,6 +4485,15 @@ mod tests {
                         data_detail: DataDetailNode::Uninit(UninitData {
                             memory_data_type: MemoryDataType::Bytes,
                             length: 12,
+                            align: 1,
+                        })
+                    }),
+                    ModuleElementNode::DataNode(DataNode {
+                        name: "d5".to_owned(),
+                        export: false,
+                        data_detail: DataDetailNode::Uninit(UninitData {
+                            memory_data_type: MemoryDataType::Bytes,
+                            length: 48,
                             align: 4,
                         })
                     }),
@@ -4466,6 +4501,7 @@ mod tests {
             }
         );
 
+        // annotation 'export'
         assert_eq!(
             parse_from_str(
                 r#"
@@ -4479,10 +4515,10 @@ mod tests {
             .unwrap(),
             ModuleNode {
                 name_path: "app".to_owned(),
-                compiler_version: Some(EffectiveVersion::new(1,0)),
-
+                compiler_version: Some(EffectiveVersion::new(1, 0)),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
+                depend_node: None,
                 element_nodes: vec![
                     ModuleElementNode::DataNode(DataNode {
                         name: "d0".to_owned(),
@@ -4506,7 +4542,7 @@ mod tests {
             }
         );
 
-        // contains value
+        // err: should not contains value
         assert!(matches!(
             parse_from_str(
                 r#"
@@ -4519,170 +4555,39 @@ mod tests {
             Err(ParseError { message: _ })
         ));
 
-        // missing align
+        // err: data type 'bytes' missing length
         assert!(matches!(
             parse_from_str(
                 r#"
             (module $app
                 (compiler_version "1.0")
-                (data $d0 (uninit (bytes 12)))
-            )
-            "#
-            ),
-            Err(ParseError { message: _ })
-        ));
-    }
-
-    #[test]
-    fn test_parse_external_node() {
-        assert_eq!(
-            parse_from_str(
-                r#"
-            (module $app
-                (compiler_version "1.0")
-                (external (library share "math.so.1")
-                    (function $add "add" (param i32) (param i32) (result i32))
-                    (function $sub_i32 "sub" (params i32 i32) (result i32))
-                    (function $pause "pause_1s")
-                )
-                (external (library system "libc.so.6")
-                    (function $getuid "getuid" (result i32))
-                    (function $getenv "getenv" (param (;name;) i64) (result i64))
-                )
-            )
-            "#
-            )
-            .unwrap(),
-            ModuleNode {
-                name_path: "app".to_owned(),
-                compiler_version: Some(EffectiveVersion::new(1,0)),
-
-                constructor_function_name_path: None,
-                destructor_function_name_path: None,
-                element_nodes: vec![
-                    ModuleElementNode::ExternalNode(ExternalNode {
-                        external_library_node: DependentLibraryNode {
-                            external_library_type: ExternalLibraryType::Share,
-                            name: "math.so.1".to_owned()
-                        },
-                        external_items: vec![
-                            ExternalItem::ExternalFunction(ExternalFunctionNode {
-                                id: "add".to_owned(),
-                                name: "add".to_owned(),
-                                params: vec![DataType::I32, DataType::I32,],
-                                results: vec![DataType::I32]
-                            }),
-                            ExternalItem::ExternalFunction(ExternalFunctionNode {
-                                id: "sub_i32".to_owned(),
-                                name: "sub".to_owned(),
-                                params: vec![DataType::I32, DataType::I32,],
-                                results: vec![DataType::I32]
-                            }),
-                            ExternalItem::ExternalFunction(ExternalFunctionNode {
-                                id: "pause".to_owned(),
-                                name: "pause_1s".to_owned(),
-                                params: vec![],
-                                results: vec![]
-                            })
-                        ]
-                    }),
-                    ModuleElementNode::ExternalNode(ExternalNode {
-                        external_library_node: DependentLibraryNode {
-                            external_library_type: ExternalLibraryType::System,
-                            name: "libc.so.6".to_owned()
-                        },
-                        external_items: vec![
-                            ExternalItem::ExternalFunction(ExternalFunctionNode {
-                                id: "getuid".to_owned(),
-                                name: "getuid".to_owned(),
-                                params: vec![],
-                                results: vec![DataType::I32]
-                            }),
-                            ExternalItem::ExternalFunction(ExternalFunctionNode {
-                                id: "getenv".to_owned(),
-                                name: "getenv".to_owned(),
-                                params: vec![DataType::I64],
-                                results: vec![DataType::I64]
-                            })
-                        ]
-                    }),
-                ]
-            }
-        );
-
-        // missing library node
-        assert!(matches!(
-            parse_from_str(
-                r#"
-            (module $app
-                (compiler_version "1.0")
-                (external
-                    (function $add "add")
-                )
+                (data $d0 (uninit bytes))
             )
             "#
             ),
             Err(ParseError { message: _ })
         ));
 
-        // unsupported library type
+        // err: data type 'bytes' invalid length
         assert!(matches!(
             parse_from_str(
                 r#"
             (module $app
                 (compiler_version "1.0")
-                (external
-                    (library custom "libabc.so")
-                    (function $add "add")
-                )
+                (data $d0 (uninit bytes abc))
             )
             "#
             ),
             Err(ParseError { message: _ })
         ));
 
-        // missing fn identifier
+        // err: data type 'bytes' invalid align
         assert!(matches!(
             parse_from_str(
                 r#"
             (module $app
                 (compiler_version "1.0")
-                (external
-                    (library user "libabc.so")
-                    (function "add")
-                )
-            )
-            "#
-            ),
-            Err(ParseError { message: _ })
-        ));
-
-        // fn name contains path separator
-        assert!(matches!(
-            parse_from_str(
-                r#"
-            (module $app
-                (compiler_version "1.0")
-                (external
-                    (library user "libabc.so")
-                    (function $a::b "add")
-                )
-            )
-            "#
-            ),
-            Err(ParseError { message: _ })
-        ));
-
-        // missing fn symbol
-        assert!(matches!(
-            parse_from_str(
-                r#"
-            (module $app
-                (compiler_version "1.0")
-                (external
-                    (library user "libabc.so")
-                    (function $add)
-                )
+                (data $d0 (uninit bytes 12 abc))
             )
             "#
             ),
@@ -4697,14 +4602,14 @@ mod tests {
                 r#"
             (module $app
                 (compiler_version "1.0")
-                (import (module share "math" "1.0")
+                (import $math
                     (function $add "add" (param i32) (param i32) (result i32))
                     (function $add_wrap "wrap::add" (params i32 i32) (results i32))
                 )
-                (import (module user "format" "1.2")
-                    (data $msg "msg" i32 read_only)
-                    (data $sum "sum" i64 read_write)
-                    (data $buf "utils::buf" bytes uninit)
+                (import $format
+                    (data $msg "msg" read_only i32)
+                    (data $sum "sum" read_write i64)
+                    (data $buf "utils::buf" uninit bytes)
                 )
             )
             "#
@@ -4712,18 +4617,13 @@ mod tests {
             .unwrap(),
             ModuleNode {
                 name_path: "app".to_owned(),
-                compiler_version: Some(EffectiveVersion::new(1,0)),
-
+                compiler_version: Some(EffectiveVersion::new(1, 0)),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
+                depend_node: None,
                 element_nodes: vec![
                     ModuleElementNode::ImportNode(ImportNode {
-                        import_module_node: DependentModuleNode {
-                            module_share_type: ModuleShareType::Share,
-                            name: "math".to_owned(),
-                            version_major: 1,
-                            version_minor: 0
-                        },
+                        module_id: "math".to_owned(),
                         import_items: vec![
                             ImportItem::ImportFunction(ImportFunctionNode {
                                 id: "add".to_owned(),
@@ -4740,12 +4640,7 @@ mod tests {
                         ]
                     }),
                     ModuleElementNode::ImportNode(ImportNode {
-                        import_module_node: DependentModuleNode {
-                            module_share_type: ModuleShareType::User,
-                            name: "format".to_owned(),
-                            version_major: 1,
-                            version_minor: 2
-                        },
+                        module_id: "format".to_owned(),
                         import_items: vec![
                             ImportItem::ImportData(ImportDataNode {
                                 id: "msg".to_owned(),
@@ -4771,13 +4666,13 @@ mod tests {
             }
         );
 
-        // missing library node
+        // err: missing module id
         assert!(matches!(
             parse_from_str(
                 r#"
             (module $app
                 (compiler_version "1.0")
-                (external
+                (import
                     (function $add "add")
                 )
             )
@@ -4786,15 +4681,14 @@ mod tests {
             Err(ParseError { message: _ })
         ));
 
-        // unsupported library type
+        // err: missing fn symbol
         assert!(matches!(
             parse_from_str(
                 r#"
             (module $app
                 (compiler_version "1.0")
-                (external
-                    (library custom "libabc.so")
-                    (function $add "add")
+                (import $math
+                    (function $add)
                 )
             )
             "#
@@ -4802,14 +4696,13 @@ mod tests {
             Err(ParseError { message: _ })
         ));
 
-        // missing fn identifier
+        // err: missing fn id
         assert!(matches!(
             parse_from_str(
                 r#"
             (module $app
                 (compiler_version "1.0")
-                (external
-                    (library user "libabc.so")
+                (import $math
                     (function "add")
                 )
             )
@@ -4818,14 +4711,13 @@ mod tests {
             Err(ParseError { message: _ })
         ));
 
-        // fn name contains path separator
+        // err: fn id contains path separator
         assert!(matches!(
             parse_from_str(
                 r#"
             (module $app
                 (compiler_version "1.0")
-                (external
-                    (library user "libabc.so")
+                (import $math
                     (function $a::b "add")
                 )
             )
@@ -4834,15 +4726,44 @@ mod tests {
             Err(ParseError { message: _ })
         ));
 
-        // missing fn symbol
+        // err: missing data symbol
         assert!(matches!(
             parse_from_str(
                 r#"
             (module $app
                 (compiler_version "1.0")
-                (external
-                    (library user "libabc.so")
-                    (function $add)
+                (import $math
+                    (data $sum)
+                )
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
+        // err: missing data id
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (compiler_version "1.0")
+                (import $math
+                    (data "sum")
+                )
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
+        // err: data id contains path separator
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (compiler_version "1.0")
+                (import $math
+                    (data $score::sum "sum")
                 )
             )
             "#
@@ -4850,5 +4771,136 @@ mod tests {
             Err(ParseError { message: _ })
         ));
     }
-     */
+
+    #[test]
+    fn test_parse_external_node() {
+        assert_eq!(
+            parse_from_str(
+                r#"
+            (module $app
+                (compiler_version "1.0")
+                (external $math
+                    (function $add "add" (param i32) (param i32) (result i32))
+                    (function $sub_i32 "sub" (params i32 i32) (result i32))
+                    (function $pause "pause_1s")
+                )
+                (external $libc
+                    (function $getuid "getuid" (result i32))
+                    (function $getenv "getenv" (param (;name;) i64) (result i64))
+                )
+            )
+            "#
+            )
+            .unwrap(),
+            ModuleNode {
+                name_path: "app".to_owned(),
+                compiler_version: Some(EffectiveVersion::new(1, 0)),
+                constructor_function_name_path: None,
+                destructor_function_name_path: None,
+                depend_node: None,
+                element_nodes: vec![
+                    ModuleElementNode::ExternalNode(ExternalNode {
+                        library_id: "math".to_owned(),
+                        external_items: vec![
+                            ExternalItem::ExternalFunction(ExternalFunctionNode {
+                                id: "add".to_owned(),
+                                name: "add".to_owned(),
+                                params: vec![DataType::I32, DataType::I32,],
+                                results: vec![DataType::I32]
+                            }),
+                            ExternalItem::ExternalFunction(ExternalFunctionNode {
+                                id: "sub_i32".to_owned(),
+                                name: "sub".to_owned(),
+                                params: vec![DataType::I32, DataType::I32,],
+                                results: vec![DataType::I32]
+                            }),
+                            ExternalItem::ExternalFunction(ExternalFunctionNode {
+                                id: "pause".to_owned(),
+                                name: "pause_1s".to_owned(),
+                                params: vec![],
+                                results: vec![]
+                            })
+                        ]
+                    }),
+                    ModuleElementNode::ExternalNode(ExternalNode {
+                        library_id: "libc".to_owned(),
+                        external_items: vec![
+                            ExternalItem::ExternalFunction(ExternalFunctionNode {
+                                id: "getuid".to_owned(),
+                                name: "getuid".to_owned(),
+                                params: vec![],
+                                results: vec![DataType::I32]
+                            }),
+                            ExternalItem::ExternalFunction(ExternalFunctionNode {
+                                id: "getenv".to_owned(),
+                                name: "getenv".to_owned(),
+                                params: vec![DataType::I64],
+                                results: vec![DataType::I64]
+                            })
+                        ]
+                    }),
+                ]
+            }
+        );
+
+        // err: missing library id
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (compiler_version "1.0")
+                (external
+                    (function $add "add")
+                )
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
+        // err: missing fn identifier
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (compiler_version "1.0")
+                (external $math
+                    (function "add")
+                )
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
+        // err: missing fn symbol
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (compiler_version "1.0")
+                (external $math
+                    (function $add)
+                )
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
+        // err: fn id contains path separator
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (compiler_version "1.0")
+                (external $math
+                    (function $a::b "add")
+                )
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+    }
 }

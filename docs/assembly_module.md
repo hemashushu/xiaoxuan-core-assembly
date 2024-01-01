@@ -205,6 +205,30 @@ library type:
 - system: `(library "libc.so.6" system)`
 - user: `(library "libtest0.so.1" user)`
 
+## The 'import' node
+
+(import $math <<====
+    (function $add "add" (param i32) (param i32) (result i32))
+    (function $add_wrap "wrap::add" (params i32 i32) (results i32))
+)
+
+### the import function node
+
+(function $add "add" (param i32) (param i32) (result i32))
+    (function $add_wrap "wrap::add" (params i32 i32) (results i32))
+
+### the import data node
+
+    (data $msg "msg" read_only i32)
+    (data $sum "sum" read_write i64)
+    (data $buf "utils::buf" uninit bytes)
+
+for the variants of 'bytes' such as 'string' and 'cstring', use 'bytes' instead in the data-import node.
+
+> At the assembly level, submodules are transparent to each other, i.e., all
+> functions and data (including imported functions, imported data, and
+> declared external functions) are public and can be accessed in any submodule.
+
 ## The 'external' node
 
 (external $user
@@ -219,27 +243,3 @@ there is no identifier in the 'param' nodes, and the parameters can be writtern 
 
 (function $add "add" (params i32 i32) (result i32))
 (function $getenv "getenv" (param (;name;) i64) (result i64))
-
-## The 'import' node
-
-import functions:
-
-(import $math <<====
-    (function $add "add" (param i32) (param i32) (result i32))
-    (function $add_wrap "wrap::add" (params i32 i32) (results i32))
-)
-
-import data:
-
-(import $format <<====
-    (data $msg "msg" read_only i32)
-    (data $sum "sum" read_write i64)
-    (data $buf "utils::buf" uninit bytes)
-)
-
-for the variants of 'bytes' such as 'string' and 'cstring', use 'bytes' instead in the data-import node.
-
-> At the assembly level, submodules are transparent to each other, i.e., all
-> functions and data (including imported functions, imported data, and
-> declared external functions) are public and can be accessed in any submodule.
-

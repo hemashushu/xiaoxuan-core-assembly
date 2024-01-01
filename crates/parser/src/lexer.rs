@@ -39,9 +39,11 @@ pub enum CommentToken {
 pub fn filter(tokens: &[Token]) -> Vec<Token> {
     tokens
         .iter()
-        .filter(|token| match token {
-            Token::Shebang(_) | Token::NewLine | Token::Comment(_) => false,
-            _ => true,
+        .filter(|token| {
+            !matches!(
+                token,
+                Token::Shebang(_) | Token::NewLine | Token::Comment(_)
+            )
         })
         .map(|token| token.to_owned())
         .collect::<Vec<Token>>()
@@ -1038,7 +1040,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use crate::{
-        lexer::{CommentToken, Token},
+        lexer::{filter, CommentToken, Token},
         peekable_iterator::PeekableIterator,
         ParseError,
     };
@@ -2285,6 +2287,25 @@ mod tests {
                 Token::RightParen,
                 Token::NewLine,
             ]
+        );
+    }
+
+    #[test]
+    fn test_filter() {
+        assert_eq!(
+            filter(
+                &lex_from_str(
+                    r#"#!/bin/ancl
+            (; block comment ;) 11 ;; line comment
+            """
+            document comment
+            """
+            13
+            "#
+                )
+                .unwrap()
+            ),
+            vec![Token::new_dec_number("11"), Token::new_dec_number("13"),]
         );
     }
 }
