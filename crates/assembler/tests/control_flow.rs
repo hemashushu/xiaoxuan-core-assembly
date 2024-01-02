@@ -36,7 +36,7 @@ fn test_assemble_control_flow_block_equ_structure_for() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (results
                     i32 i32 i32 i32)
@@ -153,7 +153,7 @@ fn test_assemble_control_flow_block_with_args_and_results_equ_structure_for() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (results
                     i32 i32 i32)
@@ -272,7 +272,7 @@ fn test_assemble_control_flow_block_with_local_vars_equ_structure_for() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (param $a i32)
                 (param $b i32)
@@ -524,7 +524,7 @@ fn test_assemble_control_flow_break_function_equ_statement_return() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (results
                     i32 i32)
@@ -591,7 +591,7 @@ fn test_assemble_control_flow_break_block_equ_statement_break() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (results
                     i32 i32 i32 i32)
@@ -680,7 +680,7 @@ fn test_assemble_control_flow_break_block_to_function_equ_statement_return() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (results
                     i32 i32)
@@ -767,7 +767,7 @@ fn test_assemble_control_flow_structure_when() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $max
                 (param $a i32)
                 (param $b i32)
@@ -869,7 +869,7 @@ fn test_assemble_control_flow_break_block_crossing_equ_statement_break() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (param $a i32)
                 (results
@@ -987,7 +987,7 @@ fn test_assemble_control_flow_structure_if() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (param $a i32)
                 (param $b i32)
@@ -1090,7 +1090,7 @@ fn test_assemble_control_flow_structure_if_nested() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (param $a i32)
                 (results i32)
@@ -1234,7 +1234,7 @@ fn test_assemble_control_flow_structure_branch() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (param $a i32)
                 (results i32)
@@ -1375,7 +1375,7 @@ fn test_assemble_control_flow_structure_branch_without_default_arm() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (param $a i32)
                 (results i32)
@@ -1501,7 +1501,7 @@ fn test_assemble_control_flow_structure_loop() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (param $n i32)
                 (results i32)
@@ -1610,7 +1610,7 @@ fn test_assemble_control_flow_structure_loop_with_block_parameters() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (param $count i32)
                 (results i32)
@@ -1723,7 +1723,7 @@ fn test_assemble_control_flow_structure_loop_with_if() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (param $count i32)
                 (results i32)
@@ -1835,7 +1835,7 @@ fn test_assemble_control_flow_function_tail_call() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (param $sum i32)
                 (param $n i32)
@@ -1948,7 +1948,7 @@ fn test_assemble_control_flow_function_tail_call_with_if() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (param $sum i32)
                 (param $n i32)

@@ -24,7 +24,7 @@ fn test_assemble_envcall_runtime_version() {
     let module_binary = helper_generate_module_image_binary_from_str(&format!(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test (result i64)
                 (code
                     (envcall {ENV_CALL_CODE_RUNTIME_VERSION})
@@ -74,9 +74,9 @@ fn test_assemble_envcall_runtime_code_name() {
     let module_binary = helper_generate_module_image_binary_from_str(&format!(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test (results i32 i64)
-                (local $buf (bytes 8 8))
+                (local $buf bytes 8 8)
                 (code
                     (envcall {ENV_CALL_CODE_RUNTIME_NAME} (host.addr_local $buf))
                     (local.load64_i64 $buf)

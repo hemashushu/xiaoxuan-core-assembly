@@ -46,7 +46,7 @@ fn test_assemble_local_load_store() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (param $a0 f32) (param $a1 f64)
                 (results
@@ -54,14 +54,14 @@ fn test_assemble_local_load_store() {
                         f32 f64                 ;; group 1
                         i64 i32                 ;; group 2
                         )
-                (local $a2 (bytes 8 8))
+                (local $a2 bytes 8 8)
                 (local $a3 f32)
                 (local $a4 f64)
                 (local $a5 i64)
                 (local $a6 i32)
                 (code
                     ;; store i32, i16, i8, i8. imm -> a2
-                    (local.store32 $a2   (i32.imm 0x19171311))
+                    (local.store32 $a2 (i32.imm 0x19171311))
                     (local.store16 $a2 (i32.imm 0xd0c0) 4)
                     (local.store8  $a2 (i32.imm 0xe0) 6)
                     (local.store8  $a2 (i32.imm 0xf0) 7)
@@ -159,14 +159,14 @@ fn test_assemble_local_offset_load_and_store() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
     (module $app
-        (runtime_version "1.0")
+        (compiler_version "1.0")
         (function $test
             (results
                     i64 i32 i32 i32 i32 i32 ;; group 0
                     i64 i32 i32 i32         ;; group 1
                     )
-            (local $a0 (bytes 8 8))
-            (local $a1 (bytes 8 8))
+            (local $a0 bytes 8 8)
+            (local $a1 bytes 8 8)
             (code
                 ;; store i32, i16, i8, i8. imm -> a0
                 (local.offset_store32 $a0 (i32.imm 0) (i32.imm 0x19171311))

@@ -1407,7 +1407,7 @@ mod tests {
             .iter()
             .map(|source| {
                 let mut chars = source.chars();
-                let mut char_iter = PeekableIterator::new(&mut chars, 2);
+                let mut char_iter = PeekableIterator::new(&mut chars, 3);
                 let all_tokens = lex(&mut char_iter).unwrap();
                 let effective_tokens = filter(&all_tokens);
                 let mut token_iter = effective_tokens.into_iter();

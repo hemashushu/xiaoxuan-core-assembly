@@ -19,7 +19,7 @@ fn test_assemble_fundamental_nop() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (param $a i32)
                 (result i32)
@@ -45,7 +45,7 @@ fn test_assemble_fundamental_zero() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test (result i32)
                 (code
                     zero
@@ -69,7 +69,7 @@ fn test_assemble_fundamental_drop() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test (result i32)
                 (code
                     (i32.imm 13)
@@ -97,7 +97,7 @@ fn test_assemble_fundamental_duplicate() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test (results i32 i32)
                 (code
                     (duplicate
@@ -126,7 +126,7 @@ fn test_assemble_fundamental_swap() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test (results i32 i32)
                 (code
                     (swap
@@ -157,7 +157,7 @@ fn test_assemble_fundamental_select_nez_false() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test (result i32)
                 (code
                     (select_nez
@@ -185,7 +185,7 @@ fn test_assemble_fundamental_select_nez_true() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test (result i32)
                 (code
                     (select_nez
@@ -213,7 +213,7 @@ fn test_assemble_fundamental_immediate_int() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test (results i32 i64 i32 i64)
                 (code
                     (i32.imm 23)
@@ -248,7 +248,7 @@ fn test_assemble_fundamental_immediate_float() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
             (module $app
-                (runtime_version "1.0")
+                (compiler_version "1.0")
                 (function $test (results f32 f64 f32 f64)
                     (code
                         (f32.imm 3.14159265358979323846264338327950288)     ;; Pi
@@ -283,7 +283,7 @@ fn test_assemble_fundamental_immediate_float_hex() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
             (module $app
-                (runtime_version "1.0")
+                (compiler_version "1.0")
                 (function $test (results f32 f64 f32 f64)
                     (code
                         (f32.imm 3.1415927)

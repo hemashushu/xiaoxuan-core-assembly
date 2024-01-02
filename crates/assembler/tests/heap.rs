@@ -20,7 +20,7 @@ fn test_assemble_heap_capacity() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (results i64 i64 i64 i64 i64)
                 (code
@@ -91,7 +91,7 @@ fn test_assemble_heap_load_and_store() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (param $a0 f32)
                 (param $a1 f64)

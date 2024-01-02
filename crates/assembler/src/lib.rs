@@ -8,11 +8,11 @@ use std::{any::Any, fmt::Display};
 
 use ancvm_types::VMError;
 
-// pub mod assembler;
-// pub mod binarygen;
-// pub mod linker;
+pub mod assembler;
+pub mod binarygen;
+pub mod linker;
 pub mod preprocessor;
-// pub mod utils;
+pub mod utils;
 
 pub const UNREACHABLE_CODE_NO_DEFAULT_ARM: u32 = 0x100;
 

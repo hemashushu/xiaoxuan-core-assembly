@@ -21,7 +21,7 @@ fn test_assemble_envcall_time_now() {
     let module_binary = helper_generate_module_image_binary_from_str(&format!(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test (results i64 i32)
                 (code
                     (envcall {ENV_CALL_CODE_TIME_NOW})

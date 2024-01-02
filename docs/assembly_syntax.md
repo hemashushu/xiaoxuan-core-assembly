@@ -28,7 +28,7 @@ The text of _XiaoXuan Core Assembly_ is consists of symbols, identifiers, number
 
 ```clojure
 (module $app
-    (runtime_version "1.0")
+    (compiler_version "1.0")
     (function $test (param $num i32) (result i32)
         (i32.add
             (local.load32 $num)

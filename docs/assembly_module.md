@@ -26,7 +26,7 @@ An assembly text file can only define one module, so the content of an assembly 
 
 ```clojure
 (module $app
-    (runtime_version "1.0")
+    (compiler_version "1.0")
     (function $test (result i32)
         (code
             (i32.imm 42)
@@ -69,7 +69,7 @@ The following is an example that uses these parameters:
 
 ```clojure
 (module $app
-    (runtime_version "1.0")
+    (compiler_version "1.0")
 
     (constructor $init)
     (destructor $exit)

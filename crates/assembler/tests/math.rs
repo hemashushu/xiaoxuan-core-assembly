@@ -30,7 +30,7 @@ fn test_assemble_math_i32() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
             (module $app
-                (runtime_version "1.0")
+                (compiler_version "1.0")
                 (function $test
                     (param $a0 i32)
                     (param $a1 i32)
@@ -85,7 +85,7 @@ fn test_assemble_math_i64() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
             (module $app
-                (runtime_version "1.0")
+                (compiler_version "1.0")
                 (function $test
                     (param $a0 i64)
                     (param $a1 i64)
@@ -179,7 +179,7 @@ fn test_assemble_math_f32_part_a() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
             (module $app
-                (runtime_version "1.0")
+                (compiler_version "1.0")
                 (function $test
                     (param $a0 f32)
                     (param $a1 f32)
@@ -358,7 +358,7 @@ fn test_assemble_math_f32_part_b() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
             (module $app
-                (runtime_version "1.0")
+                (compiler_version "1.0")
                 (function $test
                     (param $a0 f32)
                     (param $a1 f32)
@@ -529,7 +529,7 @@ fn test_assemble_math_f64_part_a() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
             (module $app
-                (runtime_version "1.0")
+                (compiler_version "1.0")
                 (function $test
                     (param $a0 f64)
                     (param $a1 f64)
@@ -708,7 +708,7 @@ fn test_assemble_math_f64_part_b() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
             (module $app
-                (runtime_version "1.0")
+                (compiler_version "1.0")
                 (function $test
                     (param $a0 f64)
                     (param $a1 f64)

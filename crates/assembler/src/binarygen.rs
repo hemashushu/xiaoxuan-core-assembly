@@ -272,7 +272,7 @@ mod tests {
         let module_binary = helper_generate_module_image_binary_from_str(
             r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (param $a i32) (param $b i32)
                 (results i32)

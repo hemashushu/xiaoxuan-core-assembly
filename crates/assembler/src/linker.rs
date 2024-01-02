@@ -548,7 +548,11 @@ fn get_destructors(module_entries: &[&ModuleEntry]) -> Vec<u32> {
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use ancasm_parser::{lexer::lex, parser::parse, peekable_iterator::PeekableIterator};
+    use ancasm_parser::{
+        lexer::{filter, lex},
+        parser::parse,
+        peekable_iterator::PeekableIterator,
+    };
     use ancvm_types::{
         entry::{
             DataIndexEntry, ExternalFunctionIndexEntry, FunctionIndexEntry,
@@ -565,12 +569,15 @@ mod tests {
 
     fn assemble_from_str(source: &str) -> ModuleEntry {
         let mut chars = source.chars();
-        let mut char_iter = PeekableIterator::new(&mut chars, 2);
-        let mut tokens = lex(&mut char_iter).unwrap().into_iter();
-        let mut token_iter = PeekableIterator::new(&mut tokens, 2);
+        let mut char_iter = PeekableIterator::new(&mut chars, 3);
+        let all_tokens = lex(&mut char_iter).unwrap();
+        let effective_tokens = filter(&all_tokens);
+        let mut token_iter = effective_tokens.into_iter();
+        let mut peekable_token_iter = PeekableIterator::new(&mut token_iter, 2);
 
-        let module_node = parse(&mut token_iter).unwrap();
-        let merged_module_node = merge_and_canonicalize_submodule_nodes(&[module_node]).unwrap();
+        let module_node = parse(&mut peekable_token_iter).unwrap();
+        let merged_module_node =
+            merge_and_canonicalize_submodule_nodes(&[module_node], None).unwrap();
 
         assemble_merged_module_node(&merged_module_node).unwrap()
     }
@@ -587,11 +594,15 @@ mod tests {
         let module_entries = assemble_from_strs(vec![
             r#"
             (module $myapp
-                (runtime_version "1.0")
-                (import (module share "std" "1.0")
+                (compiler_version "1.0")
+                (depend
+                    (module $std share "std" "1.0")
+                    (module $format share "format" "1.0")
+                )
+                (import $std
                     (function $print "print")
                 )
-                (import (module share "format" "1.0")
+                (import $format
                     (function $print_fmt "print_fmt")
                 )
                 (function $entry
@@ -604,8 +615,11 @@ mod tests {
             "#,
             r#"
             (module $format
-                (runtime_version "1.0")
-                (import (module share "std" "1.0")
+                (compiler_version "1.0")
+                (depend
+                    (module $std share "std" "1.0")
+                )
+                (import $std
                     (function $print "print")
                     (function $fprint "fprint")
                 )
@@ -623,7 +637,7 @@ mod tests {
             "#,
             r#"
             (module $std
-                (runtime_version "1.0")
+                (compiler_version "1.0")
                 (function export $print
                     (code
                         (call $fprint)
@@ -751,12 +765,16 @@ mod tests {
         let module_entries = assemble_from_strs(vec![
             r#"
             (module $myapp
-                (runtime_version "1.0")
-                (import (module share "std" "1.0")
-                    (data $foo "foo" i32 read_only)
+                (compiler_version "1.0")
+                (depend
+                    (module $std share "std" "1.0")
+                    (module $format share "format" "1.0")
                 )
-                (import (module share "format" "1.0")
-                    (data $hello "hello" i32 read_write)
+                (import $std
+                    (data $foo "foo" read_only i32)
+                )
+                (import $format
+                    (data $hello "hello" read_write i32)
                 )
                 (data $alice (read_only i32 23))
                 (data $bob (read_write i64 29))
@@ -766,10 +784,13 @@ mod tests {
             "#,
             r#"
             (module $format
-                (runtime_version "1.0")
-                (import (module share "std" "1.0")
-                    (data $foo "foo" i32 read_only)
-                    (data $bar "bar" i32 read_write)
+                (compiler_version "1.0")
+                (depend
+                    (module $std share "std" "1.0")
+                )
+                (import $std
+                    (data $foo "foo" read_only i32)
+                    (data $bar "bar" read_write i32)
                 )
                 (data export $baz (read_only i32 17))
                 (data export $hello (read_write i32 19))
@@ -778,7 +799,7 @@ mod tests {
             "#,
             r#"
             (module $std
-                (runtime_version "1.0")
+                (compiler_version "1.0")
                 (data export $foo (read_only i32 11))
                 (data export $bar (read_write i32 13))
             )
@@ -931,8 +952,11 @@ mod tests {
         let module_entries = assemble_from_strs(vec![
             r#"
             (module $myapp
-                (runtime_version "1.0")
-                (external (library system "libc.so.6")
+                (compiler_version "1.0")
+                (depend
+                    (library $libc system "libc.so.6")
+                )
+                (external $libc
                     (function $fopen "fopen"
                         (params i64 i64) (result i64)
                     )
@@ -956,18 +980,23 @@ mod tests {
             "#,
             r#"
             (module $db
-                (runtime_version "1.0")
-                (external (library user "libsqlite3.so.0")
+                (compiler_version "1.0")
+                (depend
+                    (library $libsqlite3 user "libsqlite3.so.0")
+                    (library $libz share "libz.so.1")
+                    (library $libc system "libc.so.6")
+                )
+                (external $libsqlite3
                     (function $sqlite3_open "sqlite3_open")
                     (function $sqlite3_exec "sqlite3_exec")
                     (function $sqlite3_close "sqlite3_close")
                 )
-                (external (library share "libz.so.1")
+                (external $libz
                     (function $inflateInit "inflateInit")
                     (function $inflate "inflate")
                     (function $inflateEnd "inflateEnd")
                 )
-                (external (library system "libc.so.6")
+                (external $libc
                     (function $fopen "fopen"
                         (params i64 i64) (result i64)
                     )
@@ -985,8 +1014,11 @@ mod tests {
             "#,
             r#"
             (module $compress
-                (runtime_version "1.0")
-                (external (library share "libz.so.1")
+                (compiler_version "1.0")
+                (depend
+                    (library $libz share "libz.so.1")
+                )
+                (external $libz
                     (function $inflateInit "inflateInit")
                     (function $inflate "inflate")
                     (function $inflateEnd "inflateEnd")
@@ -1213,13 +1245,13 @@ mod tests {
         let module_entries = assemble_from_strs(vec![
             r#"
             (module $myapp
-                (runtime_version "1.0")
+                (compiler_version "1.0")
                 ;; auto-generated '_entry', '_start', '_exit'
             )
             "#,
             r#"
             (module $mod_a
-                (runtime_version "1.0")
+                (compiler_version "1.0")
                 (constructor $start_a)
                 (destructor $exit_a)
                 (function $start_a (code))  ;; 1,0  start
@@ -1228,26 +1260,26 @@ mod tests {
             "#,
             r#"
             (module $mod_b
-                (runtime_version "1.0")
+                (compiler_version "1.0")
                 (constructor $start_b)
                 (function $start_b (code))  ;; 2,0  start
             )
             "#,
             r#"
             (module $mod_c
-                (runtime_version "1.0")
+                (compiler_version "1.0")
             )
             "#,
             r#"
             (module $mod_d
-                (runtime_version "1.0")
+                (compiler_version "1.0")
                 (destructor $exit_d)
                 (function $exit_d (code))   ;; 4,0  exit
             )
             "#,
             r#"
             (module $mod_e
-                (runtime_version "1.0")
+                (compiler_version "1.0")
                 (constructor $start_e)
                 (destructor $exit_e)
                 (function $start_e (code))  ;; 5,0  start
@@ -1256,7 +1288,7 @@ mod tests {
             "#,
             r#"
             (module $mod_f
-                (runtime_version "1.0")
+                (compiler_version "1.0")
                 (destructor $exit_f)
                 (function $exit_f (code))   ;; 6,0  exit
             )

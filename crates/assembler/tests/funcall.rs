@@ -54,7 +54,7 @@ fn test_assemble_function_call() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test (param $count i32) (result i32)
                 (code
                     (call $sum_square (local.load32_i32 $count))
@@ -142,7 +142,7 @@ fn test_assemble_function_call_dyncall() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test (results i32 i32 i32 i32 i32)
                 (code
                     (dyncall (macro.get_function_public_index $thirteen))

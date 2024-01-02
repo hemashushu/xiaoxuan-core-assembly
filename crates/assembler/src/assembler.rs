@@ -4,7 +4,9 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancasm_parser::ast::{DataDetailNode, ExternalItem, ExternalNode, ImportItem, ImportNode};
+use ancasm_parser::ast::{
+    DataDetailNode, DependItem, ExternalItem, ExternalNode, ImportItem, ImportNode,
+};
 use ancasm_parser::ast::{Instruction, LocalNode, ParamNode};
 use ancvm_binary::bytecode_writer::BytecodeWriter;
 use ancvm_types::entry::{
@@ -456,23 +458,42 @@ pub fn assemble_merged_module_node(
     merged_module_node: &MergedModuleNode,
 ) -> Result<ModuleEntry, AssembleError> {
     let module_name = merged_module_node.name.clone();
-    let runtime_version_major = merged_module_node.runtime_version_major;
-    let runtime_version_minor = merged_module_node.runtime_version_minor;
+    // let runtime_version_major = merged_module_node.runtime_version_major;
+    // let runtime_version_minor = merged_module_node.runtime_version_minor;
+    let compiler_version = merged_module_node.compiler_version;
 
     let mut type_entries = vec![];
 
-    let AssembleResultForImportNodes {
+    let AssembleResultForDependItems {
         import_module_entries,
+        import_module_ids,
+        external_library_entries,
+        external_library_ids,
+    } = assemble_depend_items(&merged_module_node.depend_items)?;
+
+    let AssembleResultForImportNodes {
+        // import_module_entries,
         import_function_entries,
         import_data_entries,
         import_function_ids,
         import_read_only_data_ids,
         import_read_write_data_ids,
         import_uninit_data_ids,
-    } = assemble_import_nodes(&merged_module_node.import_nodes, &mut type_entries)?;
+    } = assemble_import_nodes(
+        &import_module_ids,
+        &merged_module_node.import_nodes,
+        &mut type_entries,
+    )?;
 
-    let (external_library_entries, external_function_entries, external_function_ids) =
-        assemble_external_nodes(&merged_module_node.external_nodes, &mut type_entries)?;
+    let (
+        // external_library_entries,
+        external_function_entries,
+        external_function_ids,
+    ) = assemble_external_nodes(
+        &external_library_ids,
+        &merged_module_node.external_nodes,
+        &mut type_entries,
+    )?;
 
     let import_function_count = import_function_ids.len();
     let import_read_only_data_count = import_read_only_data_ids.len();
@@ -564,8 +585,9 @@ pub fn assemble_merged_module_node(
 
     let module_entry = ModuleEntry {
         name: module_name,
-        runtime_version_major,
-        runtime_version_minor,
+        runtime_version: compiler_version,
+        // runtime_version_major,
+        // runtime_version_minor,
         //
         import_function_count,
         import_read_only_data_count,
@@ -1912,8 +1934,55 @@ fn assemble_data_nodes(
     ))
 }
 
-struct AssembleResultForImportNodes {
+struct AssembleResultForDependItems {
     import_module_entries: Vec<ImportModuleEntry>,
+    import_module_ids: Vec<String>,
+    external_library_entries: Vec<ExternalLibraryEntry>,
+    external_library_ids: Vec<String>,
+}
+
+fn assemble_depend_items(
+    depend_items: &[DependItem],
+) -> Result<AssembleResultForDependItems, AssembleError> {
+    let mut import_module_entries: Vec<ImportModuleEntry> = vec![];
+    let mut import_module_ids: Vec<String> = vec![];
+    let mut external_library_entries: Vec<ExternalLibraryEntry> = vec![];
+    let mut external_library_ids: Vec<String> = vec![];
+
+    // check duplicate items?
+
+    for item in depend_items {
+        match item {
+            DependItem::DependentModule(module) => {
+                let import_module_entry = ImportModuleEntry {
+                    name: module.name.clone(),
+                    module_share_type: module.module_share_type,
+                    module_version: module.module_version,
+                };
+                import_module_entries.push(import_module_entry);
+                import_module_ids.push(module.id.clone());
+            }
+            DependItem::DependentLibrary(library) => {
+                let external_library_entry = ExternalLibraryEntry {
+                    name: library.name.clone(),
+                    external_library_type: library.external_library_type,
+                };
+                external_library_entries.push(external_library_entry);
+                external_library_ids.push(library.id.clone());
+            }
+        }
+    }
+
+    Ok(AssembleResultForDependItems {
+        import_module_entries,
+        import_module_ids,
+        external_library_entries,
+        external_library_ids,
+    })
+}
+
+struct AssembleResultForImportNodes {
+    // import_module_entries: Vec<ImportModuleEntry>,
     import_function_entries: Vec<ImportFunctionEntry>,
     import_data_entries: Vec<ImportDataEntry>,
     import_function_ids: Vec<String>,
@@ -1923,10 +1992,10 @@ struct AssembleResultForImportNodes {
 }
 
 fn assemble_import_nodes(
+    import_module_ids: &[String],
     import_nodes: &[ImportNode],
     type_entries: &mut Vec<TypeEntry>,
 ) -> Result<AssembleResultForImportNodes, AssembleError> {
-    let mut import_module_entries: Vec<ImportModuleEntry> = vec![];
     let mut import_function_entries: Vec<ImportFunctionEntry> = vec![];
     let mut import_data_entries: Vec<ImportDataEntry> = vec![];
 
@@ -1935,17 +2004,23 @@ fn assemble_import_nodes(
     let mut import_read_write_data_ids: Vec<String> = vec![];
     let mut import_uninit_data_ids: Vec<String> = vec![];
 
-    for (import_module_index, import_node) in import_nodes.iter().enumerate() {
-        let import_module_node = &import_node.import_module_node;
+    //    for (import_module_index, import_node) in import_nodes.iter().enumerate() {
+    //         let import_module_node = &import_node.import_module_node;
+    //
+    //         // add import module entry
+    //         let import_module_entry = ImportModuleEntry::new(
+    //             import_module_node.name.clone(),
+    //             import_module_node.module_share_type,
+    //             import_module_node.version_major,
+    //             import_module_node.version_minor,
+    //         );
+    //         import_module_entries.push(import_module_entry);
 
-        // add import module entry
-        let import_module_entry = ImportModuleEntry::new(
-            import_module_node.name.clone(),
-            import_module_node.module_share_type,
-            import_module_node.version_major,
-            import_module_node.version_minor,
-        );
-        import_module_entries.push(import_module_entry);
+    for import_node in import_nodes {
+        let import_module_index = import_module_ids
+            .iter()
+            .position(|id| id == &import_node.module_id)
+            .unwrap();
 
         for import_item in &import_node.import_items {
             match import_item {
@@ -1996,7 +2071,7 @@ fn assemble_import_nodes(
     }
 
     let result = AssembleResultForImportNodes {
-        import_module_entries,
+        // import_module_entries,
         import_function_entries,
         import_data_entries,
         import_function_ids,
@@ -2009,28 +2084,34 @@ fn assemble_import_nodes(
 }
 
 type AssembleResultForExternNode = (
-    Vec<ExternalLibraryEntry>,
+    // Vec<ExternalLibraryEntry>,
     Vec<ExternalFunctionEntry>,
     Vec<String>,
 );
 
 fn assemble_external_nodes(
+    external_library_ids: &[String],
     external_nodes: &[ExternalNode],
     type_entries: &mut Vec<TypeEntry>,
 ) -> Result<AssembleResultForExternNode, AssembleError> {
-    let mut external_library_entries: Vec<ExternalLibraryEntry> = vec![];
+    // let mut external_library_entries: Vec<ExternalLibraryEntry> = vec![];
     let mut external_function_entries: Vec<ExternalFunctionEntry> = vec![];
     let mut external_function_ids: Vec<String> = vec![];
 
     for external_node in external_nodes {
-        // build ExternalLibraryEntry
-        let external_library_node = &external_node.external_library_node;
-        let external_library_entry = ExternalLibraryEntry {
-            name: external_library_node.name.clone(),
-            external_library_type: external_library_node.external_library_type,
-        };
-        let external_library_index = external_library_entries.len();
-        external_library_entries.push(external_library_entry);
+        // // build ExternalLibraryEntry
+        // let external_library_node = &external_node.external_library_node;
+        // let external_library_entry = ExternalLibraryEntry {
+        //     name: external_library_node.name.clone(),
+        //     external_library_type: external_library_node.external_library_type,
+        // };
+        // let external_library_index = external_library_entries.len();
+        // external_library_entries.push(external_library_entry);
+
+        let external_library_index = external_library_ids
+            .iter()
+            .position(|id| id == &external_node.library_id)
+            .unwrap();
 
         for external_item in &external_node.external_items {
             let ExternalItem::ExternalFunction(external_function) = external_item;
@@ -2057,7 +2138,7 @@ fn assemble_external_nodes(
     }
 
     Ok((
-        external_library_entries,
+        // external_library_entries,
         external_function_entries,
         external_function_ids,
     ))
@@ -2072,11 +2153,16 @@ mod tests {
             ImportDataEntry, ImportFunctionEntry, ImportModuleEntry, InitedDataEntry,
             LocalListEntry, LocalVariableEntry, TypeEntry,
         },
-        DataSectionType, DataType, ExternalLibraryType, MemoryDataType, ModuleShareType,
+        DataSectionType, DataType, EffectiveVersion, ExternalLibraryType, MemoryDataType,
+        ModuleShareType,
     };
     use pretty_assertions::assert_eq;
 
-    use ancasm_parser::{lexer::lex, parser::parse, peekable_iterator::PeekableIterator};
+    use ancasm_parser::{
+        lexer::{filter, lex},
+        parser::parse,
+        peekable_iterator::PeekableIterator,
+    };
 
     use crate::{
         assembler::assemble_merged_module_node,
@@ -2088,9 +2174,13 @@ mod tests {
         let submodule_sources = &[
             r#"
         (module $myapp
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (constructor $init)
             (destructor $exit)
+            (depend
+                (module $math share "math" "1.0")
+                (library $libc system "libc.so.6")
+            )
             (data $SUCCESS (read_only i64 0))
             (data $FAILURE (read_only i64 1))
             (function $entry
@@ -2117,20 +2207,17 @@ mod tests {
         "#,
             r#"
         (module $myapp::utils
-            (runtime_version "1.0")
-            (external
-                (library system "libc.so.6")
-                (function $getuid "getuid" (result i32))
-            )
-            (import
-                (module share "math" "1.0")
+            (import $math
                 (function $wrap_add "wrap::add"
                     (params i32 i32)
                     (result i32)
                 )
-                (data $seed "seed" i32 read_only)
+                (data $seed "seed" read_only i32)
             )
-            (data $buf (read_write (bytes 2) h"11131719"))
+            (external $libc
+                (function $getuid "getuid" (result i32))
+            )
+            (data $buf (read_write bytes h"11131719" 2))
             (function export $add
                 (param $left i32) (param $right i32)
                 (result i64)
@@ -2149,19 +2236,23 @@ mod tests {
             .iter()
             .map(|source| {
                 let mut chars = source.chars();
-                let mut char_iter = PeekableIterator::new(&mut chars, 2);
-                let mut tokens = lex(&mut char_iter).unwrap().into_iter();
-                let mut token_iter = PeekableIterator::new(&mut tokens, 2);
-                parse(&mut token_iter).unwrap()
+                let mut char_iter = PeekableIterator::new(&mut chars, 3);
+                let all_tokens = lex(&mut char_iter).unwrap();
+                let effective_tokens = filter(&all_tokens);
+                let mut token_iter = effective_tokens.into_iter();
+                let mut peekable_token_iter = PeekableIterator::new(&mut token_iter, 2);
+                parse(&mut peekable_token_iter).unwrap()
             })
             .collect::<Vec<_>>();
 
-        let merged_module_node = merge_and_canonicalize_submodule_nodes(&submodule_nodes).unwrap();
+        let merged_module_node =
+            merge_and_canonicalize_submodule_nodes(&submodule_nodes, None).unwrap();
         let module_entry = assemble_merged_module_node(&merged_module_node).unwrap();
 
         assert_eq!(module_entry.name, "myapp");
-        assert_eq!(module_entry.runtime_version_major, 1);
-        assert_eq!(module_entry.runtime_version_minor, 0);
+        // assert_eq!(module_entry.runtime_version_major, 1);
+        // assert_eq!(module_entry.runtime_version_minor, 0);
+        assert_eq!(module_entry.runtime_version, EffectiveVersion::new(1, 0));
 
         assert_eq!(module_entry.import_function_count, 1);
         assert_eq!(module_entry.import_read_only_data_count, 1);
@@ -2178,8 +2269,9 @@ mod tests {
             vec![ImportModuleEntry {
                 name: "math".to_owned(),
                 module_share_type: ModuleShareType::Share,
-                version_major: 1,
-                version_minor: 0
+                // version_major: 1,
+                // version_minor: 0
+                module_version: EffectiveVersion::new(1, 0)
             }]
         );
 

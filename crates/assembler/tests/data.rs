@@ -61,10 +61,10 @@ fn test_assemble_data_load_and_store_initialized() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (data $d0 (read_only i32 0x19171311))
             (data $d1 (read_only i32 0xf0e0d0c0))
-            (data $d2 (read_write (bytes 8) h"00-11-22-33-44-55-66-77"))    ;; random data
+            (data $d2 (read_write bytes h"00-11-22-33-44-55-66-77" 8))  ;; abitrary data
             (data $d3 (read_write f32 3.1415927))
             (data $d4 (read_write f64 2.718281828459045))
             (data $d5 (read_write i64 0))
@@ -196,10 +196,10 @@ fn test_assemble_data_load_and_store_uninitialized() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (data $d0 (read_only i32 0x19171311))
             (data $d1 (read_only i32 0xf0e0d0c0))
-            (data $d2 (uninit (bytes 8 4)))
+            (data $d2 (uninit bytes 8 4))
             (data $d3 (uninit f32))
             (data $d4 (uninit f64))
             (data $d5 (uninit i64))
@@ -325,9 +325,9 @@ fn test_assemble_data_offset_load_and_store() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
-            (data $d0 (uninit (bytes 8 4)))
-            (data $d1 (uninit (bytes 8 4)))
+            (compiler_version "1.0")
+            (data $d0 (uninit bytes 8 4))
+            (data $d1 (uninit bytes 8 4))
             (function $test
                 (results
                         i64 i32 i32 i32 i32 i32 ;; group 0

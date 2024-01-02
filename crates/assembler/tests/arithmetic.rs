@@ -58,7 +58,7 @@ fn test_assemble_arithmetic_i32() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (param $a0 i32)
                 (param $a1 i32)
@@ -188,7 +188,7 @@ fn test_assemble_arithmetic_i64() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (param $a0 i64)
                 (param $a1 i64)
@@ -288,7 +288,7 @@ fn test_assemble_arithmetic_f32() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (param $a0 f32)
                 (param $a1 f32)
@@ -343,7 +343,7 @@ fn test_assemble_arithmetic_f64() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (runtime_version "1.0")
+            (compiler_version "1.0")
             (function $test
                 (param $a0 f64)
                 (param $a1 f64)
