@@ -330,16 +330,17 @@ fn parse_optional_depend_node(
 fn parse_dependent_module_node(
     iter: &mut PeekableIterator<Token>,
 ) -> Result<DependItem, ParseError> {
-    // (module share "math" "1.0") ...  //
-    // ^                     ^____// to here
-    // |__________________________// current token
+    // (module $id share "math" "1.0") ...  //
+    // ^                               ^____// to here
+    // |____________________________________// current token
 
     // also:
-    // (module user "math" "1.0")
+    // (module $id user "math" "1.0")
 
     consume_left_paren(iter, "import.module")?;
     consume_symbol(iter, "module")?;
 
+    let id = expect_identifier(iter, "import.module.id")?;
     let module_share_type_str = expect_symbol(iter, "import.module.share_type")?;
     let module_share_type = match module_share_type_str.as_str() {
         "share" => ModuleShareType::Share,
@@ -358,6 +359,7 @@ fn parse_dependent_module_node(
     let module_version = parse_effective_version(&ver_string)?;
 
     Ok(DependItem::DependentModule(DependentModuleNode {
+        id,
         module_share_type,
         name,
         // version_major,
@@ -369,17 +371,18 @@ fn parse_dependent_module_node(
 fn parse_dependent_library_node(
     iter: &mut PeekableIterator<Token>,
 ) -> Result<DependItem, ParseError> {
-    // (library share "math.so.1") ...  //
+    // (library $id share "math.so.1") ...  //
     // ^                           ^____// to here
     // |________________________________// current token
 
     // also:
-    // (library system "libc.so.6")
-    // (library user "libtest0.so.1")
+    // (library $id system "libc.so.6")
+    // (library $id user "libtest0.so.1")
 
     consume_left_paren(iter, "external.library")?;
     consume_symbol(iter, "library")?;
 
+    let id = expect_identifier(iter, "external.library.id")?;
     let external_library_type_str = expect_symbol(iter, "external.library.type")?;
     let external_library_type = match external_library_type_str.as_str() {
         "share" => ExternalLibraryType::Share,
@@ -396,6 +399,7 @@ fn parse_dependent_library_node(
     consume_right_paren(iter)?;
 
     Ok(DependItem::DependentLibrary(DependentLibraryNode {
+        id,
         external_library_type,
         name,
     }))
@@ -2637,10 +2641,10 @@ mod tests {
             (module $app
                 (compiler_version "1.0")
                 (depend
-                    (module share "math" "1.0")
-                    (module user "format" "2.3")
-                    (library share "math.so.1")
-                    (library system "libc.so.6")
+                    (module $math share "math" "1.0")
+                    (module $number_format user "format" "2.3")
+                    (library $complex share "complex.so.1")
+                    (library $c system "libc.so.6")
                 )
             )
             "#
@@ -2654,20 +2658,24 @@ mod tests {
                 depend_node: Some(DependNode {
                     depend_items: vec![
                         DependItem::DependentModule(DependentModuleNode {
+                            id: "math".to_owned(),
                             module_share_type: ModuleShareType::Share,
                             name: "math".to_owned(),
                             module_version: EffectiveVersion::new(1, 0)
                         }),
                         DependItem::DependentModule(DependentModuleNode {
+                            id: "number_format".to_owned(),
                             module_share_type: ModuleShareType::User,
                             name: "format".to_owned(),
                             module_version: EffectiveVersion::new(2, 3)
                         }),
                         DependItem::DependentLibrary(DependentLibraryNode {
+                            id: "complex".to_owned(),
                             external_library_type: ExternalLibraryType::Share,
-                            name: "math.so.1".to_owned(),
+                            name: "complex.so.1".to_owned(),
                         }),
                         DependItem::DependentLibrary(DependentLibraryNode {
+                            id: "c".to_owned(),
                             external_library_type: ExternalLibraryType::System,
                             name: "libc.so.6".to_owned(),
                         })
@@ -2715,6 +2723,21 @@ mod tests {
             Err(ParseError { message: _ })
         ));
 
+        // err: missing module id
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (compiler_version "1.0")
+                (depend
+                    (module user "math" "1.0")
+                )
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
         // err: unsupported module type
         assert!(matches!(
             parse_from_str(
@@ -2722,7 +2745,7 @@ mod tests {
             (module $app
                 (compiler_version "1.0")
                 (depend
-                    (module custom "math" "1.0")
+                    (module $math custom "math" "1.0")
                 )
             )
             "#
@@ -2737,7 +2760,7 @@ mod tests {
             (module $app
                 (compiler_version "1.0")
                 (depend
-                    (module user)
+                    (module $math user)
                 )
             )
             "#
@@ -2752,7 +2775,22 @@ mod tests {
             (module $app
                 (compiler_version "1.0")
                 (depend
-                    (module user "math")
+                    (module $math user "math")
+                )
+            )
+            "#
+            ),
+            Err(ParseError { message: _ })
+        ));
+
+        // err: missing library id
+        assert!(matches!(
+            parse_from_str(
+                r#"
+            (module $app
+                (compiler_version "1.0")
+                (depend
+                    (library user "libc.so.6")
                 )
             )
             "#
@@ -2767,7 +2805,7 @@ mod tests {
             (module $app
                 (compiler_version "1.0")
                 (depend
-                    (library custom "libc.so.6")
+                    (library $libc custom "libc.so.6")
                 )
             )
             "#
@@ -2782,7 +2820,7 @@ mod tests {
             (module $app
                 (compiler_version "1.0")
                 (depend
-                    (library system)
+                    (library $libc system)
                 )
             )
             "#

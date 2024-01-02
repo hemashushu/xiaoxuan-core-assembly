@@ -139,10 +139,6 @@ variants
 - `data.load32_i8_u`
 - `data.load32_f32`
 
-> NOTE:
-> the data name should contains the full namespace path, e.g. `mylib::msg`, `mylib::utils::buf`.
-> The namespace path can also be omitted, in which case the instruction will access items within the current module.
-
 storing
 
 (data.store64 $DATA_NAME_PATH VALUE OPTIONAL_OFFSET:i16)
@@ -177,6 +173,13 @@ variants:
 - `data.offset_store32`
 - `data.offset_store16`
 - `data.offset_store8`
+
+### data item name path
+
+todo
+
+<!-- the data name should contains the full namespace path, e.g. `mylib::msg`, `mylib::utils::buf`.
+The namespace path can also be omitted, in which case the instruction will access items within the current module. -->
 
 ## Heap
 
@@ -456,10 +459,15 @@ wrapping dec, e.g. 0x1 dec 2 = 0xffff_ffff
 (syscall SYS_CALL_NUMBER:i32 ARG_0 ARG_1 ... ARG_N)
 (extcall $id ARG_0 ARG_1 ... ARG_N)
 
-> NOTE:
+### function item name path
+
+todo
+
+<!--
 > the `id` in the instructions `call`, data loading and data storing can be a full name path (a path that combined with the path of namespace and the identifier), e.g. `mylib::msg`, `mylib::utils::buf`.
 > When the name path is omitted, the instruction will access items within the current module.
 > These name path can be a relative path, e.g. `module::utils::buf`, `self::utils::buf`.
+-->
 
 ## Host
 

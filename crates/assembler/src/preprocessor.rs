@@ -6,13 +6,13 @@
 
 use ancasm_parser::{
     ast::{
-        BranchCase, DataDetailNode, DataNode, ExternalFunctionNode, ExternalItem, ExternalNode,
-        FunctionNode, ImportDataNode, ImportFunctionNode, ImportItem, ImportNode, Instruction,
-        LocalNode, ModuleElementNode, ModuleNode, ParamNode,
+        BranchCase, DataDetailNode, DataNode, DependItem, ExternalFunctionNode, ExternalItem,
+        ExternalNode, FunctionNode, ImportDataNode, ImportFunctionNode, ImportItem, ImportNode,
+        Instruction, LocalNode, ModuleElementNode, ModuleNode, ParamNode,
     },
     NAME_PATH_SEPARATOR,
 };
-use ancvm_types::DataType;
+use ancvm_types::{DataType, EffectiveVersion};
 
 use crate::AssembleError;
 
@@ -31,9 +31,9 @@ use crate::AssembleError;
 //
 // the rules of the merger are:
 //
-// 1. canonicalize the identifiers of functions and datas
+// 1. canonicalize the identifiers AND NAMES of functions and datas
 //
-// in submodule 'myapp':
+// in module 'myapp':
 // (function $entry ...)
 //
 // in submodule 'myapp::utils':
@@ -44,8 +44,12 @@ use crate::AssembleError;
 // - 'myapp::entry'
 // - 'myapp::utils::add'
 //
-// note that the identifier and name of the function
-// are the same (as well as the data).
+// note that the name of a function will be renamed also,
+// it is the same as its identifier except it does not include
+// the module name, so the function names are:
+//
+// - 'entry'
+// - 'utils::add'
 //
 // 2. canonicalize the identifiers of call instruction and
 //    data store and load instructions.
@@ -56,11 +60,12 @@ use crate::AssembleError;
 //
 // when the identifier already contains the namespace path separator `::` and
 // is an absolute path, it will not be rewritten, however,
-// the relative name paths will.
+// the relative name paths will be canonicalized.
 //
 // relative paths begin with the keywords 'module' and 'self', e.g.
-// `(call $module::utils::add ...)`
-// `(call $self::utils::add ...)`
+//
+// - `(call $module::utils::add ...)`
+// - `(call $self::utils::add ...)`
 //
 // 3. canonicalize the identifiers of external functions.
 //
@@ -69,44 +74,55 @@ use crate::AssembleError;
 // need to be canonicalized before assemble.
 //
 // e.g.
-// in submodule 'myapp':
+// in module 'myapp':
 //
-// (external (library share "math.so.1")
-//         (function $add "add" ...)
+// (depend
+//     (library $math "math.so.1" share)
+// )
+// (external $math
+//     (function $add "add" ...)
 // )
 // (extcall $add ...)
 //
 // in submodule 'myapp::utils':
 //
-// (external (library share "math.so.1")
-//         (function $f0 "add" ...)
+// (external $math
+//     (function $f0 "add" ...)
 // )
 // (extcall $f0 ...)
 //
-// the identifiers '$add' and '$f0' will be
-// rewritten as 'EXTERNAL_FUNCTION::share::math.so.1::add' in both the node 'external' and 'extcall'
+// the identifiers '$add' and '$f0' will be rewritten as 'math::add'.
 //
 // in addition to rewriteing identifiers, duplicate 'external' nodes
 // will be removed.
 //
-// the expect identifier name for external function is:
-// EXTERNAL_FUNCTION::EXTERNAL_LIBRARY_TYPE::LIBRARY_SO_NAME::SYMBOL_NAME
+// the expect identifier for external function is:
+// LIBRARY_ID::SYMBOL_NAME
 //
-// 4. canonicalize the identifiers of imported items.
+// 4. canonicalize the identifiers of 'extcall' instruction
+//
+// in the example above, the instruction '(extcall $add ...)' and
+// '(extcall $f0 ...)' will be rewritten as '(extcall $math::add)'.
+//
+// 5. canonicalize the identifiers of imported items.
 //
 // it's similar to the external functions, e.g.
 //
-// in submodule 'myapp':
+// in module 'myapp':
 //
-// (import (module share "math")
-//         (function $add "add" ...)
+// (depend
+//     (module $math "math" share)
+// )
+//
+// (import $math
+//     (function $add "add" ...)
 // )
 // (call $add ...)
 //
 // in submodule 'myapp::utils':
 //
-// (import (module share "math")
-//         (function $f0 "add" ...)
+// (import $math
+//     (function $f0 "add" ...)
 // )
 // (call $f0 ...)
 //
@@ -116,8 +132,8 @@ use crate::AssembleError;
 // in addition to rewriteing identifiers, duplicate 'import' nodes
 // will be removed.
 //
-// the expect identifier name for imported item is:
-// MODULE_NAME::PATH_NAMES::ITEM_NAME
+// the expect identifier for imported item is:
+// MODULE_ID::PATH_NAMES::ITEM_NAME
 //
 // note: at the assembly level, submodules are transparent to each other,
 // i.e., all functions and data (including imported functions, imported data,
@@ -128,9 +144,9 @@ pub struct MergedModuleNode {
     // the main module name
     pub name: String,
 
-    pub runtime_version_major: u16,
-    pub runtime_version_minor: u16,
-
+    // pub runtime_version_major: u16,
+    // pub runtime_version_minor: u16,
+    pub compiler_version: EffectiveVersion,
     pub constructor_function_name_path: Option<String>,
     pub destructor_function_name_path: Option<String>,
 
@@ -138,8 +154,10 @@ pub struct MergedModuleNode {
     pub read_only_data_nodes: Vec<CanonicalDataNode>,
     pub read_write_data_nodes: Vec<CanonicalDataNode>,
     pub uninit_data_nodes: Vec<CanonicalDataNode>,
-    pub external_nodes: Vec<ExternalNode>,
+
+    pub depend_items: Vec<DependItem>,
     pub import_nodes: Vec<ImportNode>,
+    pub external_nodes: Vec<ExternalNode>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -200,9 +218,9 @@ struct RenameItem {
 
     // rename to, e.g.
     //
-    // - "MODULE_NAME::NAME_PATH::FUNC_NAME"
-    // - "MODULE_NAME::NAME_PATH::DATA_NAME"
-    // - "EXTERNAL_FUNCTION::EXTERNAL_LIBRARY_TYPE::LIBRARY_SO_NAME::SYMBOL_NAME"
+    // - "MODULE_ID::NAME_PATH::FUNC_NAME"
+    // - "MODULE_ID::NAME_PATH::DATA_NAME"
+    // - "LIBRARY_ID::SYMBOL_NAME"
     to: String,
 
     rename_kind: RenameKind,
@@ -222,18 +240,19 @@ enum RenameKind {
 
 pub fn merge_and_canonicalize_submodule_nodes(
     submodule_nodes: &[ModuleNode],
+    outer_depend_items: Option<&[DependItem]>,
 ) -> Result<MergedModuleNode, AssembleError> {
     // the first submodule is the main submodule of an application or a library.
     // so pick the name and runtime version from the first submodule.
 
     let name = submodule_nodes[0].name_path.clone();
-    let runtime_version_major = submodule_nodes[0].runtime_version_major;
-    let runtime_version_minor = submodule_nodes[0].runtime_version_minor;
+    // let runtime_version_major = submodule_nodes[0].runtime_version_major;
+    // let runtime_version_minor = submodule_nodes[0].runtime_version_minor;
+    let compiler_version = submodule_nodes[0].compiler_version.unwrap();
     let constructor_function_name = submodule_nodes[0].constructor_function_name_path.clone();
     let destructor_function_name = submodule_nodes[0].destructor_function_name_path.clone();
 
-    // check submodules name path and runtime version
-
+    // check submodules name path
     for module_node in &submodule_nodes[1..] {
         let first_part_of_name_path = module_node
             .name_path
@@ -250,168 +269,49 @@ pub fn merge_and_canonicalize_submodule_nodes(
             });
         }
 
-        if module_node.runtime_version_major != runtime_version_major
-            || module_node.runtime_version_minor != runtime_version_minor
-        {
+        /*
+        // if module_node.runtime_version_major != runtime_version_major
+        //     || module_node.runtime_version_minor != runtime_version_minor
+        // {
+        //     return Err(AssembleError {
+        //         message: format!(
+        //             "The runtime version of submodule: \"{}.{}\" does not match the main module: \"{}.{}\"",
+        //             module_node.runtime_version_major, module_node.runtime_version_minor ,
+        //             runtime_version_major, runtime_version_minor
+        //         ),
+        //     });
+        // }
+         */
+    }
+
+    let depend_items = if let Some(items) = outer_depend_items {
+        if submodule_nodes[0].depend_node.is_some() {
             return Err(AssembleError {
-                message: format!(
-                    "The runtime version of submodule: \"{}.{}\" does not match the main module: \"{}.{}\"",
-                    module_node.runtime_version_major, module_node.runtime_version_minor ,
-                    runtime_version_major, runtime_version_minor
-                ),
+                message: "Depend node is not allowed in applicaiton with multiple source file."
+                    .to_owned(),
             });
         }
-    }
+
+        items.to_owned()
+    } else if let Some(node) = &submodule_nodes[0].depend_node {
+        node.depend_items.clone()
+    } else {
+        vec![]
+    };
 
     let mut rename_item_modules: Vec<RenameItemModule> = vec![];
 
-    // canonicalize the external nodes and remove the duplicate items
-    let mut canonical_external_nodes: Vec<ExternalNode> = vec![];
-
-    for submodule_node in submodule_nodes {
-        let submodule_name_path = &submodule_node.name_path;
-        let mut rename_items: Vec<RenameItem> = vec![];
-
-        let original_external_nodes = submodule_node
-            .element_nodes
-            .iter()
-            .filter_map(|node| match node {
-                ModuleElementNode::ExternalNode(external_node) => Some(external_node),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-
-        // create new canonical external node if it does not exist.
-
-        for original_external_node in original_external_nodes {
-            let idx_opt_of_canonical_external_node =
-                canonical_external_nodes.iter().position(|node| {
-                    node.external_library_node == original_external_node.external_library_node
-                });
-
-            let idx_of_canonical_external_node =
-                if let Some(idx) = idx_opt_of_canonical_external_node {
-                    idx
-                } else {
-                    let idx = canonical_external_nodes.len();
-
-                    // create new canonical external node
-                    let canonical_external_node = ExternalNode {
-                        external_library_node: original_external_node.external_library_node.clone(),
-                        external_items: vec![],
-                    };
-
-                    canonical_external_nodes.push(canonical_external_node);
-                    idx
-                };
-
-            let canonical_external_node =
-                &mut canonical_external_nodes[idx_of_canonical_external_node];
-
-            for original_external_item in &original_external_node.external_items {
-                // build the canonical external item
-
-                let canonical_external_item = match original_external_item {
-                    ExternalItem::ExternalFunction(original_external_function) => {
-                        // the format of expect identifier name:
-                        // EXTERNAL_FUNCTION::EXTERNAL_LIBRARY_TYPE::LIBRARY_SO_NAME::SYMBOL_NAME
-
-                        let name = original_external_function.name.clone();
-
-                        let expect_identifier = format!(
-                            "EXTERNAL_FUNCTION::{}::{}::{}",
-                            original_external_node
-                                .external_library_node
-                                .external_library_type,
-                            original_external_node.external_library_node.name,
-                            name
-                        );
-
-                        let canonical_external_function_node = ExternalFunctionNode {
-                            id: expect_identifier,
-                            name,
-                            params: original_external_function.params.clone(),
-                            results: original_external_function.results.clone(),
-                        };
-
-                        ExternalItem::ExternalFunction(canonical_external_function_node)
-                    }
-                };
-
-                let idx_opt_of_canonical_external_item =
-                    canonical_external_node.external_items.iter().position(
-                        |exists_external_item| exists_external_item == &canonical_external_item,
-                    );
-
-                // create new canonical external item if it does not exist.
-
-                let idx_of_canonical_external_item =
-                    if let Some(idx) = idx_opt_of_canonical_external_item {
-                        idx
-                    } else {
-                        let idx = canonical_external_node.external_items.len();
-
-                        // add new canonical external item
-                        canonical_external_node
-                            .external_items
-                            .push(canonical_external_item);
-
-                        idx
-                    };
-
-                let expect_identifier =
-                    match &canonical_external_node.external_items[idx_of_canonical_external_item] {
-                        ExternalItem::ExternalFunction(external_function) => {
-                            external_function.id.to_owned()
-                        }
-                    };
-
-                let actual_identifier = match original_external_item {
-                    ExternalItem::ExternalFunction(external_function) => {
-                        external_function.id.to_owned()
-                    }
-                };
-
-                // add rename item if it does not exist
-                if expect_identifier != actual_identifier
-                    && !rename_items
-                        .iter()
-                        .any(|item| item.from == actual_identifier && item.to == expect_identifier)
-                {
-                    let rename_item = RenameItem {
-                        from: actual_identifier,
-                        to: expect_identifier,
-                        rename_kind: RenameKind::ExternalFunction,
-                    };
-                    rename_items.push(rename_item);
-                }
-            }
-        }
-
-        let idx_of_rename_item_module_opt = rename_item_modules
-            .iter()
-            .position(|module| &module.module_name_path == submodule_name_path);
-
-        if let Some(idx_of_rename_item_module) = idx_of_rename_item_module_opt {
-            rename_item_modules[idx_of_rename_item_module]
-                .items
-                .extend(rename_items.into_iter())
-        } else {
-            let rename_item_module = RenameItemModule {
-                module_name_path: submodule_name_path.to_owned(),
-                items: rename_items,
-            };
-
-            rename_item_modules.push(rename_item_module);
-        }
-    }
-
+    //
     // canonicalize the import nodes and remove the duplicate items
+    //
+
     let mut canonical_import_nodes: Vec<ImportNode> = vec![];
 
     for submodule_node in submodule_nodes {
         let submodule_name_path = &submodule_node.name_path;
         let mut rename_items: Vec<RenameItem> = vec![];
+
+        // extra the original imported nodes
 
         let original_imported_nodes = submodule_node
             .element_nodes
@@ -422,12 +322,26 @@ pub fn merge_and_canonicalize_submodule_nodes(
             })
             .collect::<Vec<_>>();
 
-        // create new canonical import node if it does not exist.
-
         for original_import_node in original_imported_nodes {
-            let idx_opt_of_canonical_import_node = canonical_import_nodes.iter().position(|node| {
-                node.import_module_node == original_import_node.import_module_node
-            });
+            // check the module id
+
+            if !depend_items.iter().any(|item| match item {
+                DependItem::DependentModule(module) => module.id == original_import_node.module_id,
+                DependItem::DependentLibrary(_) => false,
+            }) {
+                return Err(AssembleError {
+                    message: format!(
+                        "Can not find the specified module id: {}.",
+                        original_import_node.module_id
+                    ),
+                });
+            }
+
+            // create new canonical import node if it does not exist.
+
+            let idx_opt_of_canonical_import_node = canonical_import_nodes
+                .iter()
+                .position(|node| node.module_id == original_import_node.module_id);
 
             let idx_of_canonical_import_node = if let Some(idx) = idx_opt_of_canonical_import_node {
                 idx
@@ -436,7 +350,7 @@ pub fn merge_and_canonicalize_submodule_nodes(
 
                 // create new canonical import node
                 let canonical_import_node = ImportNode {
-                    import_module_node: original_import_node.import_module_node.clone(),
+                    module_id: original_import_node.module_id.clone(),
                     import_items: vec![],
                 };
 
@@ -447,19 +361,17 @@ pub fn merge_and_canonicalize_submodule_nodes(
             let canonical_import_node = &mut canonical_import_nodes[idx_of_canonical_import_node];
 
             for original_import_item in &original_import_node.import_items {
-                // build the canonical external item
+                // build the canonical import item
 
                 let canonical_import_item = match original_import_item {
                     ImportItem::ImportFunction(original_import_function) => {
-                        // the format of expect identifier name:
-                        // TARGET_MODULE_NAME::NAME_PATH::FUNCTION_NAME
+                        // the scheme of identifier:
+                        // MODULE_ID::NAME_PATH::FUNCTION_NAME
 
                         let name_path = original_import_function.name_path.clone();
 
-                        let expect_identifier = format!(
-                            "{}::{}",
-                            original_import_node.import_module_node.name, name_path
-                        );
+                        let expect_identifier =
+                            format!("{}::{}", original_import_node.module_id, name_path);
 
                         let canonical_import_function_node = ImportFunctionNode {
                             id: expect_identifier,
@@ -471,15 +383,13 @@ pub fn merge_and_canonicalize_submodule_nodes(
                         ImportItem::ImportFunction(canonical_import_function_node)
                     }
                     ImportItem::ImportData(original_import_data) => {
-                        // the format of expect identifier name:
-                        // MODULE_NAME::NAME_PATH::FUNCTION_NAME
+                        // the scheme of identifier:
+                        // MODULE_ID::NAME_PATH::FUNCTION_NAME
 
                         let name_path = original_import_data.name_path.clone();
 
-                        let expect_identifier = format!(
-                            "{}::{}",
-                            original_import_node.import_module_node.name, name_path
-                        );
+                        let expect_identifier =
+                            format!("{}::{}", original_import_node.module_id, name_path);
 
                         let canonical_import_data_node = ImportDataNode {
                             id: expect_identifier,
@@ -492,12 +402,12 @@ pub fn merge_and_canonicalize_submodule_nodes(
                     }
                 };
 
+                // create new canonical import item if it does not exist.
+
                 let idx_opt_of_canonical_import_item = canonical_import_node
                     .import_items
                     .iter()
                     .position(|exists_import_item| exists_import_item == &canonical_import_item);
-
-                // create new canonical import item if it does not exist.
 
                 let idx_of_canonical_import_item =
                     if let Some(idx) = idx_opt_of_canonical_import_item {
@@ -513,6 +423,19 @@ pub fn merge_and_canonicalize_submodule_nodes(
                         idx
                     };
 
+                // add rename item if it does not exist
+                //
+                // sometimes there maybe multiple identifiers for one imported item, e.g.
+                //
+                // ```clojure
+                // (import $module_id
+                //     (function $add "add" ...)
+                //     (function $add_i32 "add" ...)
+                // )
+                // ```
+                //
+                // so it is necessary to add rename item for each imported item.
+
                 let expect_identifier = match &canonical_import_node.import_items
                     [idx_of_canonical_import_item]
                 {
@@ -525,7 +448,6 @@ pub fn merge_and_canonicalize_submodule_nodes(
                     ImportItem::ImportData(import_data) => import_data.id.to_owned(),
                 };
 
-                // add rename item if it does not exist
                 if expect_identifier != actual_identifier
                     && !rename_items
                         .iter()
@@ -545,6 +467,177 @@ pub fn merge_and_canonicalize_submodule_nodes(
                 }
             }
         }
+
+        // add rename items to target module
+
+        let idx_of_rename_item_module_opt = rename_item_modules
+            .iter()
+            .position(|module| &module.module_name_path == submodule_name_path);
+
+        if let Some(idx_of_rename_item_module) = idx_of_rename_item_module_opt {
+            rename_item_modules[idx_of_rename_item_module]
+                .items
+                .extend(rename_items.into_iter())
+        } else {
+            let rename_item_module = RenameItemModule {
+                module_name_path: submodule_name_path.to_owned(),
+                items: rename_items,
+            };
+
+            rename_item_modules.push(rename_item_module);
+        }
+    }
+
+    //
+    // canonicalize the external nodes and remove the duplicate items
+    //
+
+    let mut canonical_external_nodes: Vec<ExternalNode> = vec![];
+
+    for submodule_node in submodule_nodes {
+        let submodule_name_path = &submodule_node.name_path;
+        let mut rename_items: Vec<RenameItem> = vec![];
+
+        // extra the original external nodes
+
+        let original_external_nodes = submodule_node
+            .element_nodes
+            .iter()
+            .filter_map(|node| match node {
+                ModuleElementNode::ExternalNode(external_node) => Some(external_node),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        for original_external_node in original_external_nodes {
+            // check the library id
+
+            if !depend_items.iter().any(|item| match item {
+                DependItem::DependentModule(_) => false,
+                DependItem::DependentLibrary(library) => {
+                    library.id == original_external_node.library_id
+                }
+            }) {
+                return Err(AssembleError {
+                    message: format!(
+                        "Can not find the specified library id: {}.",
+                        original_external_node.library_id
+                    ),
+                });
+            }
+
+            // create new canonical external node if it does not exist.
+
+            let idx_opt_of_canonical_external_node = canonical_external_nodes
+                .iter()
+                .position(|node| node.library_id == original_external_node.library_id);
+
+            let idx_of_canonical_external_node =
+                if let Some(idx) = idx_opt_of_canonical_external_node {
+                    idx
+                } else {
+                    let idx = canonical_external_nodes.len();
+
+                    // create new canonical external node
+                    let canonical_external_node = ExternalNode {
+                        library_id: original_external_node.library_id.clone(),
+                        external_items: vec![],
+                    };
+
+                    canonical_external_nodes.push(canonical_external_node);
+                    idx
+                };
+
+            let canonical_external_node =
+                &mut canonical_external_nodes[idx_of_canonical_external_node];
+
+            for original_external_item in &original_external_node.external_items {
+                // build the canonical external item
+
+                let canonical_external_item = match original_external_item {
+                    ExternalItem::ExternalFunction(original_external_function) => {
+                        // the scheme of identifier:
+                        // LIBRARY_ID::SYMBOL_NAME
+
+                        let name = original_external_function.name.clone();
+
+                        let expect_identifier =
+                            format!("{}::{}", original_external_node.library_id, name);
+
+                        let canonical_external_function_node = ExternalFunctionNode {
+                            id: expect_identifier,
+                            name,
+                            params: original_external_function.params.clone(),
+                            results: original_external_function.results.clone(),
+                        };
+
+                        ExternalItem::ExternalFunction(canonical_external_function_node)
+                    }
+                };
+
+                // create new canonical external item if it does not exist.
+
+                let idx_opt_of_canonical_external_item =
+                    canonical_external_node.external_items.iter().position(
+                        |exists_external_item| exists_external_item == &canonical_external_item,
+                    );
+
+                let idx_of_canonical_external_item =
+                    if let Some(idx) = idx_opt_of_canonical_external_item {
+                        idx
+                    } else {
+                        let idx = canonical_external_node.external_items.len();
+
+                        // add new canonical external item
+                        canonical_external_node
+                            .external_items
+                            .push(canonical_external_item);
+
+                        idx
+                    };
+
+                // add rename item if it does not exist
+                //
+                // sometimes there maybe multiple identifiers for one external item, e.g.
+                //
+                // ```clojure
+                // (external $library_id
+                //     (function $add "add" ...)
+                //     (function $add_i32 "add" ...)
+                // )
+                // ```
+                //
+                // so it is necessary to add rename item for each external item.
+
+                let expect_identifier =
+                    match &canonical_external_node.external_items[idx_of_canonical_external_item] {
+                        ExternalItem::ExternalFunction(external_function) => {
+                            external_function.id.to_owned()
+                        }
+                    };
+
+                let actual_identifier = match original_external_item {
+                    ExternalItem::ExternalFunction(external_function) => {
+                        external_function.id.to_owned()
+                    }
+                };
+
+                if expect_identifier != actual_identifier
+                    && !rename_items
+                        .iter()
+                        .any(|item| item.from == actual_identifier && item.to == expect_identifier)
+                {
+                    let rename_item = RenameItem {
+                        from: actual_identifier,
+                        to: expect_identifier,
+                        rename_kind: RenameKind::ExternalFunction,
+                    };
+                    rename_items.push(rename_item);
+                }
+            }
+        }
+
+        // add rename items to target module
 
         let idx_of_rename_item_module_opt = rename_item_modules
             .iter()
@@ -660,8 +753,10 @@ pub fn merge_and_canonicalize_submodule_nodes(
 
     let merged_module_node = MergedModuleNode {
         name,
-        runtime_version_major,
-        runtime_version_minor,
+        compiler_version,
+        // runtime_version_major,
+        // runtime_version_minor,
+        depend_items,
         constructor_function_name_path: constructor_function_name,
         destructor_function_name_path: destructor_function_name,
         function_nodes: canonical_function_nodes,
@@ -1280,54 +1375,63 @@ fn canonicalize_name_path_in_instruction(
 #[cfg(test)]
 mod tests {
     use ancvm_types::{
-        opcode::Opcode, DataSectionType, ExternalLibraryType, MemoryDataType, ModuleShareType,
+        opcode::Opcode, DataSectionType, EffectiveVersion, ExternalLibraryType, MemoryDataType,
+        ModuleShareType,
     };
     use pretty_assertions::assert_eq;
 
     use ancasm_parser::{
         ast::{
-            DataDetailNode, ExternalFunctionNode, ExternalItem, DependentLibraryNode, ExternalNode,
-            ImportDataNode, ImportFunctionNode, ImportItem, DependentModuleNode, ImportNode,
-            InitedData, Instruction, UninitData,
+            DataDetailNode, DependItem, DependentLibraryNode, DependentModuleNode,
+            ExternalFunctionNode, ExternalItem, ExternalNode, ImportDataNode, ImportFunctionNode,
+            ImportItem, ImportNode, InitedData, Instruction, UninitData,
         },
-        lexer::lex,
+        lexer::{filter, lex},
         parser::parse,
         peekable_iterator::PeekableIterator,
     };
 
-    use crate::preprocessor::{CanonicalDataNode, CanonicalFunctionNode};
+    use crate::{
+        preprocessor::{CanonicalDataNode, CanonicalFunctionNode},
+        AssembleError,
+    };
 
     use super::{merge_and_canonicalize_submodule_nodes, MergedModuleNode};
 
-    fn preprocess_from_strs(submodule_sources: &[&str]) -> MergedModuleNode {
+    fn preprocess_and_get_merged_module_node(submodule_sources: &[&str]) -> MergedModuleNode {
+        preprocess_from_strs(submodule_sources).unwrap()
+    }
+
+    fn preprocess_from_strs(submodule_sources: &[&str]) -> Result<MergedModuleNode, AssembleError> {
         let submodule_nodes = submodule_sources
             .iter()
             .map(|source| {
                 let mut chars = source.chars();
                 let mut char_iter = PeekableIterator::new(&mut chars, 2);
-                let mut tokens = lex(&mut char_iter).unwrap().into_iter();
-                let mut token_iter = PeekableIterator::new(&mut tokens, 2);
-                parse(&mut token_iter).unwrap()
+                let all_tokens = lex(&mut char_iter).unwrap();
+                let effective_tokens = filter(&all_tokens);
+                let mut token_iter = effective_tokens.into_iter();
+                let mut peekable_token_iter = PeekableIterator::new(&mut token_iter, 2);
+                parse(&mut peekable_token_iter).unwrap()
             })
             .collect::<Vec<_>>();
 
-        merge_and_canonicalize_submodule_nodes(&submodule_nodes).unwrap()
+        merge_and_canonicalize_submodule_nodes(&submodule_nodes, None)
     }
 
     #[test]
     fn test_preprocess_merge_functions() {
         assert_eq!(
-            preprocess_from_strs(&[
+            preprocess_and_get_merged_module_node(&[
                 r#"
             (module $myapp
-                (runtime_version "1.0")
+                (compiler_version "1.0")
                 (function $entry (code))
                 (function $main (code))
             )
             "#,
                 r#"
             (module $myapp::utils
-                (runtime_version "1.0")
                 (function $add (code))
                 (function $sub (code))
             )
@@ -1335,10 +1439,10 @@ mod tests {
             ]),
             MergedModuleNode {
                 name: "myapp".to_owned(),
-                runtime_version_major: 1,
-                runtime_version_minor: 0,
+                compiler_version: EffectiveVersion::new(1, 0),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
+                depend_items: vec![],
                 function_nodes: vec![
                     CanonicalFunctionNode {
                         id: "myapp::entry".to_owned(),
@@ -1389,16 +1493,15 @@ mod tests {
     #[test]
     fn test_preprocess_merge_datas() {
         assert_eq!(
-            preprocess_from_strs(&[
+            preprocess_and_get_merged_module_node(&[
                 r#"
             (module $myapp
-                (runtime_version "1.0")
+                (compiler_version "1.0")
                 (data $code (read_only i32 0x11))
             )
             "#,
                 r#"
             (module $myapp::utils
-                (runtime_version "1.0")
                 (data $count (read_write i32 0x13))
                 (data $sum (uninit i32))
             )
@@ -1406,10 +1509,10 @@ mod tests {
             ]),
             MergedModuleNode {
                 name: "myapp".to_owned(),
-                runtime_version_major: 1,
-                runtime_version_minor: 0,
+                compiler_version: EffectiveVersion::new(1, 0),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
+                depend_items: vec![],
                 function_nodes: vec![],
                 read_only_data_nodes: vec![CanonicalDataNode {
                     id: "myapp::code".to_owned(),
@@ -1450,20 +1553,20 @@ mod tests {
     }
 
     #[test]
-    fn test_preprocess_canonicalize_identifiers_of_function_instructions() {
+    fn test_preprocess_canonicalize_identifiers_of_function_related_instructions() {
         assert_eq!(
-            preprocess_from_strs(&[
+            preprocess_and_get_merged_module_node(&[
                 r#"
             (module $myapp
-                (runtime_version "1.0")
+                (compiler_version "1.0")
                 (function $add (code))
                 (function $test (code
-                    ;; group 2
+                    ;; group 0
                     (call $add)
                     (call $myapp::add)
                     (call $module::add)
                     (call $self::add)
-                    ;; group 3
+                    ;; group 1
                     (call $myapp::utils::add)
                     (call $module::utils::add)
                     (call $self::utils::add)
@@ -1472,7 +1575,6 @@ mod tests {
             "#,
                 r#"
             (module $myapp::utils
-                (runtime_version "1.0")
                 (function $add (code))
                 (function $test (code
                     ;; group 2
@@ -1489,10 +1591,10 @@ mod tests {
             ]),
             MergedModuleNode {
                 name: "myapp".to_owned(),
-                runtime_version_major: 1,
-                runtime_version_minor: 0,
+                compiler_version: EffectiveVersion::new(1, 0),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
+                depend_items: vec![],
                 function_nodes: vec![
                     CanonicalFunctionNode {
                         id: "myapp::add".to_owned(),
@@ -1511,7 +1613,7 @@ mod tests {
                         results: vec![],
                         locals: vec![],
                         code: vec![
-                            // group 2
+                            // group 0
                             Instruction::Call {
                                 id: "myapp::add".to_owned(),
                                 args: vec![]
@@ -1528,7 +1630,7 @@ mod tests {
                                 id: "myapp::add".to_owned(),
                                 args: vec![]
                             },
-                            // group 3
+                            // group 1
                             Instruction::Call {
                                 id: "myapp::utils::add".to_owned(),
                                 args: vec![]
@@ -1599,12 +1701,12 @@ mod tests {
     }
 
     #[test]
-    fn test_preprocess_canonicalize_identifiers_of_data_instructions() {
+    fn test_preprocess_canonicalize_identifiers_of_data_related_instructions() {
         assert_eq!(
-            preprocess_from_strs(&[
+            preprocess_and_get_merged_module_node(&[
                 r#"
             (module $myapp
-                (runtime_version "1.0")
+                (compiler_version "1.0")
                 (data $d0 (read_only i32 0x11))
                 (function $test (code
                     ;; group 0
@@ -1621,13 +1723,12 @@ mod tests {
             "#,
                 r#"
             (module $myapp::utils
-                (runtime_version "1.0")
                 (data $d0 (read_only i64 0x13))
                 (function $test (code
-                    ;; group 0
+                    ;; group 2
                     (data.load32_i32 $myapp::d0)
                     (data.load32_i32 $module::d0)
-                    ;; group 1
+                    ;; group 3
                     (data.load64_i64 $d0)
                     (data.load64_i64 $self::d0)
                     (data.load64_i64 $myapp::utils::d0)
@@ -1638,10 +1739,10 @@ mod tests {
             ]),
             MergedModuleNode {
                 name: "myapp".to_owned(),
-                runtime_version_major: 1,
-                runtime_version_minor: 0,
+                compiler_version: EffectiveVersion::new(1, 0),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
+                depend_items: vec![],
                 function_nodes: vec![
                     CanonicalFunctionNode {
                         id: "myapp::test".to_owned(),
@@ -1698,7 +1799,7 @@ mod tests {
                         results: vec![],
                         locals: vec![],
                         code: vec![
-                            // group 0
+                            // group 2
                             Instruction::DataLoad {
                                 opcode: Opcode::data_load32_i32,
                                 id: "myapp::d0".to_owned(),
@@ -1709,7 +1810,7 @@ mod tests {
                                 id: "myapp::d0".to_owned(),
                                 offset: 0
                             },
-                            // group 1
+                            // group 3
                             Instruction::DataLoad {
                                 opcode: Opcode::data_load64_i64,
                                 id: "myapp::utils::d0".to_owned(),
@@ -1766,17 +1867,645 @@ mod tests {
     }
 
     #[test]
-    fn test_preprocess_canonicalize_identifiers_of_external_functions() {
+    fn test_preprocess_depend_item_id() {
         assert_eq!(
-            preprocess_from_strs(&[
+            preprocess_and_get_merged_module_node(&[r#"
+            (module $myapp
+                (compiler_version "1.0")
+                (depend
+                    (module $math share "math" "1.0")
+                    (library $libc share "libc.so.6")
+                )
+                (import $math)
+                (external $libc)
+            )
+            "#,]),
+            MergedModuleNode {
+                name: "myapp".to_owned(),
+                compiler_version: EffectiveVersion::new(1, 0),
+                constructor_function_name_path: None,
+                destructor_function_name_path: None,
+                depend_items: vec![
+                    DependItem::DependentModule(DependentModuleNode {
+                        id: "math".to_owned(),
+                        module_share_type: ModuleShareType::Share,
+                        name: "math".to_owned(),
+                        module_version: EffectiveVersion::new(1, 0)
+                    }),
+                    DependItem::DependentLibrary(DependentLibraryNode {
+                        id: "libc".to_owned(),
+                        external_library_type: ExternalLibraryType::Share,
+                        name: "libc.so.6".to_owned()
+                    })
+                ],
+                function_nodes: vec![],
+                read_only_data_nodes: vec![],
+                read_write_data_nodes: vec![],
+                uninit_data_nodes: vec![],
+                import_nodes: vec![ImportNode {
+                    module_id: "math".to_owned(),
+                    import_items: vec![]
+                }],
+                external_nodes: vec![ExternalNode {
+                    library_id: "libc".to_owned(),
+                    external_items: vec![]
+                }],
+            }
+        );
+
+        // module id not found
+        assert!(matches!(
+            preprocess_from_strs(&[r#"
+            (module $myapp
+                (compiler_version "1.0")
+                (depend
+                    (module $math share "math" "1.0")
+                    (library $libc share "libc.so.6")
+                )
+                (import $mymath)
+            )
+            "#]),
+            Err(AssembleError { message: _ })
+        ));
+
+        // library id not found
+        assert!(matches!(
+            preprocess_from_strs(&[r#"
+            (module $myapp
+                (compiler_version "1.0")
+                (depend
+                    (module $math share "math" "1.0")
+                    (library $libc share "libc.so.6")
+                )
+                (external $mylibc)
+            )
+            "#]),
+            Err(AssembleError { message: _ })
+        ));
+    }
+
+    #[test]
+    fn test_preprocess_canonicalize_identifiers_of_import_functions() {
+        assert_eq!(
+            preprocess_and_get_merged_module_node(&[
                 r#"
             (module $myapp
-                (runtime_version "1.0")
-                (external (library user "math.so.1")
+                (compiler_version "1.0")
+                (depend
+                    (module $math share "math" "1.0")
+                    (module $format user "format" "1.2")
+                    (module $random share "random" "2.3")
+                )
+                (import $math
+                    (function $add "add")
+                    (function $sub "wrap::sub")
+                )
+                (import $format
+                    (function $print "print")
+                )
+                (function $test (code
+                    ;; group 0
+                    (call $add)                 ;; math::add
+                    (call $myapp::add)          ;; math::add
+                    (call $module::add)         ;; math::add
+                    (call $self::add)           ;; math::add
+
+                    ;; group 1
+                    (call $sub)                 ;; math::wrap::sub
+                    (call $print)               ;; format::print
+
+                    ;; group 2
+                    (call $myapp::utils::f0)    ;; math::add
+                    (call $module::utils::f0)   ;; math::add
+                    (call $self::utils::f0)     ;; math::add
+
+                    ;; group 3
+                    (call $myapp::utils::f1)    ;; math::mul
+                    (call $myapp::utils::f2)    ;; format::print
+                    (call $myapp::utils::f3)    ;; random::rand
+                ))
+            )
+            "#,
+                r#"
+            (module $myapp::utils
+                (import $math
+                    (function $f0 "add")        ;; duplicate
+                    (function $f1 "mul")        ;; new
+                )
+                (import $format
+                    (function $f2 "print")      ;; duplicate
+                )
+                (import $random
+                    (function $f3 "rand")       ;; new
+                )
+                (function $test (code
+                    ;; group 4
+                    (call $f0)                  ;; math::add
+                    (call $myapp::utils::f0)    ;; math::add
+                    (call $module::utils::f0)   ;; math::add
+                    (call $self::f0)            ;; math::add
+
+                    ;; group 5
+                    (call $f1)                  ;; math::mul
+                    (call $f2)                  ;; format::print
+                    (call $f3)                  ;; random::rand
+
+                    ;; group 6
+                    (call $myapp::add)          ;; math::add
+                    (call $module::add)         ;; math::add
+                ))
+            )
+            "#
+            ]),
+            MergedModuleNode {
+                name: "myapp".to_owned(),
+                compiler_version: EffectiveVersion::new(1, 0),
+                constructor_function_name_path: None,
+                destructor_function_name_path: None,
+                depend_items: vec![
+                    DependItem::DependentModule(DependentModuleNode {
+                        id: "math".to_owned(),
+                        module_share_type: ModuleShareType::Share,
+                        name: "math".to_owned(),
+                        module_version: EffectiveVersion::new(1, 0)
+                    }),
+                    DependItem::DependentModule(DependentModuleNode {
+                        id: "format".to_owned(),
+                        module_share_type: ModuleShareType::User,
+                        name: "format".to_owned(),
+                        module_version: EffectiveVersion::new(1, 2)
+                    }),
+                    DependItem::DependentModule(DependentModuleNode {
+                        id: "random".to_owned(),
+                        module_share_type: ModuleShareType::Share,
+                        name: "random".to_owned(),
+                        module_version: EffectiveVersion::new(2, 3)
+                    }),
+                ],
+                function_nodes: vec![
+                    CanonicalFunctionNode {
+                        id: "myapp::test".to_owned(),
+                        name_path: "test".to_owned(),
+                        export: false,
+                        params: vec![],
+                        results: vec![],
+                        locals: vec![],
+                        code: vec![
+                            // group 0
+                            Instruction::Call {
+                                id: "math::add".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::Call {
+                                id: "math::add".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::Call {
+                                id: "math::add".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::Call {
+                                id: "math::add".to_owned(),
+                                args: vec![]
+                            },
+                            // group 1
+                            Instruction::Call {
+                                id: "math::wrap::sub".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::Call {
+                                id: "format::print".to_owned(),
+                                args: vec![]
+                            },
+                            // group 2
+                            Instruction::Call {
+                                id: "math::add".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::Call {
+                                id: "math::add".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::Call {
+                                id: "math::add".to_owned(),
+                                args: vec![]
+                            },
+                            // group 3
+                            Instruction::Call {
+                                id: "math::mul".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::Call {
+                                id: "format::print".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::Call {
+                                id: "random::rand".to_owned(),
+                                args: vec![]
+                            },
+                        ]
+                    },
+                    CanonicalFunctionNode {
+                        id: "myapp::utils::test".to_owned(),
+                        name_path: "utils::test".to_owned(),
+                        export: false,
+                        params: vec![],
+                        results: vec![],
+                        locals: vec![],
+                        code: vec![
+                            // group 4
+                            Instruction::Call {
+                                id: "math::add".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::Call {
+                                id: "math::add".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::Call {
+                                id: "math::add".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::Call {
+                                id: "math::add".to_owned(),
+                                args: vec![]
+                            },
+                            // group 5
+                            Instruction::Call {
+                                id: "math::mul".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::Call {
+                                id: "format::print".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::Call {
+                                id: "random::rand".to_owned(),
+                                args: vec![]
+                            },
+                            // group 6
+                            Instruction::Call {
+                                id: "math::add".to_owned(),
+                                args: vec![]
+                            },
+                            Instruction::Call {
+                                id: "math::add".to_owned(),
+                                args: vec![]
+                            },
+                        ]
+                    },
+                ],
+                read_only_data_nodes: vec![],
+                read_write_data_nodes: vec![],
+                uninit_data_nodes: vec![],
+                external_nodes: vec![],
+                import_nodes: vec![
+                    ImportNode {
+                        module_id: "math".to_owned(),
+                        import_items: vec![
+                            ImportItem::ImportFunction(ImportFunctionNode {
+                                id: "math::add".to_owned(),
+                                name_path: "add".to_owned(),
+                                params: vec![],
+                                results: vec![]
+                            }),
+                            ImportItem::ImportFunction(ImportFunctionNode {
+                                id: "math::wrap::sub".to_owned(),
+                                name_path: "wrap::sub".to_owned(),
+                                params: vec![],
+                                results: vec![]
+                            }),
+                            ImportItem::ImportFunction(ImportFunctionNode {
+                                id: "math::mul".to_owned(),
+                                name_path: "mul".to_owned(),
+                                params: vec![],
+                                results: vec![]
+                            }),
+                        ]
+                    },
+                    ImportNode {
+                        module_id: "format".to_owned(),
+                        import_items: vec![ImportItem::ImportFunction(ImportFunctionNode {
+                            id: "format::print".to_owned(),
+                            name_path: "print".to_owned(),
+                            params: vec![],
+                            results: vec![]
+                        }),]
+                    },
+                    ImportNode {
+                        module_id: "random".to_owned(),
+                        import_items: vec![ImportItem::ImportFunction(ImportFunctionNode {
+                            id: "random::rand".to_owned(),
+                            name_path: "rand".to_owned(),
+                            params: vec![],
+                            results: vec![]
+                        }),]
+                    }
+                ]
+            }
+        )
+    }
+
+    #[test]
+    fn test_preprocess_canonicalize_identifiers_of_import_data() {
+        assert_eq!(
+            preprocess_and_get_merged_module_node(&[
+                r#"
+            (module $myapp
+                (compiler_version "1.0")
+                (depend
+                    (module $math share "math" "1.0")
+                    (module $match user "match" "1.2")
+                    (module $random share "random" "2.3")
+                )
+                (import $math
+                    (data $count "count" read_only i32)
+                    (data $sum "wrap::sum" read_write i64)
+                )
+                (import $match
+                    (data $score "score" read_write f32)
+                )
+                (function $test (code
+                    ;; group 0
+                    (data.load32_i32 $count)                ;; math::count
+                    (data.load32_i32 $myapp::count)         ;; math::count
+                    (data.load32_i32 $module::count)        ;; math::count
+                    (data.load32_i32 $self::count)          ;; math::count
+
+                    ;; group 1
+                    (data.load64_i64 $sum)                  ;; math::wrap::sum
+                    (data.load32_f32 $score)                ;; match::score
+
+                    ;; group 2
+                    (data.load32_i32 $myapp::utils::d0)     ;; math::count
+                    (data.load32_i32 $module::utils::d0)    ;; math::count
+                    (data.load32_i32 $self::utils::d0)      ;; math::count
+
+                    ;; group 3
+                    (data.load32_i32 $myapp::utils::d1)     ;; math::increment
+                    (data.load32_f32 $myapp::utils::d2)     ;; match::score
+                    (data.load64_i64 $myapp::utils::d3)     ;; random::seed
+                ))
+            )
+            "#,
+                r#"
+            (module $myapp::utils
+                (import $math
+                    (data $d0 "count" read_only i32)        ;; duplicate
+                    (data $d1 "increment" uninit i32)       ;; new
+                )
+                (import $match
+                    (data $d2 "score" read_write f32)       ;; duplicate
+                )
+                (import $random
+                    (data $d3 "seed" read_write i64)        ;; new
+                )
+                (function $test (code
+                    ;; group 4
+                    (data.load32_i32 $d0)                   ;; math::count
+                    (data.load32_i32 $myapp::utils::d0)     ;; math::count
+                    (data.load32_i32 $module::utils::d0)    ;; math::count
+                    (data.load32_i32 $self::d0)             ;; math::count
+
+                    ;; group 5
+                    (data.load32_i32 $d1)                   ;; math::increment
+                    (data.load32_f32 $d2)                   ;; match::score
+                    (data.load64_i64 $d3)                   ;; random::seed
+
+                    ;; group 6
+                    (data.load32_i32 $myapp::count)         ;; math::count
+                    (data.load32_i32 $module::count)        ;; math::count
+                ))
+            )
+            "#
+            ]),
+            MergedModuleNode {
+                name: "myapp".to_owned(),
+                compiler_version: EffectiveVersion::new(1, 0),
+                constructor_function_name_path: None,
+                destructor_function_name_path: None,
+                depend_items: vec![
+                    DependItem::DependentModule(DependentModuleNode {
+                        id: "math".to_owned(),
+                        module_share_type: ModuleShareType::Share,
+                        name: "math".to_owned(),
+                        module_version: EffectiveVersion::new(1, 0),
+                    }),
+                    DependItem::DependentModule(DependentModuleNode {
+                        id: "match".to_owned(),
+                        module_share_type: ModuleShareType::User,
+                        name: "match".to_owned(),
+                        module_version: EffectiveVersion::new(1, 2),
+                    }),
+                    DependItem::DependentModule(DependentModuleNode {
+                        id: "random".to_owned(),
+                        module_share_type: ModuleShareType::Share,
+                        name: "random".to_owned(),
+                        module_version: EffectiveVersion::new(2, 3),
+                    }),
+                ],
+                function_nodes: vec![
+                    CanonicalFunctionNode {
+                        id: "myapp::test".to_owned(),
+                        name_path: "test".to_owned(),
+                        export: false,
+                        params: vec![],
+                        results: vec![],
+                        locals: vec![],
+                        code: vec![
+                            // group 0
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load32_i32,
+                                id: "math::count".to_owned(),
+                                offset: 0
+                            },
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load32_i32,
+                                id: "math::count".to_owned(),
+                                offset: 0
+                            },
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load32_i32,
+                                id: "math::count".to_owned(),
+                                offset: 0
+                            },
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load32_i32,
+                                id: "math::count".to_owned(),
+                                offset: 0
+                            },
+                            // group 1
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load64_i64,
+                                id: "math::wrap::sum".to_owned(),
+                                offset: 0
+                            },
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load32_f32,
+                                id: "match::score".to_owned(),
+                                offset: 0
+                            },
+                            // group 2
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load32_i32,
+                                id: "math::count".to_owned(),
+                                offset: 0
+                            },
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load32_i32,
+                                id: "math::count".to_owned(),
+                                offset: 0
+                            },
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load32_i32,
+                                id: "math::count".to_owned(),
+                                offset: 0
+                            },
+                            // group 3
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load32_i32,
+                                id: "math::increment".to_owned(),
+                                offset: 0
+                            },
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load32_f32,
+                                id: "match::score".to_owned(),
+                                offset: 0
+                            },
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load64_i64,
+                                id: "random::seed".to_owned(),
+                                offset: 0
+                            },
+                        ]
+                    },
+                    CanonicalFunctionNode {
+                        id: "myapp::utils::test".to_owned(),
+                        name_path: "utils::test".to_owned(),
+                        export: false,
+                        params: vec![],
+                        results: vec![],
+                        locals: vec![],
+                        code: vec![
+                            // group 4
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load32_i32,
+                                id: "math::count".to_owned(),
+                                offset: 0
+                            },
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load32_i32,
+                                id: "math::count".to_owned(),
+                                offset: 0
+                            },
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load32_i32,
+                                id: "math::count".to_owned(),
+                                offset: 0
+                            },
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load32_i32,
+                                id: "math::count".to_owned(),
+                                offset: 0
+                            },
+                            // group 5
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load32_i32,
+                                id: "math::increment".to_owned(),
+                                offset: 0
+                            },
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load32_f32,
+                                id: "match::score".to_owned(),
+                                offset: 0
+                            },
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load64_i64,
+                                id: "random::seed".to_owned(),
+                                offset: 0
+                            },
+                            // group 6
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load32_i32,
+                                id: "math::count".to_owned(),
+                                offset: 0
+                            },
+                            Instruction::DataLoad {
+                                opcode: Opcode::data_load32_i32,
+                                id: "math::count".to_owned(),
+                                offset: 0
+                            },
+                        ]
+                    },
+                ],
+                read_only_data_nodes: vec![],
+                read_write_data_nodes: vec![],
+                uninit_data_nodes: vec![],
+                external_nodes: vec![],
+                import_nodes: vec![
+                    ImportNode {
+                        module_id: "math".to_owned(),
+                        import_items: vec![
+                            ImportItem::ImportData(ImportDataNode {
+                                id: "math::count".to_owned(),
+                                name_path: "count".to_owned(),
+                                memory_data_type: MemoryDataType::I32,
+                                data_section_type: DataSectionType::ReadOnly
+                            }),
+                            ImportItem::ImportData(ImportDataNode {
+                                id: "math::wrap::sum".to_owned(),
+                                name_path: "wrap::sum".to_owned(),
+                                memory_data_type: MemoryDataType::I64,
+                                data_section_type: DataSectionType::ReadWrite
+                            }),
+                            ImportItem::ImportData(ImportDataNode {
+                                id: "math::increment".to_owned(),
+                                name_path: "increment".to_owned(),
+                                memory_data_type: MemoryDataType::I32,
+                                data_section_type: DataSectionType::Uninit
+                            }),
+                        ]
+                    },
+                    ImportNode {
+                        module_id: "match".to_owned(),
+                        import_items: vec![ImportItem::ImportData(ImportDataNode {
+                            id: "match::score".to_owned(),
+                            name_path: "score".to_owned(),
+                            memory_data_type: MemoryDataType::F32,
+                            data_section_type: DataSectionType::ReadWrite
+                        }),]
+                    },
+                    ImportNode {
+                        module_id: "random".to_owned(),
+                        import_items: vec![ImportItem::ImportData(ImportDataNode {
+                            id: "random::seed".to_owned(),
+                            name_path: "seed".to_owned(),
+                            memory_data_type: MemoryDataType::I64,
+                            data_section_type: DataSectionType::ReadWrite
+                        }),]
+                    }
+                ]
+            }
+        )
+    }
+
+    #[test]
+    fn test_preprocess_canonicalize_identifiers_of_external_functions() {
+        assert_eq!(
+            preprocess_and_get_merged_module_node(&[
+                r#"
+            (module $myapp
+                (compiler_version "1.0")
+                (depend
+                    (library $math user "math.so.1")
+                    (library $std share "std.so.1")
+                    (library $libc system "libc.so.6")
+                )
+                (external $math
                     (function $add "add")
                     (function $sub "sub_wrap")
                 )
-                (external (library share "std.so.1")
+                (external $std
                     (function $print "print")
                 )
                 (function $test (code
@@ -1804,16 +2533,15 @@ mod tests {
             "#,
                 r#"
             (module $myapp::utils
-                (runtime_version "1.0")
-                (external (library user "math.so.1")
-                    (function $f0 "add")      ;; duplicate
-                    (function $f1 "mul")      ;; new
+                (external $math
+                    (function $f0 "add")            ;; duplicate
+                    (function $f1 "mul")            ;; new
                 )
-                (external (library share "std.so.1")
-                    (function $f2 "print")    ;; duplicate
+                (external $std
+                    (function $f2 "print")          ;; duplicate
                 )
-                (external (library system "libc.so.6")  ;; new
-                    (function $f3 "getuid")             ;; new
+                (external $libc
+                    (function $f3 "getuid")         ;; new
                 )
                 (function $test (code
                     ;; group 0
@@ -1836,10 +2564,26 @@ mod tests {
             ]),
             MergedModuleNode {
                 name: "myapp".to_owned(),
-                runtime_version_major: 1,
-                runtime_version_minor: 0,
+                compiler_version: EffectiveVersion::new(1, 0),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
+                depend_items: vec![
+                    DependItem::DependentLibrary(DependentLibraryNode {
+                        id: "math".to_owned(),
+                        external_library_type: ExternalLibraryType::User,
+                        name: "math.so.1".to_owned()
+                    }),
+                    DependItem::DependentLibrary(DependentLibraryNode {
+                        id: "std".to_owned(),
+                        external_library_type: ExternalLibraryType::Share,
+                        name: "std.so.1".to_owned()
+                    }),
+                    DependItem::DependentLibrary(DependentLibraryNode {
+                        id: "libc".to_owned(),
+                        external_library_type: ExternalLibraryType::System,
+                        name: "libc.so.6".to_owned()
+                    }),
+                ],
                 function_nodes: vec![
                     CanonicalFunctionNode {
                         id: "myapp::test".to_owned(),
@@ -1851,54 +2595,54 @@ mod tests {
                         code: vec![
                             // group 0
                             Instruction::ExtCall {
-                                id: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
+                                id: "math::add".to_owned(),
                                 args: vec![]
                             },
                             Instruction::ExtCall {
-                                id: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
+                                id: "math::add".to_owned(),
                                 args: vec![]
                             },
                             Instruction::ExtCall {
-                                id: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
+                                id: "math::add".to_owned(),
                                 args: vec![]
                             },
                             Instruction::ExtCall {
-                                id: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
+                                id: "math::add".to_owned(),
                                 args: vec![]
                             },
                             // group 1
                             Instruction::ExtCall {
-                                id: "EXTERNAL_FUNCTION::user::math.so.1::sub_wrap".to_owned(),
+                                id: "math::sub_wrap".to_owned(),
                                 args: vec![]
                             },
                             Instruction::ExtCall {
-                                id: "EXTERNAL_FUNCTION::share::std.so.1::print".to_owned(),
+                                id: "std::print".to_owned(),
                                 args: vec![]
                             },
                             // group 2
                             Instruction::ExtCall {
-                                id: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
+                                id: "math::add".to_owned(),
                                 args: vec![]
                             },
                             Instruction::ExtCall {
-                                id: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
+                                id: "math::add".to_owned(),
                                 args: vec![]
                             },
                             Instruction::ExtCall {
-                                id: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
+                                id: "math::add".to_owned(),
                                 args: vec![]
                             },
                             // group 3
                             Instruction::ExtCall {
-                                id: "EXTERNAL_FUNCTION::user::math.so.1::mul".to_owned(),
+                                id: "math::mul".to_owned(),
                                 args: vec![]
                             },
                             Instruction::ExtCall {
-                                id: "EXTERNAL_FUNCTION::share::std.so.1::print".to_owned(),
+                                id: "std::print".to_owned(),
                                 args: vec![]
                             },
                             Instruction::ExtCall {
-                                id: "EXTERNAL_FUNCTION::system::libc.so.6::getuid".to_owned(),
+                                id: "libc::getuid".to_owned(),
                                 args: vec![]
                             },
                         ]
@@ -1913,41 +2657,41 @@ mod tests {
                         code: vec![
                             // group 0
                             Instruction::ExtCall {
-                                id: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
+                                id: "math::add".to_owned(),
                                 args: vec![]
                             },
                             Instruction::ExtCall {
-                                id: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
+                                id: "math::add".to_owned(),
                                 args: vec![]
                             },
                             Instruction::ExtCall {
-                                id: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
+                                id: "math::add".to_owned(),
                                 args: vec![]
                             },
                             Instruction::ExtCall {
-                                id: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
+                                id: "math::add".to_owned(),
                                 args: vec![]
                             },
                             // group 1
                             Instruction::ExtCall {
-                                id: "EXTERNAL_FUNCTION::user::math.so.1::mul".to_owned(),
+                                id: "math::mul".to_owned(),
                                 args: vec![]
                             },
                             Instruction::ExtCall {
-                                id: "EXTERNAL_FUNCTION::share::std.so.1::print".to_owned(),
+                                id: "std::print".to_owned(),
                                 args: vec![]
                             },
                             Instruction::ExtCall {
-                                id: "EXTERNAL_FUNCTION::system::libc.so.6::getuid".to_owned(),
+                                id: "libc::getuid".to_owned(),
                                 args: vec![]
                             },
                             // group 2
                             Instruction::ExtCall {
-                                id: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
+                                id: "math::add".to_owned(),
                                 args: vec![]
                             },
                             Instruction::ExtCall {
-                                id: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
+                                id: "math::add".to_owned(),
                                 args: vec![]
                             },
                         ]
@@ -1958,25 +2702,22 @@ mod tests {
                 uninit_data_nodes: vec![],
                 external_nodes: vec![
                     ExternalNode {
-                        external_library_node: DependentLibraryNode {
-                            external_library_type: ExternalLibraryType::User,
-                            name: "math.so.1".to_owned()
-                        },
+                        library_id: "math".to_owned(),
                         external_items: vec![
                             ExternalItem::ExternalFunction(ExternalFunctionNode {
-                                id: "EXTERNAL_FUNCTION::user::math.so.1::add".to_owned(),
+                                id: "math::add".to_owned(),
                                 name: "add".to_owned(),
                                 params: vec![],
                                 results: vec![]
                             }),
                             ExternalItem::ExternalFunction(ExternalFunctionNode {
-                                id: "EXTERNAL_FUNCTION::user::math.so.1::sub_wrap".to_owned(),
+                                id: "math::sub_wrap".to_owned(),
                                 name: "sub_wrap".to_owned(),
                                 params: vec![],
                                 results: vec![]
                             }),
                             ExternalItem::ExternalFunction(ExternalFunctionNode {
-                                id: "EXTERNAL_FUNCTION::user::math.so.1::mul".to_owned(),
+                                id: "math::mul".to_owned(),
                                 name: "mul".to_owned(),
                                 params: vec![],
                                 results: vec![]
@@ -1984,13 +2725,10 @@ mod tests {
                         ]
                     },
                     ExternalNode {
-                        external_library_node: DependentLibraryNode {
-                            external_library_type: ExternalLibraryType::Share,
-                            name: "std.so.1".to_owned()
-                        },
+                        library_id: "std".to_owned(),
                         external_items: vec![ExternalItem::ExternalFunction(
                             ExternalFunctionNode {
-                                id: "EXTERNAL_FUNCTION::share::std.so.1::print".to_owned(),
+                                id: "std::print".to_owned(),
                                 name: "print".to_owned(),
                                 params: vec![],
                                 results: vec![]
@@ -1998,13 +2736,10 @@ mod tests {
                         ),]
                     },
                     ExternalNode {
-                        external_library_node: DependentLibraryNode {
-                            external_library_type: ExternalLibraryType::System,
-                            name: "libc.so.6".to_owned()
-                        },
+                        library_id: "libc".to_owned(),
                         external_items: vec![ExternalItem::ExternalFunction(
                             ExternalFunctionNode {
-                                id: "EXTERNAL_FUNCTION::system::libc.so.6::getuid".to_owned(),
+                                id: "libc::getuid".to_owned(),
                                 name: "getuid".to_owned(),
                                 params: vec![],
                                 results: vec![]
@@ -2013,535 +2748,6 @@ mod tests {
                     }
                 ],
                 import_nodes: vec![]
-            }
-        )
-    }
-
-    #[test]
-    fn test_preprocess_canonicalize_identifiers_of_import_functions() {
-        assert_eq!(
-            preprocess_from_strs(&[
-                r#"
-            (module $myapp
-                (runtime_version "1.0")
-                (import (module share "math" "1.0")
-                    (function $add "add")
-                    (function $sub "wrap::sub")
-                )
-                (import (module user "format" "1.2")
-                    (function $print "print")
-                )
-                (function $test (code
-                    ;; group 0
-                    (call $add)         ;; math::add
-                    (call $myapp::add)  ;; math::add
-                    (call $module::add) ;; math::add
-                    (call $self::add)   ;; math::add
-
-                    ;; group 1
-                    (call $sub)         ;; math::wrap::sub
-                    (call $print)       ;; format::print
-
-                    ;; group 2
-                    (call $myapp::utils::f0)     ;; math::add
-                    (call $module::utils::f0)    ;; math::add
-                    (call $self::utils::f0)      ;; math::add
-
-                    ;; group 3
-                    (call $myapp::utils::f1)     ;; math::mul
-                    (call $myapp::utils::f2)     ;; format::print
-                    (call $myapp::utils::f3)     ;; random::rand
-                ))
-            )
-            "#,
-                r#"
-            (module $myapp::utils
-                (runtime_version "1.0")
-                (import (module share "math" "1.0")
-                    (function $f0 "add")      ;; duplicate
-                    (function $f1 "mul")      ;; new
-                )
-                (import (module user "format" "1.2")
-                    (function $f2 "print")    ;; duplicate
-                )
-                (import (module share "random" "2.3")   ;; new
-                    (function $f3 "rand")               ;; new
-                )
-                (function $test (code
-                    ;; group 0
-                    (call $f0)                  ;; math::add
-                    (call $myapp::utils::f0)    ;; math::add
-                    (call $module::utils::f0)   ;; math::add
-                    (call $self::f0)            ;; math::add
-
-                    ;; group 1
-                    (call $f1)  ;; math::mul
-                    (call $f2)  ;; format::print
-                    (call $f3)  ;; random::rand
-
-                    ;; group 2
-                    (call $myapp::add)  ;; math::add
-                    (call $module::add) ;; math::add
-                ))
-            )
-            "#
-            ]),
-            MergedModuleNode {
-                name: "myapp".to_owned(),
-                runtime_version_major: 1,
-                runtime_version_minor: 0,
-                constructor_function_name_path: None,
-                destructor_function_name_path: None,
-                function_nodes: vec![
-                    CanonicalFunctionNode {
-                        id: "myapp::test".to_owned(),
-                        name_path: "test".to_owned(),
-                        export: false,
-                        params: vec![],
-                        results: vec![],
-                        locals: vec![],
-                        code: vec![
-                            // group 0
-                            Instruction::Call {
-                                id: "math::add".to_owned(),
-                                args: vec![]
-                            },
-                            Instruction::Call {
-                                id: "math::add".to_owned(),
-                                args: vec![]
-                            },
-                            Instruction::Call {
-                                id: "math::add".to_owned(),
-                                args: vec![]
-                            },
-                            Instruction::Call {
-                                id: "math::add".to_owned(),
-                                args: vec![]
-                            },
-                            // group 1
-                            Instruction::Call {
-                                id: "math::wrap::sub".to_owned(),
-                                args: vec![]
-                            },
-                            Instruction::Call {
-                                id: "format::print".to_owned(),
-                                args: vec![]
-                            },
-                            // group 2
-                            Instruction::Call {
-                                id: "math::add".to_owned(),
-                                args: vec![]
-                            },
-                            Instruction::Call {
-                                id: "math::add".to_owned(),
-                                args: vec![]
-                            },
-                            Instruction::Call {
-                                id: "math::add".to_owned(),
-                                args: vec![]
-                            },
-                            // group 3
-                            Instruction::Call {
-                                id: "math::mul".to_owned(),
-                                args: vec![]
-                            },
-                            Instruction::Call {
-                                id: "format::print".to_owned(),
-                                args: vec![]
-                            },
-                            Instruction::Call {
-                                id: "random::rand".to_owned(),
-                                args: vec![]
-                            },
-                        ]
-                    },
-                    CanonicalFunctionNode {
-                        id: "myapp::utils::test".to_owned(),
-                        name_path: "utils::test".to_owned(),
-                        export: false,
-                        params: vec![],
-                        results: vec![],
-                        locals: vec![],
-                        code: vec![
-                            // group 0
-                            Instruction::Call {
-                                id: "math::add".to_owned(),
-                                args: vec![]
-                            },
-                            Instruction::Call {
-                                id: "math::add".to_owned(),
-                                args: vec![]
-                            },
-                            Instruction::Call {
-                                id: "math::add".to_owned(),
-                                args: vec![]
-                            },
-                            Instruction::Call {
-                                id: "math::add".to_owned(),
-                                args: vec![]
-                            },
-                            // group 1
-                            Instruction::Call {
-                                id: "math::mul".to_owned(),
-                                args: vec![]
-                            },
-                            Instruction::Call {
-                                id: "format::print".to_owned(),
-                                args: vec![]
-                            },
-                            Instruction::Call {
-                                id: "random::rand".to_owned(),
-                                args: vec![]
-                            },
-                            // group 2
-                            Instruction::Call {
-                                id: "math::add".to_owned(),
-                                args: vec![]
-                            },
-                            Instruction::Call {
-                                id: "math::add".to_owned(),
-                                args: vec![]
-                            },
-                        ]
-                    },
-                ],
-                read_only_data_nodes: vec![],
-                read_write_data_nodes: vec![],
-                uninit_data_nodes: vec![],
-                external_nodes: vec![],
-                import_nodes: vec![
-                    ImportNode {
-                        import_module_node: DependentModuleNode {
-                            module_share_type: ModuleShareType::Share,
-                            name: "math".to_owned(),
-                            version_major: 1,
-                            version_minor: 0
-                        },
-                        import_items: vec![
-                            ImportItem::ImportFunction(ImportFunctionNode {
-                                id: "math::add".to_owned(),
-                                name_path: "add".to_owned(),
-                                params: vec![],
-                                results: vec![]
-                            }),
-                            ImportItem::ImportFunction(ImportFunctionNode {
-                                id: "math::wrap::sub".to_owned(),
-                                name_path: "wrap::sub".to_owned(),
-                                params: vec![],
-                                results: vec![]
-                            }),
-                            ImportItem::ImportFunction(ImportFunctionNode {
-                                id: "math::mul".to_owned(),
-                                name_path: "mul".to_owned(),
-                                params: vec![],
-                                results: vec![]
-                            }),
-                        ]
-                    },
-                    ImportNode {
-                        import_module_node: DependentModuleNode {
-                            module_share_type: ModuleShareType::User,
-                            name: "format".to_owned(),
-                            version_major: 1,
-                            version_minor: 2
-                        },
-                        import_items: vec![ImportItem::ImportFunction(ImportFunctionNode {
-                            id: "format::print".to_owned(),
-                            name_path: "print".to_owned(),
-                            params: vec![],
-                            results: vec![]
-                        }),]
-                    },
-                    ImportNode {
-                        import_module_node: DependentModuleNode {
-                            module_share_type: ModuleShareType::Share,
-                            name: "random".to_owned(),
-                            version_major: 2,
-                            version_minor: 3
-                        },
-                        import_items: vec![ImportItem::ImportFunction(ImportFunctionNode {
-                            id: "random::rand".to_owned(),
-                            name_path: "rand".to_owned(),
-                            params: vec![],
-                            results: vec![]
-                        }),]
-                    }
-                ]
-            }
-        )
-    }
-
-    #[test]
-    fn test_preprocess_canonicalize_identifiers_of_import_data() {
-        assert_eq!(
-            preprocess_from_strs(&[
-                r#"
-            (module $myapp
-                (runtime_version "1.0")
-                (import (module share "math" "1.0")
-                    (data $count "count" i32 read_only)
-                    (data $sum "wrap::sum" i64 read_write)
-                )
-                (import (module user "match" "1.2")
-                    (data $score "score" f32 read_write)
-                )
-                (function $test (code
-                    ;; group 0
-                    (data.load32_i32 $count)           ;; math::count
-                    (data.load32_i32 $myapp::count)    ;; math::count
-                    (data.load32_i32 $module::count)   ;; math::count
-                    (data.load32_i32 $self::count)     ;; math::count
-
-                    ;; group 1
-                    (data.load64_i64 $sum)         ;; math::wrap::sum
-                    (data.load32_f32 $score)       ;; match::score
-
-                    ;; group 2
-                    (data.load32_i32 $myapp::utils::d0)     ;; math::count
-                    (data.load32_i32 $module::utils::d0)    ;; math::count
-                    (data.load32_i32 $self::utils::d0)      ;; math::count
-
-                    ;; group 3
-                    (data.load32_i32 $myapp::utils::d1)     ;; math::increment
-                    (data.load32_f32 $myapp::utils::d2)     ;; match::score
-                    (data.load64_i64 $myapp::utils::d3)     ;; random::seed
-                ))
-            )
-            "#,
-                r#"
-            (module $myapp::utils
-                (runtime_version "1.0")
-                (import (module share "math" "1.0")
-                    (data $d0 "count" i32 read_only)  ;; duplicate
-                    (data $d1 "increment" i32 uninit) ;; new
-                )
-                (import (module user "match" "1.2")
-                    (data $d2 "score" f32 read_write) ;; duplicate
-                )
-                (import (module share "random" "2.3")   ;; new
-                    (data $d3 "seed" i64 read_write)  ;; new
-                )
-                (function $test (code
-                    ;; group 0
-                    (data.load32_i32 $d0)                  ;; math::count
-                    (data.load32_i32 $myapp::utils::d0)    ;; math::count
-                    (data.load32_i32 $module::utils::d0)   ;; math::count
-                    (data.load32_i32 $self::d0)            ;; math::count
-
-                    ;; group 1
-                    (data.load32_i32 $d1)  ;; math::increment
-                    (data.load32_f32 $d2)  ;; match::score
-                    (data.load64_i64 $d3)  ;; random::seed
-
-                    ;; group 2
-                    (data.load32_i32 $myapp::count)    ;; math::count
-                    (data.load32_i32 $module::count)   ;; math::count
-                ))
-            )
-            "#
-            ]),
-            MergedModuleNode {
-                name: "myapp".to_owned(),
-                runtime_version_major: 1,
-                runtime_version_minor: 0,
-                constructor_function_name_path: None,
-                destructor_function_name_path: None,
-                function_nodes: vec![
-                    CanonicalFunctionNode {
-                        id: "myapp::test".to_owned(),
-                        name_path: "test".to_owned(),
-                        export: false,
-                        params: vec![],
-                        results: vec![],
-                        locals: vec![],
-                        code: vec![
-                            // group 0
-                            Instruction::DataLoad {
-                                opcode: Opcode::data_load32_i32,
-                                id: "math::count".to_owned(),
-                                offset: 0
-                            },
-                            Instruction::DataLoad {
-                                opcode: Opcode::data_load32_i32,
-                                id: "math::count".to_owned(),
-                                offset: 0
-                            },
-                            Instruction::DataLoad {
-                                opcode: Opcode::data_load32_i32,
-                                id: "math::count".to_owned(),
-                                offset: 0
-                            },
-                            Instruction::DataLoad {
-                                opcode: Opcode::data_load32_i32,
-                                id: "math::count".to_owned(),
-                                offset: 0
-                            },
-                            // group 1
-                            Instruction::DataLoad {
-                                opcode: Opcode::data_load64_i64,
-                                id: "math::wrap::sum".to_owned(),
-                                offset: 0
-                            },
-                            Instruction::DataLoad {
-                                opcode: Opcode::data_load32_f32,
-                                id: "match::score".to_owned(),
-                                offset: 0
-                            },
-                            // group 2
-                            Instruction::DataLoad {
-                                opcode: Opcode::data_load32_i32,
-                                id: "math::count".to_owned(),
-                                offset: 0
-                            },
-                            Instruction::DataLoad {
-                                opcode: Opcode::data_load32_i32,
-                                id: "math::count".to_owned(),
-                                offset: 0
-                            },
-                            Instruction::DataLoad {
-                                opcode: Opcode::data_load32_i32,
-                                id: "math::count".to_owned(),
-                                offset: 0
-                            },
-                            // group 3
-                            Instruction::DataLoad {
-                                opcode: Opcode::data_load32_i32,
-                                id: "math::increment".to_owned(),
-                                offset: 0
-                            },
-                            Instruction::DataLoad {
-                                opcode: Opcode::data_load32_f32,
-                                id: "match::score".to_owned(),
-                                offset: 0
-                            },
-                            Instruction::DataLoad {
-                                opcode: Opcode::data_load64_i64,
-                                id: "random::seed".to_owned(),
-                                offset: 0
-                            },
-                        ]
-                    },
-                    CanonicalFunctionNode {
-                        id: "myapp::utils::test".to_owned(),
-                        name_path: "utils::test".to_owned(),
-                        export: false,
-                        params: vec![],
-                        results: vec![],
-                        locals: vec![],
-                        code: vec![
-                            // group 0
-                            Instruction::DataLoad {
-                                opcode: Opcode::data_load32_i32,
-                                id: "math::count".to_owned(),
-                                offset: 0
-                            },
-                            Instruction::DataLoad {
-                                opcode: Opcode::data_load32_i32,
-                                id: "math::count".to_owned(),
-                                offset: 0
-                            },
-                            Instruction::DataLoad {
-                                opcode: Opcode::data_load32_i32,
-                                id: "math::count".to_owned(),
-                                offset: 0
-                            },
-                            Instruction::DataLoad {
-                                opcode: Opcode::data_load32_i32,
-                                id: "math::count".to_owned(),
-                                offset: 0
-                            },
-                            // group 1
-                            Instruction::DataLoad {
-                                opcode: Opcode::data_load32_i32,
-                                id: "math::increment".to_owned(),
-                                offset: 0
-                            },
-                            Instruction::DataLoad {
-                                opcode: Opcode::data_load32_f32,
-                                id: "match::score".to_owned(),
-                                offset: 0
-                            },
-                            Instruction::DataLoad {
-                                opcode: Opcode::data_load64_i64,
-                                id: "random::seed".to_owned(),
-                                offset: 0
-                            },
-                            // group 2
-                            Instruction::DataLoad {
-                                opcode: Opcode::data_load32_i32,
-                                id: "math::count".to_owned(),
-                                offset: 0
-                            },
-                            Instruction::DataLoad {
-                                opcode: Opcode::data_load32_i32,
-                                id: "math::count".to_owned(),
-                                offset: 0
-                            },
-                        ]
-                    },
-                ],
-                read_only_data_nodes: vec![],
-                read_write_data_nodes: vec![],
-                uninit_data_nodes: vec![],
-                external_nodes: vec![],
-                import_nodes: vec![
-                    ImportNode {
-                        import_module_node: DependentModuleNode {
-                            module_share_type: ModuleShareType::Share,
-                            name: "math".to_owned(),
-                            version_major: 1,
-                            version_minor: 0
-                        },
-                        import_items: vec![
-                            ImportItem::ImportData(ImportDataNode {
-                                id: "math::count".to_owned(),
-                                name_path: "count".to_owned(),
-                                memory_data_type: MemoryDataType::I32,
-                                data_section_type: DataSectionType::ReadOnly
-                            }),
-                            ImportItem::ImportData(ImportDataNode {
-                                id: "math::wrap::sum".to_owned(),
-                                name_path: "wrap::sum".to_owned(),
-                                memory_data_type: MemoryDataType::I64,
-                                data_section_type: DataSectionType::ReadWrite
-                            }),
-                            ImportItem::ImportData(ImportDataNode {
-                                id: "math::increment".to_owned(),
-                                name_path: "increment".to_owned(),
-                                memory_data_type: MemoryDataType::I32,
-                                data_section_type: DataSectionType::Uninit
-                            }),
-                        ]
-                    },
-                    ImportNode {
-                        import_module_node: DependentModuleNode {
-                            module_share_type: ModuleShareType::User,
-                            name: "match".to_owned(),
-                            version_major: 1,
-                            version_minor: 2
-                        },
-                        import_items: vec![ImportItem::ImportData(ImportDataNode {
-                            id: "match::score".to_owned(),
-                            name_path: "score".to_owned(),
-                            memory_data_type: MemoryDataType::F32,
-                            data_section_type: DataSectionType::ReadWrite
-                        }),]
-                    },
-                    ImportNode {
-                        import_module_node: DependentModuleNode {
-                            module_share_type: ModuleShareType::Share,
-                            name: "random".to_owned(),
-                            version_major: 2,
-                            version_minor: 3
-                        },
-                        import_items: vec![ImportItem::ImportData(ImportDataNode {
-                            id: "random::seed".to_owned(),
-                            name_path: "seed".to_owned(),
-                            memory_data_type: MemoryDataType::I64,
-                            data_section_type: DataSectionType::ReadWrite
-                        }),]
-                    }
-                ]
             }
         )
     }

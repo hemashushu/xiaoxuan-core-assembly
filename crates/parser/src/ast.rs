@@ -41,6 +41,7 @@ pub enum DependItem {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct DependentModuleNode {
+    pub id: String,
     pub module_share_type: ModuleShareType,
     pub name: String,
     // pub version_major: u16,
@@ -50,6 +51,7 @@ pub struct DependentModuleNode {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct DependentLibraryNode {
+    pub id:String,
     pub external_library_type: ExternalLibraryType,
     pub name: String, // the library link name
 }

@@ -164,7 +164,7 @@ add 'export' annotation after the function name.
 (data $name (read_only f64 2.718281828459045))
 ;; data
 (data $name (read_only bytes h"11-13-17-19" OPTIONAL_ALIGN:i16))
-(data $name (read_write bytes h"11-13-17-19" OPTIONAL_ALIGN:i16)) <<====
+(data $name (read_write bytes h"11-13-17-19" OPTIONAL_ALIGN:i16))
 
 there are two variants of 'bytes': 'string' and 'cstring', e.g.
 
@@ -183,13 +183,13 @@ read-write section:
 
 uninitialized section:
 (data $name (uninit i32))
-(data $name (uninit bytes DATA_LENGTH:i32 OPTIONAL_ALIGN:i16)) <<====
+(data $name (uninit bytes DATA_LENGTH:i32 OPTIONAL_ALIGN:i16))
 (data $name (uninit bytes 12 4))
 
 with 'export' annotation
 (data $name export (read_only i32 123))
 
-## The 'depend' node <<====
+## The 'depend' node
 
 (depend
     (module $math "math" "1.0" share)
@@ -197,17 +197,17 @@ with 'export' annotation
 )
 
 module type:
-- share: `(module "math" "1.0" share)`
-- user: `(module "format" "1.2" user)`
+- share: `(module $id share "math" "1.0")`
+- user:  `(module $id user "format" "1.2")`
 
 library type:
-- share: `(library "math.so.1" share)`
-- system: `(library "libc.so.6" system)`
-- user: `(library "libtest0.so.1" user)`
+- share:  `(library $id share "math.so.1")`
+- system: `(library $id system "libc.so.6")`
+- user:   `(library $id user "libtest0.so.1")`
 
 ## The 'import' node
 
-(import $math <<====
+(import $math
     (function $add "add" (param i32) (param i32) (result i32))
     (function $add_wrap "wrap::add" (params i32 i32) (results i32))
 )
@@ -215,19 +215,23 @@ library type:
 ### the import function node
 
 (function $add "add" (param i32) (param i32) (result i32))
-    (function $add_wrap "wrap::add" (params i32 i32) (results i32))
+(function $add_wrap "wrap::add" (params i32 i32) (results i32))
 
 ### the import data node
 
-    (data $msg "msg" read_only i32)
-    (data $sum "sum" read_write i64)
-    (data $buf "utils::buf" uninit bytes)
+(data $msg "msg" read_only i32)
+(data $sum "sum" read_write i64)
+(data $buf "utils::buf" uninit bytes)
 
 for the variants of 'bytes' such as 'string' and 'cstring', use 'bytes' instead in the data-import node.
 
-> At the assembly level, submodules are transparent to each other, i.e., all
+> At the assembly level, sub-modules are transparent to each other, i.e., all
 > functions and data (including imported functions, imported data, and
-> declared external functions) are public and can be accessed in any submodule.
+> declared external functions) are public and can be accessed in any sub-module.
+> That is, when you import a function (or a data, or declare an external function) into
+> a module (or sub-module), the function is just like
+> a normal function of the module itself, and it can
+> be accessed by any other sub-modules.
 
 ## The 'external' node
 
