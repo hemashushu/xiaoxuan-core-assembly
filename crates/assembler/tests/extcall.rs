@@ -6,10 +6,10 @@
 
 use ancasm_assembler::utils::helper_generate_module_image_binary_from_str;
 use ancvm_extfunc_util::cstr_pointer_to_str;
-use ancvm_process::{
-    in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
+use ancvm_processor::{
+    in_memory_program_resource::InMemoryProgramResource, interpreter::process_function,
 };
-use ancvm_program::{program_settings::ProgramSettings, program_source::ProgramSource};
+use ancvm_context::{program_settings::ProgramSettings, program_resource::ProgramResource};
 use ancvm_types::ForeignValue;
 
 use pretty_assertions::assert_eq;
@@ -40,9 +40,9 @@ fn test_assemble_extcall_with_system_libc_getuid() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
-    let mut thread_context0 = program0.create_thread_context();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     let results0 = result0.unwrap();
@@ -79,9 +79,9 @@ fn test_assemble_extcall_with_system_libc_getenv() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
-    let mut thread_context0 = program0.create_thread_context();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     let results0 = result0.unwrap();
@@ -135,13 +135,13 @@ fn test_assemble_extcall_with_user_lib() {
 
     let program_source_path = pwd.to_str().unwrap();
 
-    let program_source0 = InMemoryProgramSource::with_settings(
+    let program_resource0 = InMemoryProgramResource::with_settings(
         vec![module_binary],
         &ProgramSettings::new(program_source_path, true, "", ""),
     );
 
-    let program0 = program_source0.build_program().unwrap();
-    let mut thread_context0 = program0.create_thread_context();
+    let process_context0 = program_resource0.create_process_context().unwrap();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(
         &mut thread_context0,

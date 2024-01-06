@@ -9,7 +9,6 @@ use ancvm_binary::module_image::{
     data_name_section::DataNameSection,
     data_section::{ReadOnlyDataSection, ReadWriteDataSection, UninitDataSection},
     exit_function_list_section::ExitFunctionListSection,
-    // exit_function_list_section::ExitFunctionListSection,
     external_function_index_section::ExternalFunctionIndexSection,
     external_function_section::ExternalFunctionSection,
     external_library_section::ExternalLibrarySection,
@@ -20,12 +19,10 @@ use ancvm_binary::module_image::{
     import_function_section::ImportFunctionSection,
     local_variable_section::LocalVariableSection,
     start_function_list_section::StartFunctionListSection,
-    // start_function_list_section::StartFunctionListSection,
     type_section::TypeSection,
     unified_external_function_section::UnifiedExternalFunctionSection,
     unified_external_library_section::UnifiedExternalLibrarySection,
-    ModuleImage,
-    SectionEntry,
+    ModuleImage, SectionEntry, property_section::PropertySection,
 };
 use ancvm_types::entry::{IndexEntry, ModuleEntry};
 
@@ -152,7 +149,9 @@ pub fn generate_module_image_binary(
         &data_name_section,
     ];
 
-    let image_binary = if let Some(index_entry) = index_entry_opt {
+    if let Some(index_entry) = index_entry_opt {
+        // build application binary
+
         // func index
         let (function_index_range_items, function_index_items) =
             FunctionIndexSection::convert_from_entries(&index_entry.function_index_module_entries);
@@ -207,6 +206,11 @@ pub fn generate_module_image_binary(
             items: &index_entry.exit_function_indices,
         };
 
+        // todo
+        let property_section = PropertySection{
+            entry_function_public_index: 0
+        };
+
         let mut index_section_entries: Vec<&dyn SectionEntry> = vec![
             &function_index_section,
             &data_index_section,
@@ -215,6 +219,7 @@ pub fn generate_module_image_binary(
             &external_function_index_section,
             &start_function_list_section,
             &exit_function_list_section,
+            &property_section
         ];
 
         section_entries.append(&mut index_section_entries);
@@ -232,9 +237,11 @@ pub fn generate_module_image_binary(
         // save
         let mut image_binary: Vec<u8> = Vec::new();
         module_image.save(&mut image_binary).unwrap();
-        image_binary
+
+        Ok(image_binary)
     } else {
-        // build ModuleImage instance
+        // build share module binary
+
         let (section_items, sections_data) = ModuleImage::convert_from_entries(&section_entries);
         let module_image = ModuleImage {
             name,
@@ -247,19 +254,17 @@ pub fn generate_module_image_binary(
         // save
         let mut image_binary: Vec<u8> = Vec::new();
         module_image.save(&mut image_binary).unwrap();
-        image_binary
-    };
-
-    Ok(image_binary)
+        Ok(image_binary)
+    }
 }
 
 #[cfg(test)]
 mod tests {
 
-    use ancvm_process::{
-        in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
+    use ancvm_context::program_resource::ProgramResource;
+    use ancvm_processor::{
+        in_memory_program_resource::InMemoryProgramResource, interpreter::process_function,
     };
-    use ancvm_program::program_source::ProgramSource;
     use ancvm_types::{
         entry::{LocalListEntry, LocalVariableEntry, TypeEntry},
         DataType, ForeignValue, MemoryDataType,
@@ -288,16 +293,16 @@ mod tests {
         "#,
         );
 
-        let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-        let program0 = program_source0.build_program().unwrap();
+        let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+        let process_context0 = program_resource0.create_process_context().unwrap();
 
-        let function_entry = program0.module_images[0]
+        let function_entry = process_context0.module_images[0]
             .get_function_section()
             .get_function_entry(0);
 
         assert_eq!(function_entry.type_index, 0);
 
-        let type_entry = program0.module_images[0]
+        let type_entry = process_context0.module_images[0]
             .get_type_section()
             .get_type_entry(function_entry.type_index);
 
@@ -311,7 +316,7 @@ mod tests {
 
         assert_eq!(function_entry.local_list_index, 0);
 
-        let local_list_entry = program0.module_images[0]
+        let local_list_entry = process_context0.module_images[0]
             .get_local_variable_section()
             .get_local_list_entry(function_entry.local_list_index);
 
@@ -338,7 +343,7 @@ mod tests {
             }
         );
 
-        let mut thread_context0 = program0.create_thread_context();
+        let mut thread_context0 = process_context0.create_thread_context();
 
         let result0 = process_function(
             &mut thread_context0,

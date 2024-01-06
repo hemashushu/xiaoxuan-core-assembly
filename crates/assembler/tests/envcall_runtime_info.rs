@@ -6,9 +6,9 @@
 
 use ancasm_assembler::utils::helper_generate_module_image_binary_from_str;
 use ancvm_binary::bytecode_reader::print_bytecode_as_text;
-use ancvm_program::program_source::ProgramSource;
-use ancvm_process::{
-    in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
+use ancvm_context::program_resource::ProgramResource;
+use ancvm_processor::{
+    in_memory_program_resource::InMemoryProgramResource, interpreter::process_function,
 };
 use ancvm_types::{
     envcallcode::EnvCallCode, ForeignValue, RUNTIME_CODE_NAME, RUNTIME_MAJOR_VERSION,
@@ -35,10 +35,10 @@ fn test_assemble_envcall_runtime_version() {
         ENV_CALL_CODE_RUNTIME_VERSION = (EnvCallCode::runtime_version as u32)
     ));
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -50,7 +50,7 @@ fn test_assemble_envcall_runtime_version() {
 0x0008  00 0a                       end"
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
 
@@ -87,10 +87,10 @@ fn test_assemble_envcall_runtime_code_name() {
         ENV_CALL_CODE_RUNTIME_NAME = (EnvCallCode::runtime_name as u32)
     ));
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -106,7 +106,7 @@ fn test_assemble_envcall_runtime_code_name() {
 0x0018  00 0a                       end"
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     let fvs1 = result0.unwrap();

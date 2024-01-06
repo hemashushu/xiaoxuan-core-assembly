@@ -6,9 +6,9 @@
 
 use ancasm_assembler::utils::helper_generate_module_image_binary_from_str;
 use ancvm_binary::bytecode_reader::print_bytecode_as_text;
-use ancvm_program::program_source::ProgramSource;
-use ancvm_process::{
-    in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
+use ancvm_context::program_resource::ProgramResource;
+use ancvm_processor::{
+    in_memory_program_resource::InMemoryProgramResource, interpreter::process_function,
 };
 use ancvm_syscall_util::{errno::Errno, number::SysCallNum};
 use ancvm_types::ForeignValue;
@@ -36,10 +36,10 @@ fn test_assemble_syscall_without_args() {
         SYS_CALL_NUMBER_0 = (SysCallNum::getpid as u32)
     ));
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -55,7 +55,7 @@ fn test_assemble_syscall_without_args() {
 0x0012  00 0a                       end"
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     let result_values0 = result0.unwrap();
@@ -94,10 +94,10 @@ fn test_assemble_syscall_with_2_args() {
         SYS_CALL_NUMBER_0 = (SysCallNum::getcwd as u32)
     ));
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -115,7 +115,7 @@ fn test_assemble_syscall_with_2_args() {
 0x0022  00 0a                       end"
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     const BUF_LENGTH: u32 = 1024;
     let buf = [0u8; BUF_LENGTH as usize];
@@ -176,10 +176,10 @@ fn test_assemble_syscall_error_no() {
         SYS_CALL_NUMBER_0 = (SysCallNum::open as u32)
     ));
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -197,7 +197,7 @@ fn test_assemble_syscall_error_no() {
 0x0022  00 0a                       end"
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let file_path0 = b"/this/file/should/not/exist\0";
     let file_path1 = b"/dev/zero\0";

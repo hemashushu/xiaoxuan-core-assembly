@@ -6,11 +6,11 @@
 
 use ancasm_assembler::utils::helper_generate_module_image_binary_from_str;
 use ancvm_binary::bytecode_reader::print_bytecode_as_text;
-use ancvm_process::{
-    in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
+use ancvm_processor::{
+    in_memory_program_resource::InMemoryProgramResource, interpreter::process_function,
     InterpreterError, InterpreterErrorType,
 };
-use ancvm_program::program_source::ProgramSource;
+use ancvm_context::program_resource::ProgramResource;
 use ancvm_types::{
     entry::{LocalListEntry, LocalVariableEntry, TypeEntry},
     DataType, ForeignValue, MemoryDataType,
@@ -57,10 +57,10 @@ fn test_assemble_control_flow_block_equ_structure_for() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -84,7 +84,7 @@ fn test_assemble_control_flow_block_equ_structure_for() {
 
     assert_eq!(function_entry.type_index, 0);
 
-    let function_type_entry = program0.module_images[0]
+    let function_type_entry = process_context0.module_images[0]
         .get_type_section()
         .get_type_entry(0);
 
@@ -98,7 +98,7 @@ fn test_assemble_control_flow_block_equ_structure_for() {
 
     assert_eq!(function_entry.local_list_index, 0);
 
-    let function_local_list_entry = program0.module_images[0]
+    let function_local_list_entry = process_context0.module_images[0]
         .get_local_variable_section()
         .get_local_list_entry(0);
 
@@ -109,7 +109,7 @@ fn test_assemble_control_flow_block_equ_structure_for() {
         }
     );
 
-    let block_type_entry = program0.module_images[0]
+    let block_type_entry = process_context0.module_images[0]
         .get_type_section()
         .get_type_entry(1);
 
@@ -121,7 +121,7 @@ fn test_assemble_control_flow_block_equ_structure_for() {
         }
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     assert_eq!(
@@ -173,10 +173,10 @@ fn test_assemble_control_flow_block_with_args_and_results_equ_structure_for() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -198,7 +198,7 @@ fn test_assemble_control_flow_block_with_args_and_results_equ_structure_for() {
 0x0038  00 0a                       end"
     );
 
-    let block_type_entry = program0.module_images[0]
+    let block_type_entry = process_context0.module_images[0]
         .get_type_section()
         .get_type_entry(1);
 
@@ -210,7 +210,7 @@ fn test_assemble_control_flow_block_with_args_and_results_equ_structure_for() {
         }
     );
 
-    let block_local_list_entry = program0.module_images[0]
+    let block_local_list_entry = process_context0.module_images[0]
         .get_local_variable_section()
         .get_local_list_entry(1);
 
@@ -225,7 +225,7 @@ fn test_assemble_control_flow_block_with_args_and_results_equ_structure_for() {
         }
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     assert_eq!(
@@ -346,10 +346,10 @@ fn test_assemble_control_flow_block_with_local_vars_equ_structure_for() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -409,7 +409,7 @@ fn test_assemble_control_flow_block_with_local_vars_equ_structure_for() {
 
     assert_eq!(function_entry.type_index, 0);
 
-    let function_type_entry = program0.module_images[0]
+    let function_type_entry = process_context0.module_images[0]
         .get_type_section()
         .get_type_entry(0);
 
@@ -432,7 +432,7 @@ fn test_assemble_control_flow_block_with_local_vars_equ_structure_for() {
 
     assert_eq!(function_entry.local_list_index, 0);
 
-    let function_local_list_entry = program0.module_images[0]
+    let function_local_list_entry = process_context0.module_images[0]
         .get_local_variable_section()
         .get_local_list_entry(0);
 
@@ -448,7 +448,7 @@ fn test_assemble_control_flow_block_with_local_vars_equ_structure_for() {
         }
     );
 
-    let block_0_type_entry = program0.module_images[0]
+    let block_0_type_entry = process_context0.module_images[0]
         .get_type_section()
         .get_type_entry(1);
 
@@ -460,7 +460,7 @@ fn test_assemble_control_flow_block_with_local_vars_equ_structure_for() {
         }
     );
 
-    let block_0_local_list_entry = program0.module_images[0]
+    let block_0_local_list_entry = process_context0.module_images[0]
         .get_local_variable_section()
         .get_local_list_entry(1);
 
@@ -474,7 +474,7 @@ fn test_assemble_control_flow_block_with_local_vars_equ_structure_for() {
         }
     );
 
-    let block_1_type_entry = program0.module_images[0]
+    let block_1_type_entry = process_context0.module_images[0]
         .get_type_section()
         .get_type_entry(2);
 
@@ -486,7 +486,7 @@ fn test_assemble_control_flow_block_with_local_vars_equ_structure_for() {
         }
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(
         &mut thread_context0,
@@ -541,10 +541,10 @@ fn test_assemble_control_flow_break_function_equ_statement_return() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -562,7 +562,7 @@ fn test_assemble_control_flow_break_function_equ_statement_return() {
 0x0028  00 0a                       end"
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     assert_eq!(
         result0.unwrap(),
@@ -617,10 +617,10 @@ fn test_assemble_control_flow_break_block_equ_statement_break() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -646,7 +646,7 @@ fn test_assemble_control_flow_break_block_equ_statement_break() {
 0x0058  00 0a                       end"
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     assert_eq!(
         result0.unwrap(),
@@ -706,10 +706,10 @@ fn test_assemble_control_flow_break_block_to_function_equ_statement_return() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -735,7 +735,7 @@ fn test_assemble_control_flow_break_block_to_function_equ_statement_return() {
 0x0058  00 0a                       end"
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     assert_eq!(
         result0.unwrap(),
@@ -791,10 +791,10 @@ fn test_assemble_control_flow_structure_when() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -819,7 +819,7 @@ fn test_assemble_control_flow_structure_when() {
 0x004a  00 0a                       end"
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(
         &mut thread_context0,
@@ -905,10 +905,10 @@ fn test_assemble_control_flow_break_block_crossing_equ_statement_break() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -943,7 +943,7 @@ fn test_assemble_control_flow_break_block_crossing_equ_statement_break() {
 0x0090  00 0a                       end"
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(1)]);
     assert_eq!(
@@ -1008,10 +1008,10 @@ fn test_assemble_control_flow_structure_if() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -1034,7 +1034,7 @@ fn test_assemble_control_flow_structure_if() {
 0x003e  00 0a                       end"
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(
         &mut thread_context0,
@@ -1126,10 +1126,10 @@ fn test_assemble_control_flow_structure_if_nested() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -1170,7 +1170,7 @@ fn test_assemble_control_flow_structure_if_nested() {
 0x00aa  00 0a                       end"
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(90)]);
     assert_eq!(result0.unwrap(), vec![ForeignValue::U32(65)]);
@@ -1272,10 +1272,10 @@ fn test_assemble_control_flow_structure_branch() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -1322,7 +1322,7 @@ fn test_assemble_control_flow_structure_branch() {
 0x00b2  00 0a                       end"
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(90)]);
     assert_eq!(result0.unwrap(), vec![ForeignValue::U32(65)]);
@@ -1403,11 +1403,11 @@ fn test_assemble_control_flow_structure_branch_without_default_arm() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
 
-    let program0 = program_source0.build_program().unwrap();
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -1444,7 +1444,7 @@ fn test_assemble_control_flow_structure_branch_without_default_arm() {
 0x007e  00 0a                       end"
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(90)]);
     assert_eq!(result0.unwrap(), vec![ForeignValue::U32(65)]);
@@ -1535,10 +1535,10 @@ fn test_assemble_control_flow_structure_loop() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -1570,7 +1570,7 @@ fn test_assemble_control_flow_structure_loop() {
 0x006e  00 0a                       end"
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(10)]);
     assert_eq!(result0.unwrap(), vec![ForeignValue::U32(55)]);
@@ -1646,10 +1646,10 @@ fn test_assemble_control_flow_structure_loop_with_block_parameters() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -1682,7 +1682,7 @@ fn test_assemble_control_flow_structure_loop_with_block_parameters() {
 0x006a  00 0a                       end"
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(10)]);
     assert_eq!(result0.unwrap(), vec![ForeignValue::U32(55)]);
@@ -1758,10 +1758,10 @@ fn test_assemble_control_flow_structure_loop_with_if() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -1796,7 +1796,7 @@ fn test_assemble_control_flow_structure_loop_with_if() {
 0x0078  00 0a                       end"
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(10)]);
     assert_eq!(result0.unwrap(), vec![ForeignValue::U32(55)]);
@@ -1870,10 +1870,10 @@ fn test_assemble_control_flow_function_tail_call() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -1904,7 +1904,7 @@ fn test_assemble_control_flow_function_tail_call() {
 0x006a  00 0a                       end"
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(
         &mut thread_context0,
@@ -1978,10 +1978,10 @@ fn test_assemble_control_flow_function_tail_call_with_if() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -2009,7 +2009,7 @@ fn test_assemble_control_flow_function_tail_call_with_if() {
 0x0056  00 0a                       end"
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(
         &mut thread_context0,

@@ -6,11 +6,11 @@
 
 use ancasm_assembler::utils::helper_generate_module_image_binary_from_str;
 use ancvm_binary::bytecode_reader::print_bytecode_as_text;
-use ancvm_process::{
-    in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
+use ancvm_context::{program_resource::ProgramResource, program_settings::ProgramSettings};
+use ancvm_processor::{
+    in_memory_program_resource::InMemoryProgramResource, interpreter::process_function,
     InterpreterError, InterpreterErrorType,
 };
-use ancvm_program::{program_settings::ProgramSettings, program_source::ProgramSource};
 
 use ancvm_types::ForeignValue;
 
@@ -34,10 +34,10 @@ fn test_assemble_host_panic() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
 
@@ -67,10 +67,10 @@ fn test_assemble_host_debug() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
 
@@ -100,10 +100,10 @@ fn test_assemble_host_unreachable() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
 
@@ -219,10 +219,10 @@ fn test_assemble_host_address_of_data_and_local_vars() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -256,7 +256,7 @@ fn test_assemble_host_address_of_data_and_local_vars() {
 0x00a8  00 0a                       end"
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     let fvs = result0.unwrap();
@@ -348,10 +348,10 @@ fn test_assemble_host_address_offset_of_data_and_local_vars() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -383,7 +383,7 @@ fn test_assemble_host_address_offset_of_data_and_local_vars() {
 0x0094  00 0a                       end"
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     let fvs = result0.unwrap();
@@ -456,10 +456,10 @@ fn test_assemble_host_address_heap() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
 
-    let function_entry = program0.module_images[0]
+    let function_entry = process_context0.module_images[0]
         .get_function_section()
         .get_function_entry(0);
 
@@ -498,7 +498,7 @@ fn test_assemble_host_address_heap() {
 0x0090  00 0a                       end"
     );
 
-    let mut thread_context0 = program0.create_thread_context();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     let fvs = result0.unwrap();
@@ -558,9 +558,9 @@ fn test_assemble_host_heap_copy() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
-    let mut thread_context0 = program0.create_thread_context();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let src_buf: &[u8; 8] = b"hello.vm";
     let dst_buf: [u8; 8] = [0; 8];
@@ -624,9 +624,9 @@ fn test_assemble_host_memory_copy() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
-    let mut thread_context0 = program0.create_thread_context();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let src_buf: &[u8; 8] = b"whatever";
     let dst_buf: [u8; 8] = [0; 8];
@@ -726,13 +726,13 @@ fn test_assemble_host_addr_function_and_callback_function() {
 
     let program_source_path = pwd.to_str().unwrap();
 
-    let program_source0 = InMemoryProgramSource::with_settings(
+    let program_resource0 = InMemoryProgramResource::with_settings(
         vec![module_binary],
         &ProgramSettings::new(program_source_path, true, "", ""),
     );
 
-    let program0 = program_source0.build_program().unwrap();
-    let mut thread_context0 = program0.create_thread_context();
+    let process_context0 = program_resource0.create_process_context().unwrap();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(
         &mut thread_context0,

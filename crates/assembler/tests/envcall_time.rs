@@ -7,10 +7,10 @@
 use std::time::Duration;
 
 use ancasm_assembler::utils::helper_generate_module_image_binary_from_str;
-use ancvm_process::{
-    in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
+use ancvm_processor::{
+    in_memory_program_resource::InMemoryProgramResource, interpreter::process_function,
 };
-use ancvm_program::program_source::ProgramSource;
+use ancvm_context::program_resource::ProgramResource;
 use ancvm_types::envcallcode::EnvCallCode;
 use libc::{clock_gettime, timespec, CLOCK_MONOTONIC};
 
@@ -32,9 +32,9 @@ fn test_assemble_envcall_time_now() {
         ENV_CALL_CODE_TIME_NOW = (EnvCallCode::time_now as u32)
     ));
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
-    let mut thread_context0 = program0.create_thread_context();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     let results0 = result0.unwrap();

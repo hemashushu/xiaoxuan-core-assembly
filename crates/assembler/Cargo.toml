@@ -10,8 +10,8 @@ ancasm_parser = { path = "../parser" }
 
 ancvm_types = { path = "../../../xiaoxuan-core-vm/crates/types" }
 ancvm_binary = { path = "../../../xiaoxuan-core-vm/crates/binary" }
-ancvm_program = { path = "../../../xiaoxuan-core-vm/crates/program" }
-ancvm_process = { path = "../../../xiaoxuan-core-vm/crates/process" }
+ancvm_context = { path = "../../../xiaoxuan-core-vm/crates/context" }
+ancvm_processor = { path = "../../../xiaoxuan-core-vm/crates/processor" }
 
 [dev-dependencies]
 pretty_assertions = "1.4.0"

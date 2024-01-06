@@ -5,10 +5,10 @@
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
 use ancasm_assembler::utils::helper_generate_module_image_binary_from_str;
-use ancvm_process::{
-    in_memory_program_source::InMemoryProgramSource, interpreter::process_function,
+use ancvm_processor::{
+    in_memory_program_resource::InMemoryProgramResource, interpreter::process_function,
 };
-use ancvm_program::program_source::ProgramSource;
+use ancvm_context::program_resource::ProgramResource;
 use ancvm_types::ForeignValue;
 
 use pretty_assertions::assert_eq;
@@ -31,9 +31,9 @@ fn test_assemble_fundamental_nop() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
-    let mut thread_context0 = program0.create_thread_context();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(11)]);
     assert_eq!(result0.unwrap(), vec![ForeignValue::U32(11)]);
@@ -55,9 +55,9 @@ fn test_assemble_fundamental_zero() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
-    let mut thread_context0 = program0.create_thread_context();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     assert_eq!(result0.unwrap(), vec![ForeignValue::U32(0)]);
@@ -82,9 +82,9 @@ fn test_assemble_fundamental_drop() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
-    let mut thread_context0 = program0.create_thread_context();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     assert_eq!(result0.unwrap(), vec![ForeignValue::U32(13)]);
@@ -109,9 +109,9 @@ fn test_assemble_fundamental_duplicate() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
-    let mut thread_context0 = program0.create_thread_context();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     assert_eq!(
@@ -139,9 +139,9 @@ fn test_assemble_fundamental_swap() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
-    let mut thread_context0 = program0.create_thread_context();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     assert_eq!(
@@ -171,9 +171,9 @@ fn test_assemble_fundamental_select_nez_false() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
-    let mut thread_context0 = program0.create_thread_context();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     assert_eq!(result0.unwrap(), vec![ForeignValue::U32(13)]);
@@ -199,9 +199,9 @@ fn test_assemble_fundamental_select_nez_true() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
-    let mut thread_context0 = program0.create_thread_context();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     assert_eq!(result0.unwrap(), vec![ForeignValue::U32(11)]);
@@ -226,9 +226,9 @@ fn test_assemble_fundamental_immediate_int() {
         "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
-    let mut thread_context0 = program0.create_thread_context();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     assert_eq!(
@@ -261,9 +261,9 @@ fn test_assemble_fundamental_immediate_float() {
             "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
-    let mut thread_context0 = program0.create_thread_context();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     assert_eq!(
@@ -296,9 +296,9 @@ fn test_assemble_fundamental_immediate_float_hex() {
             "#,
     );
 
-    let program_source0 = InMemoryProgramSource::new(vec![module_binary]);
-    let program0 = program_source0.build_program().unwrap();
-    let mut thread_context0 = program0.create_thread_context();
+    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let process_context0 = program_resource0.create_process_context().unwrap();
+    let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     assert_eq!(
