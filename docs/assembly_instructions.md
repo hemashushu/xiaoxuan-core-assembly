@@ -55,9 +55,9 @@ zero
 )
 
 (select_nez
-    (i32.imm 11)    ;; when true
-    (i32.imm 13)    ;; when false
-    (i32.imm 1)     ;; test
+    (i32.imm 11)    // when true
+    (i32.imm 13)    // when false
+    (i32.imm 1)     // test
 ) -> 11
 
 immediate number

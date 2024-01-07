@@ -39,7 +39,7 @@
 //    e.g.
 //
 //   `(local.load32_i32 $db 4)` == `(local.load32_i32 $db)`
-//   ;; the optional parameter '4' above can be omitted.
+//   // the optional parameter '4' above can be omitted.
 
 // the instruction syntax
 // ----------------------
@@ -65,7 +65,7 @@
 // 3. instructions WITH parameters must be written with parentheses, e.g.
 //    '(i32.imm 0x1133)'
 //    '(local.load64_i64 $abc)'
-//    '(local.load64_i64 $abc 8)  ;; 8 is an optional parameter'
+//    '(local.load64_i64 $abc 8)  // 8 is an optional parameter'
 //
 // 4. instructions that HAVE BOTH parameters and operands must be written
 //    with parentheses, and the operands must be written after the parameters, e.g.
@@ -118,12 +118,12 @@ pub fn parse_module_node(
 
     // the node 'module' syntax:
     //
-    // (module $name ...)                       ;; base
+    // (module $name ...)                       // base
     // (module $name
-    //      (compiler_version "1.0")            ;; optional, require compiler version
-    //      (constructor $function_name_path)   ;; optional, similar to GCC '__attribute__((constructor))', run before main()
-    //      (destructor $function_name_path)    ;; optional, similar to GCC '__attribute__((destructor))', run after main()
-    //      (depend                             ;; optional, the dependencies
+    //      (compiler_version "1.0")            // optional, require compiler version
+    //      (constructor $function_name_path)   // optional, similar to GCC '__attribute__((constructor))', run before main()
+    //      (destructor $function_name_path)    // optional, similar to GCC '__attribute__((destructor))', run after main()
+    //      (depend                             // optional, the dependencies
     //          (module ...)
     //          (library ...)
     //      )
@@ -428,17 +428,17 @@ fn parse_function_node(
 
     // e.g.
     //
-    // (function $add (param $lhs i32) (param $rhs i32) (result i32) ...)     ;; signature
-    // (function $add (param $lhs i32) (result i32) (result i32) ...)         ;; signature with multiple return values
-    // (function $add (param $lhs i32) (results i32 i32) ...)                 ;; signature with multiple return values
+    // (function $add (param $lhs i32) (param $rhs i32) (result i32) ...)     // signature
+    // (function $add (param $lhs i32) (result i32) (result i32) ...)         // signature with multiple return values
+    // (function $add (param $lhs i32) (results i32 i32) ...)                 // signature with multiple return values
     // (function $add
-    //     (local $sum i32)             ;; local variable with identifier and data type
-    //     (local $db (bytes 12 4))     ;; bytes-type local variable
+    //     (local $sum i32)             // local variable with identifier and data type
+    //     (local $db (bytes 12 4))     // bytes-type local variable
     //     ...
     // )
     //
     // (function $add
-    //     (code ...)                   ;; the function body, the instructions sequence, sholud be written inside the node '(code)'
+    //     (code ...)                   // the function body, the instructions sequence, sholud be written inside the node '(code)'
     // )
 
     // function with 'export' annotation
@@ -1456,7 +1456,7 @@ fn parse_instruction_kind_branch(
     //     (case TEST_0 CONSEQUENT_0)
     //     ...
     //     (case TEST_N CONSEQUENT_N)
-    //     (default CONSEQUENT_DEFAULT) ;; optional
+    //     (default CONSEQUENT_DEFAULT) // optional
     //     ) ... //
     // ^     ^___// to here
     // |_________// current token
@@ -1682,8 +1682,8 @@ fn parse_data_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleElementNo
     // |_____________________________________// current token
 
     // also:
-    // (data $name (read_only string "Hello, World!"))    ;; UTF-8 encoding string
-    // (data $name (read_only cstring "Hello, World!"))   ;; type `cstring` will append '\0' at the end of string
+    // (data $name (read_only string "Hello, World!"))    // UTF-8 encoding string
+    // (data $name (read_only cstring "Hello, World!"))   // type `cstring` will append '\0' at the end of string
     // (data $name (read_only bytes h"11-13-17-19" 2))
 
     // other sections than 'read_only'
@@ -1758,8 +1758,8 @@ fn parse_data_detail_node_read_only(
     // |________________________// current token
 
     // also:
-    // (read_only string "Hello, World!")    ;; UTF-8 encoding string
-    // (read_only cstring "Hello, World!")   ;; type `cstring` will append '\0' at the end of string
+    // (read_only string "Hello, World!")    // UTF-8 encoding string
+    // (read_only cstring "Hello, World!")   // type `cstring` will append '\0' at the end of string
     // (read_only bytes h"11-13-17-19" OPTIONAL_ALIGN:i16)
 
     consume_left_paren(iter, "data.read_only")?;
@@ -1780,8 +1780,8 @@ fn parse_data_detail_node_read_write(
     // |_________________________// current token
 
     // also:
-    // (read_write string "Hello, World!")    ;; UTF-8 encoding string
-    // (read_write cstring "Hello, World!")   ;; type `cstring` will append '\0' at the end of string
+    // (read_write string "Hello, World!")    // UTF-8 encoding string
+    // (read_write cstring "Hello, World!")   // type `cstring` will append '\0' at the end of string
     // (read_write bytes h"11-13-17-19" OPTIONAL_ALIGN:i16)
 
     consume_left_paren(iter, "data.read_write")?;
@@ -1826,8 +1826,8 @@ fn parse_inited_data(iter: &mut PeekableIterator<Token>) -> Result<InitedData, P
     //            |_____________// current token
 
     // also:
-    // (read_write string "Hello, World!")    ;; UTF-8 encoding string
-    // (read_write cstring "Hello, World!")   ;; type `cstring` will append '\0' at the end of string
+    // (read_write string "Hello, World!")    // UTF-8 encoding string
+    // (read_write cstring "Hello, World!")   // type `cstring` will append '\0' at the end of string
     // (read_write bytes h"11-13-17-19" OPTIONAL_ALIGN:i16)
 
     let inited_data = match iter.next() {
@@ -2698,7 +2698,7 @@ mod tests {
                 r#"
             (module $app
                 (compiler_version "1.0")
-                ;; empty depend items
+                // empty depend items
                 (depend)
             )
             "#
@@ -2843,7 +2843,7 @@ mod tests {
             (module $app
                 (compiler_version "1.0")
                 (function $add (param $lhs i32) (param $rhs i64) (result i32) (result i64)
-                    ;; no local variables
+                    // no local variables
                     (code)
                 )
             )
@@ -2884,7 +2884,7 @@ mod tests {
             (module $app
                 (compiler_version "1.0")
                 (function $add (param $lhs i32) (param $rhs i64) (results i32 i64) (result f32) (result f64)
-                    ;; no local variables
+                    // no local variables
                     (code)
                 )
             )
@@ -2994,7 +2994,7 @@ mod tests {
             (module $app
                 (compiler_version "1.0")
                 (function $add
-                    ;; no params and results
+                    // no params and results
                     (local $sum i32)
                     (local $count i64)
                     (local $db bytes 12 8)
@@ -3112,14 +3112,14 @@ mod tests {
                         (i32.imm 17_19)
                         (i32.imm -23)
                         (i32.imm 0xaa_bb)
-                        (i32.imm 0b0110_0101)    ;; 101
+                        (i32.imm 0b0110_0101)    // 101
 
                         (i64.imm 31)
                         (i64.imm 0x37)
                         (i64.imm 41_43)
                         (i64.imm -47)
                         (i64.imm 0xaabb_ccdd)
-                        (i64.imm 0b0110_0111)   ;; 103
+                        (i64.imm 0b0110_0111)   // 103
                     )
                 )
             )
@@ -3757,21 +3757,21 @@ mod tests {
                     (code
                         (for (param $sum i32) (param $n i32) (result i32) (local $temp i32)
                             (do
-                                ;; n = n - 1
+                                // n = n - 1
                                 (local.store32 $n (i32.dec (local.load32_i32 $n) 1))
                                 (if
-                                    ;; if n == 0
+                                    // if n == 0
                                     (i32.eq (local.load32_i32 $n) zero)
-                                    ;; then
+                                    // then
                                     (break (local.load32_i32 $sum))
-                                    ;; else
+                                    // else
                                     (do
-                                        ;; sum = sum + n
+                                        // sum = sum + n
                                         (local.store32 $sum (i32.add
                                             (local.load32_i32 $sum)
                                             (local.load32_i32 $n)
                                         ))
-                                        ;; recur (sum,n)
+                                        // recur (sum,n)
                                         (recur
                                             (local.load32_i32 $sum)
                                             (local.load32_i32 $n)
@@ -3881,21 +3881,21 @@ mod tests {
                 (compiler_version "1.0")
                 (function $test (param $sum i32) (param $n i32) (result i32)
                     (code
-                        ;; n = n - 1
+                        // n = n - 1
                         (local.store32 $n (i32.dec (local.load32_i32 $n) 1))
                         (if
-                            ;; if n == 0
+                            // if n == 0
                             (i32.eq (local.load32_i32 $n) zero)
-                            ;; then
+                            // then
                             (return (local.load32_i32 $sum))
-                            ;; else
+                            // else
                             (do
-                                ;; sum = sum + n
+                                // sum = sum + n
                                 (local.store32 $sum (i32.add
                                     (local.load32_i32 $sum)
                                     (local.load32_i32 $n)
                                 ))
-                                ;; recur (sum,n)
+                                // recur (sum,n)
                                 (rerun
                                     (local.load32_i32 $sum)
                                     (local.load32_i32 $n)
@@ -3985,22 +3985,22 @@ mod tests {
                 (compiler_version "1.0")
                 (function $test
                     (code
-                        ;; call: add(11, 13)
+                        // call: add(11, 13)
                         (call $add (i32.imm 11) (i32.imm 13))
 
-                        ;; dyncall: filter(data)
+                        // dyncall: filter(data)
                         (dyncall (local.load32_i32 $filter) (local.load64_i64 $data))
 
-                        ;; envcall: runtime_name(buf)
+                        // envcall: runtime_name(buf)
                         (envcall 0x100 (local.load64_i64 $buf))
 
-                        ;; syscall: write(1, msg, 7)
+                        // syscall: write(1, msg, 7)
                         (syscall 2 (i32.imm 1) (local.load64_i64 $msg) (i32.imm 7))
 
-                        ;; extcall: format(str, values)
+                        // extcall: format(str, values)
                         (extcall $format (local.load64_i64 $str) (local.load64_i64 $values))
 
-                        ;; get the public index of the specified function
+                        // get the public index of the specified function
                         (macro.get_function_public_index $add)
                     )
                 )
@@ -4830,7 +4830,7 @@ mod tests {
                 )
                 (external $libc
                     (function $getuid "getuid" (result i32))
-                    (function $getenv "getenv" (param (;name;) i64) (result i64))
+                    (function $getenv "getenv" (param i64) (result i64))
                 )
             )
             "#

@@ -21,9 +21,9 @@ pub static mut INSTRUCTION_MAP: Option<HashMap<&'static str, InstructionSyntaxKi
 // for easier parsing.
 #[derive(Debug, PartialEq, Clone)]
 pub enum InstructionSyntaxKind {
-    // inst_name                                ;; no operands
-    // (inst_name)                              ;; no operands
-    // (inst_name OPERAND_0 ... OPERAND_N)      ;; with operands
+    // inst_name                                // no operands
+    // (inst_name)                              // no operands
+    // (inst_name OPERAND_0 ... OPERAND_N)      // with operands
     NoParams(Opcode, /* operand_count */ u8),
 
     // (i32.imm 123)
@@ -45,12 +45,12 @@ pub enum InstructionSyntaxKind {
     ImmF64,
 
     // (local.load $name)
-    // (local.load $name offset)                ;; optional offset
+    // (local.load $name offset)                // optional offset
     // (host.addr_local $name)
     LocalLoad(Opcode),
 
     // (local.store $name VALUE)
-    // (local.store $name VALUE offset)         ;; optional offset
+    // (local.store $name VALUE offset)         // optional offset
     LocalStore(Opcode),
 
     // (local.load_offset $name OFFSET)
@@ -61,12 +61,12 @@ pub enum InstructionSyntaxKind {
     LocalOffsetStore(Opcode),
 
     // (data.load $name)
-    // (data.load $name offset)                 ;; optional offset
+    // (data.load $name offset)                 // optional offset
     // (host.addr_data $name)
     DataLoad(Opcode),
 
     // (data.store $name VALUE)
-    // (data.store $name VALUE offset)          ;; optional offset
+    // (data.store $name VALUE offset)          // optional offset
     DataStore(Opcode),
 
     // (data.load_offset $name OFFSET)
@@ -110,7 +110,7 @@ pub enum InstructionSyntaxKind {
     //     (case TEST_0 CONSEQUENT_0)
     //     ...
     //     (case TEST_N CONSEQUENT_N)
-    //     (default CONSEQUENT_DEFAULT) ;; optional
+    //     (default CONSEQUENT_DEFAULT) // optional
     // )
     // pesudo instruction, overwrite the original control flow instructions
     Branch,

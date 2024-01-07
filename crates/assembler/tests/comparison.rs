@@ -69,27 +69,27 @@ fn test_assemble_comparison_i32() {
                     i32 i32 i32 i32
                     i32 i32 i32 i32)
                 (code
-                    ;; group 0
+                    // group 0
                     (i32.eqz (local.load32_i32 $a0))
                     (i32.eqz (local.load32_i32 $a1))
                     (i32.nez (local.load32_i32 $a0))
                     (i32.nez (local.load32_i32 $a1))
-                    ;; group 1
+                    // group 1
                     (i32.eq (local.load32_i32 $a1) (local.load32_i32 $a2))
                     (i32.ne (local.load32_i32 $a1) (local.load32_i32 $a2))
                     (i32.eq (local.load32_i32 $a1) (local.load32_i32 $a1))
                     (i32.ne (local.load32_i32 $a1) (local.load32_i32 $a1))
-                    ;; group 2
+                    // group 2
                     (i32.lt_s (local.load32_i32 $a2) (local.load32_i32 $a3))
                     (i32.lt_u (local.load32_i32 $a2) (local.load32_i32 $a3))
                     (i32.gt_s (local.load32_i32 $a2) (local.load32_i32 $a3))
                     (i32.gt_u (local.load32_i32 $a2) (local.load32_i32 $a3))
-                    ;; group 3
+                    // group 3
                     (i32.le_s (local.load32_i32 $a2) (local.load32_i32 $a1))
                     (i32.le_u (local.load32_i32 $a2) (local.load32_i32 $a1))
                     (i32.le_s (local.load32_i32 $a1) (local.load32_i32 $a1))
                     (i32.le_u (local.load32_i32 $a1) (local.load32_i32 $a1))
-                    ;; group 4
+                    // group 4
                     (i32.ge_s (local.load32_i32 $a1) (local.load32_i32 $a2))
                     (i32.ge_u (local.load32_i32 $a1) (local.load32_i32 $a2))
                     (i32.ge_s (local.load32_i32 $a1) (local.load32_i32 $a1))
@@ -203,27 +203,27 @@ fn test_assemble_comparison_i64() {
                     i32 i32 i32 i32
                     i32 i32 i32 i32)
                 (code
-                    ;; group 0
+                    // group 0
                     (i64.eqz (local.load64_i64 $a0))
                     (i64.eqz (local.load64_i64 $a1))
                     (i64.nez (local.load64_i64 $a0))
                     (i64.nez (local.load64_i64 $a1))
-                    ;; group 1
+                    // group 1
                     (i64.eq (local.load64_i64 $a1) (local.load64_i64 $a2))
                     (i64.ne (local.load64_i64 $a1) (local.load64_i64 $a2))
                     (i64.eq (local.load64_i64 $a1) (local.load64_i64 $a1))
                     (i64.ne (local.load64_i64 $a1) (local.load64_i64 $a1))
-                    ;; group 2
+                    // group 2
                     (i64.lt_s (local.load64_i64 $a2) (local.load64_i64 $a3))
                     (i64.lt_u (local.load64_i64 $a2) (local.load64_i64 $a3))
                     (i64.gt_s (local.load64_i64 $a2) (local.load64_i64 $a3))
                     (i64.gt_u (local.load64_i64 $a2) (local.load64_i64 $a3))
-                    ;; group 3
+                    // group 3
                     (i64.le_s (local.load64_i64 $a2) (local.load64_i64 $a1))
                     (i64.le_u (local.load64_i64 $a2) (local.load64_i64 $a1))
                     (i64.le_s (local.load64_i64 $a1) (local.load64_i64 $a1))
                     (i64.le_u (local.load64_i64 $a1) (local.load64_i64 $a1))
-                    ;; group 4
+                    // group 4
                     (i64.ge_s (local.load64_i64 $a1) (local.load64_i64 $a2))
                     (i64.ge_u (local.load64_i64 $a1) (local.load64_i64 $a2))
                     (i64.ge_s (local.load64_i64 $a1) (local.load64_i64 $a1))
@@ -321,13 +321,13 @@ fn test_assemble_comparison_f32() {
                         i32 i32 i32 i32 i32 i32
                         i32 i32 i32 i32)
                     (code
-                        ;; group 0
+                        // group 0
                         (f32.eq (local.load32_f32 $a0) (local.load32_f32 $a1))
                         (f32.ne (local.load32_f32 $a0) (local.load32_f32 $a1))
                         (f32.eq (local.load32_f32 $a0) (local.load32_f32 $a0))
                         (f32.ne (local.load32_f32 $a0) (local.load32_f32 $a0))
 
-                        ;; group 1
+                        // group 1
                         (f32.lt (local.load32_f32 $a0) (local.load32_f32 $a1))
                         (f32.lt (local.load32_f32 $a1) (local.load32_f32 $a0))
                         (f32.lt (local.load32_f32 $a0) (local.load32_f32 $a0))
@@ -335,7 +335,7 @@ fn test_assemble_comparison_f32() {
                         (f32.gt (local.load32_f32 $a1) (local.load32_f32 $a0))
                         (f32.gt (local.load32_f32 $a0) (local.load32_f32 $a0))
 
-                        ;; group 2
+                        // group 2
                         (f32.le (local.load32_f32 $a1) (local.load32_f32 $a0))
                         (f32.le (local.load32_f32 $a0) (local.load32_f32 $a0))
                         (f32.ge (local.load32_f32 $a0) (local.load32_f32 $a1))
@@ -423,13 +423,13 @@ fn test_assemble_comparison_f64() {
                         i32 i32 i32 i32 i32 i32
                         i32 i32 i32 i32)
                     (code
-                        ;; group 0
+                        // group 0
                         (f64.eq (local.load64_f64 $a0) (local.load64_f64 $a1))
                         (f64.ne (local.load64_f64 $a0) (local.load64_f64 $a1))
                         (f64.eq (local.load64_f64 $a0) (local.load64_f64 $a0))
                         (f64.ne (local.load64_f64 $a0) (local.load64_f64 $a0))
 
-                        ;; group 1
+                        // group 1
                         (f64.lt (local.load64_f64 $a0) (local.load64_f64 $a1))
                         (f64.lt (local.load64_f64 $a1) (local.load64_f64 $a0))
                         (f64.lt (local.load64_f64 $a0) (local.load64_f64 $a0))
@@ -437,7 +437,7 @@ fn test_assemble_comparison_f64() {
                         (f64.gt (local.load64_f64 $a1) (local.load64_f64 $a0))
                         (f64.gt (local.load64_f64 $a0) (local.load64_f64 $a0))
 
-                        ;; group 2
+                        // group 2
                         (f64.le (local.load64_f64 $a1) (local.load64_f64 $a0))
                         (f64.le (local.load64_f64 $a0) (local.load64_f64 $a0))
                         (f64.ge (local.load64_f64 $a0) (local.load64_f64 $a1))

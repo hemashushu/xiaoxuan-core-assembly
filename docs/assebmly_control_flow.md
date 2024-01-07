@@ -12,7 +12,7 @@
     (case TEST_0 CONSEQUENT_0)
     ...
     (case TEST_N CONSEQUENT_N)
-    (default CONSEQUENT_DEFAULT) ;; optional
+    (default CONSEQUENT_DEFAULT) // optional
 )
 
 (for (param...) (result...)

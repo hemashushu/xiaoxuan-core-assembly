@@ -14,6 +14,7 @@
   - [Long String](#long-string)
   - [Multi-line String](#multi-line-string)
   - [Raw String](#raw-string)
+  - [Raw String Variant](#raw-string-variant)
   - [Auto-trimmed String](#auto-trimmed-string)
 - [Byte Data](#byte-data)
 - [Comments](#comments)
@@ -158,6 +159,8 @@ The raw strings do not escape any characters, all content will be output as is, 
 
 `r"Hello\nWorld!"` is equivalent to `"Hello\\nWorld!"`
 
+### Raw String Variant
+
 Since raw strings don't support escaping characters, if you need to output the "double quote", you can use the variant of raw strings, i.e. use `r#"..."#` to enclose the string, e.g.
 
 `r#"One "two" three"#` is equivalent to `"One \"two\" three"`.
@@ -166,21 +169,18 @@ Since raw strings don't support escaping characters, if you need to output the "
 
 Auto-trimmed strings are used to write long text, it's similar to the raw string, where characters are not escaped, but the leading whitespace on each line is automatically trimmed based on the number of leading spaces in the first line.
 
-Auto-trimmed string starts with `|"`, and ends with a separate line which only contains symbol `"|`, for example:
+Auto-trimmed string starts with `r|"`, and then the content start in a new line, and ends with `"|` which is in **a separate line** (leading whitespaces are allowed), for example:
 
 ```text
-|"
-    NAME
-        ls - list directory contents
-
-    DESCRIPTION
-        List information about the FILEs (the current directory by default).
-        Sort entries alphabetically if none of -cftuvSUX nor --sort is
-        specified.
+r|"
+    id:
+      123
+    name:
+      foo
 "|
 ```
 
-In the above example, since there are 4 leading space characters in the first line, so each line truncates max 4 leading spaces.
+In the above example, since there are 4 leading space characters in the first line, so each line truncates max 4 leading spaces. The string is equivalent to `"id:\n  123\nname:  foo"`. Note that the last new-line symbol `\n` of the string is removed automatically.
 
 ## Byte Data
 
@@ -198,29 +198,29 @@ h"00 11
 
 ## Comments
 
-_XiaoXuan Core Assembly_ supports 3 styles of comments: line comments, block comments and node comments.
+_XiaoXuan Core Assembly_ supports 3 styles of comments: line comments, block comments and document comments.
 
 ### Line Comment
 
-Line comments start with symbol `;;` and continue until the end of the line, e.g.
+Line comments start with symbol `//` and continue until the end of the line, e.g.
 
 ```clojure
 (module
-    ;; this is a comment
-    (function $test   ;; this is a comment also
+    // this is a comment
+    (function $test   // this is a comment also
     )
 )
 ```
 
 ### Block Comment
 
-Block comments start with the symbol `(;` and end with the symbol `;)`, and nested block comments are supported, for example:
+Block comments start with the symbol `/*` and end with the symbol `*/`, and nested block comments are supported, for example:
 
 ```clojure
 (module
     (function $test
-        (; this is a block comment ;)
-        (; level one (; level two ;);)
+        /* this is a block comment */
+        /* level one /* level two */*/
     )
 )
 ```
@@ -248,59 +248,71 @@ When modifying assembly text, node comments provide a convenient way to temporar
 
 Document comments are used to write long text related to modules, structures, functions and so on.
 
-Document comments starts with `###`, and ends with a separate line which only contains symbol `###`, for example:
+Document comments starts with `"""`, and then the content start in a new line, and ends with `"""` which is occured a separate line, for example:
 
 ```text
-###
-    Calculate the sum of two integers.
+"""
+NAME
+    ls - list directory contents
 
-    left:
-        The first number
-    right:
-        The second number
-    return:
-        Tht sum of two integers.
-###
+DESCRIPTION
+    List information about the FILEs (the current directory by default).
+    Sort entries alphabetically if none of -cftuvSUX nor --sort is
+    specified.
+"""
 ```
 
-It's similar to the auto-trimmed string, the leading whitespace on each line is automatically trimmed based on the number of leading spaces in the first line.
+leading spaces are allowed, for example:
+
+```text
+(function $add (param $left i32) (param $right i32) (result i32)
+    """
+    Add two integer numbers.
+    """
+
+    (code
+        ...
+    )
+)
+
+```
 
 ### Mix Comments
 
-Line comment symbol `;;` and document comment symbol `"""` within valid block comments are ignored, e.g.
+Line comment symbol `//` and document comment symbol `"""` within valid block comments are ignored, e.g.
 
 ```clojure
 (module
-    (; block comment ;; still block comment ;)
+    /* block comment // still block comment */
 )
 ```
 
 ```clojure
 (module
-    (;
+    /*
     block comment part 1
-        ;; (;
+        // /*
         block comment part 2
-        ;)
+        */
     block comment part 3
-    ;)
+    */
 )
 ```
 
 ```clojure
 (module
-    (; block comment
+    /* block comment
         """
         still block comment
         """
-    ;)
+    */
 )
 ```
 
-Practically any type of comment symbol is ignored in other types of valid comments, including:
+Practically any type of comment symbol is ignored in other types of valid comments, i.e.,:
 
-- Block comment symbol `(;` and document comment symbol `"""` within valid line comments
-- Block comment symbol `(;` and line comment symbol `;;` within valid document comments
+- Block comment symbol `/*` and document comment symbol `"""` within valid line comments
+- Block comment symbol `/*` and line comment symbol `//` within valid document comments
 
 <!--
 e.g.

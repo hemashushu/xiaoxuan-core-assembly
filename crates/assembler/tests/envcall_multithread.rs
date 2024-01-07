@@ -82,21 +82,21 @@ fn test_assemble_multithread_thread_create() {
                     (drop
                         (envcall {ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT}
                             (envcall {ENV_CALL_CODE_THREAD_CREATE}
-                                (macro.get_function_public_index $child)   ;; function pub index
-                                (i32.imm 0)         ;; thread_start_data_address
-                                (i32.imm 0)         ;; thread_start_data_length
+                                (macro.get_function_public_index $child)   // function pub index
+                                (i32.imm 0)         // thread_start_data_address
+                                (i32.imm 0)         // thread_start_data_length
                             )
-                            ;; now the operand(s) on the top of stack is: (child thread id)
+                            // now the operand(s) on the top of stack is: (child thread id)
                         )
-                        ;; now the operand(s) on the top of stack is: (child thread exit code, thread result)
+                        // now the operand(s) on the top of stack is: (child thread exit code, thread result)
                     )
-                    ;; now the operand(s) on the top of stack is: (child thread exit code)
+                    // now the operand(s) on the top of stack is: (child thread exit code)
                 )
             )
 
             (function $child (result i64)
                 (code
-                    (i64.imm 0x13)  ;; set thread_exit_code as 0x13
+                    (i64.imm 0x13)  // set thread_exit_code as 0x13
                 )
             )
         )
@@ -123,40 +123,40 @@ fn test_assemble_multithread_thread_local_storage() {
             (function $test (result i64)
                 (local $tid i32)
                 (code
-                    ;; resize heap to 1 page
+                    // resize heap to 1 page
                     (drop
                         (heap.resize (i32.imm 1))
                     )
 
-                    ;; write value to data
+                    // write value to data
                     (data.store32 $buf (i32.imm 0x11))
 
-                    ;; write value to heap at address 0x100
+                    // write value to heap at address 0x100
                     (heap.store32
-                        (i64.imm 0x100)     ;; address
-                        (i32.imm 0x13)      ;; data
+                        (i64.imm 0x100)     // address
+                        (i32.imm 0x13)      // data
                     )
 
-                    ;; create child thread
+                    // create child thread
                     (local.store32 $tid
                         (envcall {ENV_CALL_CODE_THREAD_CREATE}
-                            (macro.get_function_public_index $child)   ;; function pub index
-                            (i32.imm 0)         ;; thread_start_data_address
-                            (i32.imm 0)         ;; thread_start_data_length
+                            (macro.get_function_public_index $child)   // function pub index
+                            (i32.imm 0)         // thread_start_data_address
+                            (i32.imm 0)         // thread_start_data_length
                         )
                     )
 
-                    ;; pause 500ms to ensure the child thread is running
+                    // pause 500ms to ensure the child thread is running
                     (envcall {ENV_CALL_CODE_THREAD_SLEEP} (i64.imm 500))
 
-                    ;; wait and collect the child thread
+                    // wait and collect the child thread
                     (drop
                         (envcall {ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT}
                             (local.load32_i32 $tid)
                         )
                     )
 
-                    ;; check value in data
+                    // check value in data
                     (when
                         (i32.ne
                             (data.load32_i32 $buf)
@@ -165,7 +165,7 @@ fn test_assemble_multithread_thread_local_storage() {
                         (debug 0)
                     )
 
-                    ;; check value in heap
+                    // check value in heap
                     (when
                         (i32.ne
                             (heap.load32_i32
@@ -176,19 +176,19 @@ fn test_assemble_multithread_thread_local_storage() {
                         (debug 1)
                     )
 
-                    ;; set thread_exit_code
+                    // set thread_exit_code
                     (i64.imm 0)
                 )
             )
 
             (function $child (result i64)
                 (code
-                    ;; resize heap to 1 page
+                    // resize heap to 1 page
                     (drop
                         (heap.resize (i32.imm 1))
                     )
 
-                    ;; check value in data
+                    // check value in data
                     (when
                         (i32.ne
                             (data.load32_i32 $buf)
@@ -197,19 +197,19 @@ fn test_assemble_multithread_thread_local_storage() {
                         (debug 0)
                     )
 
-                    ;; the initial data of heap should be garbage
-                    ;; so it doesn't need to be checked
+                    // the initial data of heap should be garbage
+                    // so it doesn't need to be checked
 
-                    ;; write value to data
+                    // write value to data
                     (data.store32 $buf (i32.imm 0x23))
 
-                    ;; write value to heap at address 0x100
+                    // write value to heap at address 0x100
                     (heap.store32
-                        (i64.imm 0x100)     ;; address
-                        (i32.imm 0x29)      ;; data
+                        (i64.imm 0x100)     // address
+                        (i32.imm 0x29)      // data
                     )
 
-                    ;; set thread_exit_code
+                    // set thread_exit_code
                     (i64.imm 0)
                 )
             )
@@ -240,7 +240,7 @@ fn test_assemble_multithread_thread_sleep() {
                     (envcall {ENV_CALL_CODE_THREAD_SLEEP}
                         (i64.imm 1000)
                     )
-                    ;; exit code
+                    // exit code
                     (i64.imm 0x13)
                 )
             )
@@ -288,7 +288,7 @@ fn test_assemble_multithread_thread_start_data() {
                 (local $part0 i32)
                 (local $part1 i32)
                 (code
-                    ;; check the data length
+                    // check the data length
                     (when
                         (i32.ne
                             (envcall {ENV_CALL_CODE_THREAD_START_DATA_LENGTH})
@@ -297,20 +297,20 @@ fn test_assemble_multithread_thread_start_data() {
                         (debug 0)
                     )
 
-                    ;; read 4 bytes data from offset 0 to local variable $part0
+                    // read 4 bytes data from offset 0 to local variable $part0
                     (when
                         (i32.ne
                             (envcall {ENV_CALL_CODE_THREAD_START_DATA_READ}
-                                (i32.imm 0)                 ;; offset
-                                (i32.imm 4)                 ;; length
-                                (host.addr_local $part0)    ;; dst address
+                                (i32.imm 0)                 // offset
+                                (i32.imm 4)                 // length
+                                (host.addr_local $part0)    // dst address
                             )
                             (i32.imm 4)
                         )
                         (debug 1)
                     )
 
-                    ;; check value
+                    // check value
                     (when
                         (i32.ne
                             (local.load32_i32 $part0)
@@ -319,21 +319,21 @@ fn test_assemble_multithread_thread_start_data() {
                         (debug 2)
                     )
 
-                    ;; read 8 bytes data from offset 4 to local variable $part0
-                    ;; actual read length should be 4
+                    // read 8 bytes data from offset 4 to local variable $part0
+                    // actual read length should be 4
                     (when
                         (i32.ne
                             (envcall {ENV_CALL_CODE_THREAD_START_DATA_READ}
-                                (i32.imm 4)                 ;; offset
-                                (i32.imm 8)                 ;; length
-                                (host.addr_local $part1)    ;; dst address
+                                (i32.imm 4)                 // offset
+                                (i32.imm 8)                 // length
+                                (host.addr_local $part1)    // dst address
                             )
                             (i32.imm 4)
                         )
                         (debug 3)
                     )
 
-                    ;; check value
+                    // check value
                     (when
                         (i32.ne
                             (local.load32_i32 $part1)
@@ -373,19 +373,19 @@ fn test_assemble_multithread_thread_running_status() {
                 (local $last_status i32)
                 (local $last_result i32)
                 (code
-                    ;; create child thread
+                    // create child thread
                     (local.store32 $tid
                         (envcall {ENV_CALL_CODE_THREAD_CREATE}
-                            (macro.get_function_public_index $child)   ;; function pub index
-                            (i32.imm 0)         ;; thread_start_data_address
-                            (i32.imm 0)         ;; thread_start_data_length
+                            (macro.get_function_public_index $child)   // function pub index
+                            (i32.imm 0)         // thread_start_data_address
+                            (i32.imm 0)         // thread_start_data_length
                         )
                     )
 
-                    ;; pause 500ms to ensure the child thread is running
+                    // pause 500ms to ensure the child thread is running
                     (envcall {ENV_CALL_CODE_THREAD_SLEEP} (i64.imm 500))
 
-                    ;; get the runnting status
+                    // get the runnting status
                     (local.store32 $last_status
                         (local.store32 $last_result
                             (envcall {ENV_CALL_CODE_THREAD_RUNNING_STATUS}
@@ -394,22 +394,22 @@ fn test_assemble_multithread_thread_running_status() {
                         )
                     )
 
-                    ;; the $last_result should be 0=success
+                    // the $last_result should be 0=success
                     (when
                         (local.load32_i32 $last_result)
                         (debug 0)
                     )
 
-                    ;; the $last_status should be 0=running
+                    // the $last_status should be 0=running
                     (when
                         (local.load32_i32 $last_status)
                         (debug 1)
                     )
 
-                    ;; pause 1000ms to ensure the child thread is finish
+                    // pause 1000ms to ensure the child thread is finish
                     (envcall {ENV_CALL_CODE_THREAD_SLEEP} (i64.imm 1000))
 
-                    ;; get the runnting status
+                    // get the runnting status
                     (local.store32 $last_status
                         (local.store32 $last_result
                             (envcall {ENV_CALL_CODE_THREAD_RUNNING_STATUS}
@@ -418,13 +418,13 @@ fn test_assemble_multithread_thread_running_status() {
                         )
                     )
 
-                    ;; the $last_result should be 0=success
+                    // the $last_result should be 0=success
                     (when
                         (local.load32_i32 $last_result)
                         (debug 2)
                     )
 
-                    ;; the $last_status should be 1=finish
+                    // the $last_status should be 1=finish
                     (when
                         (i32.ne
                             (local.load32_i32 $last_status)
@@ -433,8 +433,8 @@ fn test_assemble_multithread_thread_running_status() {
                         (debug 3)
                     )
 
-                    ;; try to get the thrad running status of a non-existent thread.
-                    ;; get the runnting status
+                    // try to get the thrad running status of a non-existent thread.
+                    // get the runnting status
                     (local.store32 $last_status
                         (local.store32 $last_result
                             (envcall {ENV_CALL_CODE_THREAD_RUNNING_STATUS}
@@ -443,7 +443,7 @@ fn test_assemble_multithread_thread_running_status() {
                         )
                     )
 
-                    ;; the $last_result should be 1=failure
+                    // the $last_result should be 1=failure
                     (when
                         (i32.ne
                             (local.load32_i32 $last_result)
@@ -452,7 +452,7 @@ fn test_assemble_multithread_thread_running_status() {
                         (debug 4)
                     )
 
-                    ;; wait and collect the child thread
+                    // wait and collect the child thread
                     (drop
                         (envcall {ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT}
                             (local.load32_i32 $tid)
@@ -463,10 +463,10 @@ fn test_assemble_multithread_thread_running_status() {
 
             (function $child (result i64)
                 (code
-                    ;; sleep 1000ms
+                    // sleep 1000ms
                     (envcall {ENV_CALL_CODE_THREAD_SLEEP} (i64.imm 1000))
 
-                    ;; set thread_exit_code as 0x17
+                    // set thread_exit_code as 0x17
                     (i64.imm 0x17)
                 )
             )
@@ -497,19 +497,19 @@ fn test_assemble_multithread_thread_terminate() {
                 (local $last_status i32)
                 (local $last_result i32)
                 (code
-                    ;; create child thread
+                    // create child thread
                     (local.store32 $tid
                         (envcall {ENV_CALL_CODE_THREAD_CREATE}
-                            (macro.get_function_public_index $child)   ;; function pub index
-                            (i32.imm 0)         ;; thread_start_data_address
-                            (i32.imm 0)         ;; thread_start_data_length
+                            (macro.get_function_public_index $child)   // function pub index
+                            (i32.imm 0)         // thread_start_data_address
+                            (i32.imm 0)         // thread_start_data_length
                         )
                     )
 
-                    ;; pause 500ms to ensure the child thread is running
+                    // pause 500ms to ensure the child thread is running
                     (envcall {ENV_CALL_CODE_THREAD_SLEEP} (i64.imm 500))
 
-                    ;; get the runnting status
+                    // get the runnting status
                     (local.store32 $last_status
                         (local.store32 $last_result
                             (envcall {ENV_CALL_CODE_THREAD_RUNNING_STATUS}
@@ -518,22 +518,22 @@ fn test_assemble_multithread_thread_terminate() {
                         )
                     )
 
-                    ;; the $last_result should be 0=success
+                    // the $last_result should be 0=success
                     (when
                         (local.load32_i32 $last_result)
                         (debug 0)
                     )
 
-                    ;; the $last_status should be 0=running
+                    // the $last_status should be 0=running
                     (when
                         (local.load32_i32 $last_status)
                         (debug 1)
                     )
 
-                    ;; terminate the child thread
+                    // terminate the child thread
                     (envcall {ENV_CALL_CODE_THREAD_TERMINATE} (local.load32_i32 $tid))
 
-                    ;; get the runnting status
+                    // get the runnting status
                     (local.store32 $last_status
                         (local.store32 $last_result
                             (envcall {ENV_CALL_CODE_THREAD_RUNNING_STATUS}
@@ -542,7 +542,7 @@ fn test_assemble_multithread_thread_terminate() {
                         )
                     )
 
-                    ;; the $last_result should be 1=failure (thread_not_found)
+                    // the $last_result should be 1=failure (thread_not_found)
                     (when
                         (i32.ne
                             (local.load32_i32 $last_result)
@@ -551,14 +551,14 @@ fn test_assemble_multithread_thread_terminate() {
                         (debug 2)
                     )
 
-                    ;; try to collect the child thread
+                    // try to collect the child thread
                     (local.store32 $last_result
                         (envcall {ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT}
                             (local.load32_i32 $tid)
                         )
                     )
 
-                    ;; the $last_result should be 1=failure (thread_not_found)
+                    // the $last_result should be 1=failure (thread_not_found)
                     (when
                         (i32.ne
                             (local.load32_i32 $last_result)
@@ -567,17 +567,17 @@ fn test_assemble_multithread_thread_terminate() {
                         (debug 3)
                     )
 
-                    ;; set thread_exit_code as 0x23
+                    // set thread_exit_code as 0x23
                     (i64.imm 0x23)
                 )
             )
 
             (function $child (result i64)
                 (code
-                    ;; sleep 5000ms
+                    // sleep 5000ms
                     (envcall {ENV_CALL_CODE_THREAD_SLEEP} (i64.imm 5000))
 
-                    ;; set thread_exit_code as 0x19
+                    // set thread_exit_code as 0x19
                     (i64.imm 0x19)
                 )
             )
@@ -620,36 +620,36 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                 (local $last_result i32)
                 (local $last_status i32)
                 (code
-                    ;; create new thread
+                    // create new thread
                     (local.store32 $tid
                         (envcall {ENV_CALL_CODE_THREAD_CREATE}
-                            (macro.get_function_public_index $child)   ;; function pub index
-                            (i32.imm 0)         ;; thread_start_data_address
-                            (i32.imm 0)         ;; thread_start_data_length
+                            (macro.get_function_public_index $child)   // function pub index
+                            (i32.imm 0)         // thread_start_data_address
+                            (i32.imm 0)         // thread_start_data_length
                         )
                     )
 
-                    ;; write the data to be sent
+                    // write the data to be sent
                     (data.store32 $buf
-                        (i32.imm 0x11)      ;; data
+                        (i32.imm 0x11)      // data
                     )
 
-                    ;; send data to child thread
+                    // send data to child thread
                     (local.store32 $last_result
                         (envcall {ENV_CALL_CODE_THREAD_SEND_MSG}
-                            (local.load32_i32 $tid)     ;; child thread id
-                            (host.addr_data $buf)       ;; data src address
-                            (i32.imm 4)                 ;; data length
+                            (local.load32_i32 $tid)     // child thread id
+                            (host.addr_data $buf)       // data src address
+                            (i32.imm 4)                 // data length
                         )
                     )
 
-                    ;; the last_result should be 0=success
+                    // the last_result should be 0=success
                     (when
                         (local.load32_i32 $last_result)
                         (debug 0)
                     )
 
-                    ;; receive data from child thread
+                    // receive data from child thread
                     (local.store32 $last_length
                         (local.store32 $last_result
                             (envcall {ENV_CALL_CODE_THREAD_RECEIVE_MSG}
@@ -658,13 +658,13 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                         )
                     )
 
-                    ;; last_result should be 0=success
+                    // last_result should be 0=success
                     (when
                         (local.load32_i32 $last_result)
                         (debug 1)
                     )
 
-                    ;; last_length should be 4
+                    // last_length should be 4
                     (when
                         (i32.ne
                             (local.load32_i32 $last_length)
@@ -673,12 +673,12 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                         (debug 2)
                     )
 
-                    ;; test function 'thread_msg_length'
+                    // test function 'thread_msg_length'
                     (local.store32 $last_length
                         (envcall {ENV_CALL_CODE_THREAD_MSG_LENGTH})
                     )
 
-                    ;; last_length should be 4
+                    // last_length should be 4
                     (when
                         (i32.ne
                             (local.load32_i32 $last_length)
@@ -687,17 +687,17 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                         (debug 3)
                     )
 
-                    ;; test function 'thread_msg_read'
-                    ;; try to read 8 bytes, actually read 4 bytes
+                    // test function 'thread_msg_read'
+                    // try to read 8 bytes, actually read 4 bytes
                     (local.store32 $last_length
                         (envcall {ENV_CALL_CODE_THREAD_MSG_READ}
-                            (i32.imm 0)             ;; offset
-                            (i32.imm 8)             ;; length
-                            (host.addr_data $buf)   ;; dst address
+                            (i32.imm 0)             // offset
+                            (i32.imm 8)             // length
+                            (host.addr_data $buf)   // dst address
                         )
                     )
 
-                    ;; last_length should be 4
+                    // last_length should be 4
                     (when
                         (i32.ne
                             (local.load32_i32 $last_length)
@@ -706,7 +706,7 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                         (debug 4)
                     )
 
-                    ;; check the received data
+                    // check the received data
                     (when
                         (i32.ne
                             (data.load32_i32 $buf)
@@ -715,7 +715,7 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                         (debug 5)
                     )
 
-                    ;; the status of child thread is changing to 'finish', wait 500ms
+                    // the status of child thread is changing to 'finish', wait 500ms
                     (envcall {ENV_CALL_CODE_THREAD_SLEEP} (i64.imm 500))
 
                     (local.store32 $last_status
@@ -726,13 +726,13 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                         )
                     )
 
-                    ;; last_result should be 0=success
+                    // last_result should be 0=success
                     (when
                         (local.load32_i32 $last_result)
                         (debug 6)
                     )
 
-                    ;; last_status should be 1=finish
+                    // last_status should be 1=finish
                     (when
                         (i32.ne
                             (local.load32_i32 $last_status)
@@ -741,9 +741,9 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                         (debug 7)
                     )
 
-                    ;; collect the child thread,
-                    ;; and use the exit code of child thread as the
-                    ;; main thread exit code
+                    // collect the child thread,
+                    // and use the exit code of child thread as the
+                    // main thread exit code
                     (drop
                         (envcall {ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT}
                             (local.load32_i32 $tid)
@@ -756,12 +756,12 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                 (local $last_length i32)
                 (local $last_result i32)
                 (code
-                    ;; receive data from parent
+                    // receive data from parent
                     (local.store32 $last_length
                         (envcall {ENV_CALL_CODE_THREAD_RECEIVE_MSG_FROM_PARENT})
                     )
 
-                    ;; last_length should be 4
+                    // last_length should be 4
                     (when
                         (i32.ne
                             (local.load32_i32 $last_length)
@@ -770,12 +770,12 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                         (debug 0)
                     )
 
-                    ;; test function 'thread_msg_length'
+                    // test function 'thread_msg_length'
                     (local.store32 $last_length
                         (envcall {ENV_CALL_CODE_THREAD_MSG_LENGTH})
                     )
 
-                    ;; last_length should be 4
+                    // last_length should be 4
                     (when
                         (i32.ne
                             (local.load32_i32 $last_length)
@@ -784,17 +784,17 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                         (debug 1)
                     )
 
-                    ;; test function 'thread_msg_read'
-                    ;; try to read 8 bytes, actually read 4 bytes
+                    // test function 'thread_msg_read'
+                    // try to read 8 bytes, actually read 4 bytes
                     (local.store32 $last_length
                         (envcall {ENV_CALL_CODE_THREAD_MSG_READ}
-                            (i32.imm 0)             ;; offset
-                            (i32.imm 8)             ;; length
-                            (host.addr_data $buf)   ;; dst address
+                            (i32.imm 0)             // offset
+                            (i32.imm 8)             // length
+                            (host.addr_data $buf)   // dst address
                         )
                     )
 
-                    ;; last_length should be 4
+                    // last_length should be 4
                     (when
                         (i32.ne
                             (local.load32_i32 $last_length)
@@ -803,7 +803,7 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                         (debug 2)
                     )
 
-                    ;; check the received data
+                    // check the received data
                     (when
                         (i32.ne
                             (data.load32_i32 $buf)
@@ -812,12 +812,12 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                         (debug 3)
                     )
 
-                    ;; set the data to be sent
+                    // set the data to be sent
                     (data.store32 $buf
-                        (i32.imm 0x13)      ;; data
+                        (i32.imm 0x13)      // data
                     )
 
-                    ;; send data to parent
+                    // send data to parent
                     (local.store32 $last_result
                         (envcall {ENV_CALL_CODE_THREAD_SEND_MSG_TO_PARENT}
                             (host.addr_data $buf)
@@ -825,13 +825,13 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                         )
                     )
 
-                    ;; last_result should be 0-success
+                    // last_result should be 0-success
                     (when
                         (local.load32_i32 $last_result)
                         (debug 4)
                     )
 
-                    ;; exit code
+                    // exit code
                     (i64.imm 0x17)
                 )
             )
@@ -879,46 +879,46 @@ fn test_assemble_multithread_thread_message_forward() {
                 (local $tid0 i32)
                 (local $tid1 i32)
                 (code
-                    ;; create child thread 0 (t0)
+                    // create child thread 0 (t0)
                     (local.store32 $tid0
                         (envcall {ENV_CALL_CODE_THREAD_CREATE}
-                            (macro.get_function_public_index $child0)   ;; function pub index
-                            (i32.imm 0)         ;; thread_start_data_address
-                            (i32.imm 0)         ;; thread_start_data_length
+                            (macro.get_function_public_index $child0)   // function pub index
+                            (i32.imm 0)         // thread_start_data_address
+                            (i32.imm 0)         // thread_start_data_length
                         )
                     )
 
-                    ;; create child thread 1 (t1)
+                    // create child thread 1 (t1)
                     (local.store32 $tid1
                         (envcall {ENV_CALL_CODE_THREAD_CREATE}
-                            (macro.get_function_public_index $child1)   ;; function pub index
-                            (i32.imm 0)         ;; thread_start_data_address
-                            (i32.imm 0)         ;; thread_start_data_length
+                            (macro.get_function_public_index $child1)   // function pub index
+                            (i32.imm 0)         // thread_start_data_address
+                            (i32.imm 0)         // thread_start_data_length
                         )
                     )
 
-                    ;; receive message from t0
+                    // receive message from t0
                     (envcall {ENV_CALL_CODE_THREAD_RECEIVE_MSG}
                         (local.load32_i32 $tid0)
                     )
 
-                    ;; read message to $buf
+                    // read message to $buf
                     (envcall {ENV_CALL_CODE_THREAD_MSG_READ}
-                        (i32.imm 0)             ;; offset
-                        (i32.imm 4)             ;; length
-                        (host.addr_data $buf)   ;; dst address
+                        (i32.imm 0)             // offset
+                        (i32.imm 4)             // length
+                        (host.addr_data $buf)   // dst address
                     )
 
-                    ;; send message to t1
+                    // send message to t1
                     (envcall {ENV_CALL_CODE_THREAD_SEND_MSG}
-                        (local.load32_i32 $tid1)    ;; child thread id
-                        (host.addr_data $buf)       ;; data src address
-                        (i32.imm 4)                 ;; data length
+                        (local.load32_i32 $tid1)    // child thread id
+                        (host.addr_data $buf)       // data src address
+                        (i32.imm 4)                 // data length
                     )
 
                     (when
                         (i64.ne
-                            ;; collect t0
+                            // collect t0
                             (drop
                                 (envcall {ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT}
                                     (local.load32_i32 $tid0)
@@ -932,7 +932,7 @@ fn test_assemble_multithread_thread_message_forward() {
 
                     (when
                         (i64.ne
-                            ;; collect t1
+                            // collect t1
                             (drop
                                 (envcall {ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT}
                                     (local.load32_i32 $tid1)
@@ -943,41 +943,41 @@ fn test_assemble_multithread_thread_message_forward() {
                         (debug 0)
                     )
 
-                    ;; exit code
+                    // exit code
                     (i64.imm 0x19)
                 )
             )
 
             (function $child0 (result i64)
                 (code
-                    ;; set the data to be sent
+                    // set the data to be sent
                     (data.store32 $buf
-                        (i32.imm 0x11)      ;; data
+                        (i32.imm 0x11)      // data
                     )
 
-                    ;; send data to parent
+                    // send data to parent
                     (envcall {ENV_CALL_CODE_THREAD_SEND_MSG_TO_PARENT}
                         (host.addr_data $buf)
                         (i32.imm 4)
                     )
 
-                    ;; exit code 0
+                    // exit code 0
                     (i64.imm 0x13)
                 )
             )
 
             (function $child1 (result i64)
                 (code
-                    ;; receive data from parent
+                    // receive data from parent
                     (envcall {ENV_CALL_CODE_THREAD_RECEIVE_MSG_FROM_PARENT})
 
                     (envcall {ENV_CALL_CODE_THREAD_MSG_READ}
-                        (i32.imm 0)             ;; offset
-                        (i32.imm 4)             ;; length
-                        (host.addr_data $buf)   ;; dst address
+                        (i32.imm 0)             // offset
+                        (i32.imm 4)             // length
+                        (host.addr_data $buf)   // dst address
                     )
 
-                    ;; check the received data
+                    // check the received data
                     (when
                         (i32.ne
                             (data.load32_i32 $buf)
@@ -986,7 +986,7 @@ fn test_assemble_multithread_thread_message_forward() {
                         (debug 0)
                     )
 
-                    ;; exit code 0
+                    // exit code 0
                     (i64.imm 0x17)
                 )
             )

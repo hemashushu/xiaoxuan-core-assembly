@@ -112,6 +112,10 @@ pub fn lex(iter: &mut PeekableIterator<char>) -> Result<Vec<Token>, ParseError> 
                 // raw string variant
                 tokens.push(lex_raw_string_variant(iter)?);
             }
+            'r' if iter.look_ahead_equals(1, &'|') && iter.look_ahead_equals(2, &'"') => {
+                // auto-trimmed string
+                tokens.push(lex_auto_trimmed_string(iter)?);
+            }
             '"' => {
                 if iter.look_ahead_equals(1, &'"') && iter.look_ahead_equals(2, &'"') {
                     // document comment
@@ -121,29 +125,37 @@ pub fn lex(iter: &mut PeekableIterator<char>) -> Result<Vec<Token>, ParseError> 
                     tokens.push(lex_string(iter)?);
                 }
             }
-            '|' if iter.look_ahead_equals(1, &'"') => {
-                // auto-trimmed string
-                tokens.push(lex_auto_trimmed_string(iter)?);
-            }
+            // '|' if iter.look_ahead_equals(1, &'"') => {
+            //     // auto-trimmed string
+            //     tokens.push(lex_auto_trimmed_string(iter)?);
+            // }
             '(' => {
-                if iter.look_ahead_equals(1, &';') {
-                    // block comment
-                    tokens.push(lex_block_comment(iter)?);
-                } else {
-                    // left parenthese
-                    tokens.push(Token::LeftParen);
-                    iter.next();
-                }
+                // if iter.look_ahead_equals(1, &';') {
+                //     // block comment
+                //     tokens.push(lex_block_comment(iter)?);
+                // } else {
+                // left parenthese
+                tokens.push(Token::LeftParen);
+                iter.next();
+                // }
             }
             ')' => {
                 // right parenthese
                 tokens.push(Token::RightParen);
                 iter.next();
             }
-            ';' if iter.look_ahead_equals(1, &';') => {
+            '/' if iter.look_ahead_equals(1, &'/') => {
                 // line comment
                 tokens.push(lex_line_comment(iter)?);
             }
+            '/' if iter.look_ahead_equals(1, &'*') => {
+                // block comment
+                tokens.push(lex_block_comment(iter)?);
+            }
+            // ';' if iter.look_ahead_equals(1, &';') => {
+            //     // line comment
+            //     tokens.push(lex_line_comment(iter)?);
+            // }
             // '#' if iter.look_ahead_equals(1, &'(') => {
             //     // node comment
             //     comsume_node_comment(iter)?;
@@ -166,8 +178,10 @@ pub fn lex(iter: &mut PeekableIterator<char>) -> Result<Vec<Token>, ParseError> 
 
 fn lex_identifier(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError> {
     // $nameT  //
-    // ^    ^__// to here ('T' = terminator chars, i.e. [ \t\r\n();#])
+    // ^    ^__// to here
     // |_______// current char, i.e. the value of 'iter.peek(0)'
+    //
+    // T = terminator chars
 
     iter.next(); // consume char '$'
 
@@ -191,7 +205,7 @@ fn lex_identifier(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError
                 iter.next();
                 iter.next();
             }
-            ' ' | '\t' | '\r' | '\n' | '(' | ')' | ';' | '#' => {
+            ' ' | '\t' | '\r' | '\n' | '(' | ')' | '/' | '"' => {
                 // terminator chars
                 break;
             }
@@ -252,6 +266,8 @@ fn lex_number_decimal(
     // 123456T  //
     // ^     ^__// to here
     // |________// current char
+    //
+    // T = terminator chars
 
     let mut num_string = String::new();
 
@@ -285,7 +301,7 @@ fn lex_number_decimal(
                     iter.next();
                 }
             }
-            ' ' | '\t' | '\r' | '\n' | '(' | ')' | ';' | '#' => {
+            ' ' | '\t' | '\r' | '\n' | '(' | ')' | '/' | '"' => {
                 // terminator chars
                 break;
             }
@@ -305,6 +321,8 @@ fn lex_number_binary(iter: &mut PeekableIterator<char>, is_neg: bool) -> Result<
     // 0b1010T  //
     // ^     ^__// to here
     // |________// current char
+    //
+    // T = terminator chars
 
     // consume '0b'
     iter.next();
@@ -323,7 +341,7 @@ fn lex_number_binary(iter: &mut PeekableIterator<char>, is_neg: bool) -> Result<
                 num_string.push(*current_char);
                 iter.next();
             }
-            ' ' | '\t' | '\r' | '\n' | '(' | ')' | ';' | '#' => {
+            ' ' | '\t' | '\r' | '\n' | '(' | ')' | '/' | '"' => {
                 // terminator chars
                 break;
             }
@@ -347,6 +365,8 @@ fn lex_number_hex(iter: &mut PeekableIterator<char>, is_neg: bool) -> Result<Tok
     // 0xaabbT  //
     // ^     ^__// to here
     // |________// current char
+    //
+    // T = terminator chars
 
     // consume '0x'
     iter.next();
@@ -372,7 +392,7 @@ fn lex_number_hex(iter: &mut PeekableIterator<char>, is_neg: bool) -> Result<Tok
                 num_string.push(*current_char);
                 iter.next();
             }
-            ' ' | '\t' | '\r' | '\n' | '(' | ')' | ';' | '#' => {
+            ' ' | '\t' | '\r' | '\n' | '(' | ')' | '/' | '"' => {
                 // terminator chars
                 break;
             }
@@ -632,15 +652,15 @@ fn lex_raw_string_variant(iter: &mut PeekableIterator<char>) -> Result<Token, Pa
 }
 
 fn lex_auto_trimmed_string(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError> {
-    // |"                     //
+    // r|"                    //
     // ^  auto-trimmed string //
     // |  "|\n?               //
     // |      ^_______________// to here ('?' = any chars or EOF)
     // |______________________// current char
 
-    // consume 2 chars (|")
-    iter.next();
-    iter.next();
+    iter.next(); // consume char r
+    iter.next(); // consume char |
+    iter.next(); // consume char "
 
     if iter.look_ahead_equals(0, &'\n') {
         iter.next();
@@ -675,26 +695,27 @@ fn lex_auto_trimmed_string(iter: &mut PeekableIterator<char>) -> Result<Token, P
                     }
                     '"' if line_leading.trim().is_empty() && iter.look_ahead_equals(0, &'|') => {
                         iter.next(); // consume '|'
+                        break;
 
-                        // only ("|) which occupies a single line, is considered to be
-                        // the ending mark.
-                        // note that the ending marker includes the new line symbol (\n or \r\n),
-                        // i.e., the ("|\n) or ("|\r\n), so there is NO `Token::NewLine` follows
-                        // the ending marker.
-
-                        if iter.look_ahead_equals(0, &'\n') {
-                            iter.next();
-                            break;
-                        } else if iter.look_ahead_equals(0, &'\r')
-                            && iter.look_ahead_equals(1, &'\n')
-                        {
-                            iter.next();
-                            iter.next();
-                            break;
-                        } else {
-                            // it's not a valid ending mark.
-                            ss.push_str("\"|");
-                        }
+                        //                         // only ("|) which occupies a single line, is considered to be
+                        //                         // the ending mark.
+                        //                         // note that the ending marker includes the new line symbol (\n or \r\n),
+                        //                         // i.e., the ("|\n) or ("|\r\n), so there is NO `Token::NewLine` follows
+                        //                         // the ending marker.
+                        //
+                        //                         if iter.look_ahead_equals(0, &'\n') {
+                        //                             iter.next();
+                        //                             break;
+                        //                         } else if iter.look_ahead_equals(0, &'\r')
+                        //                             && iter.look_ahead_equals(1, &'\n')
+                        //                         {
+                        //                             iter.next();
+                        //                             iter.next();
+                        //                             break;
+                        //                         } else {
+                        //                             // it's not a valid ending mark.
+                        //                             ss.push_str("\"|");
+                        //                         }
                     }
                     _ => {
                         ss.push(previous_char);
@@ -851,12 +872,14 @@ fn lex_bytes_data(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError
 }
 
 fn lex_line_comment(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError> {
-    // ;;...[\r]\n?  //
+    // xx...[\r]\n?  //
     // ^          ^__// to here ('?' = any char or EOF)
     // |_____________// current char
+    //
+    // x = '/'
 
-    iter.next(); // consume char ';'
-    iter.next(); // consume char ';'
+    iter.next(); // consume char '/'
+    iter.next(); // consume char '/'
 
     let mut ss = String::new();
 
@@ -879,12 +902,14 @@ fn lex_line_comment(iter: &mut PeekableIterator<char>) -> Result<Token, ParseErr
 }
 
 fn lex_block_comment(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError> {
-    // (;...;)?  //
+    // x*...*x?  //
     // ^      ^__// to here
     // |_________// current char
+    //
+    // x = '/'
 
-    iter.next(); // consume char '('
-    iter.next(); // consume char ';'
+    iter.next(); // consume char '/'
+    iter.next(); // consume char '*'
 
     let mut ss = String::new();
     let mut pairs = 1;
@@ -892,22 +917,26 @@ fn lex_block_comment(iter: &mut PeekableIterator<char>) -> Result<Token, ParseEr
     loop {
         match iter.next() {
             Some(previous_char) => match previous_char {
-                '(' if iter.look_ahead_equals(0, &';') => {
+                // '(' if iter.look_ahead_equals(0, &';') => {
+                '/' if iter.look_ahead_equals(0, &'*') => {
                     // nested block comment
-                    ss.push_str("(;");
+                    // ss.push_str("(;");
+                    ss.push_str("/*");
                     iter.next();
                     pairs += 1;
                 }
-                ';' if iter.look_ahead_equals(0, &')') => {
+                // ';' if iter.look_ahead_equals(0, &')') => {
+                '*' if iter.look_ahead_equals(0, &'/') => {
                     iter.next();
                     pairs -= 1;
 
                     // check pairs
                     if pairs == 0 {
                         break;
+                    } else {
+                        // ss.push_str(";)");
+                        ss.push_str("*/");
                     }
-
-                    ss.push_str(";)");
                 }
                 _ => {
                     // ignore all chars except "(;" and ";)"
@@ -953,7 +982,7 @@ fn lex_block_comment(iter: &mut PeekableIterator<char>) -> Result<Token, ParseEr
 //                 }
 //                 ';' => {
 //                     if iter.look_ahead_equals(0, &';') {
-//                         // nested line comment ";;..."
+//                         // nested line comment "//..."
 //                         comsume_line_comment(iter)?;
 //                     } else if iter.look_ahead_equals(0, &')') {
 //                         return Err(ParseError::new("Unpaired block comment."));
@@ -976,6 +1005,8 @@ fn lex_symbol(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError> {
     // localT  //
     // ^    ^__// to here
     // |_______// current char
+    //
+    // T = terminator chars
 
     let mut sym_string = String::new();
 
@@ -985,7 +1016,7 @@ fn lex_symbol(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError> {
                 sym_string.push(*current_char);
                 iter.next();
             }
-            ' ' | '\t' | '\r' | '\n' | '(' | ')' | ';' | '#' => {
+            ' ' | '\t' | '\r' | '\n' | '(' | ')' | '/' | '"' => {
                 // terminator chars
                 break;
             }
@@ -1040,7 +1071,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use crate::{
-        lexer::{filter, CommentToken, Token},
+        lexer::{filter, CommentToken, NumberToken, Token},
         peekable_iterator::PeekableIterator,
         ParseError,
     };
@@ -1495,7 +1526,7 @@ mod tests {
         assert_eq!(
             lex_from_str(
                 r#"
-            |"
+            r|"
             one
               two
                 three
@@ -1507,16 +1538,14 @@ mod tests {
             vec![
                 Token::NewLine,
                 Token::new_string("one\n  two\n    three\nend"),
-                // note that the ending marker includes the new line symbol (\n or \r\n),
-                // i.e., the ("|\n) or ("|\r\n), so there is NO `Token::NewLine` follows
-                // the ending marker.
+                Token::NewLine,
             ]
         );
 
         assert_eq!(
             lex_from_str(
                 r#"
-            |"
+            r|"
             one
           two
         three
@@ -1525,13 +1554,17 @@ mod tests {
             "#
             )
             .unwrap(),
-            vec![Token::NewLine, Token::new_string("one\ntwo\nthree\nend"),]
+            vec![
+                Token::NewLine,
+                Token::new_string("one\ntwo\nthree\nend"),
+                Token::NewLine
+            ]
         );
 
         assert_eq!(
             lex_from_str(
                 r#"
-            |"
+            r|"
                 one\\\"\t\r\n\u{1234}
 
                 end
@@ -1542,24 +1575,45 @@ mod tests {
             vec![
                 Token::NewLine,
                 Token::new_string("one\\\\\\\"\\t\\r\\n\\u{1234}\n\nend"),
+                Token::NewLine,
             ]
         );
+
+        // test the ending symbol ("|) does not start in a new line
 
         assert_eq!(
             lex_from_str(
                 r#"
-            |"
+            r|"
                 one"|
-                "|two
-                "|"|"
-                end
+                two
             "|
             "#
             )
             .unwrap(),
             vec![
                 Token::NewLine,
-                Token::new_string("one\"|\n\"|two\n\"|\"|\"\nend"),
+                Token::new_string("one\"|\ntwo"),
+                Token::NewLine,
+            ]
+        );
+
+        // test inline
+        assert_eq!(
+            lex_from_str(
+                r#"
+            11 r|"
+                abc
+            "| 13
+            "#
+            )
+            .unwrap(),
+            vec![
+                Token::NewLine,
+                Token::Number(NumberToken::Decimal("11".to_owned())),
+                Token::new_string("abc"),
+                Token::Number(NumberToken::Decimal("13".to_owned())),
+                Token::NewLine,
             ]
         );
 
@@ -1567,7 +1621,7 @@ mod tests {
         assert!(matches!(
             lex_from_str(
                 r#"
-            |"hello"|
+            r|"hello"|
             "#
             ),
             Err(ParseError { message: _ })
@@ -1577,30 +1631,30 @@ mod tests {
         assert!(matches!(
             lex_from_str(
                 r#"
-        |"
+        r|"
         hello"|
         "#
             ),
             Err(ParseError { message: _ })
         ));
 
-        // err: the ending marker does not occupy the whole line
-        assert!(matches!(
-            lex_from_str(
-                r#"
-            |"
-            hello
-            "|world
-            "#
-            ),
-            Err(ParseError { message: _ })
-        ));
+        // // err: the ending marker does not occupy the whole line
+        // assert!(matches!(
+        //     lex_from_str(
+        //         r#"
+        //     |"
+        //     hello
+        //     "|world
+        //     "#
+        //     ),
+        //     Err(ParseError { message: _ })
+        // ));
 
         // err: missing the ending marker
         assert!(matches!(
             lex_from_str(
                 r#"
-            |"
+            r|"
             hello
             "#
             ),
@@ -1726,10 +1780,10 @@ mod tests {
         assert_eq!(
             lex_from_str(
                 r#"
-            7 ;;11
-            13 17;; 19 23
-            ;; 29
-            31;; 37
+            7 //11
+            13 17// 19 23
+            // 29
+            31// 37
             "#
             )
             .unwrap(),
@@ -1754,7 +1808,7 @@ mod tests {
         assert_eq!(
             lex_from_str(
                 r#"
-            7 (; 11 13 ;) 17
+            7 /* 11 13 */ 17
             "#
             )
             .unwrap(),
@@ -1771,31 +1825,60 @@ mod tests {
         assert_eq!(
             lex_from_str(
                 r#"
-            7 (; 11 (; 13 ;) 17 ;) 19
+            7 /* 11 /* 13 */ 17 */ 19
             "#
             )
             .unwrap(),
             vec![
                 Token::NewLine,
                 Token::new_dec_number("7"),
-                Token::Comment(CommentToken::Block(" 11 (; 13 ;) 17 ".to_owned())),
+                Token::Comment(CommentToken::Block(" 11 /* 13 */ 17 ".to_owned())),
                 Token::new_dec_number("19"),
                 Token::NewLine,
             ]
         );
 
-        // line comment symbol ";;" within the block comment
+        // line comment symbol "//" within the block comment
         assert_eq!(
             lex_from_str(
                 r#"
-            7 (; 11 ;; 13 17 ;) 19
+            7 /* 11 // 13 17 */ 19
             "#
             )
             .unwrap(),
             vec![
                 Token::NewLine,
                 Token::new_dec_number("7"),
-                Token::Comment(CommentToken::Block(" 11 ;; 13 17 ".to_owned())),
+                Token::Comment(CommentToken::Block(" 11 // 13 17 ".to_owned())),
+                Token::new_dec_number("19"),
+                Token::NewLine,
+            ]
+        );
+
+        // document comment symbol (""") within the block comment
+        assert_eq!(
+            lex_from_str(
+                r#"
+            7 /* 11
+            """
+            abc
+            """
+            13 */ 19
+            "#
+                .lines()
+                .map(&str::trim_start)
+                .map(&str::to_owned)
+                .collect::<Vec<String>>()
+                .join("\n")
+                .as_str()
+            )
+            .unwrap(),
+            vec![
+                Token::NewLine,
+                Token::new_dec_number("7"),
+                Token::Comment(CommentToken::Block(
+                    " 11\n\"\"\"\nabc\n\"\"\"\n13 ".to_owned()
+                )),
                 Token::new_dec_number("19"),
                 Token::NewLine,
             ]
@@ -1811,11 +1894,11 @@ mod tests {
         //     vec![Token::new_dec_number("7"), Token::new_dec_number("19"),]
         // );
 
-        // err: missing the ending pair
+        // err: unpaired, missing the ending pair
         assert!(matches!(
             lex_from_str(
                 r#"
-            7 (; 11 (; 13 ;) 17
+            7 /* 11 /* 13 */ 17
             "#
             ),
             Err(ParseError { message: _ })
@@ -1825,7 +1908,7 @@ mod tests {
         assert!(matches!(
             lex_from_str(
                 r#"
-            7 ;) 11
+            7 */ 11
             "#
             ),
             Err(ParseError { message: _ })
@@ -1867,7 +1950,7 @@ mod tests {
     //         assert_eq!(
     //             lex_from_str(
     //                 r#"
-    //             7 #(add ;; 11 13)
+    //             7 #(add // 11 13)
     //             ) 29
     //             "#
     //             )
@@ -1878,7 +1961,7 @@ mod tests {
     //         assert_eq!(
     //             lex_from_str(
     //                 r#"
-    //             7 #(add (; 11 ;; 13 ;)) 29
+    //             7 #(add (; 11 // 13 ;)) 29
     //             "#
     //             )
     //             .unwrap(),
@@ -2149,7 +2232,7 @@ mod tests {
         assert_eq!(
             lex_from_str(
                 r#"
-            (i32.imm 0x223) ;; comment
+            (i32.imm 0x223) // line comment
             "#
             )
             .unwrap(),
@@ -2159,14 +2242,14 @@ mod tests {
                 Token::new_symbol("i32.imm"),
                 Token::new_hex_number("223"),
                 Token::RightParen,
-                Token::Comment(CommentToken::Line(" comment".to_owned())),
+                Token::Comment(CommentToken::Line(" line comment".to_owned())),
             ]
         );
 
         assert_eq!(
             lex_from_str(
                 r#"
-            (i32.imm (; also comment ;) 0x11)
+            (i32.imm /* block comment */ 0x11)
             "#
             )
             .unwrap(),
@@ -2174,7 +2257,7 @@ mod tests {
                 Token::NewLine,
                 Token::LeftParen,
                 Token::new_symbol("i32.imm"),
-                Token::Comment(CommentToken::Block(" also comment ".to_owned())),
+                Token::Comment(CommentToken::Block(" block comment ".to_owned())),
                 Token::new_hex_number("11"),
                 Token::RightParen,
                 Token::NewLine,
@@ -2184,7 +2267,7 @@ mod tests {
         assert_eq!(
             lex_from_str(
                 r#"
-            (i32.imm (; nested (; comment ;);) 0x11_22)
+            (i32.imm /* nested /* block comment */*/ 0x11_22)
             "#
             )
             .unwrap(),
@@ -2192,7 +2275,9 @@ mod tests {
                 Token::NewLine,
                 Token::LeftParen,
                 Token::new_symbol("i32.imm"),
-                Token::Comment(CommentToken::Block(" nested (; comment ;)".to_owned())),
+                Token::Comment(CommentToken::Block(
+                    " nested /* block comment */".to_owned()
+                )),
                 Token::new_hex_number("11_22"),
                 Token::RightParen,
                 Token::NewLine,
@@ -2202,9 +2287,9 @@ mod tests {
         assert_eq!(
             lex_from_str(
                 r#"
-            (i32.div_s          ;; multiple lines
-                (i32.imm 11)    ;; left-hand-side
-                (i32.imm (;right hand side;) 17)
+            (i32.div_s          // multiple lines
+                (i32.imm 11)    // left-hand-side
+                (i32.imm /*right hand side*/ 17)
             )
             "#
             )
@@ -2296,7 +2381,7 @@ mod tests {
             filter(
                 &lex_from_str(
                     r#"#!/bin/ancl
-            (; block comment ;) 11 ;; line comment
+            /* block comment */ 11 // line comment
             """
             document comment
             """

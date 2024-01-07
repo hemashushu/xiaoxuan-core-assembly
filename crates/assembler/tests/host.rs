@@ -174,8 +174,8 @@ fn test_assemble_host_address_of_data_and_local_vars() {
             (compiler_version "1.0")
             (data $d0 (read_only i32 0x11))
             (data $d1 (read_only i32 0x13))
-            (data $d2 (read_write i64 0xee))    ;; init data
-            (data $d3 (read_write i32 0xff))    ;; init data
+            (data $d2 (read_write i64 0xee))    // init data
+            (data $d3 (read_write i32 0xff))    // init data
             (data $d4 (uninit i32))
             (data $d5 (uninit i64))
             (function $test
@@ -184,7 +184,7 @@ fn test_assemble_host_address_of_data_and_local_vars() {
                 (local $n1 i32)
                 (local $n2 i32)
                 (code
-                    ;; store values to data
+                    // store values to data
 
                     (data.store64 $d2
                         (i64.imm 0x17))
@@ -195,14 +195,14 @@ fn test_assemble_host_address_of_data_and_local_vars() {
                     (data.store64 $d5
                         (i64.imm 0x29))
 
-                    ;; store values to local vars
+                    // store values to local vars
 
                     (local.store32 $n1
                         (i32.imm 0x31))
                     (local.store32 $n2
                         (i32.imm 0x37))
 
-                    ;; get host address of data
+                    // get host address of data
 
                     (host.addr_data $d0)
                     (host.addr_data $d1)
@@ -326,12 +326,12 @@ fn test_assemble_host_address_offset_of_data_and_local_vars() {
                 (local $reserved bytes 64 8)
                 (local $n1 bytes 8 8)
                 (code
-                    ;; store values to local vars
+                    // store values to local vars
 
                     (local.store64 $n1
                         (i64.imm 0x5347434137312923))
 
-                    ;; get host address of data
+                    // get host address of data
 
                     (host.addr_data_offset $d0 (i32.imm 0))
                     (host.addr_data_offset $d0 (i32.imm 2))
@@ -426,12 +426,12 @@ fn test_assemble_host_address_heap() {
             (function $test
                 (results i64 i64 i64 i64 i64)
                 (code
-                    ;; init the heap size
+                    // init the heap size
                     (drop
                         (heap.resize (i32.imm 1))
                     )
 
-                    ;; store values to heap
+                    // store values to heap
                     (heap.store32
                         (i64.imm 0x100)
                         (i32.imm 0x07050302)
@@ -442,7 +442,7 @@ fn test_assemble_host_address_heap() {
                         (i64.imm 0x37312923_19171311)
                     )
 
-                    ;; get host address of heap
+                    // get host address of heap
 
                     (host.addr_heap (i64.imm 0x100) 0)
                     (host.addr_heap (i64.imm 0x100) 2)
@@ -533,13 +533,13 @@ fn test_assemble_host_heap_copy() {
                 (param $src_ptr i64)
                 (param $dst_ptr i64)
                 (code
-                    ;; init the heap size
+                    // init the heap size
                     (drop
                         (heap.resize (i32.imm 1))
                     )
 
-                    ;; (host.copy_memory_to_heap dst_offset src_ptr length)
-                    ;; (host.copy_heap_to_memory dst_ptr src_offset length)
+                    // (host.copy_memory_to_heap dst_offset src_ptr length)
+                    // (host.copy_heap_to_memory dst_ptr src_offset length)
 
                     (host.copy_memory_to_heap
                         (i64.imm 0x100)
@@ -600,7 +600,7 @@ fn test_assemble_host_memory_copy() {
                 (param $dst_ptr i64)
                 (local $buf i64)
                 (code
-                    ;; (host.memory_copy dst_ptr src_ptr length)
+                    // (host.memory_copy dst_ptr src_ptr length)
                     (host.memory_copy
                         (host.addr_local $buf 4)
                         (local.load64_i64 $src_ptr)
@@ -666,7 +666,7 @@ fn test_assemble_host_addr_function_and_callback_function() {
     // }
     //
     // fn func1 (a:i32) -> i32 {
-    //     ;; this is the callback function for external function 'do_something'
+    //     // this is the callback function for external function 'do_something'
     //     a*2
     // }
     //

@@ -167,7 +167,7 @@ fn test_assemble_syscall_error_no() {
                     (syscall
                         {SYS_CALL_NUMBER_0}
                         (local.load64_i64 $file_path_buf_addr)
-                        (i32.imm 0) ;; open flags
+                        (i32.imm 0)         // open flags
                     )
                 )
             )

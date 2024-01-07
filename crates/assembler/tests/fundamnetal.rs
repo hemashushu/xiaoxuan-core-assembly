@@ -161,9 +161,9 @@ fn test_assemble_fundamental_select_nez_false() {
             (function $test (result i32)
                 (code
                     (select_nez
-                        (i32.imm 11)    ;; when true
-                        (i32.imm 13)    ;; when false
-                        zero            ;; test
+                        (i32.imm 11)    // when true
+                        (i32.imm 13)    // when false
+                        zero            // test
                     )
                 )
             )
@@ -189,9 +189,9 @@ fn test_assemble_fundamental_select_nez_true() {
             (function $test (result i32)
                 (code
                     (select_nez
-                        (i32.imm 11)    ;; when true
-                        (i32.imm 13)    ;; when false
-                        (i32.imm 1)     ;; test
+                        (i32.imm 11)    // when true
+                        (i32.imm 13)    // when false
+                        (i32.imm 1)     // test
                     )
                 )
             )
@@ -218,8 +218,8 @@ fn test_assemble_fundamental_immediate_int() {
                 (code
                     (i32.imm 23)
                     (i64.imm 0x29313741_43475359)
-                    (i32.imm 0xffffff21)            ;; -223
-                    (i64.imm 0xffffffff_ffffff1d)   ;; -227
+                    (i32.imm 0xffffff21)            // -223
+                    (i64.imm 0xffffffff_ffffff1d)   // -227
                 )
             )
         )
@@ -251,10 +251,10 @@ fn test_assemble_fundamental_immediate_float() {
                 (compiler_version "1.0")
                 (function $test (results f32 f64 f32 f64)
                     (code
-                        (f32.imm 3.14159265358979323846264338327950288)     ;; Pi
-                        (f64.imm 1.41421356237309504880168872420969808)     ;; sqrt(2)
-                        (f32.imm -2.71828182845904523536028747135266250)    ;; -E
-                        (f64.imm -0.52359877559829887307710723054658381)    ;; -Pi/6
+                        (f32.imm 3.14159265358979323846264338327950288)     // Pi
+                        (f64.imm 1.41421356237309504880168872420969808)     // sqrt(2)
+                        (f32.imm -2.71828182845904523536028747135266250)    // -E
+                        (f64.imm -0.52359877559829887307710723054658381)    // -Pi/6
                     )
                 )
             )

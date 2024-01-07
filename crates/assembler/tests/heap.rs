@@ -24,19 +24,19 @@ fn test_assemble_heap_capacity() {
             (function $test
                 (results i64 i64 i64 i64 i64)
                 (code
-                    ;; get the capacity
+                    // get the capacity
                     (heap.capacity)
 
-                    ;; resize - increase
+                    // resize - increase
                     (heap.resize (i32.imm 2))
 
-                    ;; resize - increase
+                    // resize - increase
                     (heap.resize (i32.imm 4))
 
-                    ;; resize - decrease
+                    // resize - decrease
                     (heap.resize (i32.imm 1))
 
-                    ;; get the capcity
+                    // get the capcity
                     (heap.capacity)
                 )
             )
@@ -100,11 +100,11 @@ fn test_assemble_heap_load_and_store() {
                     f32 f64
                     i64 i32)
                 (code
-                    ;; init heap size
+                    // init heap size
                     (drop
                         (heap.resize (i32.imm 1)))
 
-                    ;; store imm
+                    // store imm
                     (heap.store32
                         (i64.imm 0x100)
                         (i32.imm 0x19171311)
@@ -129,20 +129,20 @@ fn test_assemble_heap_load_and_store() {
                         7
                     )
 
-                    ;; load from args, store to heap
+                    // load from args, store to heap
                     (heap.store64
                         (i64.imm 0x300)
                         (local.load64_f64 $a1)
-                        (; ommit the param 'offset' ;)
+                        /* ommit the param 'offset' */
                     )
 
                     (heap.store32
                         (i64.imm 0x200)
                         (local.load32_f32 $a0)
-                        (; ommit the param 'offset' ;)
+                        /* ommit the param 'offset' */
                     )
 
-                    ;; load and store
+                    // load and store
                     (heap.store64
                         (i64.imm 0x400)
                         (heap.load64_i64 (i64.imm 0x100))
@@ -155,7 +155,7 @@ fn test_assemble_heap_load_and_store() {
                         0
                     )
 
-                    ;; load heaps, group 0
+                    // load heaps, group 0
                     (heap.load64_i64
                         (i64.imm 0x100) 0)
 
@@ -174,22 +174,22 @@ fn test_assemble_heap_load_and_store() {
                     (heap.load32_i8_s
                         (i64.imm 0x100) 7)
 
-                    ;; load heaps, group 1
+                    // load heaps, group 1
                     (heap.load32_f32
                         (i64.imm 0x200) 0)
 
                     (heap.load64_f64
                         (i64.imm 0x300) 0)
 
-                    ;; load heaps, group 2
+                    // load heaps, group 2
                     (heap.load64_i64
                         (i64.imm 0x400)
-                        (; ommit the param 'offset' ;)
+                        /* ommit the param 'offset' */
                     )
 
                     (heap.load32_i32
                         (i64.imm 0x500)
-                        (; ommit the param 'offset' ;)
+                        /* ommit the param 'offset' */
                     )
                 )
             )

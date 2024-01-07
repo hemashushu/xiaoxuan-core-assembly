@@ -42,7 +42,7 @@ fn test_assemble_arithmetic_i32() {
     //   - dec   2 amount:3     -> -16
     //
     //   group 3:
-    //   - add 0xffff_ffff 0x2  -> 0x1                  ;; -1 + 2 = 1
+    //   - add 0xffff_ffff 0x2  -> 0x1                  // -1 + 2 = 1
     //   - mul 0xf0e0_d0c0 0x2  -> 0xf0e0_d0c0 << 1
     //   - inc 0xffff_ffff 0x2  -> 0x1
     //   - dec 0x1         0x2  -> 0xffff_ffff
@@ -69,13 +69,13 @@ fn test_assemble_arithmetic_i32() {
                     i32 i32 i32 i32
                     i32 i32 i32 i32)
                 (code
-                    ;; group 0
+                    // group 0
                     (i32.add (local.load32_i32 $a0) (local.load32_i32 $a1))
                     (i32.sub (local.load32_i32 $a1) (local.load32_i32 $a0))
                     (i32.sub (local.load32_i32 $a0) (local.load32_i32 $a1))
                     (i32.mul (local.load32_i32 $a0) (local.load32_i32 $a1))
 
-                    ;; group 1
+                    // group 1
                     (i32.div_s (local.load32_i32 $a1) (local.load32_i32 $a2))
                     (i32.div_u (local.load32_i32 $a1) (local.load32_i32 $a2))
                     (i32.div_s (local.load32_i32 $a2) (local.load32_i32 $a1))
@@ -83,13 +83,13 @@ fn test_assemble_arithmetic_i32() {
                     (i32.rem_s (local.load32_i32 $a1) (local.load32_i32 $a2))
                     (i32.rem_u (local.load32_i32 $a2) (local.load32_i32 $a1))
 
-                    ;; group 2
+                    // group 2
                     (i32.inc (local.load32_i32 $a0) 3)
                     (i32.dec (local.load32_i32 $a0) 3)
                     (i32.inc (local.load32_i32 $a2) 3)
                     (i32.dec (local.load32_i32 $a2) 3)
 
-                    ;; group 3
+                    // group 3
                     (i32.add (i32.imm 0xffff_ffff) (i32.imm 0x2))
                     (i32.mul (i32.imm 0xf0e0_d0c0) (i32.imm 0x2))
                     (i32.inc (i32.imm 0xffff_ffff) 2)
@@ -172,7 +172,7 @@ fn test_assemble_arithmetic_i64() {
     //   - dec   2 amount:3     -> -16
     //
     //   group 3:
-    //   - add 0xffff_ffff_ffff_ffff 0x2  -> 0x1    ;; -1 + 2 = 1
+    //   - add 0xffff_ffff_ffff_ffff 0x2  -> 0x1    // -1 + 2 = 1
     //   - mul 0xf0e0_d0c0_b0a0_9080 0x2  -> 0xf0e0_d0c0_b0a0_9080 << 1
     //   - inc 0xffff_ffff_ffff_ffff 0x2  -> 0x1
     //   - dec 0x1                   0x2  -> 0xffff_ffff_ffff_ffff
@@ -199,13 +199,13 @@ fn test_assemble_arithmetic_i64() {
                     i64 i64 i64 i64
                     i64 i64 i64 i64)
                 (code
-                    ;; group 0
+                    // group 0
                     (i64.add (local.load64_i64 $a0) (local.load64_i64 $a1))
                     (i64.sub (local.load64_i64 $a1) (local.load64_i64 $a0))
                     (i64.sub (local.load64_i64 $a0) (local.load64_i64 $a1))
                     (i64.mul (local.load64_i64 $a0) (local.load64_i64 $a1))
 
-                    ;; group 1
+                    // group 1
                     (i64.div_s (local.load64_i64 $a1) (local.load64_i64 $a2))
                     (i64.div_u (local.load64_i64 $a1) (local.load64_i64 $a2))
                     (i64.div_s (local.load64_i64 $a2) (local.load64_i64 $a1))
@@ -213,13 +213,13 @@ fn test_assemble_arithmetic_i64() {
                     (i64.rem_s (local.load64_i64 $a1) (local.load64_i64 $a2))
                     (i64.rem_u (local.load64_i64 $a2) (local.load64_i64 $a1))
 
-                    ;; group 2
+                    // group 2
                     (i64.inc (local.load64_i64 $a0) 3)
                     (i64.dec (local.load64_i64 $a0) 3)
                     (i64.inc (local.load64_i64 $a2) 3)
                     (i64.dec (local.load64_i64 $a2) 3)
 
-                    ;; group 3
+                    // group 3
                     (i64.add (i64.imm 0xffff_ffff_ffff_ffff) (i64.imm 0x2))
                     (i64.mul (i64.imm 0xf0e0_d0c0_b0a0_9080) (i64.imm 0x2))
                     (i64.inc (i64.imm 0xffff_ffff_ffff_ffff) 2)

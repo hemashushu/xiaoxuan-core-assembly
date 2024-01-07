@@ -1101,22 +1101,22 @@ fn test_assemble_control_flow_structure_if_nested() {
                             (local.load32_i32 $a)
                             (i32.imm 85)
                         )
-                        (i32.imm 65)            ;; 'A'
+                        (i32.imm 65)            // 'A'
                         (if
                             (result i32)
                             (i32.gt_u
                                 (local.load32_i32 $a)
                                 (i32.imm 70)
                             )
-                            (i32.imm 66)        ;; 'B'
+                            (i32.imm 66)        // 'B'
                             (if
                                 (result i32)
                                 (i32.gt_u
                                     (local.load32_i32 $a)
                                     (i32.imm 55)
                                 )
-                                (i32.imm 67)    ;; 'C'
-                                (i32.imm 68)    ;; 'D'
+                                (i32.imm 67)    // 'C'
+                                (i32.imm 68)    // 'D'
                             )
                         )
                     )
@@ -1246,24 +1246,24 @@ fn test_assemble_control_flow_structure_branch() {
                                 (local.load32_i32 $a)
                                 (i32.imm 85)
                             )
-                            (i32.imm 65)    ;; 'A'
+                            (i32.imm 65)    // 'A'
                         )
                         (case
                             (i32.gt_u
                                 (local.load32_i32 $a)
                                 (i32.imm 70)
                             )
-                            (i32.imm 66)    ;; 'B'
+                            (i32.imm 66)    // 'B'
                         )
                         (case
                             (i32.gt_u
                                 (local.load32_i32 $a)
                                 (i32.imm 55)
                             )
-                            (i32.imm 67)    ;; 'C'
+                            (i32.imm 67)    // 'C'
                         )
                         (default
-                            (i32.imm 68)    ;; 'D'
+                            (i32.imm 68)    // 'D'
                         )
                     )
                 )
@@ -1387,14 +1387,14 @@ fn test_assemble_control_flow_structure_branch_without_default_arm() {
                                 (local.load32_i32 $a)
                                 (i32.imm 85)
                             )
-                            (i32.imm 65)    ;; 'A'
+                            (i32.imm 65)    // 'A'
                         )
                         (case
                             (i32.gt_u
                                 (local.load32_i32 $a)
                                 (i32.imm 70)
                             )
-                            (i32.imm 66)    ;; 'B'
+                            (i32.imm 66)    // 'B'
                         )
                     )
                 )
@@ -1615,8 +1615,8 @@ fn test_assemble_control_flow_structure_loop_with_block_parameters() {
                 (param $count i32)
                 (results i32)
                 (code
-                    zero                        ;; for arg 'sum'
-                    (local.load32_i32 $count)   ;; for arg 'n'
+                    zero                        // for arg 'sum'
+                    (local.load32_i32 $count)   // for arg 'n'
                     (for
                         (param $sum i32)
                         (param $n i32)
@@ -1728,8 +1728,8 @@ fn test_assemble_control_flow_structure_loop_with_if() {
                 (param $count i32)
                 (results i32)
                 (code
-                    zero                        ;; for arg 'sum'
-                    (local.load32_i32 $count)   ;; for arg 'n'
+                    zero                        // for arg 'sum'
+                    (local.load32_i32 $count)   // for arg 'n'
                     (for
                         (param $sum i32)
                         (param $n i32)

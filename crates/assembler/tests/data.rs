@@ -64,19 +64,19 @@ fn test_assemble_data_load_and_store_initialized() {
             (compiler_version "1.0")
             (data $d0 (read_only i32 0x19171311))
             (data $d1 (read_only i32 0xf0e0d0c0))
-            (data $d2 (read_write bytes h"00-11-22-33-44-55-66-77" 8))  ;; abitrary data
+            (data $d2 (read_write bytes h"00-11-22-33-44-55-66-77" 8))  // abitrary data
             (data $d3 (read_write f32 3.1415927))
             (data $d4 (read_write f64 2.718281828459045))
             (data $d5 (read_write i64 0))
             (data $d6 (read_write i32 0))
             (function $test
                 (results
-                        i64 i32 i32 i32 i32 i32 ;; group 0
-                        f32 f64                 ;; group 1
-                        i64 i32                 ;; group 2
+                        i64 i32 i32 i32 i32 i32 // group 0
+                        f32 f64                 // group 1
+                        i64 i32                 // group 2
                         )
                 (code
-                    ;; load and store
+                    // load and store
                     (data.store32 $d2
                         (data.load32_i32 $d0))
 
@@ -89,14 +89,14 @@ fn test_assemble_data_load_and_store_initialized() {
                     (data.store8 $d2
                         (data.load32_i8_u $d1 3) 7)
 
-                    ;; load and store
+                    // load and store
                     (data.store64 $d5
                         (data.load64_i64 $d2))
 
                     (data.store32 $d6
                         (data.load64_i64 $d2))
 
-                    ;; load datas
+                    // load datas
                     (data.load64_i64 $d2 )
                     (data.load32_i32 $d2 4)
                     (data.load32_i16_u $d2 6)
@@ -208,12 +208,12 @@ fn test_assemble_data_load_and_store_uninitialized() {
                 (param $a0 f32)
                 (param $a1 f64)
                 (results
-                        i64 i32 i32 i32 i32 i32 ;; group 0
-                        f32 f64                 ;; group 1
-                        i64 i32                 ;; group 2
+                        i64 i32 i32 i32 i32 i32 // group 0
+                        f32 f64                 // group 1
+                        i64 i32                 // group 2
                         )
                 (code
-                    ;; load and store
+                    // load and store
                     (data.store32 $d2
                         (data.load32_i32 $d0))
 
@@ -226,21 +226,21 @@ fn test_assemble_data_load_and_store_uninitialized() {
                     (data.store8 $d2
                         (data.load32_i8_u $d1 3) 7)
 
-                    ;; load and store. args a0, a1-> data d3, d4
+                    // load and store. args a0, a1-> data d3, d4
                     (data.store32 $d3
                         (local.load32_f32 $a0))
 
                     (data.store64 $d4
                         (local.load64_f64 $a1))
 
-                    ;; load and store
+                    // load and store
                     (data.store64 $d5
                         (data.load64_i64 $d2))
 
                     (data.store32 $d6
                         (data.load64_i64 $d2))
 
-                    ;; load datas
+                    // load datas
                     (data.load64_i64 $d2 )
                     (data.load32_i32 $d2 4)
                     (data.load32_i16_u $d2 6)
@@ -330,11 +330,11 @@ fn test_assemble_data_offset_load_and_store() {
             (data $d1 (uninit bytes 8 4))
             (function $test
                 (results
-                        i64 i32 i32 i32 i32 i32 ;; group 0
-                        i64 i32 i32 i32         ;; group 1
+                        i64 i32 i32 i32 i32 i32 // group 0
+                        i64 i32 i32 i32         // group 1
                         )
                 (code
-                    ;; store imm
+                    // store imm
                     (data.offset_store32 $d0
                         (i32.imm 0)
                         (i32.imm 0x19171311))
@@ -351,13 +351,13 @@ fn test_assemble_data_offset_load_and_store() {
                         (i32.imm 7)
                         (i32.imm 0xf0))
 
-                    ;; load and store
+                    // load and store
 
                     (data.offset_store64 $d1
                         (i32.imm 0)
                         (data.offset_load64_i64 $d0 (i32.imm 0)))
 
-                    ;; load datas
+                    // load datas
                     (data.offset_load64_i64 $d0 (i32.imm 0))
                     (data.offset_load32_i32 $d0 (i32.imm 4))
                     (data.offset_load32_i16_u $d0 (i32.imm 6))
@@ -365,7 +365,7 @@ fn test_assemble_data_offset_load_and_store() {
                     (data.offset_load32_i8_u $d0 (i32.imm 7))
                     (data.offset_load32_i8_s $d0 (i32.imm 7))
 
-                    ;; load datas
+                    // load datas
                     (data.offset_load64_i64 $d1 (i32.imm 0))
                     (data.offset_load32_i32 $d1 (i32.imm 0))
                     (data.offset_load32_i16_u $d1 (i32.imm 0))

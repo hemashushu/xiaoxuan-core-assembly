@@ -1667,12 +1667,12 @@ mod tests {
                 (compiler_version "1.0")
                 (function $add (code))
                 (function $test (code
-                    ;; group 0
+                    // group 0
                     (call $add)
                     (call $myapp::add)
                     (call $module::add)
                     (call $self::add)
-                    ;; group 1
+                    // group 1
                     (call $myapp::utils::add)
                     (call $module::utils::add)
                     (call $self::utils::add)
@@ -1683,10 +1683,10 @@ mod tests {
             (module $myapp::utils
                 (function $add (code))
                 (function $test (code
-                    ;; group 2
+                    // group 2
                     (call $myapp::add)
                     (call $module::add)
-                    ;; group 3
+                    // group 3
                     (call $add)
                     (call $self::add)
                     (call $myapp::utils::add)
@@ -1815,12 +1815,12 @@ mod tests {
                 (compiler_version "1.0")
                 (data $d0 (read_only i32 0x11))
                 (function $test (code
-                    ;; group 0
+                    // group 0
                     (data.load32_i32 $d0)
                     (data.load32_i32 $myapp::d0)
                     (data.load32_i32 $module::d0)
                     (data.load32_i32 $self::d0)
-                    ;; group 1
+                    // group 1
                     (data.load64_i64 $myapp::utils::d0)
                     (data.load64_i64 $module::utils::d0)
                     (data.load64_i64 $self::utils::d0)
@@ -1831,10 +1831,10 @@ mod tests {
             (module $myapp::utils
                 (data $d0 (read_only i64 0x13))
                 (function $test (code
-                    ;; group 2
+                    // group 2
                     (data.load32_i32 $myapp::d0)
                     (data.load32_i32 $module::d0)
-                    ;; group 3
+                    // group 3
                     (data.load64_i64 $d0)
                     (data.load64_i64 $self::d0)
                     (data.load64_i64 $myapp::utils::d0)
@@ -2070,55 +2070,55 @@ mod tests {
                     (function $print "print")
                 )
                 (function $test (code
-                    ;; group 0
-                    (call $add)                 ;; math::add
-                    (call $myapp::add)          ;; math::add
-                    (call $module::add)         ;; math::add
-                    (call $self::add)           ;; math::add
+                    // group 0
+                    (call $add)                 // math::add
+                    (call $myapp::add)          // math::add
+                    (call $module::add)         // math::add
+                    (call $self::add)           // math::add
 
-                    ;; group 1
-                    (call $sub)                 ;; math::wrap::sub
-                    (call $print)               ;; format::print
+                    // group 1
+                    (call $sub)                 // math::wrap::sub
+                    (call $print)               // format::print
 
-                    ;; group 2
-                    (call $myapp::utils::f0)    ;; math::add
-                    (call $module::utils::f0)   ;; math::add
-                    (call $self::utils::f0)     ;; math::add
+                    // group 2
+                    (call $myapp::utils::f0)    // math::add
+                    (call $module::utils::f0)   // math::add
+                    (call $self::utils::f0)     // math::add
 
-                    ;; group 3
-                    (call $myapp::utils::f1)    ;; math::mul
-                    (call $myapp::utils::f2)    ;; format::print
-                    (call $myapp::utils::f3)    ;; random::rand
+                    // group 3
+                    (call $myapp::utils::f1)    // math::mul
+                    (call $myapp::utils::f2)    // format::print
+                    (call $myapp::utils::f3)    // random::rand
                 ))
             )
             "#,
                 r#"
             (module $myapp::utils
                 (import $math
-                    (function $f0 "add")        ;; duplicate
-                    (function $f1 "mul")        ;; new
+                    (function $f0 "add")        // duplicate
+                    (function $f1 "mul")        // new
                 )
                 (import $format
-                    (function $f2 "print")      ;; duplicate
+                    (function $f2 "print")      // duplicate
                 )
                 (import $random
-                    (function $f3 "rand")       ;; new
+                    (function $f3 "rand")       // new
                 )
                 (function $test (code
-                    ;; group 4
-                    (call $f0)                  ;; math::add
-                    (call $myapp::utils::f0)    ;; math::add
-                    (call $module::utils::f0)   ;; math::add
-                    (call $self::f0)            ;; math::add
+                    // group 4
+                    (call $f0)                  // math::add
+                    (call $myapp::utils::f0)    // math::add
+                    (call $module::utils::f0)   // math::add
+                    (call $self::f0)            // math::add
 
-                    ;; group 5
-                    (call $f1)                  ;; math::mul
-                    (call $f2)                  ;; format::print
-                    (call $f3)                  ;; random::rand
+                    // group 5
+                    (call $f1)                  // math::mul
+                    (call $f2)                  // format::print
+                    (call $f3)                  // random::rand
 
-                    ;; group 6
-                    (call $myapp::add)          ;; math::add
-                    (call $module::add)         ;; math::add
+                    // group 6
+                    (call $myapp::add)          // math::add
+                    (call $module::add)         // math::add
                 ))
             )
             "#
@@ -2332,55 +2332,55 @@ mod tests {
                     (data $score "score" read_write f32)
                 )
                 (function $test (code
-                    ;; group 0
-                    (data.load32_i32 $count)                ;; math::count
-                    (data.load32_i32 $myapp::count)         ;; math::count
-                    (data.load32_i32 $module::count)        ;; math::count
-                    (data.load32_i32 $self::count)          ;; math::count
+                    // group 0
+                    (data.load32_i32 $count)                // math::count
+                    (data.load32_i32 $myapp::count)         // math::count
+                    (data.load32_i32 $module::count)        // math::count
+                    (data.load32_i32 $self::count)          // math::count
 
-                    ;; group 1
-                    (data.load64_i64 $sum)                  ;; math::wrap::sum
-                    (data.load32_f32 $score)                ;; match::score
+                    // group 1
+                    (data.load64_i64 $sum)                  // math::wrap::sum
+                    (data.load32_f32 $score)                // match::score
 
-                    ;; group 2
-                    (data.load32_i32 $myapp::utils::d0)     ;; math::count
-                    (data.load32_i32 $module::utils::d0)    ;; math::count
-                    (data.load32_i32 $self::utils::d0)      ;; math::count
+                    // group 2
+                    (data.load32_i32 $myapp::utils::d0)     // math::count
+                    (data.load32_i32 $module::utils::d0)    // math::count
+                    (data.load32_i32 $self::utils::d0)      // math::count
 
-                    ;; group 3
-                    (data.load32_i32 $myapp::utils::d1)     ;; math::increment
-                    (data.load32_f32 $myapp::utils::d2)     ;; match::score
-                    (data.load64_i64 $myapp::utils::d3)     ;; random::seed
+                    // group 3
+                    (data.load32_i32 $myapp::utils::d1)     // math::increment
+                    (data.load32_f32 $myapp::utils::d2)     // match::score
+                    (data.load64_i64 $myapp::utils::d3)     // random::seed
                 ))
             )
             "#,
                 r#"
             (module $myapp::utils
                 (import $math
-                    (data $d0 "count" read_only i32)        ;; duplicate
-                    (data $d1 "increment" uninit i32)       ;; new
+                    (data $d0 "count" read_only i32)        // duplicate
+                    (data $d1 "increment" uninit i32)       // new
                 )
                 (import $match
-                    (data $d2 "score" read_write f32)       ;; duplicate
+                    (data $d2 "score" read_write f32)       // duplicate
                 )
                 (import $random
-                    (data $d3 "seed" read_write i64)        ;; new
+                    (data $d3 "seed" read_write i64)        // new
                 )
                 (function $test (code
-                    ;; group 4
-                    (data.load32_i32 $d0)                   ;; math::count
-                    (data.load32_i32 $myapp::utils::d0)     ;; math::count
-                    (data.load32_i32 $module::utils::d0)    ;; math::count
-                    (data.load32_i32 $self::d0)             ;; math::count
+                    // group 4
+                    (data.load32_i32 $d0)                   // math::count
+                    (data.load32_i32 $myapp::utils::d0)     // math::count
+                    (data.load32_i32 $module::utils::d0)    // math::count
+                    (data.load32_i32 $self::d0)             // math::count
 
-                    ;; group 5
-                    (data.load32_i32 $d1)                   ;; math::increment
-                    (data.load32_f32 $d2)                   ;; match::score
-                    (data.load64_i64 $d3)                   ;; random::seed
+                    // group 5
+                    (data.load32_i32 $d1)                   // math::increment
+                    (data.load32_f32 $d2)                   // match::score
+                    (data.load64_i64 $d3)                   // random::seed
 
-                    ;; group 6
-                    (data.load32_i32 $myapp::count)         ;; math::count
-                    (data.load32_i32 $module::count)        ;; math::count
+                    // group 6
+                    (data.load32_i32 $myapp::count)         // math::count
+                    (data.load32_i32 $module::count)        // math::count
                 ))
             )
             "#
@@ -2615,53 +2615,53 @@ mod tests {
                     (function $print "print")
                 )
                 (function $test (code
-                    ;; group 0
+                    // group 0
                     (extcall $add)
                     (extcall $myapp::add)
                     (extcall $module::add)
                     (extcall $self::add)
 
-                    ;; group 1
+                    // group 1
                     (extcall $sub)
                     (extcall $print)
 
-                    ;; group 2
-                    (extcall $myapp::utils::f0)     ;; add
-                    (extcall $module::utils::f0)    ;; add
-                    (extcall $self::utils::f0)      ;; add
+                    // group 2
+                    (extcall $myapp::utils::f0)     // add
+                    (extcall $module::utils::f0)    // add
+                    (extcall $self::utils::f0)      // add
 
-                    ;; group 3
-                    (extcall $myapp::utils::f1)     ;; mul
-                    (extcall $myapp::utils::f2)     ;; print
-                    (extcall $myapp::utils::f3)     ;; getuid
+                    // group 3
+                    (extcall $myapp::utils::f1)     // mul
+                    (extcall $myapp::utils::f2)     // print
+                    (extcall $myapp::utils::f3)     // getuid
                 ))
             )
             "#,
                 r#"
             (module $myapp::utils
                 (external $math
-                    (function $f0 "add")            ;; duplicate
-                    (function $f1 "mul")            ;; new
+                    (function $f0 "add")            // duplicate
+                    (function $f1 "mul")            // new
                 )
                 (external $std
-                    (function $f2 "print")          ;; duplicate
+                    (function $f2 "print")          // duplicate
                 )
                 (external $libc
-                    (function $f3 "getuid")         ;; new
+                    (function $f3 "getuid")         // new
                 )
                 (function $test (code
-                    ;; group 0
+                    // group 0
                     (extcall $f0)
                     (extcall $myapp::utils::f0)
                     (extcall $module::utils::f0)
                     (extcall $self::f0)
 
-                    ;; group 1
+                    // group 1
                     (extcall $f1)
                     (extcall $f2)
                     (extcall $f3)
 
-                    ;; group 2
+                    // group 2
                     (extcall $myapp::add)
                     (extcall $module::add)
                 ))

@@ -135,22 +135,22 @@ fn test_assemble_conversion_float_to_int() {
                     i32 i32 i64 i64
                     i32 i32 i64 i64)
                 (code
-                    ;; group 0
+                    // group 0
                     (i32.convert_f32_s (local.load32_f32 $a0))
                     (i32.convert_f32_u (local.load32_f32 $a0))
                     (i64.convert_f32_s (local.load32_f32 $a0))
                     (i64.convert_f32_u (local.load32_f32 $a0))
-                    ;; group 1
+                    // group 1
                     (i32.convert_f64_s (local.load64_f64 $a1))
                     (i32.convert_f64_u (local.load64_f64 $a1))
                     (i64.convert_f64_s (local.load64_f64 $a1))
                     (i64.convert_f64_u (local.load64_f64 $a1))
-                    ;; group 2
+                    // group 2
                     (i32.convert_f32_s (local.load32_f32 $a2))
                     (i32.convert_f32_u (local.load32_f32 $a2))
                     (i64.convert_f32_s (local.load32_f32 $a2))
                     (i64.convert_f32_u (local.load32_f32 $a2))
-                    ;; group 3
+                    // group 3
                     (i32.convert_f64_s (local.load64_f64 $a3))
                     (i32.convert_f64_u (local.load64_f64 $a3))
                     (i64.convert_f64_s (local.load64_f64 $a3))
@@ -229,25 +229,25 @@ fn test_assemble_conversion_int_to_float() {
                     f32 f32 f64 f64
                     f32 f32 f64 f64)
                 (code
-                    ;; group 0
+                    // group 0
                     (f32.convert_i32_s (local.load32_i32 $a0))
                     (f32.convert_i32_u (local.load32_i32 $a0))
                     (f64.convert_i32_s (local.load32_i32 $a0))
                     (f64.convert_i32_u (local.load32_i32 $a0))
 
-                    ;; group 1
+                    // group 1
                     (f32.convert_i64_s (local.load64_i64 $a1))
                     (f32.convert_i64_u (local.load64_i64 $a1))
                     (f64.convert_i64_s (local.load64_i64 $a1))
                     (f64.convert_i64_u (local.load64_i64 $a1))
 
-                    ;; group 2
+                    // group 2
                     (f32.convert_i32_s (local.load32_i32 $a2))
                     (f32.convert_i32_u (local.load32_i32 $a2))
                     (f64.convert_i32_s (local.load32_i32 $a2))
                     (f64.convert_i32_u (local.load32_i32 $a2))
 
-                    ;; group 3
+                    // group 3
                     (f32.convert_i64_s (local.load64_i64 $a3))
                     (f32.convert_i64_u (local.load64_i64 $a3))
                     (f64.convert_i64_s (local.load64_i64 $a3))

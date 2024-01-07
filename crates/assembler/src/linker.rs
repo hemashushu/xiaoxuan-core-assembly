@@ -1227,7 +1227,6 @@ mod tests {
             r#"
             (module $myapp
                 (compiler_version "1.0")
-                ;; auto-generated '_entry', '_start', '_exit'
             )
             "#,
             r#"
@@ -1235,15 +1234,15 @@ mod tests {
                 (compiler_version "1.0")
                 (constructor $start_a)
                 (destructor $exit_a)
-                (function $start_a (code))  ;; 1,0  start
-                (function $exit_a (code))   ;; 1,1  exit
+                (function $start_a (code))  // 1,0  start
+                (function $exit_a (code))   // 1,1  exit
             )
             "#,
             r#"
             (module $mod_b
                 (compiler_version "1.0")
                 (constructor $start_b)
-                (function $start_b (code))  ;; 2,0  start
+                (function $start_b (code))  // 2,0  start
             )
             "#,
             r#"
@@ -1255,7 +1254,7 @@ mod tests {
             (module $mod_d
                 (compiler_version "1.0")
                 (destructor $exit_d)
-                (function $exit_d (code))   ;; 4,0  exit
+                (function $exit_d (code))   // 4,0  exit
             )
             "#,
             r#"
@@ -1263,15 +1262,15 @@ mod tests {
                 (compiler_version "1.0")
                 (constructor $start_e)
                 (destructor $exit_e)
-                (function $start_e (code))  ;; 5,0  start
-                (function $exit_e (code))   ;; 5,1  exit
+                (function $start_e (code))  // 5,0  start
+                (function $exit_e (code))   // 5,1  exit
             )
             "#,
             r#"
             (module $mod_f
                 (compiler_version "1.0")
                 (destructor $exit_f)
-                (function $exit_f (code))   ;; 6,0  exit
+                (function $exit_f (code))   // 6,0  exit
             )
             "#,
         ]);

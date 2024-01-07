@@ -63,8 +63,8 @@ fn test_assemble_function_call() {
 
             (function $sum_square (param $count i32) (result i32)
                 (code
-                    zero                        ;; for arg 'sum'
-                    (local.load32_i32 $count)   ;; for arg 'n'
+                    zero                        // for arg 'sum'
+                    (local.load32_i32 $count)   // for arg 'n'
                     (for (param $sum i32) (param $n i32) (result i32)
                         (do
                             (if (result i32)

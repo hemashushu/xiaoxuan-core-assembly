@@ -162,16 +162,16 @@ add 'export' annotation after the function name.
 (data $name (read_only f32 3.1415927))
 (data $name (read_only f32 0x1.23p4))
 (data $name (read_only f64 2.718281828459045))
-;; data
+// data
 (data $name (read_only bytes h"11-13-17-19" OPTIONAL_ALIGN:i16))
 (data $name (read_write bytes h"11-13-17-19" OPTIONAL_ALIGN:i16))
 
 there are two variants of 'bytes': 'string' and 'cstring', e.g.
 
-;; UTF-8 encoding string
+// UTF-8 encoding string
 (data $name (read_only string "Hello, World!"))
 
-;; type `cstring` will append '\0' at the end of string
+// type `cstring` will append '\0' at the end of string
 (data $name (read_only cstring "Hello, World!"))
 
 they will be converted into 'bytes' by assembler.
@@ -246,4 +246,4 @@ for the variants of 'bytes' such as 'string' and 'cstring', use 'bytes' instead 
 there is no identifier in the 'param' nodes, and the parameters can be writtern as compact mode, e.g.
 
 (function $add "add" (params i32 i32) (result i32))
-(function $getenv "getenv" (param (;name;) i64) (result i64))
+(function $getenv "getenv" (param i64) (result i64))
