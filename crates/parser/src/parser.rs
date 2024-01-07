@@ -97,15 +97,21 @@ use crate::{
     ParseError, NAME_PATH_SEPARATOR,
 };
 
-pub fn parse(iter: &mut PeekableIterator<Token>) -> Result<ModuleNode, ParseError> {
+pub fn parse(
+    iter: &mut PeekableIterator<Token>,
+    config_compiler_version: Option<EffectiveVersion>,
+) -> Result<ModuleNode, ParseError> {
     // initialize the instruction kind table
     init_instruction_map();
 
     // there is only one node 'module' in a assembly text
-    parse_module_node(iter)
+    parse_module_node(iter, config_compiler_version)
 }
 
-pub fn parse_module_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleNode, ParseError> {
+pub fn parse_module_node(
+    iter: &mut PeekableIterator<Token>,
+    config_compiler_version: Option<EffectiveVersion>,
+) -> Result<ModuleNode, ParseError> {
     // (module ...) ...  //
     // ^            ^____// to here
     // |_________________// current token, i.e. the value of 'iter.peek(0)'
@@ -144,7 +150,7 @@ pub fn parse_module_node(iter: &mut PeekableIterator<Token>) -> Result<ModuleNod
         )));
     }
 
-    if !is_sub_module && compiler_version.is_none() {
+    if !is_sub_module && compiler_version.is_none() && config_compiler_version.is_none() {
         return Err(ParseError::new("Missing the compiler version node."));
     }
 
@@ -2548,7 +2554,7 @@ mod tests {
         let effective_tokens = filter(&all_tokens);
         let mut token_iter = effective_tokens.into_iter();
         let mut peekable_token_iter = PeekableIterator::new(&mut token_iter, 2);
-        parse(&mut peekable_token_iter)
+        parse(&mut peekable_token_iter, None)
     }
 
     fn parse_instructions_from_str(text: &str) -> Vec<Instruction> {

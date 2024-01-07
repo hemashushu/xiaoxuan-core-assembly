@@ -10,9 +10,15 @@ use ancasm_parser::{
         ExternalNode, FunctionNode, ImportDataNode, ImportFunctionNode, ImportItem, ImportNode,
         Instruction, LocalNode, ModuleElementNode, ModuleNode, ParamNode,
     },
+    lexer::{filter, lex},
+    parser::parse,
+    peekable_iterator::PeekableIterator,
     NAME_PATH_SEPARATOR,
 };
-use ancvm_types::{DataType, EffectiveVersion};
+use ancvm_types::{
+    envcallcode::EnvCallCode, DataType, EffectiveVersion, RUNTIME_MAJOR_VERSION,
+    RUNTIME_MINOR_VERSION,
+};
 
 use crate::AssembleError;
 
@@ -238,9 +244,15 @@ enum RenameKind {
     ExternalFunction,
 }
 
+pub struct Initialization {
+    pub constructor_module_names: Vec<String>,
+    pub destructor_module_names: Vec<String>,
+}
+
 pub fn merge_and_canonicalize_submodule_nodes(
     submodule_nodes: &[ModuleNode],
-    outer_depend_items: Option<&[DependItem]>,
+    config_depend_items: Option<&[DependItem]>, // from 'module.anon'
+    initialization: Option<Initialization>,     // for import the constructors and destructors.
 ) -> Result<MergedModuleNode, AssembleError> {
     // the first submodule is the main submodule of an application or a library.
     // so pick the name and runtime version from the first submodule.
@@ -284,7 +296,7 @@ pub fn merge_and_canonicalize_submodule_nodes(
          */
     }
 
-    let depend_items = if let Some(items) = outer_depend_items {
+    let depend_items = if let Some(items) = config_depend_items {
         if submodule_nodes[0].depend_node.is_some() {
             return Err(AssembleError {
                 message: "Depend node is not allowed in applicaiton with multiple source file."
@@ -749,6 +761,12 @@ pub fn merge_and_canonicalize_submodule_nodes(
         canonical_read_only_data_nodes.append(&mut read_only_data_nodes);
         canonical_read_write_data_nodes.append(&mut read_write_data_nodes);
         canonical_uninit_data_nodes.append(&mut uninit_data_nodes);
+    }
+
+    // insert the '__entry' function, (constructor and destructor) dependencies and import items
+    if let Some(init) = initialization {
+        // todo
+        insert_entry()
     }
 
     let merged_module_node = MergedModuleNode {
@@ -1372,6 +1390,94 @@ fn canonicalize_name_path_in_instruction(
     }
 }
 
+fn insert_entry() {
+    //
+    //                    /-- __init()
+    //                    |
+    // __entry -- call -->|-- main()
+    //                    |
+    //                    \-- __fini()
+
+    let start_code_snippet = format!(
+        r#"
+        (module $start
+            (function $__entry (result i64)
+                (local $exit_code i64)
+                (code
+                    (call $__init)
+                    (local.store64_i64 $exit_code (call $main))
+                    (call $__fini)
+                    (local.load64_i64 $exit_code)
+                )
+            )
+            (function $__init
+                (code
+                    (envcall {ENV_CALL_CODE_COUNT_START_FUNCTION})
+                    (for (param $remain i32)
+                        (when
+                            (i32.eqz (local.load32_i32 $remain))
+                            (break)
+                        )
+                        (dyncall
+                            (envcall
+                                {ENV_CALL_CODE_GET_START_FUNCTION_ITEM}
+                                (i32.dec (local.load32_i32 $remain) 1)
+                            )
+                        )
+                        (recur
+                            (i32.dec (local.load32_i32 $remain) 1)
+                        )
+                    )
+                )
+            )
+            (function $__fini
+                (code
+                    (envcall {ENV_CALL_CODE_COUNT_EXIT_FUNCTION})
+                    (for (param $remain i32)
+                        (when
+                            (i32.eqz (local.load32_i32 $remain))
+                            (break)
+                        )
+                        (dyncall
+                            (envcall
+                                {ENV_CALL_CODE_GET_EXIT_FUNCTION_ITEM}
+                                (i32.dec (local.load32_i32 $remain) 1)
+                            )
+                        )
+                        (recur
+                            (i32.dec (local.load32_i32 $remain) 1)
+                        )
+                    )
+                )
+            )
+        )
+        "#,
+        ENV_CALL_CODE_COUNT_START_FUNCTION = (EnvCallCode::count_start_function as u32),
+        ENV_CALL_CODE_GET_START_FUNCTION_ITEM = (EnvCallCode::get_start_function_item as u32),
+        ENV_CALL_CODE_COUNT_EXIT_FUNCTION = (EnvCallCode::count_exit_function as u32),
+        ENV_CALL_CODE_GET_EXIT_FUNCTION_ITEM = (EnvCallCode::get_exit_function_item as u32),
+    );
+
+    // lex and parse the starting code snippet
+    let mut chars = start_code_snippet.chars();
+    let mut char_iter = PeekableIterator::new(&mut chars, 3);
+    let all_tokens = lex(&mut char_iter).unwrap();
+    let effective_tokens = filter(&all_tokens);
+    let mut token_iter = effective_tokens.into_iter();
+    let mut peekable_token_iter = PeekableIterator::new(&mut token_iter, 2);
+    let start_module_node = parse(
+        &mut peekable_token_iter,
+        Some(EffectiveVersion::new(
+            RUNTIME_MAJOR_VERSION,
+            RUNTIME_MINOR_VERSION,
+        )),
+    )
+    .unwrap();
+
+    // todo
+    // insert the staring code to main module node
+}
+
 #[cfg(test)]
 mod tests {
     use ancvm_types::{
@@ -1412,11 +1518,11 @@ mod tests {
                 let effective_tokens = filter(&all_tokens);
                 let mut token_iter = effective_tokens.into_iter();
                 let mut peekable_token_iter = PeekableIterator::new(&mut token_iter, 2);
-                parse(&mut peekable_token_iter).unwrap()
+                parse(&mut peekable_token_iter, None).unwrap()
             })
             .collect::<Vec<_>>();
 
-        merge_and_canonicalize_submodule_nodes(&submodule_nodes, None)
+        merge_and_canonicalize_submodule_nodes(&submodule_nodes, None, None)
     }
 
     #[test]

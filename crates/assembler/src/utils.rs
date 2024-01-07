@@ -23,8 +23,9 @@ pub fn helper_generate_module_image_binary_from_str(source: &str) -> Vec<u8> {
     let mut token_iter = effective_tokens.into_iter();
     let mut peekable_token_iter = PeekableIterator::new(&mut token_iter, 2);
 
-    let module_node = parse(&mut peekable_token_iter).unwrap();
-    let merged_module_node = merge_and_canonicalize_submodule_nodes(&[module_node], None).unwrap();
+    let module_node = parse(&mut peekable_token_iter, None).unwrap();
+    let merged_module_node =
+        merge_and_canonicalize_submodule_nodes(&[module_node], None, None).unwrap();
 
     let module_entry = assemble_merged_module_node(&merged_module_node).unwrap();
     let module_entries = vec![&module_entry];

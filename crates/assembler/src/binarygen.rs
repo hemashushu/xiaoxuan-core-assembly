@@ -18,11 +18,12 @@ use ancvm_binary::module_image::{
     import_data_section::ImportDataSection,
     import_function_section::ImportFunctionSection,
     local_variable_section::LocalVariableSection,
+    property_section::PropertySection,
     start_function_list_section::StartFunctionListSection,
     type_section::TypeSection,
     unified_external_function_section::UnifiedExternalFunctionSection,
     unified_external_library_section::UnifiedExternalLibrarySection,
-    ModuleImage, SectionEntry, property_section::PropertySection,
+    ModuleImage, SectionEntry,
 };
 use ancvm_types::entry::{IndexEntry, ModuleEntry};
 
@@ -199,16 +200,15 @@ pub fn generate_module_image_binary(
         };
 
         let start_function_list_section = StartFunctionListSection {
-            items: &index_entry.start_function_indices,
+            items: &index_entry.start_function_public_indices,
         };
 
         let exit_function_list_section = ExitFunctionListSection {
-            items: &index_entry.exit_function_indices,
+            items: &index_entry.exit_function_public_indices,
         };
 
-        // todo
-        let property_section = PropertySection{
-            entry_function_public_index: 0
+        let property_section = PropertySection {
+            entry_function_public_index: index_entry.entry_function_public_index,
         };
 
         let mut index_section_entries: Vec<&dyn SectionEntry> = vec![
@@ -219,7 +219,7 @@ pub fn generate_module_image_binary(
             &external_function_index_section,
             &start_function_list_section,
             &exit_function_list_section,
-            &property_section
+            &property_section,
         ];
 
         section_entries.append(&mut index_section_entries);

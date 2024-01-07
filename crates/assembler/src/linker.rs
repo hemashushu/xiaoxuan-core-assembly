@@ -55,8 +55,10 @@ pub fn link(module_entries: &[&ModuleEntry]) -> Result<IndexEntry, AssembleError
         external_function_index_module_entries,
     ) = link_external_functions(module_entries)?;
 
-    let start_function_indices = get_constructors(module_entries);
-    let exit_function_indices = get_destructors(module_entries);
+    let main_module_entry = module_entries[0];
+    let start_function_public_indices = get_constructors_public_indices(main_module_entry);
+    let exit_function_public_indices = get_destructors_public_indices(main_module_entry);
+    let entry_function_public_index = get_entry_function_public_index(main_module_entry);
 
     Ok(IndexEntry {
         function_index_module_entries,
@@ -64,8 +66,9 @@ pub fn link(module_entries: &[&ModuleEntry]) -> Result<IndexEntry, AssembleError
         unified_external_library_entries,
         unified_external_function_entries,
         external_function_index_module_entries,
-        start_function_indices,
-        exit_function_indices,
+        start_function_public_indices,
+        exit_function_public_indices,
+        entry_function_public_index,
     })
 }
 
@@ -504,44 +507,22 @@ fn find_exported_data_internal_index(
     }
 }
 
-fn get_constructors(module_entries: &[&ModuleEntry]) -> Vec<u32> {
-    // module_entries
-    //     .iter()
-    //     .enumerate()
-    //     .map(|(module_idx, module_entry)| {
-    //         module_entry
-    //             .constructor_function_public_index
-    //             .map(|function_idx| (module_idx, function_idx as usize))
-    //     })
-    //     .filter_map(|item| {
-    //         item.map(|(module_index, function_public_index)| {
-    //             ModuleFunctionIndexEntry::new(module_index, function_public_index)
-    //         })
-    //     })
-    //     .collect::<Vec<_>>()
-
+fn get_constructors_public_indices(main_module_entry: &ModuleEntry) -> Vec<u32> {
+    // search functions which 'id' start with '__constructor_',
+    // then add the main module constructor.
     // todo
     vec![]
 }
 
-fn get_destructors(module_entries: &[&ModuleEntry]) -> Vec<u32> {
-    // module_entries
-    //     .iter()
-    //     .enumerate()
-    //     .map(|(module_idx, module_entry)| {
-    //         module_entry
-    //             .destructor_function_public_index
-    //             .map(|function_idx| (module_idx, function_idx as usize))
-    //     })
-    //     .filter_map(|item| {
-    //         item.map(|(module_index, function_public_index)| {
-    //             ModuleFunctionIndexEntry::new(module_index, function_public_index)
-    //         })
-    //     })
-    //     .collect::<Vec<_>>()
-
+fn get_destructors_public_indices(main_module_entry: &ModuleEntry) -> Vec<u32> {
+    // search functions which 'id' start with '__destructor_',
+    // then add the main module destructor.
     // todo
     vec![]
+}
+
+fn get_entry_function_public_index(main_module_entry: &ModuleEntry) -> u32 {
+    0
 }
 
 #[cfg(test)]
@@ -575,9 +556,9 @@ mod tests {
         let mut token_iter = effective_tokens.into_iter();
         let mut peekable_token_iter = PeekableIterator::new(&mut token_iter, 2);
 
-        let module_node = parse(&mut peekable_token_iter).unwrap();
+        let module_node = parse(&mut peekable_token_iter, None).unwrap();
         let merged_module_node =
-            merge_and_canonicalize_submodule_nodes(&[module_node], None).unwrap();
+            merge_and_canonicalize_submodule_nodes(&[module_node], None, None).unwrap();
 
         assemble_merged_module_node(&merged_module_node).unwrap()
     }

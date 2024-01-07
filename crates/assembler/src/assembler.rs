@@ -2241,12 +2241,12 @@ mod tests {
                 let effective_tokens = filter(&all_tokens);
                 let mut token_iter = effective_tokens.into_iter();
                 let mut peekable_token_iter = PeekableIterator::new(&mut token_iter, 2);
-                parse(&mut peekable_token_iter).unwrap()
+                parse(&mut peekable_token_iter, None).unwrap()
             })
             .collect::<Vec<_>>();
 
         let merged_module_node =
-            merge_and_canonicalize_submodule_nodes(&submodule_nodes, None).unwrap();
+            merge_and_canonicalize_submodule_nodes(&submodule_nodes, None, None).unwrap();
         let module_entry = assemble_merged_module_node(&merged_module_node).unwrap();
 
         assert_eq!(module_entry.name, "myapp");
