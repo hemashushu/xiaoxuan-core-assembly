@@ -6,8 +6,6 @@
 
 use std::{any::Any, fmt::Display};
 
-use ancvm_types::VMError;
-
 pub mod assembler;
 pub mod binarygen;
 pub mod linker;
@@ -35,8 +33,4 @@ impl Display for AssembleError {
     }
 }
 
-impl VMError for AssembleError {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
+impl std::error::Error for AssembleError {}

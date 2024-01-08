@@ -4,9 +4,7 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use std::{any::Any, fmt::Display};
-
-use ancvm_types::VMError;
+use std::fmt::Display;
 
 pub mod ast;
 pub mod core_assembly_instruction;
@@ -35,8 +33,4 @@ impl Display for ParseError {
     }
 }
 
-impl VMError for ParseError {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
+impl std::error::Error for ParseError {}
