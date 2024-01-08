@@ -764,7 +764,7 @@ pub fn merge_and_canonicalize_submodule_nodes(
     }
 
     // insert the '__entry' function, (constructor and destructor) dependencies and import items
-    if let Some(init) = initialization {
+    if let Some(_init) = initialization {
         // todo
         insert_entry()
     }
@@ -1465,7 +1465,7 @@ fn insert_entry() {
     let effective_tokens = filter(&all_tokens);
     let mut token_iter = effective_tokens.into_iter();
     let mut peekable_token_iter = PeekableIterator::new(&mut token_iter, 2);
-    let start_module_node = parse(
+    let _start_module_node = parse(
         &mut peekable_token_iter,
         Some(EffectiveVersion::new(
             RUNTIME_MAJOR_VERSION,

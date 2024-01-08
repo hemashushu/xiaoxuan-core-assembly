@@ -507,21 +507,21 @@ fn find_exported_data_internal_index(
     }
 }
 
-fn get_constructors_public_indices(main_module_entry: &ModuleEntry) -> Vec<u32> {
+fn get_constructors_public_indices(_main_module_entry: &ModuleEntry) -> Vec<u32> {
     // search functions which 'id' start with '__constructor_',
     // then add the main module constructor.
     // todo
     vec![]
 }
 
-fn get_destructors_public_indices(main_module_entry: &ModuleEntry) -> Vec<u32> {
+fn get_destructors_public_indices(_main_module_entry: &ModuleEntry) -> Vec<u32> {
     // search functions which 'id' start with '__destructor_',
     // then add the main module destructor.
     // todo
     vec![]
 }
 
-fn get_entry_function_public_index(main_module_entry: &ModuleEntry) -> u32 {
+fn get_entry_function_public_index(_main_module_entry: &ModuleEntry) -> u32 {
     0
 }
 

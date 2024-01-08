@@ -164,6 +164,10 @@ pub fn lex(iter: &mut PeekableIterator<char>) -> Result<Vec<Token>, ParseError> 
                 // symbol
                 tokens.push(lex_symbol(iter)?);
             }
+            '\u{a0}'..='\u{d7ff}' | '\u{e000}'..='\u{10ffff}' => {
+                // symbol
+                tokens.push(lex_symbol(iter)?);
+            }
             _ => {
                 return Err(ParseError::new(&format!(
                     "Unexpected char: {}",
@@ -203,6 +207,42 @@ fn lex_identifier(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError
             ':' if iter.look_ahead_equals(1, &':') => {
                 id_string.push_str("::");
                 iter.next();
+                iter.next();
+            }
+            '\u{a0}'..='\u{d7ff}' | '\u{e000}'..='\u{10ffff}' => {
+                // A char is a ‘Unicode scalar value’, which is any ‘Unicode code point’ other than a surrogate code point.
+                // This has a fixed numerical definition: code points are in the range 0 to 0x10FFFF,
+                // inclusive. Surrogate code points, used by UTF-16, are in the range 0xD800 to 0xDFFF.
+                //
+                // check out:
+                // https://doc.rust-lang.org/std/primitive.char.html
+                //
+                // CJK chars: '\u{4e00}'..='\u{9fff}'
+                // for complete CJK chars, check out Unicode standard
+                // Ch. 18.1 Han CJK Unified Ideographs
+                //
+                // summary:
+                // Block Range Comment
+                // CJK Unified Ideographs 4E00–9FFF Common
+                // CJK Unified Ideographs Extension A 3400–4DBF Rare
+                // CJK Unified Ideographs Extension B 20000–2A6DF Rare, historic
+                // CJK Unified Ideographs Extension C 2A700–2B73F Rare, historic
+                // CJK Unified Ideographs Extension D 2B740–2B81F Uncommon, some in current use
+                // CJK Unified Ideographs Extension E 2B820–2CEAF Rare, historic
+                // CJK Unified Ideographs Extension F 2CEB0–2EBEF Rare, historic
+                // CJK Unified Ideographs Extension G 30000–3134F Rare, historic
+                // CJK Unified Ideographs Extension H 31350–323AF Rare, historic
+                // CJK Compatibility Ideographs F900–FAFF Duplicates, unifiable variants, corporate characters
+                // CJK Compatibility Ideographs Supplement 2F800–2FA1F Unifiable variants
+                //
+                // https://www.unicode.org/versions/Unicode15.0.0/ch18.pdf
+                // https://en.wikipedia.org/wiki/CJK_Unified_Ideographs
+                // https://www.unicode.org/versions/Unicode15.0.0/
+                //
+                // see also
+                // https://www.unicode.org/reports/tr31/tr31-37.html
+
+                id_string.push(*current_char);
                 iter.next();
             }
             ' ' | '\t' | '\r' | '\n' | '(' | ')' | '/' | '"' => {
@@ -1012,7 +1052,16 @@ fn lex_symbol(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError> {
 
     while let Some(current_char) = iter.peek(0) {
         match *current_char {
-            '0'..='9' | 'a'..='z' | 'A'..='Z' | '_' | '.' => {
+            '0'..='9' | 'a'..='z' | 'A'..='Z' | '_' => {
+                sym_string.push(*current_char);
+                iter.next();
+            }
+            '.' => {
+                // e.g. 'i32.add'
+                sym_string.push(*current_char);
+                iter.next();
+            }
+            '\u{a0}'..='\u{d7ff}' | '\u{e000}'..='\u{10ffff}' => {
                 sym_string.push(*current_char);
                 iter.next();
             }
@@ -1153,6 +1202,15 @@ mod tests {
         assert_eq!(
             lex_from_str("$foo $bar").unwrap(),
             vec![Token::new_identifier("foo"), Token::new_identifier("bar"),]
+        );
+
+        assert_eq!(
+            lex_from_str("$αβγ $文字 $🍞🥛").unwrap(),
+            vec![
+                Token::new_identifier("αβγ"),
+                Token::new_identifier("文字"),
+                Token::new_identifier("🍞🥛"),
+            ]
         );
 
         // err: incomplete identifier
@@ -2160,6 +2218,15 @@ mod tests {
         assert_eq!(
             lex_from_str("foo bar").unwrap(),
             vec![Token::new_symbol("foo"), Token::new_symbol("bar"),]
+        );
+
+        assert_eq!(
+            lex_from_str("αβγ 文字 🍞🥛").unwrap(),
+            vec![
+                Token::new_symbol("αβγ"),
+                Token::new_symbol("文字"),
+                Token::new_symbol("🍞🥛"),
+            ]
         );
 
         // err: invalid symbol
