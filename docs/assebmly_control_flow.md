@@ -37,5 +37,5 @@ recur to the nearest 'for'
 break all blocks and the function, and return values to the function caller
 (return VALUE_0 VALUE_1 ... VALUE_N )
 
-re-run the function with new args
-(rerun VALUE_0 VALUE_1 ... VALUE_N )
+recur the function with new args
+(fnrecur VALUE_0 VALUE_1 ... VALUE_N )

@@ -125,7 +125,7 @@ pub enum InstructionSyntaxKind {
     // - 'break', for break recur
     // - 'recur', for recur
     // - 'return', for exit function
-    // - 'rerun', for recur function
+    // - 'fnrecur', for recur function
     Sequence(&'static str),
 
     // (call $name OPERAND_0 ... OPERAND_N)
@@ -172,7 +172,7 @@ fn init_instruction_map_internal() {
     // fundamental
     add("nop", InstructionSyntaxKind::NoParams(Opcode::nop, 0));
     add("zero", InstructionSyntaxKind::NoParams(Opcode::zero, 0));
-    add("drop", InstructionSyntaxKind::NoParams(Opcode::drop, 1));
+    // add("drop", InstructionSyntaxKind::NoParams(Opcode::drop, 1));
     // add(
     //     "duplicate",
     //     InstructionSyntaxKind::NoParams(Opcode::duplicate, 1),
@@ -944,7 +944,7 @@ fn init_instruction_map_internal() {
     add("break", InstructionSyntaxKind::Sequence("break"));
     add("return", InstructionSyntaxKind::Sequence("return"));
     add("recur", InstructionSyntaxKind::Sequence("recur"));
-    add("rerun", InstructionSyntaxKind::Sequence("rerun"));
+    add("fnrecur", InstructionSyntaxKind::Sequence("fnrecur"));
 
     add("call", InstructionSyntaxKind::Call);
     add("dyncall", InstructionSyntaxKind::DynCall);

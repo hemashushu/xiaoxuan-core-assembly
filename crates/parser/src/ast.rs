@@ -357,7 +357,7 @@ pub enum Instruction {
     Return(Vec<Instruction>),
 
     // bytecode: recur (param reversed_index:i16, start_inst_offset:i32)
-    Rerun(Vec<Instruction>),
+    FnRecur(Vec<Instruction>),
 
     // bytecode: (param function_public_index:i32)
     Call {

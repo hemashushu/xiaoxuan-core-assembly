@@ -23,9 +23,12 @@ use ancvm_binary::module_image::{
     type_section::TypeSection,
     unified_external_function_section::UnifiedExternalFunctionSection,
     unified_external_library_section::UnifiedExternalLibrarySection,
-    ModuleImage, SectionEntry,
+    ModuleImage, SectionEntry, MODULE_NAME_BUFFER_LENGTH,
 };
-use ancvm_types::entry::{IndexEntry, ModuleEntry};
+use ancvm_types::{
+    entry::{IndexEntry, ModuleEntry},
+    RUNTIME_MAJOR_VERSION, RUNTIME_MINOR_VERSION,
+};
 
 use crate::AssembleError;
 
@@ -33,13 +36,36 @@ pub fn generate_module_image_binary(
     module_entry: &ModuleEntry,
     index_entry_opt: Option<&IndexEntry>,
 ) -> Result<Vec<u8>, AssembleError> {
+    // property section
     let name = &module_entry.name;
+    let name_bytes = name.as_bytes();
+    let mut module_name_buffer = [0u8; MODULE_NAME_BUFFER_LENGTH];
+    unsafe {
+        std::ptr::copy(
+            name_bytes.as_ptr(),
+            module_name_buffer.as_mut_ptr(),
+            name_bytes.len(),
+        )
+    };
+
     let constructor_function_public_index = module_entry
         .constructor_function_public_index
         .unwrap_or(u32::MAX);
     let destructor_function_public_index = module_entry
         .destructor_function_public_index
         .unwrap_or(u32::MAX);
+    let entry_function_public_index =
+        index_entry_opt.map_or(u32::MAX, |idx_entry| idx_entry.entry_function_public_index);
+
+    let property_section = PropertySection {
+        entry_function_public_index,
+        constructor_function_public_index,
+        destructor_function_public_index,
+        runtime_major_version: RUNTIME_MAJOR_VERSION,
+        runtime_minor_version: RUNTIME_MINOR_VERSION,
+        module_name_length: name_bytes.len() as u32,
+        module_name_buffer,
+    };
 
     // type section
     let (type_items, type_data) = TypeSection::convert_from_entries(&module_entry.type_entries);
@@ -148,6 +174,7 @@ pub fn generate_module_image_binary(
         &import_data_section,
         &function_name_section,
         &data_name_section,
+        &property_section,
     ];
 
     if let Some(index_entry) = index_entry_opt {
@@ -207,9 +234,10 @@ pub fn generate_module_image_binary(
             items: &index_entry.exit_function_public_indices,
         };
 
-        let property_section = PropertySection {
-            entry_function_public_index: index_entry.entry_function_public_index,
-        };
+        // let property_section = PropertySection {
+        //     entry_function_public_index: index_entry.entry_function_public_index,
+        //     constructor_function_public_index: index_entry
+        // };
 
         let mut index_section_entries: Vec<&dyn SectionEntry> = vec![
             &function_index_section,
@@ -219,7 +247,6 @@ pub fn generate_module_image_binary(
             &external_function_index_section,
             &start_function_list_section,
             &exit_function_list_section,
-            &property_section,
         ];
 
         section_entries.append(&mut index_section_entries);
@@ -227,9 +254,6 @@ pub fn generate_module_image_binary(
         // build ModuleImage instance
         let (section_items, sections_data) = ModuleImage::convert_from_entries(&section_entries);
         let module_image = ModuleImage {
-            name,
-            constructor_function_public_index,
-            destructor_function_public_index,
             items: &section_items,
             sections_data: &sections_data,
         };
@@ -244,9 +268,6 @@ pub fn generate_module_image_binary(
 
         let (section_items, sections_data) = ModuleImage::convert_from_entries(&section_entries);
         let module_image = ModuleImage {
-            name,
-            constructor_function_public_index,
-            destructor_function_public_index,
             items: &section_items,
             sections_data: &sections_data,
         };

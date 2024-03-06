@@ -101,8 +101,9 @@ fn test_assemble_heap_load_and_store() {
                     i64 i32)
                 (code
                     // init heap size
-                    (drop
-                        (heap.resize (i32.imm 1)))
+                    // (drop
+                        (heap.resize (i32.imm 1))
+                    // )
 
                     // store imm
                     (heap.store32

@@ -1192,8 +1192,8 @@ fn canonicalize_identifiers_of_instruction(
                 rename_item_modules,
             )?)
         }
-        Instruction::Rerun(instructions) => {
-            Instruction::Rerun(canonicalize_identifiers_of_instructions(
+        Instruction::FnRecur(instructions) => {
+            Instruction::FnRecur(canonicalize_identifiers_of_instructions(
                 instructions,
                 module_name_path,
                 rename_item_modules,

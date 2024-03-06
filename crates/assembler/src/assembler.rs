@@ -1722,7 +1722,7 @@ fn assemble_instruction(
                 0, // 'next_inst_offset' is ignored when the target is the function
             );
         }
-        Instruction::Rerun(instructions) => {
+        Instruction::FnRecur(instructions) => {
             // recur to the function
 
             for instruction in instructions {
@@ -2146,7 +2146,7 @@ fn assemble_external_nodes(
 
 #[cfg(test)]
 mod tests {
-    use ancvm_binary::bytecode_reader::print_bytecode_as_text;
+    use ancvm_binary::bytecode_reader::format_bytecode_as_text;
     use ancvm_types::{
         entry::{
             DataNameEntry, ExternalFunctionEntry, ExternalLibraryEntry, FunctionNameEntry,
@@ -2320,7 +2320,7 @@ mod tests {
         assert_eq!(function_entry0.type_index, 2);
         assert_eq!(function_entry0.local_list_index, 0);
         assert_eq!(
-            print_bytecode_as_text(&function_entry0.code),
+            format_bytecode_as_text(&function_entry0.code),
             "\
 0x0000  04 0b 00 00  00 00 00 00    extcall           idx:0
 0x0008  02 03 00 00  00 00 00 00    data.load32_i32   off:0x00  idx:0
@@ -2333,7 +2333,7 @@ mod tests {
         assert_eq!(function_entry1.type_index, 3);
         assert_eq!(function_entry1.local_list_index, 0);
         assert_eq!(
-            print_bytecode_as_text(&function_entry1.code),
+            format_bytecode_as_text(&function_entry1.code),
             "\
 0x0000  80 01 00 00  00 00 00 00    i32.imm           0x00000000
 0x0008  09 03 00 00  03 00 00 00    data.store32      off:0x00  idx:3
@@ -2344,7 +2344,7 @@ mod tests {
         assert_eq!(function_entry2.type_index, 3);
         assert_eq!(function_entry2.local_list_index, 0);
         assert_eq!(
-            print_bytecode_as_text(&function_entry2.code),
+            format_bytecode_as_text(&function_entry2.code),
             "\
 0x0000  00 01                       nop
 0x0002  00 0a                       end"
@@ -2354,7 +2354,7 @@ mod tests {
         assert_eq!(function_entry3.type_index, 4);
         assert_eq!(function_entry3.local_list_index, 1);
         assert_eq!(
-            print_bytecode_as_text(&function_entry3.code),
+            format_bytecode_as_text(&function_entry3.code),
             "\
 0x0000  02 02 00 00  00 00 00 00    local.load32_i32  rev:0   off:0x00  idx:0
 0x0008  02 02 00 00  00 00 01 00    local.load32_i32  rev:0   off:0x00  idx:1

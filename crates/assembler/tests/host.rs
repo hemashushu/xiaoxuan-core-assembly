@@ -5,7 +5,7 @@
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
 use ancasm_assembler::utils::helper_generate_module_image_binary_from_str;
-use ancvm_binary::bytecode_reader::print_bytecode_as_text;
+use ancvm_binary::bytecode_reader::format_bytecode_as_text;
 use ancvm_context::{program_resource::ProgramResource, program_settings::ProgramSettings};
 use ancvm_processor::{
     in_memory_program_resource::InMemoryProgramResource, interpreter::process_function,
@@ -226,7 +226,7 @@ fn test_assemble_host_address_of_data_and_local_vars() {
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&function_entry.code);
+    let bytecode_text = format_bytecode_as_text(&function_entry.code);
 
     assert_eq!(
         bytecode_text,
@@ -355,7 +355,7 @@ fn test_assemble_host_address_offset_of_data_and_local_vars() {
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&function_entry.code);
+    let bytecode_text = format_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -427,9 +427,9 @@ fn test_assemble_host_address_heap() {
                 (results i64 i64 i64 i64 i64)
                 (code
                     // init the heap size
-                    (drop
+                    // (drop
                         (heap.resize (i32.imm 1))
-                    )
+                    // )
 
                     // store values to heap
                     (heap.store32
@@ -463,14 +463,14 @@ fn test_assemble_host_address_heap() {
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&function_entry.code);
+    let bytecode_text = format_bytecode_as_text(&function_entry.code);
 
     assert_eq!(
         bytecode_text,
         "\
 0x0000  80 01 00 00  01 00 00 00    i32.imm           0x00000001
 0x0008  83 04                       heap.resize
-0x000a  02 01                       drop
+0x000a  00 01                       nop
 0x000c  81 01 00 00  00 01 00 00    i64.imm           low:0x00000100  high:0x00000000
         00 00 00 00
 0x0018  80 01 00 00  02 03 05 07    i32.imm           0x07050302
@@ -534,9 +534,9 @@ fn test_assemble_host_heap_copy() {
                 (param $dst_ptr i64)
                 (code
                     // init the heap size
-                    (drop
+                    // (drop
                         (heap.resize (i32.imm 1))
-                    )
+                    // )
 
                     // (host.copy_memory_to_heap dst_offset src_ptr length)
                     // (host.copy_heap_to_memory dst_ptr src_offset length)

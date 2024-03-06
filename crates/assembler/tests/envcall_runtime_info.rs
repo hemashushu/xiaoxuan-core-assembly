@@ -5,7 +5,7 @@
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
 use ancasm_assembler::utils::helper_generate_module_image_binary_from_str;
-use ancvm_binary::bytecode_reader::print_bytecode_as_text;
+use ancvm_binary::bytecode_reader::format_bytecode_as_text;
 use ancvm_context::program_resource::ProgramResource;
 use ancvm_processor::{
     in_memory_program_resource::InMemoryProgramResource, interpreter::process_function,
@@ -42,7 +42,7 @@ fn test_assemble_envcall_runtime_version() {
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&function_entry.code);
+    let bytecode_text = format_bytecode_as_text(&function_entry.code);
     assert_eq!(
         bytecode_text,
         "\
@@ -94,7 +94,7 @@ fn test_assemble_envcall_runtime_code_name() {
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&function_entry.code);
+    let bytecode_text = format_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(

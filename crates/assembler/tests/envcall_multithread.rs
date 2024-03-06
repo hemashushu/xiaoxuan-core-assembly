@@ -78,8 +78,10 @@ fn test_assemble_multithread_thread_create() {
         (module $app
             (compiler_version "1.0")
             (function $test (result i64)
+                (local $temp i32)   // for dropping operand
                 (code
-                    (drop
+                    // (drop
+                    (local.store32 $temp
                         (envcall {ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT}
                             (envcall {ENV_CALL_CODE_THREAD_CREATE}
                                 (macro.get_function_public_index $child)   // function pub index
@@ -124,9 +126,9 @@ fn test_assemble_multithread_thread_local_storage() {
                 (local $tid i32)
                 (code
                     // resize heap to 1 page
-                    (drop
+                    // (drop
                         (heap.resize (i32.imm 1))
-                    )
+                    // )
 
                     // write value to data
                     (data.store32 $buf (i32.imm 0x11))
@@ -150,11 +152,11 @@ fn test_assemble_multithread_thread_local_storage() {
                     (envcall {ENV_CALL_CODE_THREAD_SLEEP} (i64.imm 500))
 
                     // wait and collect the child thread
-                    (drop
+                    // (drop
                         (envcall {ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT}
                             (local.load32_i32 $tid)
                         )
-                    )
+                    // )
 
                     // check value in data
                     (when
@@ -184,9 +186,9 @@ fn test_assemble_multithread_thread_local_storage() {
             (function $child (result i64)
                 (code
                     // resize heap to 1 page
-                    (drop
+                    // (drop
                         (heap.resize (i32.imm 1))
-                    )
+                    // )
 
                     // check value in data
                     (when
@@ -372,6 +374,7 @@ fn test_assemble_multithread_thread_running_status() {
                 (local $tid i32)
                 (local $last_status i32)
                 (local $last_result i32)
+                (local $temp i32)   // for dropping operand
                 (code
                     // create child thread
                     (local.store32 $tid
@@ -453,7 +456,8 @@ fn test_assemble_multithread_thread_running_status() {
                     )
 
                     // wait and collect the child thread
-                    (drop
+                    // (drop
+                    (local.store32 $temp
                         (envcall {ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT}
                             (local.load32_i32 $tid)
                         )
@@ -619,6 +623,7 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                 (local $last_length i32)
                 (local $last_result i32)
                 (local $last_status i32)
+                (local $temp i32)   // for dropping operand
                 (code
                     // create new thread
                     (local.store32 $tid
@@ -744,7 +749,8 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
                     // collect the child thread,
                     // and use the exit code of child thread as the
                     // main thread exit code
-                    (drop
+                    // (drop
+                    (local.store32 $temp
                         (envcall {ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT}
                             (local.load32_i32 $tid)
                         )
@@ -878,6 +884,7 @@ fn test_assemble_multithread_thread_message_forward() {
             (function $test (result i64)
                 (local $tid0 i32)
                 (local $tid1 i32)
+                (local $temp i32)   // for dropping operand
                 (code
                     // create child thread 0 (t0)
                     (local.store32 $tid0
@@ -919,7 +926,8 @@ fn test_assemble_multithread_thread_message_forward() {
                     (when
                         (i64.ne
                             // collect t0
-                            (drop
+                            // (drop
+                            (local.store32 $temp
                                 (envcall {ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT}
                                     (local.load32_i32 $tid0)
                                 )
@@ -933,7 +941,8 @@ fn test_assemble_multithread_thread_message_forward() {
                     (when
                         (i64.ne
                             // collect t1
-                            (drop
+                            // (drop
+                            (local.store32 $temp
                                 (envcall {ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT}
                                     (local.load32_i32 $tid1)
                                 )

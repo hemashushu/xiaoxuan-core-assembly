@@ -5,7 +5,7 @@
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
 use ancasm_assembler::utils::helper_generate_module_image_binary_from_str;
-use ancvm_binary::bytecode_reader::print_bytecode_as_text;
+use ancvm_binary::bytecode_reader::format_bytecode_as_text;
 use ancvm_processor::{
     in_memory_program_resource::InMemoryProgramResource, interpreter::process_function,
     InterpreterError, InterpreterErrorType,
@@ -64,7 +64,7 @@ fn test_assemble_control_flow_block_equ_structure_for() {
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&function_entry.code);
+    let bytecode_text = format_bytecode_as_text(&function_entry.code);
 
     assert_eq!(
         bytecode_text,
@@ -180,7 +180,7 @@ fn test_assemble_control_flow_block_with_args_and_results_equ_structure_for() {
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&function_entry.code);
+    let bytecode_text = format_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -353,7 +353,7 @@ fn test_assemble_control_flow_block_with_local_vars_equ_structure_for() {
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&function_entry.code);
+    let bytecode_text = format_bytecode_as_text(&function_entry.code);
 
     assert_eq!(
         bytecode_text,
@@ -548,7 +548,7 @@ fn test_assemble_control_flow_break_function_equ_statement_return() {
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&function_entry.code);
+    let bytecode_text = format_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -624,7 +624,7 @@ fn test_assemble_control_flow_break_block_equ_statement_break() {
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&function_entry.code);
+    let bytecode_text = format_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -713,7 +713,7 @@ fn test_assemble_control_flow_break_block_to_function_equ_statement_return() {
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&function_entry.code);
+    let bytecode_text = format_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -798,7 +798,7 @@ fn test_assemble_control_flow_structure_when() {
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&function_entry.code);
+    let bytecode_text = format_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -912,7 +912,7 @@ fn test_assemble_control_flow_break_block_crossing_equ_statement_break() {
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&function_entry.code);
+    let bytecode_text = format_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -1015,7 +1015,7 @@ fn test_assemble_control_flow_structure_if() {
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&function_entry.code);
+    let bytecode_text = format_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -1133,7 +1133,7 @@ fn test_assemble_control_flow_structure_if_nested() {
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&function_entry.code);
+    let bytecode_text = format_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -1279,7 +1279,7 @@ fn test_assemble_control_flow_structure_branch() {
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&function_entry.code);
+    let bytecode_text = format_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -1411,7 +1411,7 @@ fn test_assemble_control_flow_structure_branch_without_default_arm() {
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&function_entry.code);
+    let bytecode_text = format_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -1542,7 +1542,7 @@ fn test_assemble_control_flow_structure_loop() {
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&function_entry.code);
+    let bytecode_text = format_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -1653,7 +1653,7 @@ fn test_assemble_control_flow_structure_loop_with_block_parameters() {
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&function_entry.code);
+    let bytecode_text = format_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -1765,7 +1765,7 @@ fn test_assemble_control_flow_structure_loop_with_if() {
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&function_entry.code);
+    let bytecode_text = format_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -1858,7 +1858,7 @@ fn test_assemble_control_flow_function_tail_call() {
                             (local.load32_i32 $n)
                             zero
                         )
-                        (rerun
+                        (fnrecur
                             (local.load32_i32 $sum)
                             (local.load32_i32 $n)
                         )
@@ -1877,7 +1877,7 @@ fn test_assemble_control_flow_function_tail_call() {
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&function_entry.code);
+    let bytecode_text = format_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(
@@ -1960,7 +1960,7 @@ fn test_assemble_control_flow_function_tail_call_with_if() {
                             (local.load32_i32 $n)
                         )
                         (local.load32_i32 $sum)
-                        (rerun
+                        (fnrecur
                             (i32.add
                                 (local.load32_i32 $sum)
                                 (local.load32_i32 $n)
@@ -1985,7 +1985,7 @@ fn test_assemble_control_flow_function_tail_call_with_if() {
         .get_function_section()
         .get_function_entry(0);
 
-    let bytecode_text = print_bytecode_as_text(&function_entry.code);
+    let bytecode_text = format_bytecode_as_text(&function_entry.code);
     // println!("{}", bytecode_text);
 
     assert_eq!(

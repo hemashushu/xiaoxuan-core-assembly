@@ -16,13 +16,13 @@
 
 Both _XiaoXuan Core Applications_ and _XiaoXuan Core Shared Libraries_ consist of one or more modules.
 
-For _Shared Libraries_, multiple modules are not dependent on each other, and they provide accessible functions and data to the outside world on an equal basis.
+There is no hierarchical relationship between multiple modules, at the assembly level, they are flat.
 
 _Applications_ are similar to _Shared Libraries_, but applications have an additional function called `entry` that provides the entry point for the application.
 
 ## The `module` Node
 
-An assembly text file can only define one module, so the content of an assembly text is a large node called `module`. Within this node, functions and data are defined, as well as declarations of functions and data imporetd from other modules or shared libraries. An example of the smallest module is as follows:
+An assembly text file can only define one module, the top content of an assembly text is a node called `module`. Within this node, functions and data are defined, as well as declarations of functions and data imporetd from other modules or shared libraries. An example of the smallest module is as follows:
 
 ```clojure
 (module $app
@@ -39,7 +39,7 @@ An assembly text file can only define one module, so the content of an assembly 
 
 ### Module Name
 
-In the above example, `$app` is an identifier that represents the name of the current module, i.e. the name of the application or library. The valid characters of the name are `[a-zA-Z0-9_]`, and the name must be immediately followed by the symbol `module`.
+In the above example, `$app` is an identifier that represents the name of the current module <!-- i.e. the name of the application or library -->. The valid characters of the name are `[a-zA-Z0-9_]`, and the name must be immediately followed by the symbol `module`.
 
 For an application or library with multiple source files, the main module file names are `main.ancasm` and `lib.ancasm`, and any other source files will be used as submodules. The names of submodules must contains the namespace paths. For example, consider a library call `draw` that has 3 source files:
 
@@ -49,17 +49,17 @@ For an application or library with multiple source files, the main module file n
 - rectangle.ancasm
 ```
 
-Their module names should be `draw`, `draw::circle` and `draw::rectangle`.
+Their module names should be `draw`, `draw::circle` and `draw::rectangle`, although the module name and the module file name do not necessary need to be the same.
 
 ### Runtime Version
 
-A module node must contains the child node `runtime_version`, it is a parameter of node `module`, which indicates the expected version of the runtime.
+The main module must contains a child node called `runtime_version`, it is a parameter of module, which indicates the expected version of the runtime.
 
 The node `runtime_version` is followed by the nodes of user-defined data and functions. A module should at least define one data or function node, otherwise it is useless (although it is a valid module). For an application, at least one function called "entry" should be defined, otherwise it cannot pass the assembler check.
 
-### Module Optional Parameters
+### Other Module Optional Parameters
 
-The node `module` has some optional parameters:
+The main module has some other optional parameters:
 
 - `constructor`: A constructor function that is run after the application is loaded and before the "entry" function. It usually performs some data initilization.
 
@@ -70,17 +70,14 @@ The following is an example that uses these parameters:
 ```clojure
 (module $app
     (compiler_version "1.0")
-
     (constructor $init)
     (destructor $exit)
 
-    (function $init ...)
-    (function $test ...)
-    (function $exit ...)
+    ...
 )
 ```
 
-## The `fn` Node
+## The `function` Node
 
 (function $name (param $p0 i32) (param $p1 i32) (result i32)
     (code ...)
@@ -118,7 +115,6 @@ or
 )
 
 > the identifier of function can not contains the namespace path separator `::`.
-
 
 ### local variables
 
@@ -162,11 +158,15 @@ add 'export' annotation after the function name.
 (data $name (read_only f32 3.1415927))
 (data $name (read_only f32 0x1.23p4))
 (data $name (read_only f64 2.718281828459045))
-// data
+// bytes
 (data $name (read_only bytes h"11-13-17-19" OPTIONAL_ALIGN:i16))
 (data $name (read_write bytes h"11-13-17-19" OPTIONAL_ALIGN:i16))
 
-there are two variants of 'bytes': 'string' and 'cstring', e.g.
+there are two variants of data type 'bytes':
+- 'string'
+- 'cstring'
+
+e.g.
 
 // UTF-8 encoding string
 (data $name (read_only string "Hello, World!"))
@@ -212,6 +212,8 @@ library type:
     (function $add_wrap "wrap::add" (params i32 i32) (results i32))
 )
 
+where the '$math' is the depend module id.
+
 ### the import function node
 
 (function $add "add" (param i32) (param i32) (result i32))
@@ -235,11 +237,13 @@ for the variants of 'bytes' such as 'string' and 'cstring', use 'bytes' instead 
 
 ## The 'external' node
 
-(external $user
+(external $libtest
     (function $add "add" (param i32) (param i32) (result i32))
     (function $sub_i32 "sub" (params i32 i32) (result i32))
     (function $pause "pause_1s")
 )
+
+where the '$libtest' is the depend library id.
 
 ### the external function node
 

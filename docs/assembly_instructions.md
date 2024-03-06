@@ -43,10 +43,14 @@
 
 ## Fundamnetal
 
+nop
 zero
+
+<!-- discard
 (drop VALUE)
 (duplicate VALUE)
 (swap LEFT RIGHT)
+-->
 
 (select_nez
     VALUE_WHEN_TRUE
@@ -54,13 +58,15 @@ zero
     VALUE_FOR_TEST
 )
 
+e.g.
+
 (select_nez
     (i32.imm 11)    // when true
     (i32.imm 13)    // when false
     (i32.imm 1)     // test
 ) -> 11
 
-immediate number
+immediate/constant number
 
 (i32.imm INTEGER_NUMBER)
 (i64.imm INTEGER_NUMBER)
@@ -74,7 +80,7 @@ FLOATING_POINT_NUMBER can be decimal and dexadecimal liternals.
 
 ### local variable loading and storing
 
-(local.load64_i64 $VARIABLE_NAME OPTIONAL_OFFSET:i16)
+(local.load64_i64 $VARIABLE_NAME optional_offset:i16)
 
 local loading instruction variants:
 
@@ -89,7 +95,7 @@ local loading instruction variants:
 
 local storing
 
-(local.store64 $VARIABLE_NAME VALUE OPTIONAL_OFFSET:i16)
+(local.store64 $VARIABLE_NAME VALUE optional_offset:i16)
 
 variants:
 
@@ -126,7 +132,7 @@ storing
 
 ### data loading and storing
 
-(data.load64_i64 $DATA_NAME_PATH OPTIONAL_OFFSET:i16)
+(data.load64_i64 $DATA_NAME_PATH optional_offset:i16)
 
 variants
 
@@ -141,7 +147,7 @@ variants
 
 storing
 
-(data.store64 $DATA_NAME_PATH VALUE OPTIONAL_OFFSET:i16)
+(data.store64 $DATA_NAME_PATH VALUE optional_offset:i16)
 
 - `data.store64`
 - `data.store32`
@@ -185,7 +191,7 @@ The namespace path can also be omitted, in which case the instruction will acces
 
 ### heap loading and storing
 
-(heap.load64_i64 ADDR OPTIONAL_OFFSET:i16)
+(heap.load64_i64 ADDR optional_offset:i16)
 
 variants:
 
@@ -200,7 +206,7 @@ variants:
 
 storing
 
-(heap.store64 ADDR VALUE OPTIONAL_OFFSET:i16)
+(heap.store64 ADDR VALUE optional_offset:i16)
 
 variants:
 
@@ -209,7 +215,7 @@ variants:
 - `heap.store16`
 - `heap.store8`
 
-### heap memory
+### heap memory operations
 
 (heap.fill
     ADDR_I64
@@ -331,10 +337,10 @@ wrapping mul, e.g. 0xf0e0d0c0 * 2 = 0xf0e0d0c0 << 1
 (i32.rem_s LEFT RIGHT)
 (i32.rem_u LEFT RIGHT)
 
-(i32.inc VALUE IMM:i16)
+(i32.inc VALUE imm:i16)
 wrapping inc, e.g. 0xffff_ffff inc 2 = 1
 
-(i32.dec VALUE IMM:i16)
+(i32.dec VALUE imm:i16)
 wrapping dec, e.g. 0x1 dec 2 = 0xffff_ffff
 
 ### i64
@@ -347,8 +353,8 @@ wrapping dec, e.g. 0x1 dec 2 = 0xffff_ffff
 (i64.rem_s LEFT RIGHT)
 (i64.rem_u LEFT RIGHT)
 
-(i64.inc VALUE IMM:i16)
-(i64.dec VALUE IMM:i16)
+(i64.inc VALUE imm:i16)
+(i64.dec VALUE imm:i16)
 
 ### f32
 
@@ -455,8 +461,8 @@ wrapping dec, e.g. 0x1 dec 2 = 0xffff_ffff
 
 (call $id ARG_0 ARG_1 ... ARG_N)
 (dyncall FUNC_PUBLIC_INDEX_I32 ARG_0 ARG_1 ... ARG_N)
-(envcall ENV_CALL_NUMBER:i32 ARG_0 ARG_1 ... ARG_N)
-(syscall SYS_CALL_NUMBER:i32 ARG_0 ARG_1 ... ARG_N)
+(envcall env_call_number:i32 ARG_0 ARG_1 ... ARG_N)
+(syscall sys_call_number:i32 ARG_0 ARG_1 ... ARG_N)
 (extcall $id ARG_0 ARG_1 ... ARG_N)
 
 ### function item name path
@@ -471,16 +477,15 @@ todo
 
 ## Host
 
-(nop)
 (panic)
-(unreachable CODE:i32)
-(debug CODE:i32)
+(unreachable code:i32)
+(debug code:i32)
 
-(host.addr_local $VARIABLE_NAME OPTIONAL_OFFSET:i16)
+(host.addr_local $VARIABLE_NAME optional_offset:i16)
 (host.addr_local_offset $VARIABLE_NAME OFFSET_I32)
-(host.addr_data $DATA_NAME_PATH OPTIONAL_OFFSET:i16)
+(host.addr_data $DATA_NAME_PATH optional_offset:i16)
 (host.addr_data_offset $DATA_NAME_PATH OFFSET_I32)
-(host.addr_heap ADDR OPTIONAL_OFFSET:i16)
+(host.addr_heap ADDR optional_offset:i16)
 
 (host.addr_function $name)
 

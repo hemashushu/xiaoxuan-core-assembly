@@ -169,7 +169,7 @@ Since raw strings don't support escaping characters, if you need to output the "
 
 Auto-trimmed strings are used to write long text, it's similar to the raw string, where characters are not escaped, but the leading whitespace on each line is automatically trimmed based on the number of leading spaces in the first line.
 
-Auto-trimmed string starts with `r|"`, and then the content start in a new line, and ends with `"|` which is in **a separate line** (leading whitespaces are allowed), for example:
+Auto-trimmed string starts with `r|"`, and then the content start in a new line, and ends with `"|` which is in **a separate line** (leading whitespaces are staill allowed), for example:
 
 ```text
 r|"

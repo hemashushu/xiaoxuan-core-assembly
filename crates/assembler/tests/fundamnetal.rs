@@ -5,10 +5,10 @@
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
 use ancasm_assembler::utils::helper_generate_module_image_binary_from_str;
+use ancvm_context::program_resource::ProgramResource;
 use ancvm_processor::{
     in_memory_program_resource::InMemoryProgramResource, interpreter::process_function,
 };
-use ancvm_context::program_resource::ProgramResource;
 use ancvm_types::ForeignValue;
 
 use pretty_assertions::assert_eq;
@@ -63,6 +63,7 @@ fn test_assemble_fundamental_zero() {
     assert_eq!(result0.unwrap(), vec![ForeignValue::U32(0)]);
 }
 
+/*
 #[test]
 fn test_assemble_fundamental_drop() {
     // () -> (i32)
@@ -90,7 +91,6 @@ fn test_assemble_fundamental_drop() {
     assert_eq!(result0.unwrap(), vec![ForeignValue::U32(13)]);
 }
 
-/*
 #[test]
 fn test_assemble_fundamental_duplicate() {
     // () -> (i32, i32)

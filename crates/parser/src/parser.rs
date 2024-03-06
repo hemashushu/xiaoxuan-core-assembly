@@ -53,9 +53,9 @@
 // ```
 //
 // 1. instructions with NO parameters and NO operands, can be written
-//    with or without parentheses, e.g.
-//    '(nop)'
-//    'nop'
+//    with or without parentheses, there are 3 instructions:
+//    - '(nop)', '(zero)', '(panic)'
+//    - 'nop', 'zero', 'panic'
 //
 // 2. instructions that have NO parameters but HAVE operands, should be
 //    written with parentheses and all the operands (instructions) should be
@@ -790,7 +790,7 @@ fn parse_instruction_sequence_node(
     // - (break ...)
     // - (recur ...)
     // - (return ...)
-    // - (rerun ...)
+    // - (fnrecur ...)
 
     consume_left_paren(iter, &format!("instruction.{}", node_name))?;
     consume_symbol(iter, node_name)?;
@@ -807,7 +807,7 @@ fn parse_instruction_sequence_node(
         "break" => Instruction::Break(instructions),
         "recur" => Instruction::Recur(instructions),
         "return" => Instruction::Return(instructions),
-        "rerun" => Instruction::Rerun(instructions),
+        "fnrecur" => Instruction::FnRecur(instructions),
         _ => unreachable!(),
     };
     Ok(instruction)
@@ -2566,6 +2566,10 @@ mod tests {
         }
     }
 
+    // there are 3 instructions either no params nor operands:
+    // - nop
+    // - zero
+    // - panic
     fn noparams_nooperands(opcode: Opcode) -> Instruction {
         Instruction::NoParams {
             opcode,
@@ -3075,7 +3079,7 @@ mod tests {
                     (code
                         nop
                         zero
-                        (drop zero)
+                        // (drop zero)
                         (select_nez zero zero zero)
                     )
                 )
@@ -3085,10 +3089,10 @@ mod tests {
             vec![
                 noparams_nooperands(Opcode::nop),
                 noparams_nooperands(Opcode::zero),
-                Instruction::NoParams {
-                    opcode: Opcode::drop,
-                    operands: vec![noparams_nooperands(Opcode::zero),]
-                },
+                // Instruction::NoParams {
+                //     opcode: Opcode::drop,
+                //     operands: vec![noparams_nooperands(Opcode::zero),]
+                // },
                 Instruction::NoParams {
                     opcode: Opcode::select_nez,
                     operands: vec![
@@ -3873,7 +3877,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_instructions_return_and_rerun() {
+    fn test_parse_instructions_return_and_fnrecur() {
         assert_eq!(
             parse_instructions_from_str(
                 r#"
@@ -3896,7 +3900,7 @@ mod tests {
                                     (local.load32_i32 $n)
                                 ))
                                 // recur (sum,n)
-                                (rerun
+                                (fnrecur
                                     (local.load32_i32 $sum)
                                     (local.load32_i32 $n)
                                 )
@@ -3957,7 +3961,7 @@ mod tests {
                                 })
                             })
                         },
-                        Instruction::Rerun(vec![
+                        Instruction::FnRecur(vec![
                             Instruction::LocalLoad {
                                 opcode: Opcode::local_load32_i32,
                                 name: "sum".to_owned(),
