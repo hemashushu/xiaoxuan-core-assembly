@@ -12,15 +12,17 @@ use ancvm_types::{
 pub struct ModuleNode {
     // the name of main module or submodule
     //
-    // note that the module names within an application (or a module) can not be duplicated
+    // note that the module names within an application (or a package) can not be duplicated
     pub name_path: String,
 
     pub compiler_version: Option<EffectiveVersion>,
 
     // the relative name path of constructor function
+    // a package can only defined one constructor
     pub constructor_function_name_path: Option<String>,
 
     // the relative name path of destructor function
+    // a package can only defined one destructor
     pub destructor_function_name_path: Option<String>,
 
     pub depend_node: Option<DependNode>,

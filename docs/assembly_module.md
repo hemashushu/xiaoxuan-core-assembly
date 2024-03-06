@@ -18,7 +18,9 @@ Both _XiaoXuan Core Applications_ and _XiaoXuan Core Shared Libraries_ consist o
 
 There is no hierarchical relationship between multiple modules, at the assembly level, they are flat.
 
-_Applications_ are similar to _Shared Libraries_, but applications have an additional function called `entry` that provides the entry point for the application.
+_Applications_ are similar to _Shared Libraries_, but applications have an additional function called `main` that provides the user start function for the application.
+
+> The compiler also generates three functions for application: __entry, __init, and __fini.
 
 ## The `module` Node
 
@@ -50,6 +52,8 @@ For an application or library with multiple source files, the main module file n
 ```
 
 Their module names should be `draw`, `draw::circle` and `draw::rectangle`, although the module name and the module file name do not necessary need to be the same.
+
+> In a multiple source file project, the module name can be written as 'package', e.g. 'package', 'package::circle', 'package::rectangle'.
 
 ### Runtime Version
 
@@ -251,3 +255,32 @@ there is no identifier in the 'param' nodes, and the parameters can be writtern 
 
 (function $add "add" (params i32 i32) (result i32))
 (function $getenv "getenv" (param i64) (result i64))
+
+### name path
+
+todo
+
+the identifiers of data loading and storing items, function calling item, external calling item, can be a full path,
+e.g. `mylib::msg`, `mylib::utils::buf`.
+
+When the name path is omitted, the instruction will access items within the current module.
+
+absolute name path:
+package::utils::add
+
+relative name path:
+self::utils::add
+
+### name and identifier
+
+A function or a data item has a name and an identifier, the name is used for exporting and importing, and
+the identifier is used for calling/referring. In the assembly text, only the name can be specified,
+and the identifier is consists of the name path and the function name, e.g.
+
+module: mylib::utils
+function name: add
+
+therefor the identifier is `mylib::utils::add`
+
+please note the there is implied full name, it is the name path expect the package name, so the
+full name of 'add' is `utils::add`.

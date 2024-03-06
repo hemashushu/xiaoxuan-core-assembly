@@ -21,14 +21,14 @@ use ancvm_types::{opcode::Opcode, DataType};
 use crate::preprocessor::{CanonicalDataNode, CanonicalFunctionNode};
 use crate::{preprocessor::MergedModuleNode, AssembleError, UNREACHABLE_CODE_NO_DEFAULT_ARM};
 
-// the identifier of functions and datas
+// the identifier of functions and data items
 //
-// the identifier is used for the function calling instructions, and
-// the data loading/storing instructions.
+// the identifier is used for the function calling, the data loading,
+// and thestoring instructions.
 //
-// the 'path name' in the function name entry (data name entry,
-// import function entry, import data entry) is different from the identifier,
-// the 'path name' is used for linking.
+// the 'path name' in the function name entry, data name entry,
+// import function entry, and import data entry are different from the identifier,
+// the 'path name' is used for exporting and linking.
 struct IdentifierLookupTable {
     function_identifiers: Vec<IdentifierIndex>,
     data_identifiers: Vec<IdentifierIndex>,
@@ -72,9 +72,6 @@ struct IdentifierSource {
 
 impl IdentifierLookupTable {
     pub fn new(
-        // function_name_entries: &[FunctionNameEntry],
-        // data_name_entries: &[DataNameEntry],
-        // external_nodes: &[ExternalNode],
         identifier_source: IdentifierSource,
     ) -> Self {
         let mut function_identifiers: Vec<IdentifierIndex> = vec![];
@@ -245,36 +242,43 @@ impl IdentifierLookupTable {
     }
 }
 
-// the stack for the control flows of a function.
-// used to stub out instructions such as 'block', 'block?' and 'break'.
+// a stack for the control flows of a function.
+// used to stub out instructions such as 'block', 'block_*' and 'break'.
 //
 // - call FlowStack::push() when entering a block
 //   (includes instruction 'block', 'block_nez', 'blocl_alt')
 // - call FlowStack::add_break() when encounting instruction 'break'
-// - call FlowStack::pop() when leaving a block
-//   i.e. the instruction 'end', and fill all stubs.
+// - call FlowStack::pop() when leaving a block (i.e. when encounting
+//   the instruction 'end'), and then fill all stubs.
 //
 // note that instruction 'recur' doesn't need to stub,
 // because in the XiaoXuan Core Assembly, it only exists in
-// the direct or indirect child nodes of node 'block', and
+// the child nodes of node 'block', and
 // the address of the 'block' is known at compile time.
 struct FlowStack {
     items: Vec<FlowStackItem>,
 }
 
 struct FlowStackItem {
-    // the address of instruction
+    // the address of the flow control instruction
     addr: usize,
+
+    // flow control instruction type
     flow_kind: FlowKind,
 
-    // all 'break' instructions which require a stub to be filled when
+    // 'break' instructions which require a stub to be filled when
     // the current control flow reach the instruction 'end'.
+    // note that if the target of 'break' is the function itself, this
+    // 'break' instruction does not require stub, because the 'next_inst_offset'
+    // is ignored in this scenario.
     break_items: Vec<BreakItem>,
+
     local_names: Vec<String>,
 }
 
 #[derive(Debug, PartialEq)]
 enum FlowKind {
+    // the function itself is a 'big' block
     Function,
 
     // for structure: 'branch', 'for'
@@ -307,7 +311,7 @@ enum FlowKind {
 // stub:
 // - next_inst_offset:i32
 struct BreakItem {
-    // the address of instruction 'break'
+    // the address of the 'break' instruction
     addr: usize,
 }
 
@@ -339,6 +343,7 @@ impl FlowStack {
         let flow_item = self.pop();
 
         // fill stubs of 'block_nez'
+        // in all 'block_*' insts, only the inst 'block_nez' has stub 'next_inst_offset'.
         match flow_item.flow_kind {
             FlowKind::BlockNez => {
                 let addr_of_block = flow_item.addr;
@@ -351,6 +356,7 @@ impl FlowStack {
         }
 
         // fill stubs of insts 'break'
+        // inst 'break' also has stub 'next_inst_offset'.
         for break_item in &flow_item.break_items {
             let addr_of_break = break_item.addr;
             let next_inst_offset = (addr_of_next_to_end - addr_of_break) as u32;
@@ -396,7 +402,7 @@ impl FlowStack {
 
     // return (reversed_index, variable_index)
     //
-    // within a function, all local variables, including the parameters
+    // all local variables, including the parameters
     // of function and all parameters and local varialbes within all blocks,
     // must not have duplicate names in the valid scope. e.g.
     //
@@ -413,7 +419,7 @@ impl FlowStack {
     //     }
     // }
     // ```
-
+    //
     pub fn get_local_variable_reversed_index_and_variable_index(
         &self,
         local_variable_name: &str,
@@ -451,15 +457,12 @@ impl FlowStack {
 }
 
 // note:
-// the entry function 'entry' of an application should be
-// inserted before assemble, as well as the auto-generated
-// functions '_start' and '_exit'.
+// the auto-generated functions '__entry', '_init' and '_fini'.
+// should be inserted before assemble
 pub fn assemble_merged_module_node(
     merged_module_node: &MergedModuleNode,
 ) -> Result<ModuleEntry, AssembleError> {
     let module_name = merged_module_node.name.clone();
-    // let runtime_version_major = merged_module_node.runtime_version_major;
-    // let runtime_version_minor = merged_module_node.runtime_version_minor;
     let compiler_version = merged_module_node.compiler_version;
 
     let mut type_entries = vec![];
@@ -472,7 +475,6 @@ pub fn assemble_merged_module_node(
     } = assemble_depend_items(&merged_module_node.depend_items)?;
 
     let AssembleResultForImportNodes {
-        // import_module_entries,
         import_function_entries,
         import_data_entries,
         import_function_ids,
@@ -486,7 +488,6 @@ pub fn assemble_merged_module_node(
     )?;
 
     let (
-        // external_library_entries,
         external_function_entries,
         external_function_ids,
     ) = assemble_external_nodes(
@@ -586,8 +587,6 @@ pub fn assemble_merged_module_node(
     let module_entry = ModuleEntry {
         name: module_name,
         runtime_version: compiler_version,
-        // runtime_version_major,
-        // runtime_version_minor,
         //
         import_function_count,
         import_read_only_data_count,
@@ -2186,16 +2185,16 @@ mod tests {
             (function $entry
                 (result i64)
                 (code
-                    (call $module::utils::add
-                        (extcall $module::utils::getuid)
-                        (data.load32_i32 $module::utils::seed)
+                    (call $package::utils::add
+                        (extcall $package::utils::getuid)
+                        (data.load32_i32 $package::utils::seed)
                     )
                     (data.load64_i64 $SUCCESS)
                 )
             )
             (function $init
                 (code
-                    (data.store32 $module::utils::buf (i32.imm 0))
+                    (data.store32 $package::utils::buf (i32.imm 0))
                 )
             )
             (function $exit

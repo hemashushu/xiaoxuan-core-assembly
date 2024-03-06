@@ -37,7 +37,7 @@ use crate::AssembleError;
 //
 // the rules of the merger are:
 //
-// 1. canonicalize the identifiers AND NAMES of functions and datas
+// 1. canonicalize the identifiers and names of functions and datas, e.g.
 //
 // in module 'myapp':
 // (function $entry ...)
@@ -51,7 +51,7 @@ use crate::AssembleError;
 // - 'myapp::utils::add'
 //
 // note that the name of a function will be renamed also,
-// it is the same as its identifier except it does not include
+// the name is the same as its identifier except it does not include
 // the module name, so the function names are:
 //
 // - 'entry'
@@ -70,12 +70,12 @@ use crate::AssembleError;
 //
 // relative paths begin with the keywords 'module' and 'self', e.g.
 //
-// - `(call $module::utils::add ...)`
+// - `(call $package::utils::add ...)`
 // - `(call $self::utils::add ...)`
 //
 // 3. canonicalize the identifiers of external functions.
 //
-// the identifiers and names of external functions (as well as imported items)
+// the identifiers and names of external functions
 // can be different for simplify the writing of the assembly text, so these identifiers
 // need to be canonicalized before assemble.
 //
@@ -139,19 +139,22 @@ use crate::AssembleError;
 // will be removed.
 //
 // the expect identifier for imported item is:
-// MODULE_ID::PATH_NAMES::ITEM_NAME
+// PACKAGE_ID::MODULE_NAME_PATH::FUNC_OR_DATA_NAME
+
+// note:
 //
-// note: at the assembly level, submodules are transparent to each other,
+// 1. at the assembly level, submodules are transparent to each other,
 // i.e., all functions and data (including imported functions, imported data,
 // and declared external functions) are public and can be accessed in any submodule.
+//
+// 2. the identifier of call/extcall/data loading/data_storing can be
+// absolute path, relative path or just an identifier.
 
 #[derive(Debug, PartialEq)]
 pub struct MergedModuleNode {
     // the main module name
     pub name: String,
 
-    // pub runtime_version_major: u16,
-    // pub runtime_version_minor: u16,
     pub compiler_version: EffectiveVersion,
     pub constructor_function_name_path: Option<String>,
     pub destructor_function_name_path: Option<String>,
@@ -171,7 +174,7 @@ pub struct CanonicalFunctionNode {
     // the full name path, for function calling instructions
     //
     // e.g.
-    // the id of function 'add' in module 'myapp' is 'myapp::add'
+    // the id of function 'add' in main module 'myapp' is 'myapp::add'
     // the id of function 'add' in submodule 'myapp:utils' is 'myapp::utils::add'
     pub id: String,
 
@@ -179,7 +182,7 @@ pub struct CanonicalFunctionNode {
     // excludes the module name.
     //
     // e.g.
-    // the name path of function 'add' in module 'myapp' is 'add'
+    // the name path of function 'add' in main module 'myapp' is 'add'
     // the name path of function 'add' in submodule 'myapp:utils' is 'utils::add'
     pub name_path: String,
 
@@ -195,7 +198,7 @@ pub struct CanonicalDataNode {
     // the full name path, for data loading/storing instructions
     //
     // e.g.
-    // the id of data 'buf' in module 'myapp' is 'myapp::buf'
+    // the id of data 'buf' in main module 'myapp' is 'myapp::buf'
     // the id of data 'buf' in submodule 'myapp:utils' is 'myapp::utils::buf'
     pub id: String,
 
@@ -203,7 +206,7 @@ pub struct CanonicalDataNode {
     // excludes the module name.
     //
     // e.g.
-    // the name path of data 'buf' in module 'myapp' is 'buf'
+    // the name path of data 'buf' in main module 'myapp' is 'buf'
     // the name path of data 'buf' in submodule 'myapp:utils' is 'utils::buf'
     pub name_path: String,
 
@@ -211,6 +214,9 @@ pub struct CanonicalDataNode {
     pub data_kind: DataDetailNode,
 }
 
+/**
+ * The module object which is used for containing RenameItem
+ */
 struct RenameItemModule {
     module_name_path: String,
     items: Vec<RenameItem>,
@@ -224,8 +230,8 @@ struct RenameItem {
 
     // rename to, e.g.
     //
-    // - "MODULE_ID::NAME_PATH::FUNC_NAME"
-    // - "MODULE_ID::NAME_PATH::DATA_NAME"
+    // - "PACKAGE_ID::MODULE_NAME_PATH::FUNC_NAME"
+    // - "PACKAGE_ID::MODULE_NAME_PATH::DATA_NAME"
     // - "LIBRARY_ID::SYMBOL_NAME"
     to: String,
 
@@ -258,8 +264,6 @@ pub fn merge_and_canonicalize_submodule_nodes(
     // so pick the name and runtime version from the first submodule.
 
     let name = submodule_nodes[0].name_path.clone();
-    // let runtime_version_major = submodule_nodes[0].runtime_version_major;
-    // let runtime_version_minor = submodule_nodes[0].runtime_version_minor;
     let compiler_version = submodule_nodes[0].compiler_version.unwrap();
     let constructor_function_name = submodule_nodes[0].constructor_function_name_path.clone();
     let destructor_function_name = submodule_nodes[0].destructor_function_name_path.clone();
@@ -378,7 +382,7 @@ pub fn merge_and_canonicalize_submodule_nodes(
                 let canonical_import_item = match original_import_item {
                     ImportItem::ImportFunction(original_import_function) => {
                         // the scheme of identifier:
-                        // MODULE_ID::NAME_PATH::FUNCTION_NAME
+                        // PACKAGE_ID::MODULE_NAME_PATH::FUNCTION_NAME
 
                         let name_path = original_import_function.name_path.clone();
 
@@ -396,7 +400,7 @@ pub fn merge_and_canonicalize_submodule_nodes(
                     }
                     ImportItem::ImportData(original_import_data) => {
                         // the scheme of identifier:
-                        // MODULE_ID::NAME_PATH::FUNCTION_NAME
+                        // PACKAGE_ID::MODULE_NAME_PATH::FUNCTION_NAME
 
                         let name_path = original_import_data.name_path.clone();
 
@@ -688,7 +692,7 @@ pub fn merge_and_canonicalize_submodule_nodes(
             }
         };
 
-        // canonicalize the func nodes
+        // canonicalize the function nodes
         let original_function_nodes = module_node
             .element_nodes
             .iter()
@@ -709,6 +713,7 @@ pub fn merge_and_canonicalize_submodule_nodes(
             function_nodes.push(function_node);
         }
 
+        // canonicalize the read_only data nodes
         let mut read_only_data_nodes = module_node
             .element_nodes
             .iter()
@@ -725,6 +730,7 @@ pub fn merge_and_canonicalize_submodule_nodes(
             })
             .collect::<Vec<_>>();
 
+        // canonicalize the read_write data nodes
         let mut read_write_data_nodes = module_node
             .element_nodes
             .iter()
@@ -741,6 +747,7 @@ pub fn merge_and_canonicalize_submodule_nodes(
             })
             .collect::<Vec<_>>();
 
+        // canonicalize the uninit data nodes
         let mut uninit_data_nodes = module_node
             .element_nodes
             .iter()
@@ -763,17 +770,19 @@ pub fn merge_and_canonicalize_submodule_nodes(
         canonical_uninit_data_nodes.append(&mut uninit_data_nodes);
     }
 
-    // insert the '__entry' function, (constructor and destructor) dependencies and import items
+    // generates:
+    // - the '__entry' function
+    // - the '__init' function
+    // - the '__fini' function
+    // - the dependencies and import items, which are required by constructor and destructor
     if let Some(_init) = initialization {
         // todo
-        insert_entry()
+        generate_entry_and_init_and_finit()
     }
 
     let merged_module_node = MergedModuleNode {
         name,
         compiler_version,
-        // runtime_version_major,
-        // runtime_version_minor,
         depend_items,
         constructor_function_name_path: constructor_function_name,
         destructor_function_name_path: destructor_function_name,
@@ -1347,7 +1356,7 @@ fn canonicalize_name_path_in_instruction(
 
         let first_part = name_parts[0];
         canonical_parts.push(match first_part {
-            "module" => current_module_name_path
+            "package" => current_module_name_path
                 .split(NAME_PATH_SEPARATOR)
                 .next()
                 .unwrap()
@@ -1390,15 +1399,26 @@ fn canonicalize_name_path_in_instruction(
     }
 }
 
-fn insert_entry() {
+fn generate_entry_and_init_and_finit() {
+    // generates:
     //
-    //                    /-- __init()
-    //                    |
-    // __entry -- call -->|-- main()
-    //                    |
-    //                    \-- __fini()
+    // - the '__entry' function
+    // - the '__init' function
+    // - the '__fini' function
+    // - the dependencies and import items, which are required by constructor and destructor
 
-    let start_code_snippet = format!(
+    // the content of function __entry:
+    //
+    // ```js
+    // function __entry() {
+    //      __init()                // call __init
+    //      let exit_code = main()  // call main and retain the exit code
+    //      __fini()                // call __finit
+    //      return exit_code        // return the exit code
+    // }
+    // ```
+
+    let auto_generated_code = format!(
         r#"
         (module $start
             (function $__entry (result i64)
@@ -1458,14 +1478,14 @@ fn insert_entry() {
         ENV_CALL_CODE_GET_EXIT_FUNCTION_ITEM = (EnvCallCode::get_exit_function_item as u32),
     );
 
-    // lex and parse the starting code snippet
-    let mut chars = start_code_snippet.chars();
+    // lex and parse the code snippet
+    let mut chars = auto_generated_code.chars();
     let mut char_iter = PeekableIterator::new(&mut chars, 3);
     let all_tokens = lex(&mut char_iter).unwrap();
     let effective_tokens = filter(&all_tokens);
     let mut token_iter = effective_tokens.into_iter();
     let mut peekable_token_iter = PeekableIterator::new(&mut token_iter, 2);
-    let _start_module_node = parse(
+    let _auto_generated_module_node = parse(
         &mut peekable_token_iter,
         Some(EffectiveVersion::new(
             RUNTIME_MAJOR_VERSION,
@@ -1475,7 +1495,7 @@ fn insert_entry() {
     .unwrap();
 
     // todo
-    // insert the staring code to main module node
+    // insert the auto-generated node to main module node
 }
 
 #[cfg(test)]
@@ -1670,11 +1690,11 @@ mod tests {
                     // group 0
                     (call $add)
                     (call $myapp::add)
-                    (call $module::add)
+                    (call $package::add)
                     (call $self::add)
                     // group 1
                     (call $myapp::utils::add)
-                    (call $module::utils::add)
+                    (call $package::utils::add)
                     (call $self::utils::add)
                 ))
             )
@@ -1685,12 +1705,12 @@ mod tests {
                 (function $test (code
                     // group 2
                     (call $myapp::add)
-                    (call $module::add)
+                    (call $package::add)
                     // group 3
                     (call $add)
                     (call $self::add)
                     (call $myapp::utils::add)
-                    (call $module::utils::add)
+                    (call $package::utils::add)
                 ))
             )
             "#
@@ -1818,11 +1838,11 @@ mod tests {
                     // group 0
                     (data.load32_i32 $d0)
                     (data.load32_i32 $myapp::d0)
-                    (data.load32_i32 $module::d0)
+                    (data.load32_i32 $package::d0)
                     (data.load32_i32 $self::d0)
                     // group 1
                     (data.load64_i64 $myapp::utils::d0)
-                    (data.load64_i64 $module::utils::d0)
+                    (data.load64_i64 $package::utils::d0)
                     (data.load64_i64 $self::utils::d0)
                 ))
             )
@@ -1833,12 +1853,12 @@ mod tests {
                 (function $test (code
                     // group 2
                     (data.load32_i32 $myapp::d0)
-                    (data.load32_i32 $module::d0)
+                    (data.load32_i32 $package::d0)
                     // group 3
                     (data.load64_i64 $d0)
                     (data.load64_i64 $self::d0)
                     (data.load64_i64 $myapp::utils::d0)
-                    (data.load64_i64 $module::utils::d0)
+                    (data.load64_i64 $package::utils::d0)
                 ))
             )
             "#
@@ -2073,7 +2093,7 @@ mod tests {
                     // group 0
                     (call $add)                 // math::add
                     (call $myapp::add)          // math::add
-                    (call $module::add)         // math::add
+                    (call $package::add)         // math::add
                     (call $self::add)           // math::add
 
                     // group 1
@@ -2082,7 +2102,7 @@ mod tests {
 
                     // group 2
                     (call $myapp::utils::f0)    // math::add
-                    (call $module::utils::f0)   // math::add
+                    (call $package::utils::f0)   // math::add
                     (call $self::utils::f0)     // math::add
 
                     // group 3
@@ -2108,7 +2128,7 @@ mod tests {
                     // group 4
                     (call $f0)                  // math::add
                     (call $myapp::utils::f0)    // math::add
-                    (call $module::utils::f0)   // math::add
+                    (call $package::utils::f0)   // math::add
                     (call $self::f0)            // math::add
 
                     // group 5
@@ -2118,7 +2138,7 @@ mod tests {
 
                     // group 6
                     (call $myapp::add)          // math::add
-                    (call $module::add)         // math::add
+                    (call $package::add)         // math::add
                 ))
             )
             "#
@@ -2335,7 +2355,7 @@ mod tests {
                     // group 0
                     (data.load32_i32 $count)                // math::count
                     (data.load32_i32 $myapp::count)         // math::count
-                    (data.load32_i32 $module::count)        // math::count
+                    (data.load32_i32 $package::count)        // math::count
                     (data.load32_i32 $self::count)          // math::count
 
                     // group 1
@@ -2344,7 +2364,7 @@ mod tests {
 
                     // group 2
                     (data.load32_i32 $myapp::utils::d0)     // math::count
-                    (data.load32_i32 $module::utils::d0)    // math::count
+                    (data.load32_i32 $package::utils::d0)    // math::count
                     (data.load32_i32 $self::utils::d0)      // math::count
 
                     // group 3
@@ -2370,7 +2390,7 @@ mod tests {
                     // group 4
                     (data.load32_i32 $d0)                   // math::count
                     (data.load32_i32 $myapp::utils::d0)     // math::count
-                    (data.load32_i32 $module::utils::d0)    // math::count
+                    (data.load32_i32 $package::utils::d0)    // math::count
                     (data.load32_i32 $self::d0)             // math::count
 
                     // group 5
@@ -2380,7 +2400,7 @@ mod tests {
 
                     // group 6
                     (data.load32_i32 $myapp::count)         // math::count
-                    (data.load32_i32 $module::count)        // math::count
+                    (data.load32_i32 $package::count)        // math::count
                 ))
             )
             "#
@@ -2618,7 +2638,7 @@ mod tests {
                     // group 0
                     (extcall $add)
                     (extcall $myapp::add)
-                    (extcall $module::add)
+                    (extcall $package::add)
                     (extcall $self::add)
 
                     // group 1
@@ -2627,7 +2647,7 @@ mod tests {
 
                     // group 2
                     (extcall $myapp::utils::f0)     // add
-                    (extcall $module::utils::f0)    // add
+                    (extcall $package::utils::f0)    // add
                     (extcall $self::utils::f0)      // add
 
                     // group 3
@@ -2653,7 +2673,7 @@ mod tests {
                     // group 0
                     (extcall $f0)
                     (extcall $myapp::utils::f0)
-                    (extcall $module::utils::f0)
+                    (extcall $package::utils::f0)
                     (extcall $self::f0)
 
                     // group 1
@@ -2663,7 +2683,7 @@ mod tests {
 
                     // group 2
                     (extcall $myapp::add)
-                    (extcall $module::add)
+                    (extcall $package::add)
                 ))
             )
             "#
