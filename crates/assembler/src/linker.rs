@@ -15,13 +15,8 @@ use ancvm_types::{
 
 use crate::AssembleError;
 
-// build:
-// - function public index table
-// - data public index table
-// - external function index table
-//
 // the module entries must be ordered by 'top most -> deep most', and
-// the first entry should be the application (includes test) module.
+// the first entry should be the application module.
 //
 // consider there is an application with the following dependencies tree:
 //
@@ -46,7 +41,10 @@ use crate::AssembleError;
 // depth:   0       1       2      3      4      5
 // order:  (a) -> (b,c) -> (d) -> (e) -> (f) -> (g)
 
-pub fn link(module_entries: &[&ModuleEntry]) -> Result<IndexEntry, AssembleError> {
+pub fn link(
+    module_entries: &[&ModuleEntry],
+    entry_function_public_index: u32,
+) -> Result<IndexEntry, AssembleError> {
     let function_index_module_entries = link_functions(module_entries)?;
     let data_index_module_entries = link_data(module_entries)?;
     let (
@@ -55,10 +53,10 @@ pub fn link(module_entries: &[&ModuleEntry]) -> Result<IndexEntry, AssembleError
         external_function_index_module_entries,
     ) = link_external_functions(module_entries)?;
 
-    let main_module_entry = module_entries[0];
-    let start_function_public_indices = get_constructors_public_indices(main_module_entry);
-    let exit_function_public_indices = get_destructors_public_indices(main_module_entry);
-    let entry_function_public_index = get_entry_function_public_index(main_module_entry);
+    // let main_module_entry = module_entries[0];
+    // let entry_function_public_index = get_entry_function_public_index(main_module_entry);
+    // let start_function_public_indices = get_constructors_public_indices(module_entries);
+    // let exit_function_public_indices = get_destructors_public_indices(module_entries);
 
     Ok(IndexEntry {
         function_index_module_entries,
@@ -66,8 +64,8 @@ pub fn link(module_entries: &[&ModuleEntry]) -> Result<IndexEntry, AssembleError
         unified_external_library_entries,
         unified_external_function_entries,
         external_function_index_module_entries,
-        start_function_public_indices,
-        exit_function_public_indices,
+        // start_function_public_indices,
+        // exit_function_public_indices,
         entry_function_public_index,
     })
 }
@@ -507,23 +505,19 @@ fn find_exported_data_internal_index(
     }
 }
 
-fn get_constructors_public_indices(_main_module_entry: &ModuleEntry) -> Vec<u32> {
-    // search functions which 'id' start with '__constructor_',
-    // then add the main module constructor.
-    // todo
-    vec![]
-}
-
-fn get_destructors_public_indices(_main_module_entry: &ModuleEntry) -> Vec<u32> {
-    // search functions which 'id' start with '__destructor_',
-    // then add the main module destructor.
-    // todo
-    vec![]
-}
-
-fn get_entry_function_public_index(_main_module_entry: &ModuleEntry) -> u32 {
-    0
-}
+// fn get_constructors_public_indices(module_entries: &[&ModuleEntry]) -> Vec<u32> {
+//     // todo
+//     vec![]
+// }
+//
+// fn get_destructors_public_indices(module_entries: &[&ModuleEntry]) -> Vec<u32> {
+//     // todo
+//     vec![]
+// }
+//
+// fn get_entry_function_public_index(_main_module_entry: &ModuleEntry) -> u32 {
+//     0
+// }
 
 #[cfg(test)]
 mod tests {
@@ -540,15 +534,25 @@ mod tests {
             FunctionIndexModuleEntry, ModuleEntry, UnifiedExternalFunctionEntry,
             UnifiedExternalLibraryEntry,
         },
-        DataSectionType, ExternalLibraryType,
+        DataSectionType, EffectiveVersion, ExternalLibraryType, ModuleShareType,
     };
 
     use crate::{
-        assembler::assemble_merged_module_node, linker::link,
-        preprocessor::merge_and_canonicalize_submodule_nodes,
+        assembler::assemble_merged_module_node,
+        linker::link,
+        preprocessor::{
+            merge_and_canonicalize_submodule_nodes, InitialFunctionItem, Initialization,
+        },
     };
 
-    fn assemble_from_str(source: &str) -> ModuleEntry {
+    fn assemble_from_str(source: &str) -> (ModuleEntry, Option<u32>) {
+        assemble_from_str_and_inits(source, None)
+    }
+
+    fn assemble_from_str_and_inits(
+        source: &str,
+        initialization: Option<&Initialization>,
+    ) -> (ModuleEntry, Option<u32>) {
         let mut chars = source.chars();
         let mut char_iter = PeekableIterator::new(&mut chars, 3);
         let all_tokens = lex(&mut char_iter).unwrap();
@@ -558,7 +562,7 @@ mod tests {
 
         let module_node = parse(&mut peekable_token_iter, None).unwrap();
         let merged_module_node =
-            merge_and_canonicalize_submodule_nodes(&[module_node], None, None).unwrap();
+            merge_and_canonicalize_submodule_nodes(&[module_node], None, initialization).unwrap();
 
         assemble_merged_module_node(&merged_module_node).unwrap()
     }
@@ -566,7 +570,10 @@ mod tests {
     fn assemble_from_strs(sources: Vec<&str>) -> Vec<ModuleEntry> {
         sources
             .iter()
-            .map(|source| assemble_from_str(source))
+            .map(|source| {
+                let (entry, _) = assemble_from_str(source);
+                entry
+            })
             .collect::<Vec<_>>()
     }
 
@@ -575,7 +582,7 @@ mod tests {
         let module_entries = assemble_from_strs(vec![
             r#"
             (module $myapp
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (depend
                     (module $std share "std" "1.0")
                     (module $format share "format" "1.0")
@@ -596,7 +603,7 @@ mod tests {
             "#,
             r#"
             (module $format
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (depend
                     (module $std share "std" "1.0")
                 )
@@ -618,7 +625,7 @@ mod tests {
             "#,
             r#"
             (module $std
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function export $print
                     (code
                         (call $fprint)
@@ -632,7 +639,7 @@ mod tests {
         ]);
 
         let ref_module_entries = module_entries.iter().collect::<Vec<_>>();
-        let index_entry = link(&ref_module_entries).unwrap();
+        let index_entry = link(&ref_module_entries, 0).unwrap();
 
         let function_index_module_entries = &index_entry.function_index_module_entries;
         assert_eq!(function_index_module_entries.len(), 3);
@@ -746,7 +753,7 @@ mod tests {
         let module_entries = assemble_from_strs(vec![
             r#"
             (module $myapp
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (depend
                     (module $std share "std" "1.0")
                     (module $format share "format" "1.0")
@@ -765,7 +772,7 @@ mod tests {
             "#,
             r#"
             (module $format
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (depend
                     (module $std share "std" "1.0")
                 )
@@ -780,7 +787,7 @@ mod tests {
             "#,
             r#"
             (module $std
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (data export $foo (read_only i32 11))
                 (data export $bar (read_write i32 13))
             )
@@ -788,7 +795,7 @@ mod tests {
         ]);
 
         let ref_module_entries = module_entries.iter().collect::<Vec<_>>();
-        let index_entry = link(&ref_module_entries).unwrap();
+        let index_entry = link(&ref_module_entries, 0).unwrap();
 
         let function_index_module_entries = &index_entry.function_index_module_entries;
         assert_eq!(function_index_module_entries.len(), 3);
@@ -933,7 +940,7 @@ mod tests {
         let module_entries = assemble_from_strs(vec![
             r#"
             (module $myapp
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (depend
                     (library $libc system "libc.so.6")
                 )
@@ -961,7 +968,7 @@ mod tests {
             "#,
             r#"
             (module $db
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (depend
                     (library $libsqlite3 user "libsqlite3.so.0")
                     (library $libz share "libz.so.1")
@@ -995,7 +1002,7 @@ mod tests {
             "#,
             r#"
             (module $compress
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (depend
                     (library $libz share "libz.so.1")
                 )
@@ -1009,7 +1016,7 @@ mod tests {
         ]);
 
         let ref_module_entries = module_entries.iter().collect::<Vec<_>>();
-        let index_entry = link(&ref_module_entries).unwrap();
+        let index_entry = link(&ref_module_entries, 0).unwrap();
 
         let function_index_module_entries = &index_entry.function_index_module_entries;
         assert_eq!(function_index_module_entries.len(), 3);
@@ -1223,78 +1230,189 @@ mod tests {
 
     #[test]
     fn test_link_constructors_and_destructors() {
-        let module_entries = assemble_from_strs(vec![
-            r#"
-            (module $myapp
-                (compiler_version "1.0")
-            )
-            "#,
+        let dependent_module_entries = assemble_from_strs(vec![
             r#"
             (module $mod_a
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (constructor $start_a)
-                (destructor $exit_a)
-                (function $start_a (code))  // 1,0  start
-                (function $exit_a (code))   // 1,1  exit
+                (destructor $exit_a)                // (pub_idx, target_mod_idx, func_internal_idx), the view from main module
+                (function export $start_a (code))   // 0,1,0 start
+                (function export $exit_a (code))    // 1,1,1 exit
             )
             "#,
             r#"
             (module $mod_b
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (constructor $start_b)
-                (function $start_b (code))  // 2,0  start
+                (function export $start_b (code))   // 2,2,0 start
             )
             "#,
             r#"
             (module $mod_c
-                (compiler_version "1.0")
+                (runtime_version "1.0")
             )
             "#,
             r#"
             (module $mod_d
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (destructor $exit_d)
-                (function $exit_d (code))   // 4,0  exit
+                (function export $exit_d (code))    // 5,4,0 exit
             )
             "#,
             r#"
             (module $mod_e
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (constructor $start_e)
-                (destructor $exit_e)
-                (function $start_e (code))  // 5,0  start
-                (function $exit_e (code))   // 5,1  exit
-            )
-            "#,
-            r#"
-            (module $mod_f
-                (compiler_version "1.0")
-                (destructor $exit_f)
-                (function $exit_f (code))   // 6,0  exit
+                (destructor $exit_e)                // module e will be import first because it has constructor while module d don't
+                (function export $start_e (code))   // 3,5,0 start
+                (function export $exit_e (code))    // 4,5,1 exit
             )
             "#,
         ]);
 
-        let ref_module_entries = module_entries.iter().collect::<Vec<_>>();
-        let _index_entry = link(&ref_module_entries).unwrap();
+        let (main_module_entry, entry_function_public_index_opt) = assemble_from_str_and_inits(
+            r#"
+            (module $myapp
+                (runtime_version "1.0")
+                (constructor $start_main)
+                (destructor $exit_main)
+                (depend
+                    (module $mod_a share "mod_a" "1.0")
+                    (module $mod_b share "mod_b" "1.0")
+                    (module $mod_c share "mod_c" "1.0")
+                    (module $mod_d share "mod_d" "1.0")
+                    (module $mod_e share "mod_e" "1.0")
+                )
+                // 6 import functions here
+                (function $start_main (code))   // 6,0,0 start
+                (function $exit_main (code))    // 7,0,1 exit
+                (function $main (code))         // 8,0,2 main
+                // __init   9,0,3
+                // __fini   10,0,4
+                // __entry  11,0,5
+            )
+            "#,
+            Some(&Initialization {
+                constructors: vec![
+                    InitialFunctionItem {
+                        module_name: "mod_a".to_string(),
+                        module_share_type: ModuleShareType::Share,
+                        module_version: EffectiveVersion::new(1, 0),
+                        function_name_path: "start_a".to_string(),
+                    },
+                    InitialFunctionItem {
+                        module_name: "mod_b".to_string(),
+                        module_share_type: ModuleShareType::Share,
+                        module_version: EffectiveVersion::new(1, 0),
+                        function_name_path: "start_b".to_string(),
+                    },
+                    InitialFunctionItem {
+                        module_name: "mod_e".to_string(),
+                        module_share_type: ModuleShareType::Share,
+                        module_version: EffectiveVersion::new(1, 0),
+                        function_name_path: "start_e".to_string(),
+                    },
+                ],
+                destructors: vec![
+                    InitialFunctionItem {
+                        module_name: "mod_a".to_string(),
+                        module_share_type: ModuleShareType::Share,
+                        module_version: EffectiveVersion::new(1, 0),
+                        function_name_path: "exit_a".to_string(),
+                    },
+                    InitialFunctionItem {
+                        module_name: "mod_d".to_string(),
+                        module_share_type: ModuleShareType::Share,
+                        module_version: EffectiveVersion::new(1, 0),
+                        function_name_path: "exit_d".to_string(),
+                    },
+                    InitialFunctionItem {
+                        module_name: "mod_e".to_string(),
+                        module_share_type: ModuleShareType::Share,
+                        module_version: EffectiveVersion::new(1, 0),
+                        function_name_path: "exit_e".to_string(),
+                    },
+                ],
+            }),
+        );
 
-        //         assert_eq!(
-        //             index_entry.start_function_index_entries,
-        //             vec![
-        //                 ModuleFunctionIndexEntry::new(1, 0),
-        //                 ModuleFunctionIndexEntry::new(2, 0),
-        //                 ModuleFunctionIndexEntry::new(5, 0),
-        //             ]
-        //         );
-        //
-        //         assert_eq!(
-        //             index_entry.exit_function_index_entries,
-        //             vec![
-        //                 ModuleFunctionIndexEntry::new(1, 1),
-        //                 ModuleFunctionIndexEntry::new(4, 0),
-        //                 ModuleFunctionIndexEntry::new(5, 1),
-        //                 ModuleFunctionIndexEntry::new(6, 0),
-        //             ]
-        //         );
+        let entry_function_public_index = entry_function_public_index_opt.unwrap();
+        assert_eq!(entry_function_public_index, 11);
+
+        let mut module_entries = vec![];
+        module_entries.push(&main_module_entry);
+        module_entries.extend(dependent_module_entries.iter());
+
+        let index_entry = link(&module_entries, entry_function_public_index).unwrap();
+
+        let function_index_module_entries = &index_entry.function_index_module_entries;
+        assert_eq!(function_index_module_entries.len(), 6);
+
+        let main_module_function_index_module_entry = &function_index_module_entries[0];
+        assert_eq!(
+            main_module_function_index_module_entry.index_entries,
+            vec![
+                FunctionIndexEntry {
+                    function_public_index: 0,
+                    target_module_index: 1,
+                    function_internal_index: 0
+                },
+                FunctionIndexEntry {
+                    function_public_index: 1,
+                    target_module_index: 1,
+                    function_internal_index: 1
+                },
+                FunctionIndexEntry {
+                    function_public_index: 2,
+                    target_module_index: 2,
+                    function_internal_index: 0
+                },
+                FunctionIndexEntry {
+                    function_public_index: 3,
+                    target_module_index: 5,
+                    function_internal_index: 0
+                },
+                FunctionIndexEntry {
+                    function_public_index: 4,
+                    target_module_index: 5,
+                    function_internal_index: 1
+                },
+                FunctionIndexEntry {
+                    function_public_index: 5,
+                    target_module_index: 4,
+                    function_internal_index: 0
+                },
+                FunctionIndexEntry {
+                    function_public_index: 6,
+                    target_module_index: 0,
+                    function_internal_index: 0
+                },
+                FunctionIndexEntry {
+                    function_public_index: 7,
+                    target_module_index: 0,
+                    function_internal_index: 1
+                },
+                FunctionIndexEntry {
+                    function_public_index: 8,
+                    target_module_index: 0,
+                    function_internal_index: 2
+                },
+                FunctionIndexEntry {
+                    function_public_index: 9,
+                    target_module_index: 0,
+                    function_internal_index: 3
+                },
+                FunctionIndexEntry {
+                    function_public_index: 10,
+                    target_module_index: 0,
+                    function_internal_index: 4
+                },
+                FunctionIndexEntry {
+                    function_public_index: 11,
+                    target_module_index: 0,
+                    function_internal_index: 5
+                },
+            ]
+        );
     }
 }

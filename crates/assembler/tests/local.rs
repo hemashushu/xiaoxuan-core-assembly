@@ -46,7 +46,7 @@ fn test_assemble_local_load_store() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (function $test
                 (param $a0 f32) (param $a1 f64)
                 (results
@@ -159,7 +159,7 @@ fn test_assemble_local_offset_load_and_store() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
     (module $app
-        (compiler_version "1.0")
+        (runtime_version "1.0")
         (function $test
             (results
                     i64 i32 i32 i32 i32 i32 // group 0

@@ -25,7 +25,7 @@ fn test_assemble_syscall_without_args() {
     let module_binary = helper_generate_module_image_binary_from_str(&format!(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (function $test (results i64 i32)
                 (code
                     (syscall {SYS_CALL_NUMBER_0})
@@ -76,7 +76,7 @@ fn test_assemble_syscall_with_2_args() {
     let module_binary = helper_generate_module_image_binary_from_str(&format!(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (function $test
                 (param $buf_addr i64)
                 (param $buf_len i32)
@@ -159,7 +159,7 @@ fn test_assemble_syscall_error_no() {
     let module_binary = helper_generate_module_image_binary_from_str(&format!(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (function $test
                 (param $file_path_buf_addr i64)
                 (results i64 i32)

@@ -24,7 +24,7 @@ fn test_assemble_extcall_with_system_libc_getuid() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (depend
                 (library $libc system "libc.so.6")
             )
@@ -60,7 +60,7 @@ fn test_assemble_extcall_with_system_libc_getenv() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (depend
                 (library $libc system "libc.so.6")
             )
@@ -102,7 +102,7 @@ fn test_assemble_extcall_with_user_lib() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (depend
                 (library $test0 user "libtest0.so.1")
             )

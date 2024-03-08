@@ -23,7 +23,7 @@ fn test_assemble_host_panic() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (function $test
                 (code
                     nop
@@ -56,7 +56,7 @@ fn test_assemble_host_debug() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (function $test
                 (code
                     nop
@@ -89,7 +89,7 @@ fn test_assemble_host_unreachable() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (function $test
                 (code
                     nop
@@ -171,7 +171,7 @@ fn test_assemble_host_address_of_data_and_local_vars() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (data $d0 (read_only i32 0x11))
             (data $d1 (read_only i32 0x13))
             (data $d2 (read_write i64 0xee))    // init data
@@ -318,7 +318,7 @@ fn test_assemble_host_address_offset_of_data_and_local_vars() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (data $d0 (read_only bytes h"02-03-05-07" 8))
             (data $d1 (read_only bytes h"11-13-17-19" 8))
             (function $test
@@ -422,7 +422,7 @@ fn test_assemble_host_address_heap() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (function $test
                 (results i64 i64 i64 i64 i64)
                 (code
@@ -528,7 +528,7 @@ fn test_assemble_host_heap_copy() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (function $test
                 (param $src_ptr i64)
                 (param $dst_ptr i64)
@@ -594,7 +594,7 @@ fn test_assemble_host_memory_copy() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (function $test
                 (param $src_ptr i64)
                 (param $dst_ptr i64)
@@ -676,7 +676,7 @@ fn test_assemble_host_addr_function_and_callback_function() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (depend
                 (library $test0 user "libtest0.so.1")
             )

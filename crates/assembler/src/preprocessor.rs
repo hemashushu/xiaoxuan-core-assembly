@@ -6,9 +6,10 @@
 
 use ancasm_parser::{
     ast::{
-        BranchCase, DataDetailNode, DataNode, DependItem, ExternalFunctionNode, ExternalItem,
-        ExternalNode, FunctionNode, ImportDataNode, ImportFunctionNode, ImportItem, ImportNode,
-        Instruction, LocalNode, ModuleElementNode, ModuleNode, ParamNode,
+        BranchCase, DataDetailNode, DataNode, DependItem, DependentModuleNode,
+        ExternalFunctionNode, ExternalItem, ExternalNode, FunctionNode, ImportDataNode,
+        ImportFunctionNode, ImportItem, ImportNode, Instruction, LocalNode, ModuleElementNode,
+        ModuleNode, ParamNode,
     },
     lexer::{filter, lex},
     parser::parse,
@@ -16,8 +17,7 @@ use ancasm_parser::{
     NAME_PATH_SEPARATOR,
 };
 use ancvm_types::{
-    envcallcode::EnvCallCode, DataType, EffectiveVersion, RUNTIME_MAJOR_VERSION,
-    RUNTIME_MINOR_VERSION,
+    DataType, EffectiveVersion, ModuleShareType, RUNTIME_MAJOR_VERSION, RUNTIME_MINOR_VERSION,
 };
 
 use crate::AssembleError;
@@ -155,7 +155,7 @@ pub struct MergedModuleNode {
     // the main module name
     pub name: String,
 
-    pub compiler_version: EffectiveVersion,
+    pub runtime_version: EffectiveVersion,
     pub constructor_function_name_path: Option<String>,
     pub destructor_function_name_path: Option<String>,
 
@@ -250,21 +250,32 @@ enum RenameKind {
     ExternalFunction,
 }
 
-pub struct Initialization {
-    pub constructor_module_names: Vec<String>,
-    pub destructor_module_names: Vec<String>,
+pub struct InitialFunctionItem {
+    pub module_name: String,
+    pub module_share_type: ModuleShareType,
+    pub module_version: EffectiveVersion,
+    pub function_name_path: String, // the name of the constructor or destructor
 }
+
+pub struct Initialization {
+    pub constructors: Vec<InitialFunctionItem>, // the main module name of a package
+    pub destructors: Vec<InitialFunctionItem>,  // the main module name of a package
+}
+
+pub const FUNCTION_ENTRY_NAME: &str = "__entry";
+pub const FUNCTION_INIT_NAME: &str = "__init";
+pub const FUNCTION_FINI_NAME: &str = "__fini";
 
 pub fn merge_and_canonicalize_submodule_nodes(
     submodule_nodes: &[ModuleNode],
-    config_depend_items: Option<&[DependItem]>, // from 'module.anon'
-    initialization: Option<Initialization>,     // for import the constructors and destructors.
+    config_depend_items: Option<&[DependItem]>, // config-dependencies come from 'module.anon'
+    initialization: Option<&Initialization>, // for generating entry/init/fini functions, for application only
 ) -> Result<MergedModuleNode, AssembleError> {
     // the first submodule is the main submodule of an application or a library.
     // so pick the name and runtime version from the first submodule.
 
-    let name = submodule_nodes[0].name_path.clone();
-    let compiler_version = submodule_nodes[0].compiler_version.unwrap();
+    let main_module_name = submodule_nodes[0].name_path.clone();
+    let runtime_version = submodule_nodes[0].runtime_version.unwrap();
     let constructor_function_name = submodule_nodes[0].constructor_function_name_path.clone();
     let destructor_function_name = submodule_nodes[0].destructor_function_name_path.clone();
 
@@ -276,31 +287,20 @@ pub fn merge_and_canonicalize_submodule_nodes(
             .next()
             .unwrap();
 
-        if first_part_of_name_path != name {
+        if first_part_of_name_path != main_module_name {
             return Err(AssembleError {
                 message: format!(
                     "The name path of submodule: \"{}\" does not starts with: \"{}\"",
-                    module_node.name_path, name
+                    module_node.name_path, main_module_name
                 ),
             });
         }
-
-        /*
-        // if module_node.runtime_version_major != runtime_version_major
-        //     || module_node.runtime_version_minor != runtime_version_minor
-        // {
-        //     return Err(AssembleError {
-        //         message: format!(
-        //             "The runtime version of submodule: \"{}.{}\" does not match the main module: \"{}.{}\"",
-        //             module_node.runtime_version_major, module_node.runtime_version_minor ,
-        //             runtime_version_major, runtime_version_minor
-        //         ),
-        //     });
-        // }
-         */
     }
 
-    let depend_items = if let Some(items) = config_depend_items {
+    // the dependencies shoud be defined in:
+    // - 'package.anon' in multiple source file package
+    // - '?.anc' in single file application
+    let mut depend_items = if let Some(items) = config_depend_items {
         if submodule_nodes[0].depend_node.is_some() {
             return Err(AssembleError {
                 message: "Depend node is not allowed in applicaiton with multiple source file."
@@ -683,7 +683,8 @@ pub fn merge_and_canonicalize_submodule_nodes(
 
         // the name path that excludes the main module name
         // e.g.
-        // the relative name path of 'myapp::utils::add' is 'utils::add'
+        // the relative name path of 'myapp::utils::add' is 'utils::add',
+        // the relative name path of 'myapp' is `None``.
         let relative_name_path = {
             if let Some((_head, tail)) = module_node.name_path.split_once("::") {
                 Some(tail)
@@ -771,18 +772,25 @@ pub fn merge_and_canonicalize_submodule_nodes(
     }
 
     // generates:
-    // - the '__entry' function
+    // - the '__entry' function (for application only)
     // - the '__init' function
     // - the '__fini' function
-    // - the dependencies and import items, which are required by constructor and destructor
-    if let Some(_init) = initialization {
-        // todo
-        generate_entry_and_init_and_finit()
+    // - the dependent modules and import functions, which are required by constructor and destructor
+    if let Some(init) = initialization {
+        generate_entry_and_init_and_finit(
+            &main_module_name,
+            &mut depend_items,
+            &mut canonical_import_nodes,
+            &mut canonical_function_nodes,
+            init,
+            &constructor_function_name,
+            &destructor_function_name,
+        );
     }
 
     let merged_module_node = MergedModuleNode {
-        name,
-        compiler_version,
+        name: main_module_name,
+        runtime_version,
         depend_items,
         constructor_function_name_path: constructor_function_name,
         destructor_function_name_path: destructor_function_name,
@@ -1399,13 +1407,20 @@ fn canonicalize_name_path_in_instruction(
     }
 }
 
-fn generate_entry_and_init_and_finit() {
+fn generate_entry_and_init_and_finit(
+    main_module_name: &str,
+    depend_items: &mut Vec<DependItem>,
+    import_nodes: &mut Vec<ImportNode>,
+    canonical_function_nodes: &mut Vec<CanonicalFunctionNode>,
+    initialization: &Initialization,
+    constructor_function_name_path: &Option<String>,
+    destructor_function_name_path: &Option<String>,
+) {
     // generates:
     //
-    // - the '__entry' function
+    // - the '__entry' function (for application only)
     // - the '__init' function
     // - the '__fini' function
-    // - the dependencies and import items, which are required by constructor and destructor
 
     // the content of function __entry:
     //
@@ -1418,74 +1433,239 @@ fn generate_entry_and_init_and_finit() {
     // }
     // ```
 
-    let auto_generated_code = format!(
+    let mut add_function_item = |function_item: &InitialFunctionItem, ids: &mut Vec<String>| {
+        // create new depend item if it does not exist
+
+        let module_name = &function_item.module_name;
+
+        let module_id_opt = depend_items.iter().find_map(|item| match item {
+            DependItem::DependentModule(m) if &m.name == module_name => Some(&m.id),
+            _ => None,
+        });
+
+        let module_id = if let Some(id) = module_id_opt {
+            id
+        } else {
+            // create new depend item
+            let item = DependItem::DependentModule(DependentModuleNode {
+                id: module_name.clone(),
+                module_share_type: function_item.module_share_type,
+                name: module_name.clone(),
+                module_version: function_item.module_version,
+            });
+
+            depend_items.push(item);
+            module_name
+        };
+
+        // create new import node if it does not exist.
+
+        let import_node_idx_opt = import_nodes
+            .iter()
+            .position(|node| &node.module_id == module_id);
+
+        let import_node_idx = if let Some(idx) = import_node_idx_opt {
+            idx
+        } else {
+            let idx = import_nodes.len();
+
+            // create new import node
+            let import_node = ImportNode {
+                module_id: module_id.clone(),
+                import_items: vec![],
+            };
+
+            import_nodes.push(import_node);
+            idx
+        };
+
+        let import_node = &mut import_nodes[import_node_idx];
+
+        // add import function
+
+        // PACKAGE_ID::MODULE_NAME_PATH::FUNCTION_NAME
+        let function_id = format!("{}::{}", module_id, function_item.function_name_path);
+
+        import_node
+            .import_items
+            .push(ImportItem::ImportFunction(ImportFunctionNode {
+                id: function_id.clone(),
+                name_path: function_item.function_name_path.clone(),
+                params: vec![],
+                results: vec![],
+            }));
+
+        ids.push(function_id);
+    };
+
+    let mut constructor_ids: Vec<String> = vec![];
+    let mut destructor_ids: Vec<String> = vec![];
+
+    // generating the constructor and destructor function calling ids,
+    // as well as generating the depend items and import items
+    // for initialization in initializations {
+        for constructor_function_item in &initialization.constructors {
+            add_function_item(constructor_function_item, &mut constructor_ids);
+        }
+
+        for destructor_function_item in &initialization.destructors {
+            add_function_item(destructor_function_item, &mut destructor_ids);
+        }
+    // }
+
+    let mut calling_constructor_strings = constructor_ids
+        .iter()
+        .map(|id| format!("(call ${})", id))
+        .collect::<Vec<String>>();
+
+    let mut calling_destructor_strings = destructor_ids
+        .iter()
+        .map(|id| format!("(call ${})", id))
+        .collect::<Vec<String>>();
+
+    if let Some(name_path) = constructor_function_name_path {
+        let id = format!("{}::{}", main_module_name, name_path);
+        calling_constructor_strings.push(format!("(call ${})", id));
+    }
+
+    if let Some(name_path) = destructor_function_name_path {
+        let id = format!("{}::{}", main_module_name, name_path);
+        calling_destructor_strings.push(format!("(call ${})", id));
+    }
+
+    let function_entry_code = format!(
         r#"
-        (module $start
-            (function $__entry (result i64)
-                (local $exit_code i64)
-                (code
-                    (call $__init)
-                    (local.store64_i64 $exit_code (call $main))
-                    (call $__fini)
-                    (local.load64_i64 $exit_code)
-                )
-            )
-            (function $__init
-                (code
-                    (envcall {ENV_CALL_CODE_COUNT_START_FUNCTION})
-                    (for (param $remain i32)
-                        (when
-                            (i32.eqz (local.load32_i32 $remain))
-                            (break)
-                        )
-                        (dyncall
-                            (envcall
-                                {ENV_CALL_CODE_GET_START_FUNCTION_ITEM}
-                                (i32.dec (local.load32_i32 $remain) 1)
-                            )
-                        )
-                        (recur
-                            (i32.dec (local.load32_i32 $remain) 1)
-                        )
-                    )
-                )
-            )
-            (function $__fini
-                (code
-                    (envcall {ENV_CALL_CODE_COUNT_EXIT_FUNCTION})
-                    (for (param $remain i32)
-                        (when
-                            (i32.eqz (local.load32_i32 $remain))
-                            (break)
-                        )
-                        (dyncall
-                            (envcall
-                                {ENV_CALL_CODE_GET_EXIT_FUNCTION_ITEM}
-                                (i32.dec (local.load32_i32 $remain) 1)
-                            )
-                        )
-                        (recur
-                            (i32.dec (local.load32_i32 $remain) 1)
-                        )
-                    )
-                )
+        (function ${FUNCTION_ENTRY_NAME} (result i64)
+            (local $exit_code i64)
+            (code
+                (call ${MAIN_MODULE_NAME}::{FUNCTION_INIT_NAME})
+                (local.store64 $exit_code (call ${MAIN_MODULE_NAME}::main))
+                (call ${MAIN_MODULE_NAME}::{FUNCTION_FINI_NAME})
+                (local.load64_i64 $exit_code)
             )
         )
         "#,
-        ENV_CALL_CODE_COUNT_START_FUNCTION = (EnvCallCode::count_start_function as u32),
-        ENV_CALL_CODE_GET_START_FUNCTION_ITEM = (EnvCallCode::get_start_function_item as u32),
-        ENV_CALL_CODE_COUNT_EXIT_FUNCTION = (EnvCallCode::count_exit_function as u32),
-        ENV_CALL_CODE_GET_EXIT_FUNCTION_ITEM = (EnvCallCode::get_exit_function_item as u32),
+        FUNCTION_ENTRY_NAME = FUNCTION_ENTRY_NAME,
+        FUNCTION_INIT_NAME = FUNCTION_INIT_NAME,
+        MAIN_MODULE_NAME = main_module_name,
+        FUNCTION_FINI_NAME = FUNCTION_FINI_NAME
     );
 
+    // let function_init_code = format!(
+    //     r#"
+    //     (function export $__init
+    //         (code
+    //             (envcall {ENV_CALL_CODE_COUNT_START_FUNCTION})
+    //             (for (param $remain i32)
+    //                 (do
+    //                     (when
+    //                         (i32.eqz (local.load32_i32 $remain))
+    //                         (break)
+    //                     )
+    //                     (dyncall
+    //                         (envcall
+    //                             {ENV_CALL_CODE_GET_START_FUNCTION_ITEM}
+    //                             (i32.dec (local.load32_i32 $remain) 1)
+    //                         )
+    //                     )
+    //                     (recur
+    //                         (i32.dec (local.load32_i32 $remain) 1)
+    //                     )
+    //                 )
+    //             )
+    //         )
+    //     )
+    //     "#,
+    //     ENV_CALL_CODE_COUNT_START_FUNCTION = (EnvCallCode::count_start_function as u32),
+    //     ENV_CALL_CODE_GET_START_FUNCTION_ITEM = (EnvCallCode::get_start_function_item as u32),
+    // );
+
+    // the 'initialization' function for the package
+
+    let function_init_code = format!(
+        r#"
+        (function ${FUNCTION_INIT_NAME}
+            (code
+                {CALL_CONSTRUCTOR_STRINGS}
+            )
+        )
+        "#,
+        FUNCTION_INIT_NAME = FUNCTION_INIT_NAME,
+        CALL_CONSTRUCTOR_STRINGS = (calling_constructor_strings.join(" ")),
+    );
+
+    // let function_fini_code = format!(
+    //     r#"
+    //     (function export $__fini
+    //         (code
+    //             (envcall {ENV_CALL_CODE_COUNT_EXIT_FUNCTION})
+    //             (for (param $remain i32)
+    //                 (do
+    //                     (when
+    //                         (i32.eqz (local.load32_i32 $remain))
+    //                         (break)
+    //                     )
+    //                     (dyncall
+    //                         (envcall
+    //                             {ENV_CALL_CODE_GET_EXIT_FUNCTION_ITEM}
+    //                             (i32.dec (local.load32_i32 $remain) 1)
+    //                         )
+    //                     )
+    //                     (recur
+    //                         (i32.dec (local.load32_i32 $remain) 1)
+    //                     )
+    //                 )
+    //             )
+    //         )
+    //     )
+    //     "#,
+    //     ENV_CALL_CODE_COUNT_EXIT_FUNCTION = (EnvCallCode::count_exit_function as u32),
+    //     ENV_CALL_CODE_GET_EXIT_FUNCTION_ITEM = (EnvCallCode::get_exit_function_item as u32),
+    // );
+
+    // the 'finish' function for the package
+
+    let function_fini_code = format!(
+        r#"
+        (function ${FUNCTION_FINI_NAME}
+            (code
+                {CALL_DESTRUCTOR_STRINGS}
+            )
+        )
+        "#,
+        FUNCTION_FINI_NAME = FUNCTION_FINI_NAME,
+        CALL_DESTRUCTOR_STRINGS = (calling_destructor_strings.join(" ")),
+    );
+
+    let module_code_start = r#"
+    (module $__auto_generated
+        (runtime_version "1.0")
+        "#
+    .to_string();
+
+    let module_code_end = r#"
+    )
+        "#
+    .to_string();
+
+    let auto_generated_codes = vec![
+        module_code_start,
+        function_init_code,
+        function_fini_code,
+        function_entry_code,
+        module_code_end,
+    ];
+
+    let auto_generated_code_string = auto_generated_codes.join("");
+
     // lex and parse the code snippet
-    let mut chars = auto_generated_code.chars();
+    let mut chars = auto_generated_code_string.chars();
     let mut char_iter = PeekableIterator::new(&mut chars, 3);
     let all_tokens = lex(&mut char_iter).unwrap();
     let effective_tokens = filter(&all_tokens);
     let mut token_iter = effective_tokens.into_iter();
     let mut peekable_token_iter = PeekableIterator::new(&mut token_iter, 2);
-    let _auto_generated_module_node = parse(
+    let auto_generated_module_node = parse(
         &mut peekable_token_iter,
         Some(EffectiveVersion::new(
             RUNTIME_MAJOR_VERSION,
@@ -1494,8 +1674,27 @@ fn generate_entry_and_init_and_finit() {
     )
     .unwrap();
 
-    // todo
     // insert the auto-generated node to main module node
+    auto_generated_module_node
+        .element_nodes
+        .iter()
+        .for_each(|node| {
+            if let ModuleElementNode::FunctionNode(function_node) = node {
+                let id = format!("{}::{}", main_module_name, function_node.name);
+
+                let canonical_function_node = CanonicalFunctionNode {
+                    id,
+                    name_path: function_node.name.clone(),
+                    export: function_node.export,
+                    params: function_node.params.clone(),
+                    results: function_node.results.clone(),
+                    locals: function_node.locals.clone(),
+                    code: function_node.code.clone(),
+                };
+
+                canonical_function_nodes.push(canonical_function_node);
+            }
+        });
 }
 
 #[cfg(test)]
@@ -1518,17 +1717,20 @@ mod tests {
     };
 
     use crate::{
-        preprocessor::{CanonicalDataNode, CanonicalFunctionNode},
+        preprocessor::{CanonicalDataNode, CanonicalFunctionNode, InitialFunctionItem},
         AssembleError,
     };
 
-    use super::{merge_and_canonicalize_submodule_nodes, MergedModuleNode};
+    use super::{merge_and_canonicalize_submodule_nodes, Initialization, MergedModuleNode};
 
     fn preprocess_and_get_merged_module_node(submodule_sources: &[&str]) -> MergedModuleNode {
-        preprocess_from_strs(submodule_sources).unwrap()
+        preprocess_from_strs(submodule_sources, None).unwrap()
     }
 
-    fn preprocess_from_strs(submodule_sources: &[&str]) -> Result<MergedModuleNode, AssembleError> {
+    fn preprocess_from_strs(
+        submodule_sources: &[&str],
+        initialization: Option<&Initialization>,
+    ) -> Result<MergedModuleNode, AssembleError> {
         let submodule_nodes = submodule_sources
             .iter()
             .map(|source| {
@@ -1542,7 +1744,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        merge_and_canonicalize_submodule_nodes(&submodule_nodes, None, None)
+        merge_and_canonicalize_submodule_nodes(&submodule_nodes, None, initialization)
     }
 
     #[test]
@@ -1551,7 +1753,7 @@ mod tests {
             preprocess_and_get_merged_module_node(&[
                 r#"
             (module $myapp
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $entry (code))
                 (function $main (code))
             )
@@ -1565,7 +1767,7 @@ mod tests {
             ]),
             MergedModuleNode {
                 name: "myapp".to_owned(),
-                compiler_version: EffectiveVersion::new(1, 0),
+                runtime_version: EffectiveVersion::new(1, 0),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
                 depend_items: vec![],
@@ -1622,7 +1824,7 @@ mod tests {
             preprocess_and_get_merged_module_node(&[
                 r#"
             (module $myapp
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (data $code (read_only i32 0x11))
             )
             "#,
@@ -1635,7 +1837,7 @@ mod tests {
             ]),
             MergedModuleNode {
                 name: "myapp".to_owned(),
-                compiler_version: EffectiveVersion::new(1, 0),
+                runtime_version: EffectiveVersion::new(1, 0),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
                 depend_items: vec![],
@@ -1684,7 +1886,7 @@ mod tests {
             preprocess_and_get_merged_module_node(&[
                 r#"
             (module $myapp
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $add (code))
                 (function $test (code
                     // group 0
@@ -1717,7 +1919,7 @@ mod tests {
             ]),
             MergedModuleNode {
                 name: "myapp".to_owned(),
-                compiler_version: EffectiveVersion::new(1, 0),
+                runtime_version: EffectiveVersion::new(1, 0),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
                 depend_items: vec![],
@@ -1832,7 +2034,7 @@ mod tests {
             preprocess_and_get_merged_module_node(&[
                 r#"
             (module $myapp
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (data $d0 (read_only i32 0x11))
                 (function $test (code
                     // group 0
@@ -1865,7 +2067,7 @@ mod tests {
             ]),
             MergedModuleNode {
                 name: "myapp".to_owned(),
-                compiler_version: EffectiveVersion::new(1, 0),
+                runtime_version: EffectiveVersion::new(1, 0),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
                 depend_items: vec![],
@@ -1997,7 +2199,7 @@ mod tests {
         assert_eq!(
             preprocess_and_get_merged_module_node(&[r#"
             (module $myapp
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (depend
                     (module $math share "math" "1.0")
                     (library $libc share "libc.so.6")
@@ -2008,7 +2210,7 @@ mod tests {
             "#,]),
             MergedModuleNode {
                 name: "myapp".to_owned(),
-                compiler_version: EffectiveVersion::new(1, 0),
+                runtime_version: EffectiveVersion::new(1, 0),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
                 depend_items: vec![
@@ -2041,31 +2243,37 @@ mod tests {
 
         // module id not found
         assert!(matches!(
-            preprocess_from_strs(&[r#"
+            preprocess_from_strs(
+                &[r#"
             (module $myapp
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (depend
                     (module $math share "math" "1.0")
                     (library $libc share "libc.so.6")
                 )
                 (import $mymath)
             )
-            "#]),
+            "#],
+                None
+            ),
             Err(AssembleError { message: _ })
         ));
 
         // library id not found
         assert!(matches!(
-            preprocess_from_strs(&[r#"
+            preprocess_from_strs(
+                &[r#"
             (module $myapp
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (depend
                     (module $math share "math" "1.0")
                     (library $libc share "libc.so.6")
                 )
                 (external $mylibc)
             )
-            "#]),
+            "#],
+                None
+            ),
             Err(AssembleError { message: _ })
         ));
     }
@@ -2076,7 +2284,7 @@ mod tests {
             preprocess_and_get_merged_module_node(&[
                 r#"
             (module $myapp
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (depend
                     (module $math share "math" "1.0")
                     (module $format user "format" "1.2")
@@ -2145,7 +2353,7 @@ mod tests {
             ]),
             MergedModuleNode {
                 name: "myapp".to_owned(),
-                compiler_version: EffectiveVersion::new(1, 0),
+                runtime_version: EffectiveVersion::new(1, 0),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
                 depend_items: vec![
@@ -2338,7 +2546,7 @@ mod tests {
             preprocess_and_get_merged_module_node(&[
                 r#"
             (module $myapp
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (depend
                     (module $math share "math" "1.0")
                     (module $match user "match" "1.2")
@@ -2355,7 +2563,7 @@ mod tests {
                     // group 0
                     (data.load32_i32 $count)                // math::count
                     (data.load32_i32 $myapp::count)         // math::count
-                    (data.load32_i32 $package::count)        // math::count
+                    (data.load32_i32 $package::count)       // math::count
                     (data.load32_i32 $self::count)          // math::count
 
                     // group 1
@@ -2364,7 +2572,7 @@ mod tests {
 
                     // group 2
                     (data.load32_i32 $myapp::utils::d0)     // math::count
-                    (data.load32_i32 $package::utils::d0)    // math::count
+                    (data.load32_i32 $package::utils::d0)   // math::count
                     (data.load32_i32 $self::utils::d0)      // math::count
 
                     // group 3
@@ -2390,7 +2598,7 @@ mod tests {
                     // group 4
                     (data.load32_i32 $d0)                   // math::count
                     (data.load32_i32 $myapp::utils::d0)     // math::count
-                    (data.load32_i32 $package::utils::d0)    // math::count
+                    (data.load32_i32 $package::utils::d0)   // math::count
                     (data.load32_i32 $self::d0)             // math::count
 
                     // group 5
@@ -2400,14 +2608,14 @@ mod tests {
 
                     // group 6
                     (data.load32_i32 $myapp::count)         // math::count
-                    (data.load32_i32 $package::count)        // math::count
+                    (data.load32_i32 $package::count)       // math::count
                 ))
             )
             "#
             ]),
             MergedModuleNode {
                 name: "myapp".to_owned(),
-                compiler_version: EffectiveVersion::new(1, 0),
+                runtime_version: EffectiveVersion::new(1, 0),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
                 depend_items: vec![
@@ -2621,7 +2829,7 @@ mod tests {
             preprocess_and_get_merged_module_node(&[
                 r#"
             (module $myapp
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (depend
                     (library $math user "math.so.1")
                     (library $std share "std.so.1")
@@ -2647,7 +2855,7 @@ mod tests {
 
                     // group 2
                     (extcall $myapp::utils::f0)     // add
-                    (extcall $package::utils::f0)    // add
+                    (extcall $package::utils::f0)   // add
                     (extcall $self::utils::f0)      // add
 
                     // group 3
@@ -2690,7 +2898,7 @@ mod tests {
             ]),
             MergedModuleNode {
                 name: "myapp".to_owned(),
-                compiler_version: EffectiveVersion::new(1, 0),
+                runtime_version: EffectiveVersion::new(1, 0),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
                 depend_items: vec![
@@ -2876,5 +3084,129 @@ mod tests {
                 import_nodes: vec![]
             }
         )
+    }
+
+    #[test]
+    fn test_preprocess_auto_generate_functions() {
+        let merged_module_node = preprocess_from_strs(
+            &[r#"
+            (module $myapp
+                (runtime_version "1.0")
+                (constructor $main_start)
+                (destructor $main_end)
+                (function $main (result i64)
+                    (code
+                        (i64.imm 11)
+                    )
+                )
+                (function $main_start
+                    (code nop)
+                )
+                (function $main_end
+                    (code nop)
+                )
+            )"#],
+            Some(&Initialization {
+                constructors: vec![
+                    InitialFunctionItem {
+                        module_name: "storage".to_string(),
+                        module_share_type: ModuleShareType::User,
+                        module_version: EffectiveVersion { major: 1, minor: 0 },
+                        function_name_path: "create_storage".to_string(),
+                    },
+                    InitialFunctionItem {
+                        module_name: "backend".to_string(),
+                        module_share_type: ModuleShareType::Share,
+                        module_version: EffectiveVersion { major: 1, minor: 0 },
+                        function_name_path: "connect".to_string(),
+                    },
+                ],
+                destructors: vec![
+                    InitialFunctionItem {
+                        module_name: "storage".to_string(),
+                        module_share_type: ModuleShareType::User,
+                        module_version: EffectiveVersion { major: 1, minor: 0 },
+                        function_name_path: "remove_storage".to_string(),
+                    },
+                    InitialFunctionItem {
+                        module_name: "frontend".to_string(),
+                        module_share_type: ModuleShareType::Share,
+                        module_version: EffectiveVersion { major: 1, minor: 0 },
+                        function_name_path: "disconnect".to_string(),
+                    },
+                ],
+            }),
+        )
+        .unwrap();
+
+        let function_nodes = &merged_module_node.function_nodes;
+
+        // println!("{:#?}", function_nodes);
+
+        assert_eq!(function_nodes.len(), 6);
+
+        let function_node0 = &function_nodes[0];
+        assert_eq!(function_node0.id, "myapp::main");
+        assert_eq!(function_node0.name_path, "main");
+        assert_eq!(function_node0.export, false);
+
+        let function_node1 = &function_nodes[1];
+        assert_eq!(function_node1.id, "myapp::main_start");
+        assert_eq!(function_node1.name_path, "main_start");
+        assert_eq!(function_node1.export, false);
+
+        let function_node2 = &function_nodes[2];
+        assert_eq!(function_node2.id, "myapp::main_end");
+        assert_eq!(function_node2.name_path, "main_end");
+        assert_eq!(function_node2.export, false);
+
+        let function_node3 = &function_nodes[3];
+        assert_eq!(function_node3.id, "myapp::__init");
+        assert_eq!(function_node3.name_path, "__init");
+        assert_eq!(function_node3.export, false);
+        assert_eq!(
+            function_node3.code,
+            vec![
+                Instruction::Call {
+                    id: "storage::create_storage".to_string(),
+                    args: vec![]
+                },
+                Instruction::Call {
+                    id: "backend::connect".to_string(),
+                    args: vec![]
+                },
+                Instruction::Call {
+                    id: "myapp::main_start".to_string(),
+                    args: vec![]
+                }
+            ]
+        );
+
+        let function_node4 = &function_nodes[4];
+        assert_eq!(function_node4.id, "myapp::__fini");
+        assert_eq!(function_node4.name_path, "__fini");
+        assert_eq!(function_node4.export, false);
+        assert_eq!(
+            function_node4.code,
+            vec![
+                Instruction::Call {
+                    id: "storage::remove_storage".to_string(),
+                    args: vec![]
+                },
+                Instruction::Call {
+                    id: "frontend::disconnect".to_string(),
+                    args: vec![]
+                },
+                Instruction::Call {
+                    id: "myapp::main_end".to_string(),
+                    args: vec![]
+                }
+            ]
+        );
+
+        let function_node5 = &function_nodes[5];
+        assert_eq!(function_node5.id, "myapp::__entry");
+        assert_eq!(function_node5.name_path, "__entry");
+        assert_eq!(function_node5.export, false);
     }
 }

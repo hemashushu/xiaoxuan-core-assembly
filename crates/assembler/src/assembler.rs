@@ -18,7 +18,7 @@ use ancvm_types::DataSectionType;
 
 use ancvm_types::{opcode::Opcode, DataType};
 
-use crate::preprocessor::{CanonicalDataNode, CanonicalFunctionNode};
+use crate::preprocessor::{CanonicalDataNode, CanonicalFunctionNode, FUNCTION_ENTRY_NAME};
 use crate::{preprocessor::MergedModuleNode, AssembleError, UNREACHABLE_CODE_NO_DEFAULT_ARM};
 
 // the identifier of functions and data items
@@ -71,9 +71,7 @@ struct IdentifierSource {
 }
 
 impl IdentifierLookupTable {
-    pub fn new(
-        identifier_source: IdentifierSource,
-    ) -> Self {
+    pub fn new(identifier_source: IdentifierSource) -> Self {
         let mut function_identifiers: Vec<IdentifierIndex> = vec![];
         let mut data_identifiers: Vec<IdentifierIndex> = vec![];
         let mut external_function_identifiers: Vec<IdentifierIndex> = vec![];
@@ -461,9 +459,9 @@ impl FlowStack {
 // should be inserted before assemble
 pub fn assemble_merged_module_node(
     merged_module_node: &MergedModuleNode,
-) -> Result<ModuleEntry, AssembleError> {
+) -> Result<(ModuleEntry, Option<u32>), AssembleError> {
     let module_name = merged_module_node.name.clone();
-    let compiler_version = merged_module_node.compiler_version;
+    let runtime_version = merged_module_node.runtime_version;
 
     let mut type_entries = vec![];
 
@@ -487,10 +485,7 @@ pub fn assemble_merged_module_node(
         &mut type_entries,
     )?;
 
-    let (
-        external_function_entries,
-        external_function_ids,
-    ) = assemble_external_nodes(
+    let (external_function_entries, external_function_ids) = assemble_external_nodes(
         &external_library_ids,
         &merged_module_node.external_nodes,
         &mut type_entries,
@@ -584,9 +579,14 @@ pub fn assemble_merged_module_node(
             None
         };
 
+    let entry_function_public_index = function_name_entries
+        .iter()
+        .find(|entry| entry.name_path == FUNCTION_ENTRY_NAME)
+        .map(|entry| entry.function_public_index as u32);
+
     let module_entry = ModuleEntry {
         name: module_name,
-        runtime_version: compiler_version,
+        runtime_version,
         //
         import_function_count,
         import_read_only_data_count,
@@ -614,7 +614,7 @@ pub fn assemble_merged_module_node(
         data_name_entries,
     };
 
-    Ok(module_entry)
+    Ok((module_entry, entry_function_public_index))
 }
 
 // fn count_imported_function(merged_module_node: &MergedModuleNode) -> usize {
@@ -2173,7 +2173,7 @@ mod tests {
         let submodule_sources = &[
             r#"
         (module $myapp
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (constructor $init)
             (destructor $exit)
             (depend
@@ -2246,11 +2246,9 @@ mod tests {
 
         let merged_module_node =
             merge_and_canonicalize_submodule_nodes(&submodule_nodes, None, None).unwrap();
-        let module_entry = assemble_merged_module_node(&merged_module_node).unwrap();
+        let (module_entry, _) = assemble_merged_module_node(&merged_module_node).unwrap();
 
         assert_eq!(module_entry.name, "myapp");
-        // assert_eq!(module_entry.runtime_version_major, 1);
-        // assert_eq!(module_entry.runtime_version_minor, 0);
         assert_eq!(module_entry.runtime_version, EffectiveVersion::new(1, 0));
 
         assert_eq!(module_entry.import_function_count, 1);

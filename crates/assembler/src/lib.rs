@@ -7,7 +7,7 @@
 use std::fmt::Display;
 
 pub mod assembler;
-pub mod binarygen;
+pub mod imagegenerator;
 pub mod linker;
 pub mod preprocessor;
 pub mod utils;

@@ -15,7 +15,7 @@ pub struct ModuleNode {
     // note that the module names within an application (or a package) can not be duplicated
     pub name_path: String,
 
-    pub compiler_version: Option<EffectiveVersion>,
+    pub runtime_version: Option<EffectiveVersion>,
 
     // the relative name path of constructor function
     // a package can only defined one constructor
@@ -46,8 +46,6 @@ pub struct DependentModuleNode {
     pub id: String,
     pub module_share_type: ModuleShareType,
     pub name: String,
-    // pub version_major: u16,
-    // pub version_minor: u16,
     pub module_version: EffectiveVersion,
 }
 

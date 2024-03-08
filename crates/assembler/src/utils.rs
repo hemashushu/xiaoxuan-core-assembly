@@ -11,7 +11,7 @@ use ancasm_parser::{
 };
 
 use crate::{
-    assembler::assemble_merged_module_node, binarygen::generate_module_image_binary, linker::link,
+    assembler::assemble_merged_module_node, imagegenerator::generate_module_image_binary, linker::link,
     preprocessor::merge_and_canonicalize_submodule_nodes,
 };
 
@@ -27,10 +27,10 @@ pub fn helper_generate_module_image_binary_from_str(source: &str) -> Vec<u8> {
     let merged_module_node =
         merge_and_canonicalize_submodule_nodes(&[module_node], None, None).unwrap();
 
-    let module_entry = assemble_merged_module_node(&merged_module_node).unwrap();
+    let (module_entry, _) = assemble_merged_module_node(&merged_module_node).unwrap();
     let module_entries = vec![&module_entry];
 
     // let program_settings = ProgramSettings::default();
-    let index_entry = link(&module_entries).unwrap();
+    let index_entry = link(&module_entries, 0).unwrap();
     generate_module_image_binary(&module_entry, Some(&index_entry)).unwrap()
 }

@@ -81,7 +81,7 @@
 
 use ancvm_types::{
     opcode::Opcode, DataSectionType, DataType, EffectiveVersion, ExternalLibraryType,
-    MemoryDataType, ModuleShareType,
+    MemoryDataType, ModuleShareType, RUNTIME_MAJOR_VERSION, RUNTIME_MINOR_VERSION,
 };
 
 use crate::{
@@ -99,18 +99,21 @@ use crate::{
 
 pub fn parse(
     iter: &mut PeekableIterator<Token>,
-    config_compiler_version: Option<EffectiveVersion>,
+
+    // for the multiple source file package, the runtime version
+    // is defined in the package meta file instead of in the assembly text.
+    config_runtime_version: Option<EffectiveVersion>,
 ) -> Result<ModuleNode, ParseError> {
     // initialize the instruction kind table
     init_instruction_map();
 
     // there is only one node 'module' in a assembly text
-    parse_module_node(iter, config_compiler_version)
+    parse_module_node(iter, config_runtime_version)
 }
 
 pub fn parse_module_node(
     iter: &mut PeekableIterator<Token>,
-    config_compiler_version: Option<EffectiveVersion>,
+    config_runtime_version: Option<EffectiveVersion>,
 ) -> Result<ModuleNode, ParseError> {
     // (module ...) ...  //
     // ^            ^____// to here
@@ -120,7 +123,7 @@ pub fn parse_module_node(
     //
     // (module $name ...)                       // base
     // (module $name
-    //      (compiler_version "1.0")            // optional, require compiler version
+    //      (runtime_version "1.0")             // optional, require runtime version
     //      (constructor $function_name_path)   // optional, similar to GCC '__attribute__((constructor))', run before main()
     //      (destructor $function_name_path)    // optional, similar to GCC '__attribute__((destructor))', run after main()
     //      (depend                             // optional, the dependencies
@@ -138,20 +141,45 @@ pub fn parse_module_node(
 
     let is_sub_module = name_path.contains(NAME_PATH_SEPARATOR);
 
-    let compiler_version = parse_optional_compiler_version_node(iter)?;
+    let runtime_version = parse_optional_runtime_version_node(iter)?;
     let constructor_function_name_path = parse_optional_construcrot_node(iter)?;
     let destructor_function_name_path = parse_optional_destrutor_node(iter)?;
     let depend_node = parse_optional_depend_node(iter)?;
 
-    if is_sub_module && compiler_version.is_some() {
+    if is_sub_module && runtime_version.is_some() {
         return Err(ParseError::new(&format!(
-            "Only the main module can specify the compiler version, current submodule: {}",
+            "Only the main module can specify the runtime version, current submodule: {}",
             name_path
         )));
     }
 
-    if !is_sub_module && compiler_version.is_none() && config_compiler_version.is_none() {
-        return Err(ParseError::new("Missing the compiler version node."));
+    if !is_sub_module {
+        if runtime_version.is_none() && config_runtime_version.is_none() {
+            return Err(ParseError::new("Missing the runtime version node."));
+        }
+
+        // TODO
+        // check the package version
+        // the parser can only parse the module with the same or less version number
+
+        let module_version = if let Some(ver) = runtime_version {
+            ver
+        } else if let Some(ver) = config_runtime_version {
+            ver
+        } else {
+            unreachable!()
+        };
+
+        let module_version_number =
+            (module_version.major as u32) << 16 | (module_version.minor as u32);
+        let runtime_version_number =
+            (RUNTIME_MAJOR_VERSION as u32) << 16 | (RUNTIME_MINOR_VERSION as u32);
+
+        if module_version_number > runtime_version_number {
+            return Err(ParseError::new(
+                "Can not parser the module because its version is newer than the runtime.",
+            ));
+        }
     }
 
     if is_sub_module {
@@ -204,7 +232,7 @@ pub fn parse_module_node(
 
     let module_node = ModuleNode {
         name_path,
-        compiler_version,
+        runtime_version,
         constructor_function_name_path,
         destructor_function_name_path,
         depend_node,
@@ -214,17 +242,17 @@ pub fn parse_module_node(
     Ok(module_node)
 }
 
-fn parse_optional_compiler_version_node(
+fn parse_optional_runtime_version_node(
     iter: &mut PeekableIterator<Token>,
 ) -> Result<Option<EffectiveVersion>, ParseError> {
-    // (compiler_version "1.0") ...  //
+    // (runtime_version "1.0") ...  //
     // ^                       ^____// to here
     // |____________________________// current token
 
-    if exist_child_node(iter, "compiler_version") {
-        consume_left_paren(iter, "module.compiler_version")?;
-        consume_symbol(iter, "compiler_version")?;
-        let version_string = expect_string(iter, "module.compiler_version")?;
+    if exist_child_node(iter, "runtime_version") {
+        consume_left_paren(iter, "module.runtime_version")?;
+        consume_symbol(iter, "runtime_version")?;
+        let version_string = expect_string(iter, "module.runtime_version")?;
         consume_right_paren(iter)?;
         let version = parse_effective_version(&version_string)?;
         Ok(Some(version))
@@ -2583,13 +2611,13 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
             )"#
             )
             .unwrap(),
             ModuleNode {
                 name_path: "app".to_owned(),
-                compiler_version: Some(EffectiveVersion::new(1, 0)),
+                runtime_version: Some(EffectiveVersion::new(1, 0)),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
                 depend_node: None,
@@ -2601,7 +2629,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "2.3")
+                (runtime_version "0.5")
                 (constructor $abc)
                 (destructor $xyz)
             )
@@ -2610,7 +2638,7 @@ mod tests {
             .unwrap(),
             ModuleNode {
                 name_path: "app".to_owned(),
-                compiler_version: Some(EffectiveVersion::new(2, 3)),
+                runtime_version: Some(EffectiveVersion::new(0, 5)),
                 constructor_function_name_path: Some("abc".to_string()),
                 destructor_function_name_path: Some("xyz".to_string()),
                 depend_node: None,
@@ -2624,19 +2652,22 @@ mod tests {
         // err: missing module name
         assert!(parse_from_str(r#"(module)"#).is_err());
 
-        // err: missing the node 'compiler_version'
+        // err: missing the node 'runtime_version'
         assert!(parse_from_str(r#"(module $app)"#).is_err());
 
-        // err: missing the value of the node 'compiler_version'
-        assert!(parse_from_str(r#"(module $app (compiler_version))"#).is_err());
+        // err: missing the value of the node 'runtime_version'
+        assert!(parse_from_str(r#"(module $app (runtime_version))"#).is_err());
+
+        // err: version number is newer than the current runtime
+        assert!(parse_from_str(r#"(module $app (runtime_version "99.0"))"#).is_err());
 
         // err: error version number
-        assert!(parse_from_str(r#"(module $app (compiler_version "1"))"#).is_err());
-        assert!(parse_from_str(r#"(module $app (compiler_version "1.2.3"))"#).is_err());
-        assert!(parse_from_str(r#"(module $app (compiler_version "1a.2b"))"#).is_err());
+        assert!(parse_from_str(r#"(module $app (runtime_version "1"))"#).is_err());
+        assert!(parse_from_str(r#"(module $app (runtime_version "1.2.3"))"#).is_err());
+        assert!(parse_from_str(r#"(module $app (runtime_version "1a.2b"))"#).is_err());
 
-        // err: define compiler version in submodule
-        assert!(parse_from_str(r#"(module $app::utils (compiler_version "1.0"))"#).is_err());
+        // err: define runtime version in submodule
+        assert!(parse_from_str(r#"(module $app::utils (runtime_version "1.0"))"#).is_err());
 
         // err: define constructor or destructor in submodule
         assert!(parse_from_str(r#"(module $app::utils (constructor $abc))"#).is_err());
@@ -2649,7 +2680,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (depend
                     (module $math share "math" "1.0")
                     (module $number_format user "format" "2.3")
@@ -2662,7 +2693,7 @@ mod tests {
             .unwrap(),
             ModuleNode {
                 name_path: "app".to_owned(),
-                compiler_version: Some(EffectiveVersion::new(1, 0)),
+                runtime_version: Some(EffectiveVersion::new(1, 0)),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
                 depend_node: Some(DependNode {
@@ -2701,7 +2732,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 // empty depend items
                 (depend)
             )
@@ -2710,7 +2741,7 @@ mod tests {
             .unwrap(),
             ModuleNode {
                 name_path: "app".to_owned(),
-                compiler_version: Some(EffectiveVersion::new(1, 0)),
+                runtime_version: Some(EffectiveVersion::new(1, 0)),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
                 depend_node: Some(DependNode {
@@ -2725,7 +2756,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app::utils
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (depend)
             )
             "#
@@ -2738,7 +2769,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (depend
                     (module user "math" "1.0")
                 )
@@ -2753,7 +2784,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (depend
                     (module $math custom "math" "1.0")
                 )
@@ -2768,7 +2799,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (depend
                     (module $math user)
                 )
@@ -2783,7 +2814,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (depend
                     (module $math user "math")
                 )
@@ -2798,7 +2829,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (depend
                     (library user "libc.so.6")
                 )
@@ -2813,7 +2844,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (depend
                     (library $libc custom "libc.so.6")
                 )
@@ -2828,7 +2859,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (depend
                     (library $libc system)
                 )
@@ -2845,7 +2876,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $add (param $lhs i32) (param $rhs i64) (result i32) (result i64)
                     // no local variables
                     (code)
@@ -2856,7 +2887,7 @@ mod tests {
             .unwrap(),
             ModuleNode {
                 name_path: "app".to_owned(),
-                compiler_version: Some(EffectiveVersion::new(1, 0)),
+                runtime_version: Some(EffectiveVersion::new(1, 0)),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
                 depend_node: None,
@@ -2886,7 +2917,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $add (param $lhs i32) (param $rhs i64) (results i32 i64) (result f32) (result f64)
                     // no local variables
                     (code)
@@ -2897,7 +2928,7 @@ mod tests {
             .unwrap(),
             ModuleNode {
                 name_path: "app".to_owned(),
-                compiler_version: Some(EffectiveVersion::new(1,0)),
+                runtime_version: Some(EffectiveVersion::new(1,0)),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
                 depend_node: None,
@@ -2927,7 +2958,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function export $add (code))
             )
             "#
@@ -2935,7 +2966,7 @@ mod tests {
             .unwrap(),
             ModuleNode {
                 name_path: "app".to_owned(),
-                compiler_version: Some(EffectiveVersion::new(1, 0)),
+                runtime_version: Some(EffectiveVersion::new(1, 0)),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
                 depend_node: None,
@@ -2955,7 +2986,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function (code))
             )
             "#
@@ -2968,7 +2999,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $a::b (code))
             )
             "#
@@ -2981,7 +3012,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $add)
             )
             "#
@@ -2996,7 +3027,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $add
                     // no params and results
                     (local $sum i32)
@@ -3011,7 +3042,7 @@ mod tests {
             .unwrap(),
             ModuleNode {
                 name_path: "app".to_owned(),
-                compiler_version: Some(EffectiveVersion::new(1, 0)),
+                runtime_version: Some(EffectiveVersion::new(1, 0)),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
                 depend_node: None,
@@ -3056,7 +3087,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $test
                     (local $a::b i32)
                     (code)
@@ -3074,7 +3105,7 @@ mod tests {
             parse_instructions_from_str(
                 r#"
             (module $lib
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $test
                     (code
                         nop
@@ -3108,7 +3139,7 @@ mod tests {
             parse_instructions_from_str(
                 r#"
             (module $lib
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $test
                     (code
                         (i32.imm 11)
@@ -3156,7 +3187,7 @@ mod tests {
             parse_instructions_from_str(
                 r#"
             (module $lib
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $test
                     (code
                         (f32.imm 3.1415927)
@@ -3193,7 +3224,7 @@ mod tests {
             parse_instructions_from_str(
                 r#"
             (module $lib
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $test
                     (code
                         (i32.eqz (i32.imm 11))
@@ -3249,7 +3280,7 @@ mod tests {
             parse_instructions_from_str(
                 r#"
             (module $lib
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $test
                     (code
                         (local.load32_i32 $sum)
@@ -3311,7 +3342,7 @@ mod tests {
             parse_instructions_from_str(
                 r#"
             (module $lib
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $test
                     (code
                         (data.load32_i32 $sum)
@@ -3373,7 +3404,7 @@ mod tests {
             parse_instructions_from_str(
                 r#"
             (module $lib
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $test
                     (code
                         (heap.load32_i32 (i32.imm 11))
@@ -3420,7 +3451,7 @@ mod tests {
             parse_instructions_from_str(
                 r#"
             (module $lib
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $test
                     (code
                         (when
@@ -3447,7 +3478,7 @@ mod tests {
             parse_instructions_from_str(
                 r#"
             (module $lib
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $test
                     (code
                         (when
@@ -3481,7 +3512,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $lib
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $test
                     (code
                         (when (param $a i32) zero zero)
@@ -3498,7 +3529,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $lib
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $test
                     (code
                         (when (result i32) zero zero)
@@ -3515,7 +3546,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $lib
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $test
                     (code
                         (when (local $a i32) zero zero)
@@ -3534,7 +3565,7 @@ mod tests {
             parse_instructions_from_str(
                 r#"
             (module $lib
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $test
                     (code
                         (if
@@ -3563,7 +3594,7 @@ mod tests {
             parse_instructions_from_str(
                 r#"
             (module $lib
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $test
                     (code
                         (if
@@ -3618,7 +3649,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $lib
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $test
                     (code
                         (if
@@ -3638,7 +3669,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $lib
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $test
                     (code
                         (if
@@ -3660,7 +3691,7 @@ mod tests {
             parse_instructions_from_str(
                 r#"
             (module $lib
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $test
                     (code
                         (branch
@@ -3714,7 +3745,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $lib
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $test
                     (code
                         (branch
@@ -3734,7 +3765,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $lib
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $test
                     (code
                         (branch
@@ -3756,7 +3787,7 @@ mod tests {
             parse_instructions_from_str(
                 r#"
             (module $lib
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $test
                     (code
                         (for (param $sum i32) (param $n i32) (result i32) (local $temp i32)
@@ -3882,7 +3913,7 @@ mod tests {
             parse_instructions_from_str(
                 r#"
             (module $lib
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $test (param $sum i32) (param $n i32) (result i32)
                     (code
                         // n = n - 1
@@ -3986,7 +4017,7 @@ mod tests {
             parse_instructions_from_str(
                 r#"
             (module $lib
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $test
                     (code
                         // call: add(11, 13)
@@ -4076,7 +4107,7 @@ mod tests {
             parse_instructions_from_str(
                 r#"
             (module $lib
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (function $test
                     (code
                         panic
@@ -4174,7 +4205,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (data $d0 (read_only i32 123))
                 (data $d1 (read_only i64 123_456))
                 (data $d2 (read_only f32 3.1415927))
@@ -4188,7 +4219,7 @@ mod tests {
             .unwrap(),
             ModuleNode {
                 name_path: "app".to_owned(),
-                compiler_version: Some(EffectiveVersion::new(1, 0)),
+                runtime_version: Some(EffectiveVersion::new(1, 0)),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
                 depend_node: None,
@@ -4272,7 +4303,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (data $d0 (read_only string "Hello, World!"))
                 (data $d1 (read_only cstring "Hello, World!"))
                 (data $d2 (read_only bytes h"11-13-17-19"))
@@ -4283,7 +4314,7 @@ mod tests {
             .unwrap(),
             ModuleNode {
                 name_path: "app".to_owned(),
-                compiler_version: Some(EffectiveVersion::new(1, 0)),
+                runtime_version: Some(EffectiveVersion::new(1, 0)),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
                 depend_node: None,
@@ -4337,7 +4368,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (data export $d0 (read_only i32 123))
                 (data export $d1 (read_write i32 456))
             )
@@ -4346,7 +4377,7 @@ mod tests {
             .unwrap(),
             ModuleNode {
                 name_path: "app".to_owned(),
-                compiler_version: Some(EffectiveVersion::new(1, 0)),
+                runtime_version: Some(EffectiveVersion::new(1, 0)),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
                 depend_node: None,
@@ -4380,7 +4411,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (data $d0 (write_only i32 123))
             )
             "#
@@ -4393,7 +4424,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (data (read_only i32 123))
             )
             "#
@@ -4406,7 +4437,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (data $a::b (read_only i32 123))
             )
             "#
@@ -4419,7 +4450,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (data $d0 (read_only i32))
             )
             "#
@@ -4432,7 +4463,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (data $d0 (read_only bytes))
             )
             "#
@@ -4445,7 +4476,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (data $d0 (read_only bytes 1234))
             )
             "#
@@ -4458,7 +4489,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (data $d0 (read_only bytes h"11" abc))
             )
             "#
@@ -4473,7 +4504,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (data $d0 (uninit i32))
                 (data $d1 (uninit i64))
                 (data $d2 (uninit f32))
@@ -4486,7 +4517,7 @@ mod tests {
             .unwrap(),
             ModuleNode {
                 name_path: "app".to_owned(),
-                compiler_version: Some(EffectiveVersion::new(1, 0)),
+                runtime_version: Some(EffectiveVersion::new(1, 0)),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
                 depend_node: None,
@@ -4554,7 +4585,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (data export $d0 (uninit i32))
                 (data export $d1 (uninit i64))
             )
@@ -4563,7 +4594,7 @@ mod tests {
             .unwrap(),
             ModuleNode {
                 name_path: "app".to_owned(),
-                compiler_version: Some(EffectiveVersion::new(1, 0)),
+                runtime_version: Some(EffectiveVersion::new(1, 0)),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
                 depend_node: None,
@@ -4595,7 +4626,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (data $d0 (uninit i32 123))
             )
             "#
@@ -4608,7 +4639,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (data $d0 (uninit bytes))
             )
             "#
@@ -4621,7 +4652,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (data $d0 (uninit bytes abc))
             )
             "#
@@ -4634,7 +4665,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (data $d0 (uninit bytes 12 abc))
             )
             "#
@@ -4649,7 +4680,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (import $math
                     (function $add "add" (param i32) (param i32) (result i32))
                     (function $add_wrap "wrap::add" (params i32 i32) (results i32))
@@ -4665,7 +4696,7 @@ mod tests {
             .unwrap(),
             ModuleNode {
                 name_path: "app".to_owned(),
-                compiler_version: Some(EffectiveVersion::new(1, 0)),
+                runtime_version: Some(EffectiveVersion::new(1, 0)),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
                 depend_node: None,
@@ -4719,7 +4750,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (import
                     (function $add "add")
                 )
@@ -4734,7 +4765,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (import $math
                     (function $add)
                 )
@@ -4749,7 +4780,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (import $math
                     (function "add")
                 )
@@ -4764,7 +4795,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (import $math
                     (function $a::b "add")
                 )
@@ -4779,7 +4810,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (import $math
                     (data $sum)
                 )
@@ -4794,7 +4825,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (import $math
                     (data "sum")
                 )
@@ -4809,7 +4840,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (import $math
                     (data $score::sum "sum")
                 )
@@ -4826,7 +4857,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (external $math
                     (function $add "add" (param i32) (param i32) (result i32))
                     (function $sub_i32 "sub" (params i32 i32) (result i32))
@@ -4842,7 +4873,7 @@ mod tests {
             .unwrap(),
             ModuleNode {
                 name_path: "app".to_owned(),
-                compiler_version: Some(EffectiveVersion::new(1, 0)),
+                runtime_version: Some(EffectiveVersion::new(1, 0)),
                 constructor_function_name_path: None,
                 destructor_function_name_path: None,
                 depend_node: None,
@@ -4896,7 +4927,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (external
                     (function $add "add")
                 )
@@ -4911,7 +4942,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (external $math
                     (function "add")
                 )
@@ -4926,7 +4957,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (external $math
                     (function $add)
                 )
@@ -4941,7 +4972,7 @@ mod tests {
             parse_from_str(
                 r#"
             (module $app
-                (compiler_version "1.0")
+                (runtime_version "1.0")
                 (external $math
                     (function $a::b "add")
                 )

@@ -23,7 +23,7 @@ fn test_assemble_multithread_run_program_in_multithread() {
     let module_binary = helper_generate_module_image_binary_from_str(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (function $test (results i64)
                 (code
                     (i64.imm 0x11)
@@ -48,7 +48,7 @@ fn test_assemble_multithread_thread_id() {
     let module_binary = helper_generate_module_image_binary_from_str(&format!(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (function $test (results i64)
                 (code
                     (i64.extend_i32_u
@@ -76,7 +76,7 @@ fn test_assemble_multithread_thread_create() {
     let module_binary = helper_generate_module_image_binary_from_str(&format!(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (function $test (result i64)
                 (local $temp i32)   // for dropping operand
                 (code
@@ -120,7 +120,7 @@ fn test_assemble_multithread_thread_local_storage() {
     let module_binary = helper_generate_module_image_binary_from_str(&format!(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (data $buf (read_write i32 0))
             (function $test (result i64)
                 (local $tid i32)
@@ -235,7 +235,7 @@ fn test_assemble_multithread_thread_sleep() {
     let module_binary = helper_generate_module_image_binary_from_str(&format!(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (function $test
                 (result i64)
                 (code
@@ -285,7 +285,7 @@ fn test_assemble_multithread_thread_start_data() {
     let module_binary = helper_generate_module_image_binary_from_str(&format!(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (function $test (result i64)
                 (local $part0 i32)
                 (local $part1 i32)
@@ -369,7 +369,7 @@ fn test_assemble_multithread_thread_running_status() {
     let module_binary = helper_generate_module_image_binary_from_str(&format!(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (function $test (result i64)
                 (local $tid i32)
                 (local $last_status i32)
@@ -495,7 +495,7 @@ fn test_assemble_multithread_thread_terminate() {
     let module_binary = helper_generate_module_image_binary_from_str(&format!(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (function $test (result i64)
                 (local $tid i32)
                 (local $last_status i32)
@@ -616,7 +616,7 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
     let module_binary = helper_generate_module_image_binary_from_str(&format!(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (data $buf (read_write i32 0))
             (function $test (result i64)
                 (local $tid i32)
@@ -879,7 +879,7 @@ fn test_assemble_multithread_thread_message_forward() {
     let module_binary = helper_generate_module_image_binary_from_str(&format!(
         r#"
         (module $app
-            (compiler_version "1.0")
+            (runtime_version "1.0")
             (data $buf (read_write i32 0))
             (function $test (result i64)
                 (local $tid0 i32)

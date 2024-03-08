@@ -28,7 +28,7 @@ An assembly text file can only define one module, the top content of an assembly
 
 ```clojure
 (module $app
-    (compiler_version "1.0")
+    (runtime_version "1.0")
     (function $test (result i32)
         (code
             (i32.imm 42)
@@ -57,7 +57,7 @@ Their module names should be `draw`, `draw::circle` and `draw::rectangle`, altho
 
 ### Runtime Version
 
-The main module must contains a child node called `runtime_version`, it is a parameter of module, which indicates the expected version of the runtime.
+The main module should contains a child node called `runtime_version`, it is a parameter of module, which indicates the expected version of the runtime. For the multiple source file package, the runtime version is defined in the package meta file `package.anon`.
 
 The node `runtime_version` is followed by the nodes of user-defined data and functions. A module should at least define one data or function node, otherwise it is useless (although it is a valid module). For an application, at least one function called "entry" should be defined, otherwise it cannot pass the assembler check.
 
@@ -73,13 +73,15 @@ The following is an example that uses these parameters:
 
 ```clojure
 (module $app
-    (compiler_version "1.0")
+    (runtime_version "1.0")
     (constructor $init)
     (destructor $exit)
 
     ...
 )
 ```
+
+> The constructor and destructor functions must have the 'public' access, e.g. `(function export $init ...)`
 
 ## The `function` Node
 
@@ -151,7 +153,7 @@ e.g.
 
 add 'export' annotation after the function name.
 
-(function $name export ...)
+(function export $name ...)
 
 ## The `data` node
 
@@ -191,7 +193,7 @@ uninitialized section:
 (data $name (uninit bytes 12 4))
 
 with 'export' annotation
-(data $name export (read_only i32 123))
+(data export $name (read_only i32 123))
 
 ## The 'depend' node
 
