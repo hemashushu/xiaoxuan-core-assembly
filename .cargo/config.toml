@@ -17,5 +17,5 @@
 rustflags = [
     # "-C", "link-arg=-lsome_library",
     # "-C", "link-arg=-Tlink-script.ld"
-    "-C", "target-feature=+crt-static"
+    # "-C", "target-feature=+crt-static"
 ]

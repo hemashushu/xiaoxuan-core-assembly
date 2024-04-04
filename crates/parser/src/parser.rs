@@ -111,7 +111,7 @@ pub fn parse(
     parse_module_node(iter, config_runtime_version)
 }
 
-pub fn parse_module_node(
+fn parse_module_node(
     iter: &mut PeekableIterator<Token>,
     config_runtime_version: Option<EffectiveVersion>,
 ) -> Result<ModuleNode, ParseError> {

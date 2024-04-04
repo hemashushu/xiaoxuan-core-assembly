@@ -96,8 +96,10 @@ pub fn lex(iter: &mut PeekableIterator<char>) -> Result<Vec<Token>, ParseError> 
                 // identifier
                 tokens.push(lex_identifier(iter)?);
             }
-            '0'..='9' | '+' | '-' => {
+            '0'..='9' | '-' => {
                 // number
+                // because the assembly has no operator, so the minus symbol "-" can be
+                // parsed as a partition of number
                 tokens.push(lex_number(iter)?);
             }
             'h' if iter.look_ahead_equals(1, &'"') => {
@@ -275,12 +277,12 @@ fn lex_number(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError> {
     // 0xaabb
     // 0b1100
 
-    if let Some('+') = iter.peek(0) {
-        // consume the plugs sign '+'
-        iter.next();
-    }
+    // if let Some('+') = iter.peek(0) {
+    //     // consume the plugs sign '+'
+    //     iter.next();
+    // }
 
-    let is_neg = if let Some('-') = iter.peek(0) {
+    let is_negative = if let Some('-') = iter.peek(0) {
         // consume the minus sign '-'
         iter.next();
         true
@@ -290,18 +292,18 @@ fn lex_number(iter: &mut PeekableIterator<char>) -> Result<Token, ParseError> {
 
     if iter.look_ahead_equals(0, &'0') && iter.look_ahead_equals(1, &'b') {
         // '0b...'
-        lex_number_binary(iter, is_neg)
+        lex_number_binary(iter, is_negative)
     } else if iter.look_ahead_equals(0, &'0') && iter.look_ahead_equals(1, &'x') {
         // '0x...'
-        lex_number_hex(iter, is_neg)
+        lex_number_hex(iter, is_negative)
     } else {
-        lex_number_decimal(iter, is_neg)
+        lex_number_decimal(iter, is_negative)
     }
 }
 
 fn lex_number_decimal(
     iter: &mut PeekableIterator<char>,
-    is_neg: bool,
+    is_negative: bool,
 ) -> Result<Token, ParseError> {
     // 123456T  //
     // ^     ^__// to here
@@ -311,7 +313,7 @@ fn lex_number_decimal(
 
     let mut num_string = String::new();
 
-    if is_neg {
+    if is_negative {
         num_string.push('-');
     }
 
@@ -336,6 +338,10 @@ fn lex_number_decimal(
                     num_string.push_str("e-");
                     iter.next();
                     iter.next();
+                } else if iter.look_ahead_equals(1, &'+') {
+                    num_string.push_str("e+");
+                    iter.next();
+                    iter.next();
                 } else {
                     num_string.push(*current_char);
                     iter.next();
@@ -357,7 +363,7 @@ fn lex_number_decimal(
     Ok(Token::Number(NumberToken::Decimal(num_string)))
 }
 
-fn lex_number_binary(iter: &mut PeekableIterator<char>, is_neg: bool) -> Result<Token, ParseError> {
+fn lex_number_binary(iter: &mut PeekableIterator<char>, is_negative: bool) -> Result<Token, ParseError> {
     // 0b1010T  //
     // ^     ^__// to here
     // |________// current char
@@ -370,7 +376,7 @@ fn lex_number_binary(iter: &mut PeekableIterator<char>, is_neg: bool) -> Result<
 
     let mut num_string = String::new();
 
-    if is_neg {
+    if is_negative {
         num_string.push('-');
     }
 
@@ -401,7 +407,7 @@ fn lex_number_binary(iter: &mut PeekableIterator<char>, is_neg: bool) -> Result<
     }
 }
 
-fn lex_number_hex(iter: &mut PeekableIterator<char>, is_neg: bool) -> Result<Token, ParseError> {
+fn lex_number_hex(iter: &mut PeekableIterator<char>, is_negative: bool) -> Result<Token, ParseError> {
     // 0xaabbT  //
     // ^     ^__// to here
     // |________// current char
@@ -450,13 +456,13 @@ fn lex_number_hex(iter: &mut PeekableIterator<char>, is_neg: bool) -> Result<Tok
     } else {
         #[allow(clippy::collapsible_else_if)]
         let num = if is_floating_point_number {
-            if is_neg {
+            if is_negative {
                 NumberToken::HexFloat(format!("-0x{}", num_string))
             } else {
                 NumberToken::HexFloat(format!("0x{}", num_string))
             }
         } else {
-            if is_neg {
+            if is_negative {
                 NumberToken::Hex(format!("-{}", num_string))
             } else {
                 NumberToken::Hex(num_string)
@@ -1262,6 +1268,11 @@ mod tests {
         );
 
         assert_eq!(
+            lex_from_str("2.998e+8").unwrap(),
+            vec![Token::new_dec_number("2.998e+8")]
+        );
+
+        assert_eq!(
             lex_from_str("6.626e-34").unwrap(),
             vec![Token::new_dec_number("6.626e-34")]
         );
@@ -1279,9 +1290,14 @@ mod tests {
         );
 
         assert_eq!(
-            lex_from_str("+2017").unwrap(),
-            vec![Token::new_dec_number("2017")]
+            lex_from_str("0x1.23p-4").unwrap(),
+            vec![Token::new_hex_float_number("0x1.23p-4")]
         );
+
+        // assert_eq!(
+        //     lex_from_str("+2017").unwrap(),
+        //     vec![Token::new_dec_number("2017")]
+        // );
 
         assert_eq!(
             lex_from_str("-2027").unwrap(),

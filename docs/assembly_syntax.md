@@ -69,11 +69,11 @@ _XiaoXuan Core Assembly_ supports integer number literals and floating point num
 
 ### Integer Number
 
-Three types of integer number representation are supported: decimal, hexadecimal and binary. An addition of plus or minus sign is supported. In addition, arbitrary underscores can be added between digits.
+Three types of integer number representation are supported: decimal, hexadecimal and binary. An addition of minus sign is supported. In addition, arbitrary underscores can be added between digits.
 
 Example of integer numbers:
 
-- `211`, `223_211`, `+2017`, `-2027`
+- `211`, `223_211`, `-2027`
 - `0x1113`, `0x1719_abcd`, `-0xaabb`
 - `0b1100`, `0b1010_0001`, `-0b1100`
 
@@ -83,7 +83,7 @@ Floating point numbers can be represented in decimal.
 
 Example of floating point numbers:
 
-`3.14`, `2.998e8`, `6.626e-34`, `-1.7588e11`
+`3.14`, `2.998e8`, `6.626e-34`, `-1.7588e11`, `-1.7588e+11`
 
 Example of invalid numbers:
 
@@ -97,7 +97,7 @@ e.g., `0x1.23p4` means `(1x16^0 + 2x16^-1 + 3x16^-2) x 2^4 = (1.13671875 x 16)`,
 
 Example of hexadecimal floating point number:
 
-`0x1.921fb6p1`, `0x1.5bf0a8b145769p+1`
+`0x1.921fb6p1`, `0x1.5bf0a8b145769p+1`, `0x1.23p-4`
 
 _XiaoXuan Core Assembly_ does not support `-0.0`, `+inf`, `-inf`, `nan`.
 
