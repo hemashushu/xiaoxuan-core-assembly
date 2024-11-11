@@ -122,14 +122,15 @@ fn test_assemble_extcall_with_user_lib() {
     );
 
     let mut pwd = std::env::current_dir().unwrap();
-    if !pwd.ends_with("assembler") {
+    let pkg_name = env!("CARGO_PKG_NAME");
+    if !pwd.ends_with(pkg_name) {
         // in the VSCode editor `Debug` environment, the `current_dir()` returns
         // the project's root folder.
         // while in both `$ cargo test` and VSCode editor `Run Test` environment,
         // the `current_dir()` returns the current crate path.
         // here canonicalize the test resources path.
         pwd.push("crates");
-        pwd.push("assembler");
+        pwd.push(pkg_name);
     }
     pwd.push("tests");
 

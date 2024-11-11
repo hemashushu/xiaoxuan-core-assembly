@@ -6,20 +6,20 @@
 
 use std::fmt::Display;
 
-pub mod ast;
-pub mod core_assembly_instruction;
-pub mod lexer;
-pub mod parser;
-pub mod peekable_iterator;
+// pub mod ast;
+// pub mod core_assembly_instruction;
+// pub mod lexer;
+// pub mod parser;
+mod peekableiter;
 
 pub const NAME_PATH_SEPARATOR: &str = "::";
 
 #[derive(Debug)]
-pub struct ParseError {
+pub struct ParserError {
     pub message: String,
 }
 
-impl ParseError {
+impl ParserError {
     pub fn new(message: &str) -> Self {
         Self {
             message: message.to_owned(),
@@ -27,10 +27,10 @@ impl ParseError {
     }
 }
 
-impl Display for ParseError {
+impl Display for ParserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Parse error: {}", self.message)
     }
 }
 
-impl std::error::Error for ParseError {}
+impl std::error::Error for ParserError {}

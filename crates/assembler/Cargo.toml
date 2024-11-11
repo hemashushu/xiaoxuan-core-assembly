@@ -1,20 +1,20 @@
 [package]
-name = "ancasm_assembler"
+name = "ancasm-assembler"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ancasm_parser = { path = "../parser" }
+ancasm-parser = { path = "../parser" }
 
-ancvm_types = { path = "../../../xiaoxuan-core-vm/crates/types" }
-ancvm_binary = { path = "../../../xiaoxuan-core-vm/crates/binary" }
-ancvm_context = { path = "../../../xiaoxuan-core-vm/crates/context" }
-ancvm_processor = { path = "../../../xiaoxuan-core-vm/crates/processor" }
+ancvm-isa = { path = "../../../xiaoxuan-core-vm/crates/isa" }
+ancvm-image = { path = "../../../xiaoxuan-core-vm/crates/image" }
+ancvm-context = { path = "../../../xiaoxuan-core-vm/crates/context" }
+ancvm-processor = { path = "../../../xiaoxuan-core-vm/crates/processor" }
 
 [dev-dependencies]
 pretty_assertions = "1.4.0"
-ancvm_syscall_util = { path = "../../../xiaoxuan-core-vm/crates/syscall_util" }
-ancvm_extfunc_util = { path = "../../../xiaoxuan-core-vm/crates/extfunc_util" }
+# ancvm_syscall_util = { path = "../../../syscall_util" }
+# ancvm_extfunc_util = { path = "../../../extfunc_util" }
 libc = "0.2"
