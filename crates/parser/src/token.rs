@@ -23,7 +23,7 @@ pub enum Token {
     Equal,
 
     // "->"
-    Type,
+    Arrow,
 
     // `+`, for positive numbers
     Plus,

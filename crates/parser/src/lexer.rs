@@ -4,7 +4,7 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-pub const LEXER_PEEK_CHAR_MAX_COUNT: usize = 2;
+pub const LEXER_PEEK_CHAR_MAX_COUNT: usize = 3;
 
 use crate::{
     charposition::{CharWithPosition, CharsWithPositionIter},
@@ -112,6 +112,10 @@ impl<'a> Lexer<'a> {
                         1,
                     ));
                 }
+                '#' if self.peek_char_and_equals(1, '!') => {
+                    // shebang
+                    self.consume_shebang();
+                }
                 ',' => {
                     self.next_char(); // consume ','
 
@@ -146,7 +150,7 @@ impl<'a> Lexer<'a> {
                     self.next_char(); // consume '>'
 
                     token_with_ranges.push(TokenWithRange::from_position_and_length(
-                        Token::Type,
+                        Token::Arrow,
                         &self.pop_saved_position(),
                         2,
                     ));
@@ -169,24 +173,24 @@ impl<'a> Lexer<'a> {
                         1,
                     ));
                 }
-                '[' => {
-                    self.next_char(); // consume '['
-
-                    token_with_ranges.push(TokenWithRange::from_position_and_length(
-                        Token::LeftBracket,
-                        &self.last_position,
-                        1,
-                    ));
-                }
-                ']' => {
-                    self.next_char(); // consume ']'
-
-                    token_with_ranges.push(TokenWithRange::from_position_and_length(
-                        Token::RightBracket,
-                        &self.last_position,
-                        1,
-                    ));
-                }
+                //                 '[' => {
+                //                     self.next_char(); // consume '['
+                //
+                //                     token_with_ranges.push(TokenWithRange::from_position_and_length(
+                //                         Token::LeftBracket,
+                //                         &self.last_position,
+                //                         1,
+                //                     ));
+                //                 }
+                //                 ']' => {
+                //                     self.next_char(); // consume ']'
+                //
+                //                     token_with_ranges.push(TokenWithRange::from_position_and_length(
+                //                         Token::RightBracket,
+                //                         &self.last_position,
+                //                         1,
+                //                     ));
+                //                 }
                 '{' => {
                     self.next_char(); // consume '{'
 
@@ -247,30 +251,28 @@ impl<'a> Lexer<'a> {
                 }
                 'h' if self.peek_char_and_equals(1, '"') => {
                     // hex byte data
-                    // self.lex_byte_data_hexadecimal()
-                    todo!()
+                    token_with_ranges.push(self.lex_byte_data_hexadecimal()?);
                 }
                 'r' if self.peek_char_and_equals(1, '"') => {
                     // raw string
-                    // self.lex_raw_string()
-                    todo!()
+                    token_with_ranges.push(self.lex_raw_string()?);
                 }
                 'r' if self.peek_char_and_equals(1, '#') && self.peek_char_and_equals(2, '"') => {
                     // raw string with hash symbol
-                    // self.lex_raw_string_with_hash_symbol()
-                    todo!()
+                    token_with_ranges.push(self.lex_raw_string_with_hash_symbol()?);
                 }
                 '"' => {
                     // string
-                    // if self.peek_char_and_equals(1, '"') && self.peek_char_and_equals(2, '"') {
-                    //     // auto-trimmed string
-                    //     self.lex_auto_trimmed_string()
-                    // } else {
-                    //     // normal string
-                    //     self.lex_string()
-                    // }
-                    // token_with_ranges.push(self.lex_string()?);
-                    todo!()
+                    let twr =
+                        if self.peek_char_and_equals(1, '"') && self.peek_char_and_equals(2, '"') {
+                            // auto-trimmed string
+                            self.lex_auto_trimmed_string()?
+                        } else {
+                            // normal string
+                            self.lex_string()?
+                        };
+
+                    token_with_ranges.push(twr);
                 }
                 '\'' => {
                     // char
@@ -285,7 +287,7 @@ impl<'a> Lexer<'a> {
                     token_with_ranges.push(self.lex_block_comment()?);
                 }
                 'a'..='z' | 'A'..='Z' | '_' | '\u{a0}'..='\u{d7ff}' | '\u{e000}'..='\u{10ffff}' => {
-                    // identifier (the key name of struct/object) or keyword
+                    // identifier/name/keyword
                     token_with_ranges.push(self.lex_identifier()?);
                 }
                 current_char => {
@@ -298,6 +300,20 @@ impl<'a> Lexer<'a> {
         }
 
         Ok(token_with_ranges)
+    }
+
+    fn consume_shebang(&mut self) {
+        // #!...\n?  //
+        // ^^     ^__// to here
+        // ||________// current char, validated
+        //
+        // current char = the character of `iter.upstream.peek(0)``
+
+        while let Some(current_char) = self.next_char() {
+            if current_char == '\n' {
+                break;
+            }
+        }
     }
 
     fn lex_identifier(&mut self) -> Result<TokenWithRange, Error> {
@@ -1263,11 +1279,11 @@ impl<'a> Lexer<'a> {
                                             // (single line) long string
 
                                             self.next_char(); // consume '\n'
-                                            self.consume_all_leading_whitespaces();
+                                            self.consume_all_leading_whitespaces()?;
                                         }
                                         '\n' => {
                                             // (single line) long string
-                                            self.consume_all_leading_whitespaces();
+                                            self.consume_all_leading_whitespaces()?;
                                         }
                                         _ => {
                                             return Err(Error::MessageWithLocation(
@@ -1830,7 +1846,7 @@ mod tests {
     use crate::{
         error::Error,
         location::Location,
-        token::{Token, TokenWithRange},
+        token::{Comment, NumberToken, Token, TokenWithRange},
     };
 
     use super::lex_from_str;
@@ -1929,65 +1945,39 @@ mod tests {
         );
     }
 
-    /*
     #[test]
     fn test_lex_punctuations() {
         assert_eq!(
-            lex_from_str_without_location(",!...||[]()???++?**?{}").unwrap(),
+            lex_from_str_without_location(",:=->+-{}[]()").unwrap(),
             vec![
                 Token::Comma,
-                Token::Exclamation,
-                Token::Interval,
-                Token::Dot,
-                Token::LogicOr,
+                Token::Colon,
+                Token::Equal,
+                Token::Arrow,
+                Token::Plus,
+                Token::Minus,
+                Token::LeftBrace,
+                Token::RightBrace,
                 Token::LeftBracket,
                 Token::RightBracket,
                 Token::LeftParen,
                 Token::RightParen,
-                Token::QuestionLazy,
-                Token::Question,
-                Token::Plus,
-                Token::PlusLazy,
-                Token::Asterisk,
-                Token::AsteriskLazy,
-                Token::LeftBrace,
-                Token::RightBrace
             ]
         );
 
         // location
 
         assert_eq!(
-            lex_from_str("???++?**?").unwrap(),
+            lex_from_str("-->").unwrap(),
             vec![
                 TokenWithRange::from_position_and_length(
-                    Token::QuestionLazy,
+                    Token::Minus,
                     &Location::new_position(0, 0, 0, 0),
-                    2
-                ),
-                TokenWithRange::from_position_and_length(
-                    Token::Question,
-                    &Location::new_position(0, 2, 0, 2),
                     1
                 ),
                 TokenWithRange::from_position_and_length(
-                    Token::Plus,
-                    &Location::new_position(0, 3, 0, 3),
-                    1
-                ),
-                TokenWithRange::from_position_and_length(
-                    Token::PlusLazy,
-                    &Location::new_position(0, 4, 0, 4),
-                    2
-                ),
-                TokenWithRange::from_position_and_length(
-                    Token::Asterisk,
-                    &Location::new_position(0, 6, 0, 6),
-                    1
-                ),
-                TokenWithRange::from_position_and_length(
-                    Token::AsteriskLazy,
-                    &Location::new_position(0, 7, 0, 7),
+                    Token::Arrow,
+                    &Location::new_position(0, 1, 0, 1),
                     2
                 ),
             ]
@@ -1998,52 +1988,35 @@ mod tests {
     fn test_lex_identifier() {
         assert_eq!(
             lex_from_str_without_location("name").unwrap(),
-            vec![Token::new_identifier("name")]
+            vec![Token::new_name("name")]
         );
 
         assert_eq!(
             lex_from_str_without_location("(name)").unwrap(),
-            vec![
-                Token::LeftParen,
-                Token::new_identifier("name"),
-                Token::RightParen,
-            ]
+            vec![Token::LeftParen, Token::new_name("name"), Token::RightParen,]
         );
 
         assert_eq!(
             lex_from_str_without_location("( a )").unwrap(),
-            vec![
-                Token::LeftParen,
-                Token::new_identifier("a"),
-                Token::RightParen,
-            ]
+            vec![Token::LeftParen, Token::new_name("a"), Token::RightParen,]
         );
 
         assert_eq!(
             lex_from_str_without_location("a__b__c").unwrap(),
-            vec![Token::new_identifier("a__b__c")]
+            vec![Token::new_name("a__b__c")]
         );
 
         assert_eq!(
             lex_from_str_without_location("foo bar").unwrap(),
-            vec![Token::new_identifier("foo"), Token::new_identifier("bar")]
-        );
-
-        assert_eq!(
-            lex_from_str_without_location("foo.bar").unwrap(),
-            vec![
-                Token::new_identifier("foo"),
-                Token::Dot,
-                Token::new_identifier("bar")
-            ]
+            vec![Token::new_name("foo"), Token::new_name("bar")]
         );
 
         assert_eq!(
             lex_from_str_without_location("αβγ 文字 🍞🥛").unwrap(),
             vec![
-                Token::new_identifier("αβγ"),
-                Token::new_identifier("文字"),
-                Token::new_identifier("🍞🥛"),
+                Token::new_name("αβγ"),
+                Token::new_name("文字"),
+                Token::new_name("🍞🥛"),
             ]
         );
 
@@ -2053,12 +2026,12 @@ mod tests {
             lex_from_str("hello ASON").unwrap(),
             vec![
                 TokenWithRange::from_position_and_length(
-                    Token::new_identifier("hello"),
+                    Token::new_name("hello"),
                     &Location::new_position(0, 0, 0, 0),
                     5
                 ),
                 TokenWithRange::from_position_and_length(
-                    Token::new_identifier("ASON"),
+                    Token::new_name("ASON"),
                     &Location::new_position(0, 6, 0, 6),
                     4
                 )
@@ -2082,93 +2055,193 @@ mod tests {
     }
 
     #[test]
-    fn test_lex_preset_charset() {
+    fn test_lex_namepath() {
         assert_eq!(
-            lex_from_str_without_location(
-                "char_space char_not_space char_word char_not_word char_digit char_not_digit"
-            )
-            .unwrap(),
-            vec![
-                Token::new_preset_charset("char_space"),
-                Token::new_preset_charset("char_not_space"),
-                Token::new_preset_charset("char_word"),
-                Token::new_preset_charset("char_not_word"),
-                Token::new_preset_charset("char_digit"),
-                Token::new_preset_charset("char_not_digit"),
-            ]
-        );
-
-        // location
-
-        assert_eq!(
-            lex_from_str("char_space char_not_digit").unwrap(),
+            lex_from_str("foo::bar a::bc::def a:b").unwrap(),
             vec![
                 TokenWithRange::from_position_and_length(
-                    Token::new_preset_charset("char_space"),
+                    Token::new_namepath("foo::bar"),
                     &Location::new_position(0, 0, 0, 0),
+                    8
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::new_namepath("a::bc::def"),
+                    &Location::new_position(0, 9, 0, 9),
                     10
                 ),
                 TokenWithRange::from_position_and_length(
-                    Token::new_preset_charset("char_not_digit"),
-                    &Location::new_position(0, 11, 0, 11),
-                    14
+                    Token::new_name("a"),
+                    &Location::new_position(0, 20, 0, 20),
+                    1
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::Colon,
+                    &Location::new_position(0, 21, 0, 21),
+                    1
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::new_name("b"),
+                    &Location::new_position(0, 22, 0, 22),
+                    1
                 )
             ]
         );
     }
 
     #[test]
-    fn test_lex_other_identifier() {
+    fn test_lex_keywords() {
         assert_eq!(
-            lex_from_str_without_location("char_any start end is_bound is_not_bound").unwrap(),
+            lex_from_str_without_location("use as external fn data pub readonly uninit").unwrap(),
             vec![
-                Token::new_special("char_any"),
-                Token::new_anchor_assertion("start"),
-                Token::new_anchor_assertion("end"),
-                Token::new_boundary_assertion("is_bound"),
-                Token::new_boundary_assertion("is_not_bound"),
+                Token::new_keyword("use"),
+                Token::new_keyword("as"),
+                Token::new_keyword("external"),
+                Token::new_keyword("fn"),
+                Token::new_keyword("data"),
+                Token::new_keyword("pub"),
+                Token::new_keyword("readonly"),
+                Token::new_keyword("uninit"),
+            ]
+        );
+
+        assert_eq!(
+            lex_from_str_without_location("i64 i32 f64 f32 byte").unwrap(),
+            vec![
+                Token::new_datatype("i64"),
+                Token::new_datatype("i32"),
+                Token::new_datatype("f64"),
+                Token::new_datatype("f32"),
+                Token::new_datatype("byte"),
             ]
         );
 
         // location
-
         assert_eq!(
-            lex_from_str("start end").unwrap(),
+            lex_from_str("data foo:i32").unwrap(),
             vec![
                 TokenWithRange::from_position_and_length(
-                    Token::new_anchor_assertion("start"),
+                    Token::new_keyword("data"),
                     &Location::new_position(0, 0, 0, 0),
-                    5
+                    4
                 ),
                 TokenWithRange::from_position_and_length(
-                    Token::new_anchor_assertion("end"),
-                    &Location::new_position(0, 6, 0, 6),
+                    Token::new_name("foo"),
+                    &Location::new_position(0, 5, 0, 5),
                     3
-                )
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::Colon,
+                    &Location::new_position(0, 8, 0, 8),
+                    1
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::new_datatype("i32"),
+                    &Location::new_position(0, 9, 0, 9),
+                    3
+                ),
             ]
         );
     }
 
     #[test]
-    fn test_lex_number() {
+    fn test_lex_multiline_location() {
+        // "[\n  use\n    data\n]"
+        //  01 234567 890123456 7   // index
+        //  00 111111 222222222 3   // line
+        //  01 012345 012345678 0   // column
+        //  11   3  1     4   1 1   // length
+
         assert_eq!(
-            lex_from_str_without_location("223").unwrap(),
-            vec![Token::Number(223),]
+            lex_from_str("[\n  use\n    data\n]").unwrap(),
+            vec![
+                TokenWithRange::from_position_and_length(
+                    Token::LeftBracket,
+                    &Location::new_position(0, 0, 0, 0),
+                    1
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::NewLine,
+                    &Location::new_position(0, 1, 0, 1),
+                    1
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::new_keyword("use"),
+                    &Location::new_position(0, 4, 1, 2),
+                    3
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::NewLine,
+                    &Location::new_position(0, 7, 1, 5),
+                    1
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::new_keyword("data"),
+                    &Location::new_position(0, 12, 2, 4),
+                    4
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::NewLine,
+                    &Location::new_position(0, 16, 2, 8),
+                    1
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::RightBracket,
+                    &Location::new_position(0, 17, 3, 0),
+                    1
+                ),
+            ]
+        )
+    }
+
+    #[test]
+    fn test_lex_shebang() {
+        assert_eq!(
+            lex_from_str("#!/bin/bash\nabc").unwrap(),
+            vec![TokenWithRange::from_position_and_length(
+                Token::new_name("abc"),
+                &Location::new_position(0, 12, 1, 0),
+                3
+            )]
+        );
+    }
+
+    #[test]
+    fn test_lex_decimal_number() {
+        assert_eq!(
+            lex_from_str_without_location("(211)").unwrap(),
+            vec![
+                Token::LeftParen,
+                Token::Number(NumberToken::I32(211)),
+                Token::RightParen,
+            ]
         );
 
         assert_eq!(
             lex_from_str_without_location("211").unwrap(),
-            vec![Token::Number(211)]
+            vec![Token::Number(NumberToken::I32(211))]
+        );
+
+        assert_eq!(
+            lex_from_str_without_location("-2017").unwrap(),
+            vec![Token::Minus, Token::Number(NumberToken::I32(2017))]
+        );
+
+        assert_eq!(
+            lex_from_str_without_location("+2024").unwrap(),
+            vec![Token::Plus, Token::Number(NumberToken::I32(2024))]
         );
 
         assert_eq!(
             lex_from_str_without_location("223_211").unwrap(),
-            vec![Token::Number(223_211)]
+            vec![Token::Number(NumberToken::I32(223_211))]
         );
 
         assert_eq!(
             lex_from_str_without_location("223 211").unwrap(),
-            vec![Token::Number(223), Token::Number(211),]
+            vec![
+                Token::Number(NumberToken::I32(223)),
+                Token::Number(NumberToken::I32(211)),
+            ]
         );
 
         // location
@@ -2177,12 +2250,12 @@ mod tests {
             lex_from_str("223 211").unwrap(),
             vec![
                 TokenWithRange::from_position_and_length(
-                    Token::Number(223),
+                    Token::Number(NumberToken::I32(223)),
                     &Location::new_position(0, 0, 0, 0,),
                     3
                 ),
                 TokenWithRange::from_position_and_length(
-                    Token::Number(211),
+                    Token::Number(NumberToken::I32(211)),
                     &Location::new_position(0, 4, 0, 4,),
                     3
                 ),
@@ -2199,6 +2272,888 @@ mod tests {
                     index: 2,
                     line: 0,
                     column: 2,
+                    length: 0
+                }
+            ))
+        ));
+
+        // err: integer number overflow
+        assert!(matches!(
+            lex_from_str_without_location("4_294_967_296"),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 0,
+                    line: 0,
+                    column: 0,
+                    length: 13
+                }
+            ))
+        ));
+    }
+
+    #[allow(clippy::approx_constant)]
+    #[test]
+    fn test_lex_decimal_number_floating_point() {
+        assert_eq!(
+            lex_from_str_without_location("3.14").unwrap(),
+            vec![Token::Number(NumberToken::F64(3.14))]
+        );
+
+        assert_eq!(
+            lex_from_str_without_location("+1.414").unwrap(),
+            vec![Token::Plus, Token::Number(NumberToken::F64(1.414))]
+        );
+
+        assert_eq!(
+            lex_from_str_without_location("-2.718").unwrap(),
+            vec![Token::Minus, Token::Number(NumberToken::F64(2.718))]
+        );
+
+        assert_eq!(
+            lex_from_str_without_location("2.998e8").unwrap(),
+            vec![Token::Number(NumberToken::F64(2.998e8))]
+        );
+
+        assert_eq!(
+            lex_from_str_without_location("2.998e+8").unwrap(),
+            vec![Token::Number(NumberToken::F64(2.998e+8))]
+        );
+
+        assert_eq!(
+            lex_from_str_without_location("6.626e-34").unwrap(),
+            vec![Token::Number(NumberToken::F64(6.626e-34))]
+        );
+
+        // err: incomplete floating point number since ends with '.'
+        assert!(matches!(
+            lex_from_str_without_location("123."),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 3,
+                    line: 0,
+                    column: 3,
+                    length: 0
+                }
+            ))
+        ));
+
+        // err: incomplete floating point number since ends with 'e'
+        assert!(matches!(
+            lex_from_str_without_location("123e"),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 3,
+                    line: 0,
+                    column: 3,
+                    length: 0
+                }
+            ))
+        ));
+
+        // err: multiple '.' (point)
+        assert!(matches!(
+            lex_from_str_without_location("1.23.456"),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 4,
+                    line: 0,
+                    column: 4,
+                    length: 0
+                }
+            ))
+        ));
+
+        // err: multiple 'e' (exponent)
+        assert!(matches!(
+            lex_from_str_without_location("1e23e456"),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 4,
+                    line: 0,
+                    column: 4,
+                    length: 0
+                }
+            ))
+        ));
+
+        // err: unsupports start with dot
+        assert!(matches!(
+            lex_from_str_without_location(".123"),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 0,
+                    line: 0,
+                    column: 0,
+                    length: 0
+                }
+            ))
+        ));
+    }
+
+    #[test]
+    fn test_lex_decimal_number_with_explicit_type() {
+        // general
+        {
+            assert_eq!(
+                lex_from_str_without_location("11i32").unwrap(),
+                vec![Token::Number(NumberToken::I32(11))]
+            );
+
+            assert_eq!(
+                lex_from_str_without_location("11_i32").unwrap(),
+                vec![Token::Number(NumberToken::I32(11))]
+            );
+
+            assert_eq!(
+                lex_from_str_without_location("11__i32").unwrap(),
+                vec![Token::Number(NumberToken::I32(11))]
+            );
+
+            // location
+
+            // "101_i16 103_u32" // text
+            //  012345678901234  // index
+            assert_eq!(
+                lex_from_str("101_i16 103_i32").unwrap(),
+                vec![
+                    TokenWithRange::from_position_and_length(
+                        Token::Number(NumberToken::I16(101)),
+                        &Location::new_position(0, 0, 0, 0),
+                        7
+                    ),
+                    TokenWithRange::from_position_and_length(
+                        Token::Number(NumberToken::I32(103)),
+                        &Location::new_position(0, 8, 0, 8),
+                        7
+                    ),
+                ]
+            );
+        }
+
+        // short
+        {
+            assert_eq!(
+                lex_from_str_without_location("32767_i16").unwrap(),
+                vec![Token::Number(NumberToken::I16(32767))]
+            );
+
+            assert_eq!(
+                lex_from_str_without_location("65535_i16").unwrap(),
+                vec![Token::Number(NumberToken::I16(65535))]
+            );
+
+            // err: unsigned overflow
+            assert!(matches!(
+                lex_from_str_without_location("65536_i16"),
+                Err(Error::MessageWithLocation(
+                    _,
+                    Location {
+                        unit: 0,
+                        index: 0,
+                        line: 0,
+                        column: 0,
+                        length: 9
+                    }
+                ))
+            ));
+        }
+
+        // int
+        {
+            assert_eq!(
+                lex_from_str_without_location("2_147_483_647_i32").unwrap(),
+                vec![Token::Number(NumberToken::I32(2_147_483_647i32 as u32))]
+            );
+
+            assert_eq!(
+                lex_from_str_without_location("4_294_967_295_i32").unwrap(),
+                vec![Token::Number(NumberToken::I32(u32::MAX))]
+            );
+
+            // err: unsigned overflow
+            assert!(matches!(
+                lex_from_str_without_location("4_294_967_296_i32"),
+                Err(Error::MessageWithLocation(
+                    _,
+                    Location {
+                        unit: 0,
+                        index: 0,
+                        line: 0,
+                        column: 0,
+                        length: 17
+                    }
+                ))
+            ));
+        }
+
+        // long
+        {
+            assert_eq!(
+                lex_from_str_without_location("9_223_372_036_854_775_807_i64").unwrap(),
+                vec![Token::Number(NumberToken::I64(
+                    9_223_372_036_854_775_807i64 as u64
+                )),]
+            );
+
+            assert_eq!(
+                lex_from_str_without_location("18_446_744_073_709_551_615_i64").unwrap(),
+                vec![Token::Number(NumberToken::I64(u64::MAX))]
+            );
+
+            // err: unsigned overflow
+            assert!(matches!(
+                lex_from_str_without_location("18_446_744_073_709_551_616_i64"),
+                Err(Error::MessageWithLocation(
+                    _,
+                    Location {
+                        unit: 0,
+                        index: 0,
+                        line: 0,
+                        column: 0,
+                        length: 30
+                    }
+                ))
+            ));
+        }
+
+        // float
+        {
+            assert_eq!(
+                lex_from_str_without_location("3.402_823_5e+38_f32").unwrap(),
+                vec![Token::Number(NumberToken::F32(3.402_823_5e38f32))]
+            );
+
+            assert_eq!(
+                lex_from_str_without_location("1.175_494_4e-38_f32").unwrap(),
+                vec![Token::Number(NumberToken::F32(1.175_494_4e-38f32))]
+            );
+
+            // err: overflow
+            assert!(matches!(
+                lex_from_str_without_location("3.4e39_f32"),
+                Err(Error::MessageWithLocation(
+                    _,
+                    Location {
+                        unit: 0,
+                        index: 0,
+                        line: 0,
+                        column: 0,
+                        length: 10
+                    }
+                ))
+            ));
+        }
+
+        // double
+        {
+            assert_eq!(
+                lex_from_str_without_location("1.797_693_134_862_315_7e+308_f64").unwrap(),
+                vec![Token::Number(NumberToken::F64(
+                    1.797_693_134_862_315_7e308_f64
+                )),]
+            );
+
+            assert_eq!(
+                lex_from_str_without_location("2.2250738585072014e-308_f64").unwrap(),
+                vec![Token::Number(NumberToken::F64(2.2250738585072014e-308f64)),]
+            );
+
+            // err: overflow
+            assert!(matches!(
+                lex_from_str_without_location("1.8e309_f64"),
+                Err(Error::MessageWithLocation(
+                    _,
+                    Location {
+                        unit: 0,
+                        index: 0,
+                        line: 0,
+                        column: 0,
+                        length: 11
+                    }
+                ))
+            ));
+        }
+    }
+
+    #[test]
+    fn test_lex_hex_number() {
+        assert_eq!(
+            lex_from_str_without_location("0xabcd").unwrap(),
+            vec![Token::Number(NumberToken::I32(0xabcd))]
+        );
+
+        assert_eq!(
+            lex_from_str_without_location("-0xaabb").unwrap(),
+            vec![Token::Minus, Token::Number(NumberToken::I32(0xaabb))]
+        );
+
+        assert_eq!(
+            lex_from_str_without_location("+0xccdd").unwrap(),
+            vec![Token::Plus, Token::Number(NumberToken::I32(0xccdd))]
+        );
+
+        // location
+
+        assert_eq!(
+            lex_from_str("0xab 0xdef").unwrap(),
+            vec![
+                TokenWithRange::from_position_and_length(
+                    Token::Number(NumberToken::I32(0xab)),
+                    &Location::new_position(0, 0, 0, 0),
+                    4
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::Number(NumberToken::I32(0xdef)),
+                    &Location::new_position(0, 5, 0, 5,),
+                    5
+                ),
+            ]
+        );
+
+        // err: invalid char for hex number
+        assert!(matches!(
+            lex_from_str_without_location("0x1234xyz"),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 6,
+                    line: 0,
+                    column: 6,
+                    length: 0
+                }
+            ))
+        ));
+
+        // err: hex number overflow
+        assert!(matches!(
+            lex_from_str_without_location("0x1_0000_0000"),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 0,
+                    line: 0,
+                    column: 0,
+                    length: 13
+                }
+            ))
+        ));
+
+        // err: empty hex number
+        assert!(matches!(
+            lex_from_str_without_location("0x"),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 0,
+                    line: 0,
+                    column: 0,
+                    length: 2
+                }
+            ))
+        ));
+    }
+
+    #[test]
+    fn test_lex_hex_number_with_explicit_type() {
+        // general
+        {
+            assert_eq!(
+                lex_from_str_without_location("0x11i32").unwrap(),
+                vec![Token::Number(NumberToken::I32(0x11))]
+            );
+
+            assert_eq!(
+                lex_from_str_without_location("0x11_i32").unwrap(),
+                vec![Token::Number(NumberToken::I32(0x11))]
+            );
+
+            assert_eq!(
+                lex_from_str_without_location("0x11__i32").unwrap(),
+                vec![Token::Number(NumberToken::I32(0x11))]
+            );
+
+            // location
+
+            // "0x101_i16 0x103_u32" // text
+            //  0123456789012345678  // index
+            assert_eq!(
+                lex_from_str("0x101_i16 0x103_i32").unwrap(),
+                vec![
+                    TokenWithRange::from_position_and_length(
+                        Token::Number(NumberToken::I16(0x101)),
+                        &Location::new_position(0, 0, 0, 0),
+                        9
+                    ),
+                    TokenWithRange::from_position_and_length(
+                        Token::Number(NumberToken::I32(0x103)),
+                        &Location::new_position(0, 10, 0, 10),
+                        9
+                    ),
+                ]
+            );
+        }
+
+        // short
+        {
+            assert_eq!(
+                lex_from_str_without_location("0x7fff_i16").unwrap(),
+                vec![Token::Number(NumberToken::I16(0x7fff_i16 as u16))]
+            );
+
+            assert_eq!(
+                lex_from_str_without_location("0xffff_i16").unwrap(),
+                vec![Token::Number(NumberToken::I16(0xffff_u16))]
+            );
+
+            // err: unsigned overflow
+            assert!(matches!(
+                lex_from_str_without_location("0x1_ffff_i16"),
+                Err(Error::MessageWithLocation(
+                    _,
+                    Location {
+                        unit: 0,
+                        index: 0,
+                        line: 0,
+                        column: 0,
+                        length: 12
+                    }
+                ))
+            ));
+        }
+
+        // int
+        {
+            assert_eq!(
+                lex_from_str_without_location("0x7fff_ffff_i32").unwrap(),
+                vec![Token::Number(NumberToken::I32(0x7fff_ffff_i32 as u32))]
+            );
+
+            assert_eq!(
+                lex_from_str_without_location("0xffff_ffff_i32").unwrap(),
+                vec![Token::Number(NumberToken::I32(0xffff_ffff_u32))]
+            );
+
+            // err: unsigned overflow
+            assert!(matches!(
+                lex_from_str_without_location("0x1_ffff_ffff_i32"),
+                Err(Error::MessageWithLocation(
+                    _,
+                    Location {
+                        unit: 0,
+                        index: 0,
+                        line: 0,
+                        column: 0,
+                        length: 17
+                    }
+                ))
+            ));
+        }
+
+        // long
+        {
+            assert_eq!(
+                lex_from_str_without_location("0x7fff_ffff_ffff_ffff_i64").unwrap(),
+                vec![Token::Number(NumberToken::I64(
+                    0x7fff_ffff_ffff_ffff_i64 as u64
+                ))]
+            );
+
+            assert_eq!(
+                lex_from_str_without_location("0xffff_ffff_ffff_ffff_i64").unwrap(),
+                vec![Token::Number(NumberToken::I64(0xffff_ffff_ffff_ffff_u64))]
+            );
+
+            // err: unsigned overflow
+            assert!(matches!(
+                lex_from_str_without_location("0x1_ffff_ffff_ffff_ffff_i64"),
+                Err(Error::MessageWithLocation(
+                    _,
+                    Location {
+                        unit: 0,
+                        index: 0,
+                        line: 0,
+                        column: 0,
+                        length: 27
+                    }
+                ))
+            ));
+        }
+
+        // hex decimal
+        {
+            // note: this is not a hex floating pointer number
+            assert_eq!(
+                lex_from_str_without_location("0xaa_f32").unwrap(),
+                vec![Token::Number(NumberToken::I32(0xaaf32))]
+            );
+
+            // note: this is not a hex floating pointer number
+            assert_eq!(
+                lex_from_str_without_location("0xbb_f64").unwrap(),
+                vec![Token::Number(NumberToken::I32(0xbbf64))]
+            );
+        }
+    }
+
+    #[test]
+    fn test_lex_hex_number_floating_point() {
+        // default type is f64
+        assert_eq!(
+            lex_from_str_without_location("0x1.4p3").unwrap(),
+            vec![Token::Number(NumberToken::F64(10f64))]
+        );
+
+        // 3.1415927f32
+        assert_eq!(
+            lex_from_str_without_location("0x1.921fb6p1f32").unwrap(),
+            vec![Token::Number(NumberToken::F32(std::f32::consts::PI))]
+        );
+
+        // 2.718281828459045f64
+        assert_eq!(
+            lex_from_str_without_location("0x1.5bf0a8b145769p+1_f64").unwrap(),
+            vec![Token::Number(NumberToken::F64(std::f64::consts::E))]
+        );
+
+        // https://observablehq.com/@jrus/hexfloat
+        assert_eq!(
+            lex_from_str_without_location("0x1.62e42fefa39efp-1_f64").unwrap(),
+            vec![Token::Number(NumberToken::F64(std::f64::consts::LN_2))]
+        );
+
+        // location
+
+        assert_eq!(
+            lex_from_str("0x1.4p3").unwrap(),
+            vec![TokenWithRange::from_position_and_length(
+                Token::Number(NumberToken::F64(10f64)),
+                &Location::new_position(0, 0, 0, 0),
+                7
+            )]
+        );
+
+        // err: missing the exponent
+        assert!(matches!(
+            lex_from_str_without_location("0x1.23"),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 0,
+                    line: 0,
+                    column: 0,
+                    length: 6
+                }
+            ))
+        ));
+
+        // err: multiple '.' (point)
+        assert!(matches!(
+            lex_from_str_without_location("0x1.2.3"),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 5,
+                    line: 0,
+                    column: 5,
+                    length: 0
+                }
+            ))
+        ));
+
+        // err: multiple 'p' (exponent)
+        assert!(matches!(
+            lex_from_str_without_location("0x1.2p3p4"),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 7,
+                    line: 0,
+                    column: 7,
+                    length: 0
+                }
+            ))
+        ));
+
+        // err: incorrect type (invalid dot '.' after 'p')
+        assert!(matches!(
+            lex_from_str_without_location("0x1.23p4.5"),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 8,
+                    line: 0,
+                    column: 8,
+                    length: 0
+                }
+            ))
+        ));
+
+        // err: incorrect type (invalid char 'i' after 'p')
+        assert!(matches!(
+            lex_from_str_without_location("0x1.23p4_i32"),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 9,
+                    line: 0,
+                    column: 9,
+                    length: 0
+                }
+            ))
+        ));
+    }
+
+    #[test]
+    fn test_lex_binary_number() {
+        assert_eq!(
+            lex_from_str_without_location("0b1100").unwrap(),
+            vec![Token::Number(NumberToken::I32(0b1100))]
+        );
+
+        assert_eq!(
+            lex_from_str_without_location("-0b1010").unwrap(),
+            vec![Token::Minus, Token::Number(NumberToken::I32(0b1010))]
+        );
+
+        assert_eq!(
+            lex_from_str_without_location("+0b0101").unwrap(),
+            vec![Token::Plus, Token::Number(NumberToken::I32(0b0101))]
+        );
+
+        // location
+
+        assert_eq!(
+            lex_from_str("0b10 0b0101").unwrap(),
+            vec![
+                TokenWithRange::from_position_and_length(
+                    Token::Number(NumberToken::I32(0b10)),
+                    &Location::new_position(0, 0, 0, 0,),
+                    4
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::Number(NumberToken::I32(0b0101)),
+                    &Location::new_position(0, 5, 0, 5,),
+                    6
+                ),
+            ]
+        );
+
+        // err: does not support binary floating point
+        assert!(matches!(
+            lex_from_str_without_location("0b11.10"),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 4,
+                    line: 0,
+                    column: 4,
+                    length: 0
+                }
+            ))
+        ));
+
+        // err: binary number overflow
+        assert!(matches!(
+            lex_from_str_without_location("0b1_0000_0000_0000_0000_0000_0000_0000_0000"),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 0,
+                    line: 0,
+                    column: 0,
+                    length: 43
+                }
+            ))
+        ));
+
+        // err: invalid char for binary number
+        assert!(matches!(
+            lex_from_str_without_location("0b101xyz"),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 5,
+                    line: 0,
+                    column: 5,
+                    length: 0
+                }
+            ))
+        ));
+
+        // err: empty binary number
+        assert!(matches!(
+            lex_from_str_without_location("0b"),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 0,
+                    line: 0,
+                    column: 0,
+                    length: 2
+                }
+            ))
+        ));
+    }
+
+    #[test]
+    fn test_lex_binary_number_with_explicit_type() {
+        // general
+        {
+            assert_eq!(
+                lex_from_str_without_location("0b11i32").unwrap(),
+                vec![Token::Number(NumberToken::I32(0b11))]
+            );
+
+            assert_eq!(
+                lex_from_str_without_location("0b11_i32").unwrap(),
+                vec![Token::Number(NumberToken::I32(0b11))]
+            );
+
+            assert_eq!(
+                lex_from_str_without_location("0b11__i32").unwrap(),
+                vec![Token::Number(NumberToken::I32(0b11))]
+            );
+
+            // location
+
+            // "0b101_i16 0b1010_u32"
+            //  01234567890123456789  // index
+            assert_eq!(
+                lex_from_str("0b101_i16 0b1010_i32").unwrap(),
+                vec![
+                    TokenWithRange::from_position_and_length(
+                        Token::Number(NumberToken::I16(0b101)),
+                        &Location::new_position(0, 0, 0, 0),
+                        9
+                    ),
+                    TokenWithRange::from_position_and_length(
+                        Token::Number(NumberToken::I32(0b1010)),
+                        &Location::new_position(0, 10, 0, 10),
+                        10
+                    ),
+                ]
+            );
+        }
+
+        // short
+        {
+            assert_eq!(
+                lex_from_str_without_location("0b0111_1111_1111_1111_i16").unwrap(),
+                vec![Token::Number(NumberToken::I16(0x7fff_i16 as u16))]
+            );
+
+            assert_eq!(
+                lex_from_str_without_location("0b1111_1111_1111_1111_i16").unwrap(),
+                vec![Token::Number(NumberToken::I16(0xffff_u16))]
+            );
+
+            // err: unsigned overflow
+            assert!(matches!(
+                lex_from_str_without_location("0b1_1111_1111_1111_1111_i16"),
+                Err(Error::MessageWithLocation(
+                    _,
+                    Location {
+                        unit: 0,
+                        index: 0,
+                        line: 0,
+                        column: 0,
+                        length: 27
+                    }
+                ))
+            ));
+        }
+
+        // int
+        {
+            assert_eq!(
+                lex_from_str_without_location("0b0111_1111_1111_1111__1111_1111_1111_1111_i32")
+                    .unwrap(),
+                vec![Token::Number(NumberToken::I32(0x7fff_ffff_i32 as u32))]
+            );
+
+            assert_eq!(
+                lex_from_str_without_location("0b1111_1111_1111_1111__1111_1111_1111_1111_i32").unwrap(),
+                vec![Token::Number(NumberToken::I32(0xffff_ffff_u32))]
+            );
+
+            // err: unsigned overflow
+            assert!(matches!(
+                lex_from_str_without_location("0b1_1111_1111_1111_1111__1111_1111_1111_1111_i32"),
+                Err(Error::MessageWithLocation(
+                    _,
+                    Location {
+                        unit: 0,
+                        index: 0,
+                        line: 0,
+                        column: 0,
+                        length: 48
+                    }
+                ))
+            ));
+        }
+
+        // long
+        {
+            assert_eq!(
+                lex_from_str_without_location("0b0111_1111_1111_1111__1111_1111_1111_1111__1111_1111_1111_1111__1111_1111_1111_1111_i64").unwrap(),
+                vec![Token::Number(NumberToken::I64(0x7fff_ffff_ffff_ffff_i64 as u64))]
+            );
+
+            assert_eq!(
+                lex_from_str_without_location("0b1111_1111_1111_1111__1111_1111_1111_1111__1111_1111_1111_1111__1111_1111_1111_1111_i64").unwrap(),
+                vec![Token::Number(NumberToken::I64(0xffff_ffff_ffff_ffff_u64))]
+            );
+
+            // err: unsigned overflow
+            assert!(matches!(
+                lex_from_str_without_location("0b1_1111_1111_1111_1111__1111_1111_1111_1111__1111_1111_1111_1111__1111_1111_1111_1111_i64"),
+                Err(Error::MessageWithLocation(
+                    _,
+                    Location {
+                        unit: 0,
+                        index: 0,
+                        line: 0,
+                        column: 0,
+                        length: 90
+                    }
+                ))
+            ));
+        }
+
+        // err: does not support binary floating pointer number (invalid char 'f' for binary number)
+        assert!(matches!(
+            lex_from_str_without_location("0b11_f32"),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 5,
+                    line: 0,
+                    column: 5,
                     length: 0
                 }
             ))
@@ -2270,11 +3225,11 @@ mod tests {
             vec![Token::Char('\n')]
         );
 
-        // // escape char `\0`
-        // assert_eq!(
-        //     lex_from_str_without_location("'\\0'").unwrap(),
-        //     vec![Token::Char('\0')]
-        // );
+        // escape char `\0`
+        assert_eq!(
+            lex_from_str_without_location("'\\0'").unwrap(),
+            vec![Token::Char('\0')]
+        );
 
         // escape char, unicode
         assert_eq!(
@@ -2391,7 +3346,7 @@ mod tests {
                     index: 1,
                     line: 0,
                     column: 1,
-                    length: 2,
+                    length: 2
                 }
             ))
         ));
@@ -2753,6 +3708,539 @@ mod tests {
     }
 
     #[test]
+    fn test_lex_multiple_line_string() {
+        assert_eq!(
+            lex_from_str_without_location("\"abc\n    \n\n    \n\"").unwrap(),
+            vec![Token::new_string("abc\n    \n\n    \n")]
+        );
+
+        assert_eq!(
+            lex_from_str_without_location("\"abc\ndef\n    uvw\r\n\t  \txyz\"").unwrap(),
+            vec![Token::new_string("abc\ndef\n    uvw\r\n\t  \txyz")]
+        );
+
+        // location
+
+        assert_eq!(
+            lex_from_str("\"abc\n    xyz\n\" \"foo\nbar\"").unwrap(),
+            vec![
+                TokenWithRange::from_position_and_length(
+                    Token::new_string("abc\n    xyz\n"),
+                    &Location::new_position(0, 0, 0, 0),
+                    14
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::new_string("foo\nbar"),
+                    &Location::new_position(0, 15, 2, 2),
+                    9
+                )
+            ]
+        );
+
+        // err: incomplete string, missing the closed quote, ends with \n
+        assert!(matches!(
+            lex_from_str_without_location("\"abc\n    \n\n    \n"),
+            Err(Error::UnexpectedEndOfDocument(_))
+        ));
+
+        // err: incomplete string, missing the closed quote, whitespaces/other chars
+        assert!(matches!(
+            lex_from_str_without_location("\"abc\n    \n\n    \n   "),
+            Err(Error::UnexpectedEndOfDocument(_))
+        ));
+    }
+
+    #[test]
+    fn test_lex_long_string() {
+        // the tailing '\' should escapes the new-line chars
+        assert_eq!(
+            lex_from_str_without_location("\"abc\\\ndef\\\n    opq\\\r\n\t  \txyz\"").unwrap(),
+            vec![Token::new_string("abcdefopqxyz")]
+        );
+
+        // the tailing '\' should escapes the new-line chars and trim the leading white-spaces
+        assert_eq!(
+            lex_from_str_without_location("\"\\\n  \t  \"").unwrap(),
+            vec![Token::new_string("")]
+        );
+
+        // location
+
+        assert_eq!(
+            lex_from_str("\"abc\\\n\\\n    xyz\" \"\\\n\"").unwrap(),
+            vec![
+                TokenWithRange::from_position_and_length(
+                    Token::new_string("abcxyz"),
+                    &Location::new_position(0, 0, 0, 0),
+                    16
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::new_string(""),
+                    &Location::new_position(0, 17, 2, 9),
+                    4
+                )
+            ]
+        );
+
+        // err: incomplete string, missing the right quote, ends with \n
+        assert!(matches!(
+            lex_from_str_without_location("\"abc\\\n"),
+            Err(Error::UnexpectedEndOfDocument(_))
+        ));
+
+        // err: incomplete string, missing the right quote, ends with whitespaces/other chars
+        assert!(matches!(
+            lex_from_str_without_location("\"abc\\\n    "),
+            Err(Error::UnexpectedEndOfDocument(_))
+        ));
+    }
+
+    #[test]
+    fn test_lex_raw_string() {
+        assert_eq!(
+            lex_from_str_without_location(
+                "r\"abc\ndef\n    uvw\r\n\t escape: \\r\\n\\t\\\\ unicode: \\u{1234} xyz\""
+            )
+            .unwrap(),
+            vec![Token::new_string(
+                "abc\ndef\n    uvw\r\n\t escape: \\r\\n\\t\\\\ unicode: \\u{1234} xyz"
+            )]
+        );
+
+        // location
+
+        assert_eq!(
+            lex_from_str("r\"abc\n    xyz\" r\"foo\\nbar\"").unwrap(),
+            vec![
+                TokenWithRange::from_position_and_length(
+                    Token::new_string("abc\n    xyz"),
+                    &Location::new_position(0, 0, 0, 0),
+                    14
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::new_string("foo\\nbar"),
+                    &Location::new_position(0, 15, 1, 9),
+                    11
+                )
+            ]
+        );
+
+        // err: incomplete string, missing the right quote
+        assert!(matches!(
+            lex_from_str_without_location("r\"abc    "),
+            Err(Error::UnexpectedEndOfDocument(_))
+        ));
+
+        // err: incomplete string, missing the right quote, ends with \n
+        assert!(matches!(
+            lex_from_str_without_location("r\"abc\n"),
+            Err(Error::UnexpectedEndOfDocument(_))
+        ));
+
+        // err: incomplete string, missing the right quote, ends with whitespaces/other chars
+        assert!(matches!(
+            lex_from_str_without_location("r\"abc\n   "),
+            Err(Error::UnexpectedEndOfDocument(_))
+        ));
+    }
+
+    #[test]
+    fn test_lex_raw_string_with_hash_symbol() {
+        assert_eq!(
+            lex_from_str_without_location(
+                "r#\"abc\ndef\n    uvw\r\n\t escape: \\r\\n\\t\\\\ unicode: \\u{1234} xyz quote: \"foo\"\"#"
+            ).unwrap(),
+            vec![Token::new_string(
+                "abc\ndef\n    uvw\r\n\t escape: \\r\\n\\t\\\\ unicode: \\u{1234} xyz quote: \"foo\""
+            )]
+        );
+
+        // location
+
+        assert_eq!(
+            lex_from_str("r#\"abc\n    xyz\"# r#\"foo\\nbar\"#").unwrap(),
+            vec![
+                TokenWithRange::from_position_and_length(
+                    Token::new_string("abc\n    xyz"),
+                    &Location::new_position(0, 0, 0, 0),
+                    16
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::new_string("foo\\nbar"),
+                    &Location::new_position(0, 17, 1, 10),
+                    13
+                )
+            ]
+        );
+
+        // err: incomplete string, missing the closed hash
+        assert!(matches!(
+            lex_from_str_without_location("r#\"abc    \""),
+            Err(Error::UnexpectedEndOfDocument(_))
+        ));
+
+        // err: incomplete string, missing the closed quote, ends with \n
+        assert!(matches!(
+            lex_from_str_without_location("r#\"abc\n"),
+            Err(Error::UnexpectedEndOfDocument(_))
+        ));
+
+        // err: incomplete string, missing the closed quote, ends with whitespace/other chars
+        assert!(matches!(
+            lex_from_str_without_location("r#\"abc\nxyz"),
+            Err(Error::UnexpectedEndOfDocument(_))
+        ));
+    }
+
+    #[test]
+    fn test_lex_auto_trimmed_string() {
+        assert_eq!(
+            lex_from_str_without_location(
+                r#"
+                """
+                one
+                  two
+                    three
+                end
+                """
+                "#
+            )
+            .unwrap(),
+            vec![
+                Token::NewLine,
+                Token::new_string("one\n  two\n    three\nend"),
+                Token::NewLine,
+            ]
+        );
+
+        assert_eq!(
+            lex_from_str_without_location(
+                r#"
+                """
+                one
+              two
+            three
+                end
+                """
+                "#
+            )
+            .unwrap(),
+            vec![
+                Token::NewLine,
+                Token::new_string("    one\n  two\nthree\n    end"),
+                Token::NewLine,
+            ]
+        );
+
+        // contains empty lines
+        assert_eq!(
+            lex_from_str_without_location(
+                r#"
+                """
+                    one\\\"\t\r\n\u{1234}
+
+                    end
+                """
+                "#
+            )
+            .unwrap(),
+            vec![
+                Token::NewLine,
+                Token::new_string("one\\\\\\\"\\t\\r\\n\\u{1234}\n\nend"),
+                Token::NewLine,
+            ]
+        );
+
+        // including (""")
+        assert_eq!(
+            lex_from_str_without_location(
+                r#"
+                """
+                    one"""
+                    two
+                """
+                "#
+            )
+            .unwrap(),
+            vec![
+                Token::NewLine,
+                Token::new_string("one\"\"\"\ntwo"),
+                Token::NewLine,
+            ]
+        );
+
+        // inline
+        assert_eq!(
+            lex_from_str_without_location(
+                r#"
+                11 """
+                    abc
+                """ 13
+                "#
+            )
+            .unwrap(),
+            vec![
+                Token::NewLine,
+                Token::Number(NumberToken::I32(11)),
+                Token::new_string("abc"),
+                Token::Number(NumberToken::I32(13)),
+                Token::NewLine,
+            ]
+        );
+
+        // location
+
+        assert_eq!(
+            lex_from_str(
+                r#"["""
+    foo
+    bar
+""", """
+    hello
+    world
+"""]"#
+            )
+            .unwrap(),
+            vec![
+                TokenWithRange::from_position_and_length(
+                    Token::LeftBracket,
+                    &Location::new_position(0, 0, 0, 0),
+                    1
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::new_string("foo\nbar"),
+                    &Location::new_position(0, 1, 0, 1),
+                    23
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::Comma,
+                    &Location::new_position(0, 24, 3, 3),
+                    1
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::new_string("hello\nworld"),
+                    &Location::new_position(0, 26, 3, 5),
+                    27
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::RightBracket,
+                    &Location::new_position(0, 53, 6, 3),
+                    1
+                ),
+            ]
+        );
+
+        // err: the content does not start on a new line
+        assert!(matches!(
+            lex_from_str_without_location(
+                r#"
+"""hello
+"""
+"#
+            ),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 4,
+                    line: 1,
+                    column: 3,
+                    length: 0
+                }
+            ))
+        ));
+
+        // err: missing the ending marker (the ending marker does not start on a new line)
+        assert!(matches!(
+            lex_from_str_without_location(
+                r#"
+"""
+hello"""
+"#
+            ),
+            Err(Error::UnexpectedEndOfDocument(_))
+        ));
+
+        // err: missing the ending marker
+        assert!(matches!(
+            lex_from_str_without_location(
+                r#"
+"""
+hello
+world"#
+            ),
+            Err(Error::UnexpectedEndOfDocument(_))
+        ));
+
+        // err: missing the ending marker, ends with \n
+        assert!(matches!(
+            lex_from_str_without_location(
+                r#"
+"""
+hello
+"#
+            ),
+            Err(Error::UnexpectedEndOfDocument(_))
+        ));
+    }
+
+    #[test]
+    fn test_lex_byte_data_hexadecimal() {
+        assert_eq!(
+            lex_from_str_without_location(
+                r#"
+                h""
+                "#
+            )
+            .unwrap(),
+            vec![Token::NewLine, Token::ByteData(vec![]), Token::NewLine]
+        );
+
+        assert_eq!(
+            lex_from_str_without_location(
+                r#"
+                h"11"
+                "#
+            )
+            .unwrap(),
+            vec![Token::NewLine, Token::ByteData(vec![0x11]), Token::NewLine,]
+        );
+
+        assert_eq!(
+            lex_from_str_without_location(
+                r#"
+                h"11 13 17 19"
+                "#
+            )
+            .unwrap(),
+            vec![
+                Token::NewLine,
+                Token::ByteData(vec![0x11, 0x13, 0x17, 0x19]),
+                Token::NewLine,
+            ]
+        );
+
+        assert_eq!(
+            lex_from_str_without_location(
+                "
+                h\"  11\t  13\r17\r\n  19\n  \"
+                "
+            )
+            .unwrap(),
+            vec![
+                Token::NewLine,
+                Token::ByteData(vec![0x11, 0x13, 0x17, 0x19]),
+                Token::NewLine,
+            ]
+        );
+
+        // location
+
+        assert_eq!(
+            lex_from_str("h\"11 13\"").unwrap(),
+            vec![TokenWithRange::from_position_and_length(
+                Token::ByteData(vec![0x11, 0x13]),
+                &Location::new_position(0, 0, 0, 0),
+                8
+            )]
+        );
+
+        assert_eq!(
+            lex_from_str("h\"11\" h\"13\"").unwrap(),
+            vec![
+                TokenWithRange::from_position_and_length(
+                    Token::ByteData(vec![0x11]),
+                    &Location::new_position(0, 0, 0, 0),
+                    5
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::ByteData(vec![0x13]),
+                    &Location::new_position(0, 6, 0, 6),
+                    5
+                )
+            ]
+        );
+
+        // err: not enough digits
+        assert!(matches!(
+            lex_from_str_without_location("h\"11 1\""),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 6,
+                    line: 0,
+                    column: 6,
+                    length: 0
+                }
+            ))
+        ));
+
+        // err: too much digits | no whitespace between two bytes
+        assert!(matches!(
+            lex_from_str_without_location("h\"11 1317\""),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 7,
+                    line: 0,
+                    column: 7,
+                    length: 0
+                }
+            ))
+        ));
+
+        // err: invalid char for byte string
+        assert!(matches!(
+            lex_from_str_without_location("h\"11 1x\""),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 6,
+                    line: 0,
+                    column: 6,
+                    length: 0
+                }
+            ))
+        ));
+
+        // err: invalid separator
+        assert!(matches!(
+            lex_from_str_without_location("h\"11-13\""),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 4,
+                    line: 0,
+                    column: 4,
+                    length: 0
+                }
+            ))
+        ));
+
+        // err: missing the close quote
+        assert!(matches!(
+            lex_from_str_without_location("h\"11 13"),
+            Err(Error::UnexpectedEndOfDocument(_))
+        ));
+
+        // err: missing the close quote, ends with \n
+        assert!(matches!(
+            lex_from_str_without_location("h\"11 13\n"),
+            Err(Error::UnexpectedEndOfDocument(_))
+        ));
+
+        // err: missing the close quote, ends with whitespaces/other chars
+        assert!(matches!(
+            lex_from_str_without_location("h\"11 13\n    "),
+            Err(Error::UnexpectedEndOfDocument(_))
+        ));
+    }
+
+    #[test]
     fn test_lex_line_comment() {
         assert_eq!(
             lex_from_str_without_location(
@@ -2766,16 +4254,16 @@ mod tests {
             .unwrap(),
             vec![
                 Token::NewLine,
-                Token::Number(7),
+                Token::Number(NumberToken::I32(7)),
                 Token::Comment(Comment::Line("11".to_owned())),
                 Token::NewLine,
-                Token::Number(13),
-                Token::Number(17),
+                Token::Number(NumberToken::I32(13)),
+                Token::Number(NumberToken::I32(17)),
                 Token::Comment(Comment::Line(" 19 23".to_owned())),
                 Token::NewLine,
                 Token::Comment(Comment::Line("  29".to_owned())),
                 Token::NewLine,
-                Token::Number(31),
+                Token::Number(NumberToken::I32(31)),
                 Token::Comment(Comment::Line("    37".to_owned())),
                 Token::NewLine,
             ]
@@ -2787,7 +4275,7 @@ mod tests {
             lex_from_str("foo // bar").unwrap(),
             vec![
                 TokenWithRange::from_position_and_length(
-                    Token::Identifier("foo".to_owned()),
+                    Token::new_name("foo"),
                     &Location::new_position(0, 0, 0, 0),
                     3
                 ),
@@ -2803,7 +4291,7 @@ mod tests {
             lex_from_str("abc // def\n// xyz\n").unwrap(),
             vec![
                 TokenWithRange::from_position_and_length(
-                    Token::Identifier("abc".to_owned()),
+                    Token::new_name("abc"),
                     &Location::new_position(0, 0, 0, 0),
                     3
                 ),
@@ -2830,219 +4318,120 @@ mod tests {
             ]
         );
     }
-    */
 
-    //     #[test]
-    //     fn test_lex_block_comment() {
-    //         assert_eq!(
-    //             lex_from_str_without_location(
-    //                 r#"
-    //                 7 /* 11 13 */ 17
-    //                 "#
-    //             )
-    //             .unwrap(),
-    //             vec![
-    //                 Token::NewLine,
-    //                 Token::Number(7),
-    //                 Token::Comment(Comment::Block(" 11 13 ".to_owned())),
-    //                 Token::Number(17),
-    //                 Token::NewLine,
-    //             ]
-    //         );
-    //
-    //         // nested block comment
-    //         assert_eq!(
-    //             lex_from_str_without_location(
-    //                 r#"
-    //                 7 /* 11 /* 13 */ 17 */ 19
-    //                 "#
-    //             )
-    //             .unwrap(),
-    //             vec![
-    //                 Token::NewLine,
-    //                 Token::Number(7),
-    //                 Token::Comment(Comment::Block(" 11 /* 13 */ 17 ".to_owned())),
-    //                 Token::Number(19),
-    //                 Token::NewLine,
-    //             ]
-    //         );
-    //
-    //         // line comment chars "//" within the block comment
-    //         assert_eq!(
-    //             lex_from_str_without_location(
-    //                 r#"
-    //                 7 /* 11 // 13 17 */ 19
-    //                 "#
-    //             )
-    //             .unwrap(),
-    //             vec![
-    //                 Token::NewLine,
-    //                 Token::Number(7),
-    //                 Token::Comment(Comment::Block(" 11 // 13 17 ".to_owned())),
-    //                 Token::Number(19),
-    //                 Token::NewLine,
-    //             ]
-    //         );
-    //
-    //         // location
-    //
-    //         assert_eq!(
-    //             lex_from_str("foo /* hello */ bar").unwrap(),
-    //             vec![
-    //                 TokenWithRange::from_position_and_length(
-    //                     Token::Identifier("foo".to_owned()),
-    //                     &Location::new_position(0, 0, 0, 0),
-    //                     3
-    //                 ),
-    //                 TokenWithRange::from_position_and_length(
-    //                     Token::Comment(Comment::Block(" hello ".to_owned())),
-    //                     &Location::new_position(0, 4, 0, 4),
-    //                     11
-    //                 ),
-    //                 TokenWithRange::from_position_and_length(
-    //                     Token::Identifier("bar".to_owned()),
-    //                     &Location::new_position(0, 16, 0, 16),
-    //                     3
-    //                 ),
-    //             ]
-    //         );
-    //
-    //         assert_eq!(
-    //             lex_from_str("/* abc\nxyz */ /* hello */").unwrap(),
-    //             vec![
-    //                 TokenWithRange::from_position_and_length(
-    //                     Token::Comment(Comment::Block(" abc\nxyz ".to_owned())),
-    //                     &Location::new_position(0, 0, 0, 0),
-    //                     13
-    //                 ),
-    //                 TokenWithRange::from_position_and_length(
-    //                     Token::Comment(Comment::Block(" hello ".to_owned())),
-    //                     &Location::new_position(0, 14, 1, 7),
-    //                     11
-    //                 ),
-    //             ]
-    //         );
-    //
-    //         // err: incomplete, missing "*/"
-    //         assert!(matches!(
-    //             lex_from_str_without_location("7 /* 11"),
-    //             Err(Error::UnexpectedEndOfDocument(_))
-    //         ));
-    //
-    //         // err: incomplete, missing "*/", ends with \n
-    //         assert!(matches!(
-    //             lex_from_str_without_location("7 /* 11\n"),
-    //             Err(Error::UnexpectedEndOfDocument(_))
-    //         ));
-    //
-    //         // err: incomplete, unpaired, missing "*/"
-    //         assert!(matches!(
-    //             lex_from_str_without_location("a /* b /* c */"),
-    //             Err(Error::UnexpectedEndOfDocument(_))
-    //         ));
-    //
-    //         // err: incomplete, unpaired, missing "*/", ends with \n
-    //         assert!(matches!(
-    //             lex_from_str_without_location("a /* b /* c */\n"),
-    //             Err(Error::UnexpectedEndOfDocument(_))
-    //         ));
-    //     }
+    #[test]
+    fn test_lex_block_comment() {
+        assert_eq!(
+            lex_from_str_without_location(
+                r#"
+                7 /* 11 13 */ 17
+                "#
+            )
+            .unwrap(),
+            vec![
+                Token::NewLine,
+                Token::Number(NumberToken::I32(7)),
+                Token::Comment(Comment::Block(" 11 13 ".to_owned())),
+                Token::Number(NumberToken::I32(17)),
+                Token::NewLine,
+            ]
+        );
 
-    //     #[test]
-    //     fn test_lex_multiple_tokens() {
-    //         assert_eq!(
-    //             lex_from_str_without_location(
-    //                 r#"
-    //                 ('a', "def", "xyz".repeat(3)).one_or_more()
-    //                 "#
-    //             )
-    //             .unwrap(),
-    //             vec![
-    //                 Token::NewLine,
-    //                 Token::LeftParen,
-    //                 Token::Char('a'),
-    //                 Token::Comma,
-    //                 Token::new_string("def"),
-    //                 Token::Comma,
-    //                 Token::new_string("xyz"),
-    //                 Token::Dot,
-    //                 Token::new_identifier("repeat"),
-    //                 Token::LeftParen,
-    //                 Token::Number(3),
-    //                 Token::RightParen,
-    //                 Token::RightParen,
-    //                 Token::Dot,
-    //                 Token::new_identifier("one_or_more"),
-    //                 Token::LeftParen,
-    //                 Token::RightParen,
-    //                 Token::NewLine
-    //             ]
-    //         );
-    //
-    //         assert_eq!(
-    //             lex_from_str_without_location(
-    //                 r#"
-    //                 'a'?
-    //                 'b'+
-    //                 'c'*
-    //                 'd'{1,2}
-    //                 "#
-    //             )
-    //             .unwrap(),
-    //             vec![
-    //                 Token::NewLine,
-    //                 Token::Char('a'),
-    //                 Token::Question,
-    //                 Token::NewLine,
-    //                 Token::Char('b'),
-    //                 Token::Plus,
-    //                 Token::NewLine,
-    //                 Token::Char('c'),
-    //                 Token::Asterisk,
-    //                 Token::NewLine,
-    //                 Token::Char('d'),
-    //                 Token::LeftBrace,
-    //                 Token::Number(1),
-    //                 Token::Comma,
-    //                 Token::Number(2),
-    //                 Token::RightBrace,
-    //                 Token::NewLine
-    //             ]
-    //         );
-    //
-    //         assert_eq!(
-    //             lex_from_str_without_location(
-    //                 r#"
-    //                 one_or_more([
-    //                     'a'..'f'    // comment 1
-    //                     '0'..'9'    // comment 2
-    //                     '_'
-    //                 ])
-    //                 "#
-    //             )
-    //             .unwrap(),
-    //             vec![
-    //                 Token::NewLine,
-    //                 Token::new_identifier("one_or_more"),
-    //                 Token::LeftParen,
-    //                 Token::LeftBracket,
-    //                 Token::NewLine,
-    //                 Token::Char('a'),
-    //                 Token::Interval,
-    //                 Token::Char('f'),
-    //                 Token::Comment(Comment::Line(" comment 1".to_owned())),
-    //                 Token::NewLine,
-    //                 Token::Char('0'),
-    //                 Token::Interval,
-    //                 Token::Char('9'),
-    //                 Token::Comment(Comment::Line(" comment 2".to_owned())),
-    //                 Token::NewLine,
-    //                 Token::Char('_'),
-    //                 Token::NewLine,
-    //                 Token::RightBracket,
-    //                 Token::RightParen,
-    //                 Token::NewLine
-    //             ]
-    //         );
-    //     }
+        // nested block comment
+        assert_eq!(
+            lex_from_str_without_location(
+                r#"
+                7 /* 11 /* 13 */ 17 */ 19
+                "#
+            )
+            .unwrap(),
+            vec![
+                Token::NewLine,
+                Token::Number(NumberToken::I32(7)),
+                Token::Comment(Comment::Block(" 11 /* 13 */ 17 ".to_owned())),
+                Token::Number(NumberToken::I32(19)),
+                Token::NewLine,
+            ]
+        );
+
+        // line comment chars "//" within the block comment
+        assert_eq!(
+            lex_from_str_without_location(
+                r#"
+                7 /* 11 // 13 17 */ 19
+                "#
+            )
+            .unwrap(),
+            vec![
+                Token::NewLine,
+                Token::Number(NumberToken::I32(7)),
+                Token::Comment(Comment::Block(" 11 // 13 17 ".to_owned())),
+                Token::Number(NumberToken::I32(19)),
+                Token::NewLine,
+            ]
+        );
+
+        // location
+
+        assert_eq!(
+            lex_from_str("foo /* hello */ bar").unwrap(),
+            vec![
+                TokenWithRange::from_position_and_length(
+                    Token::new_name("foo"),
+                    &Location::new_position(0, 0, 0, 0),
+                    3
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::Comment(Comment::Block(" hello ".to_owned())),
+                    &Location::new_position(0, 4, 0, 4),
+                    11
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::new_name("bar"),
+                    &Location::new_position(0, 16, 0, 16),
+                    3
+                ),
+            ]
+        );
+
+        assert_eq!(
+            lex_from_str("/* abc\nxyz */ /* hello */").unwrap(),
+            vec![
+                TokenWithRange::from_position_and_length(
+                    Token::Comment(Comment::Block(" abc\nxyz ".to_owned())),
+                    &Location::new_position(0, 0, 0, 0),
+                    13
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::Comment(Comment::Block(" hello ".to_owned())),
+                    &Location::new_position(0, 14, 1, 7),
+                    11
+                ),
+            ]
+        );
+
+        // err: incomplete, missing "*/"
+        assert!(matches!(
+            lex_from_str_without_location("7 /* 11"),
+            Err(Error::UnexpectedEndOfDocument(_))
+        ));
+
+        // err: incomplete, missing "*/", ends with \n
+        assert!(matches!(
+            lex_from_str_without_location("7 /* 11\n"),
+            Err(Error::UnexpectedEndOfDocument(_))
+        ));
+
+        // err: incomplete, unpaired, missing "*/"
+        assert!(matches!(
+            lex_from_str_without_location("a /* b /* c */"),
+            Err(Error::UnexpectedEndOfDocument(_))
+        ));
+
+        // err: incomplete, unpaired, missing "*/", ends with \n
+        assert!(matches!(
+            lex_from_str_without_location("a /* b /* c */\n"),
+            Err(Error::UnexpectedEndOfDocument(_))
+        ));
+    }
 }
