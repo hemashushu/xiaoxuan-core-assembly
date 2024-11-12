@@ -64,7 +64,9 @@ Example of `data` statement:
 ```rust
 data foo:i32 = 0x11
 pub data bar:byte[32] = b"01 02 03 04 ..."
-pub readonly data baz:i32 = 0x13
+pub readonly data baz:byte[] = "Hello, World!"
+pub readonly data cbaz:byte[] = ["Hello, World!", 0_u8]
+pub data mass:byte[] = [11_i32, 13_i32, 17_i32, 19_i32]
 pub uninit buz:i64
 ```
 

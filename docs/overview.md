@@ -1,6 +1,6 @@
 # Overview
 
-Example:
+## Code
 
 ```rust
 // using functions from other shared modules
@@ -39,6 +39,8 @@ pub fn entry() -> i32 {
 }
 ```
 
+## Configuration
+
 content of the file `module.ason`:
 
 ```json5
@@ -72,12 +74,16 @@ content of the file `module.ason`:
 }
 ```
 
-data types:
+## Data Types
 
-- i64
-- i32
+supports data types:
+
+- i64: unsigned 64-bit integer
+- i32: unsigned 32-bit integer
+- i16: unsigned 16-bit integer
 - f64
 - f32
-- byte[length]
+- byte[length]: fixed length bytes
+- byte[]: variable length bytes (the length is determined by the content)
 
 the data types for function parameters and return values can only be `i64/i32/f64/f32`.

@@ -6,11 +6,15 @@
 
 use std::fmt::Display;
 
-// pub mod ast;
-// pub mod core_assembly_instruction;
-// pub mod lexer;
-// pub mod parser;
+pub mod ast;
+mod charposition;
+mod error;
+mod errorprinter;
+mod lexer;
+mod location;
 mod peekableiter;
+mod token;
+// pub mod parser;
 
 pub const NAME_PATH_SEPARATOR: &str = "::";
 
