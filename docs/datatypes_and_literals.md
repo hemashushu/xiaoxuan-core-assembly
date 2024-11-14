@@ -15,6 +15,8 @@ Note that when declaring "uninitialized data" and "external data", an unspecifie
 
 ## Literals
 
+Literals are used for initialization values of `data`, and parts of number literals are used for parameters of instructions.
+
 ### Numbers
 
 TODO
@@ -29,3 +31,14 @@ TODO
 ### Strings
 
 TODO
+
+### List
+
+[value0, value1, ...]
+
+```js
+[
+    [value_a0, value_a1, ...]
+    [value_b0, value_b1, ...]
+]
+```

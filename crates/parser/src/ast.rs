@@ -168,7 +168,7 @@ pub struct FunctionNode {
     pub params: Vec<NamedParameter>,
     pub returns: Vec<FunctionDataType>,
     pub locals: Vec<LocalVariable>,
-    pub body: Box<ExpressionNode>,
+    pub body: ExpressionNode,
 }
 
 #[derive(Debug, PartialEq)]
@@ -319,9 +319,10 @@ pub enum ExpressionNode {
     Instruction(InstructionNode),
     When(WhenNode),
     If(IfNode),
-    For(ForNode),
+    Block(BlockNode),
+    For(BlockNode),
     Break(BreakNode),
-    Recur(RecurNode),
+    Recur(BreakNode),
     Group(Vec<ExpressionNode>),
 }
 
@@ -341,7 +342,7 @@ pub struct IfNode {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct ForNode {
+pub struct BlockNode {
     pub params: Vec<NamedParameter>,
     pub returns: Vec<FunctionDataType>,
     pub locals: Vec<LocalVariable>,
@@ -358,15 +359,15 @@ pub enum BreakNode {
     BreakFn(/* values */ Vec<ExpressionNode>),
 }
 
-#[derive(Debug, PartialEq)]
-pub enum RecurNode {
-    Recur(/* values */ Vec<ExpressionNode>),
-    RecurIf(
-        /* testing */ Box<ExpressionNode>,
-        /* values */ Vec<ExpressionNode>,
-    ),
-    RecurFn(/* values */ Vec<ExpressionNode>),
-}
+// #[derive(Debug, PartialEq)]
+// pub enum RecurNode {
+//     Recur(/* values */ Vec<ExpressionNode>),
+//     RecurIf(
+//         /* testing */ Box<ExpressionNode>,
+//         /* values */ Vec<ExpressionNode>,
+//     ),
+//     RecurFn(/* values */ Vec<ExpressionNode>),
+// }
 
 #[derive(Debug, PartialEq)]
 pub struct InstructionNode {
@@ -688,4 +689,3 @@ pub enum LiteralNumber {
 //     // currently the MIN value is 1.
 //     pub align: u16,
 // }
-

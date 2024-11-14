@@ -29,7 +29,7 @@ There is no return value for 'when' statement.
 
 ## Condition with branch
 
-`if -> (returns) tesing then {...} else {...}`
+`if () -> (returns) tesing {...} {...}`
 
 The return value is `(returns)`
 
@@ -48,7 +48,7 @@ Variants:
 
 `break (value0, value1, ...)`
 
-Break the nearest 'block' or 'for'.
+Break the nearest 'for'.
 
 This expression never return.
 
@@ -57,7 +57,7 @@ Variants:
 - `break_if testing (value0, value1, ...)`
   Break only when the 'testing' returns true.
 - `break_fn (value0, value1, ...)`
-  Break to the current functin.
+  Break to the current function.
 
 ## Recur
 
