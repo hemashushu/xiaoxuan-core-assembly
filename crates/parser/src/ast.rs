@@ -4,6 +4,8 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
+use std::fmt::Display;
+
 #[derive(Debug, PartialEq)]
 pub struct ModuleNode {
     // e.g. "network", "network::http", "network::http::client"
@@ -76,7 +78,7 @@ pub struct ExternalFunction {
     pub library: String,
     pub name: String,
     pub params: Vec<FunctionDataType>,
-    pub returns: Vec<FunctionDataType>,
+    pub return_: Option<FunctionDataType>,
     pub alias_name: Option<String>,
 }
 
@@ -91,20 +93,20 @@ pub enum FunctionDataType {
 #[derive(Debug, PartialEq)]
 pub struct ExternalData {
     pub library: String,
-    pub identifier: String,
-    pub data_type: ExternalDataType,
+    pub name: String,
+    pub data_type: MemoryDataType,
     pub alias_name: Option<String>,
 }
 
-#[derive(Debug, PartialEq)]
-pub enum ExternalDataType {
-    I64,
-    I32,
-    F64,
-    F32,
-    Bytes,                          // e.g. `byte[]`
-    FixedBytes(/* length */ usize), // e.g. `byte[1024]`
-}
+// #[derive(Debug, PartialEq)]
+// pub enum ExternalDataType {
+//     I64,
+//     I32,
+//     F64,
+//     F32,
+//     Bytes,                          // e.g. `byte[]`
+//     FixedBytes(/* length */ usize), // e.g. `byte[1024]`
+// }
 
 // #[derive(Debug, PartialEq)]
 // pub enum ModuleElementNode {
@@ -123,19 +125,19 @@ pub struct DataNode {
 
 #[derive(Debug, PartialEq)]
 pub enum DataSection {
-    ReadOnly(InitedDataTypeValuePair),
-    ReadWrite(InitedDataTypeValuePair),
-    Uninit(MemoryDataType),
+    ReadOnly(DataTypeValuePair),
+    ReadWrite(DataTypeValuePair),
+    Uninit(FixedMemoryDataType),
 }
 
 #[derive(Debug, PartialEq)]
-pub struct InitedDataTypeValuePair {
-    pub data_type: InitedDataType,
-    pub value: InitedDataValue,
+pub struct DataTypeValuePair {
+    pub data_type: MemoryDataType,
+    pub value: DataValue,
 }
 
 #[derive(Debug, PartialEq)]
-pub enum InitedDataType {
+pub enum MemoryDataType {
     I64,
     I32,
     F64,
@@ -145,16 +147,18 @@ pub enum InitedDataType {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum InitedDataValue {
+pub enum DataValue {
+    I8(u8),
+    I16(u16),
     I64(u64),
     I32(u32),
     F64(f64),
     F32(f32),
-    Byte(Vec<u8>),
+    // Byte(Vec<u8>),
     String(String),
 
     // e.g. [11_i32, 13_i32, 17_i32, 19_i32]
-    List(Vec<InitedDataValue>),
+    List(Vec<DataValue>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -176,7 +180,7 @@ pub struct NamedParameter {
 #[derive(Debug, PartialEq)]
 pub struct LocalVariable {
     pub name: String,
-    pub data_type: MemoryDataType,
+    pub data_type: FixedMemoryDataType,
 
     /// if the data is a byte array (e.g. a string), the value should be 1,
     /// if the data is a struct, the value should be the max one of the length of its fields.
@@ -187,7 +191,7 @@ pub struct LocalVariable {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum MemoryDataType {
+pub enum FixedMemoryDataType {
     I64,
     I32,
     F64,
@@ -374,7 +378,7 @@ pub struct InstructionNode {
 #[derive(Debug, PartialEq)]
 pub enum ArgumentValue {
     Identifier(String),
-    Const(Const),
+    LiteralNumber(LiteralNumber),
     Expression(Box<ExpressionNode>),
 }
 
@@ -385,12 +389,13 @@ pub struct NamedArgument {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum Const {
-    I64(u64),
-    I32(u32),
+pub enum LiteralNumber {
+    I8(u8),
     I16(u16),
-    F64(f64),
+    I32(u32),
+    I64(u64),
     F32(f32),
+    F64(f64),
 }
 
 // #[derive(Debug, PartialEq, Clone)]
@@ -683,3 +688,4 @@ pub enum Const {
 //     // currently the MIN value is 1.
 //     pub align: u16,
 // }
+

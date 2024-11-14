@@ -51,15 +51,16 @@ pub enum Token {
     DataType(String), // e.g. "i64", "i32"
 
     Number(NumberToken),
-    Char(char),
+    // Char(char),
     String(String),
-    ByteData(Vec<u8>),
+    // ByteData(Vec<u8>),
 
     Comment(Comment),
 }
 
 #[derive(Debug, PartialEq)]
 pub enum NumberToken {
+    I8(u8),
     I16(u16),
     I32(u32),
     I64(u64),
@@ -79,6 +80,7 @@ pub enum Comment {
 
 #[derive(Debug, PartialEq)]
 pub enum NumberType {
+    I8,
     I16,
     I32,
     I64,
@@ -89,6 +91,7 @@ pub enum NumberType {
 impl NumberType {
     pub fn from_str(s: &str) -> Result<Self, String> {
         let t = match s {
+            "i8" => NumberType::I8,
             "i16" => NumberType::I16,
             "i32" => NumberType::I32,
             "i64" => NumberType::I64,
@@ -106,6 +109,7 @@ impl NumberType {
 impl Display for NumberType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            NumberType::I8 => write!(f, "i8"),
             NumberType::I16 => write!(f, "i16"),
             NumberType::I32 => write!(f, "i32"),
             NumberType::I64 => write!(f, "i64"),

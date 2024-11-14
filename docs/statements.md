@@ -63,11 +63,22 @@ Example of `data` statement:
 
 ```rust
 data foo:i32 = 0x11
-pub data bar:byte[32] = b"01 02 03 04 ..."
-pub readonly data baz:byte[] = "Hello, World!"
-pub readonly data cbaz:byte[] = ["Hello, World!", 0_u8]
-pub data mass:byte[] = [11_i32, 13_i32, 17_i32, 19_i32]
-pub uninit buz:i64
+pub readonly bar:i32 = 0x13
+pub uninit baz:i64
+```
+
+There are two ways to declare the length of a byte array:
+
+1. `byte[length]`: Specify the length of byte array directly. If the length of the content if less than the byte array, the remainder of the byte array is padded with the number 0.
+2. `byte[]`: Do not specify the length of the byte array, the length is automatically determined by the length of content.
+
+```rust
+pub data foo:byte[32] = b"01 02 03 04" // length 32
+pub data foo2:byte[] = [11_i32, 13_i32, 17_i32, 19_i32] // length 4
+pub readonly data bar:byte[] = "Hello, World!"
+pub readonly data bar1:byte[] = "Hello, World!\0"
+pub readonly data bar2:byte[] = ["Hello, World!", 0_u8]
+
 ```
 
 ## Defining Functions

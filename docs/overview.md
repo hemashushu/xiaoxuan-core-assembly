@@ -44,18 +44,31 @@ pub fn entry() -> i32 {
 content of the file `module.ason`:
 
 ```json5
+// @type: anc
 {
-    type: "anc"
     name: "hello"
     version: "1.0.0"
     runtime_version: "1.0"
     entry: "entry"
-    dependencies: [
+    modules: [
         "std": module::Runtime
         "digest": module::Share({
             repository: Option::Some("internal")
             version: "1.0"
-            // properties: {}
+            // Values can be passed to the "properties" of module "digest"
+            // via the "values" field.
+            //
+            // e.g.
+            //
+            // values: {
+            //    "enable_sha2": value::Bool(true)
+            //    "enable_md5": value::Bool(false)
+            //    "enable_foo": value::calc("{enable_xyz}")
+            // }
+            //
+            // Where `{enable_xyz}` is an property or constant
+            // declared by the current configuration file.
+
         })
     ]
     libraries: [
@@ -66,24 +79,28 @@ content of the file `module.ason`:
         })
     ]
     properties: {
-        // ...
+        // Declares properties and there default values for
+        // use by the current program (module).
+        // This value of the property declared here can be
+        // read in the program's souce code by the macro `prop!(...)`.
+        //
+        // e.g.
+        //
+        // "enable_abc": prop::default::Bool(true)
+        // "enable_def": prop::default::Bool(false)
+        // "enable_xyz": prop::calc("{enable_abc} && {enable_def}")
     }
-    variables: {
-        // ...
+    constants: {
+        // Declares constants and their values for used
+        // by the current configuration file.
+        //
+        // e.g.
+        //
+        // "foo": const::Number(123)
+        // "bar": const::String("abc")
+        //
+        // Note that the name of a constant cannot duplicate
+        // the name of property.
     }
 }
 ```
-
-## Data Types
-
-supports data types:
-
-- i64: unsigned 64-bit integer
-- i32: unsigned 32-bit integer
-- i16: unsigned 16-bit integer
-- f64
-- f32
-- byte[length]: fixed length bytes
-- byte[]: variable length bytes (the length is determined by the content)
-
-the data types for function parameters and return values can only be `i64/i32/f64/f32`.

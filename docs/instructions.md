@@ -9,73 +9,73 @@ nop()  ->  ()
 ## Immediately Numbers
 
 ```rust
-imm_i32(const_i32) -> i32
-imm_i64(const_i64) -> i64
-imm_f32(const_f32) -> f32
-imm_f64(const_f64) -> f64
+imm_i32(literal_i32) -> i32
+imm_i64(literal_i64) -> i64
+imm_f32(literal_f32) -> f32
+imm_f64(literal_f64) -> f64
 ```
 
 ## Local Loading/Storing
 
 ```rust
-local_load_i64(  identifier, rindex=const_i16, offset=const_i16)  ->  i64
-local_load_i32_s(identifier, rindex=const_i16, offset=const_i16)  ->  i32
-local_load_i32_u(identifier, rindex=const_i16, offset=const_i16)  ->  i32
-local_load_i16_s(identifier, rindex=const_i16, offset=const_i16)  ->  i16
-local_load_i16_u(identifier, rindex=const_i16, offset=const_i16)  ->  i16
-local_load_i8_s( identifier, rindex=const_i16, offset=const_i16)  ->  i8
-local_load_i8_u( identifier, rindex=const_i16, offset=const_i16)  ->  i8
-local_load_f32(  identifier, rindex=const_i16, offset=const_i16)  ->  f32
-local_load_f64(  identifier, rindex=const_i16, offset=const_i16)  ->  f64
+local_load_i64(  identifier, rindex=literal_i16, offset=literal_i16)  ->  i64
+local_load_i32_s(identifier, rindex=literal_i16, offset=literal_i16)  ->  i32
+local_load_i32_u(identifier, rindex=literal_i16, offset=literal_i16)  ->  i32
+local_load_i16_s(identifier, rindex=literal_i16, offset=literal_i16)  ->  i16
+local_load_i16_u(identifier, rindex=literal_i16, offset=literal_i16)  ->  i16
+local_load_i8_s( identifier, rindex=literal_i16, offset=literal_i16)  ->  i8
+local_load_i8_u( identifier, rindex=literal_i16, offset=literal_i16)  ->  i8
+local_load_f32(  identifier, rindex=literal_i16, offset=literal_i16)  ->  f32
+local_load_f64(  identifier, rindex=literal_i16, offset=literal_i16)  ->  f64
 
-local_store_i64(identifier, value:i64, rindex=const_i16, offset=const_i16)  ->  ()
-local_store_i32(identifier, value:i32, rindex=const_i16, offset=const_i16)  ->  ()
-local_store_i16(identifier, value:i16, rindex=const_i16, offset=const_i16)  ->  ()
-local_store_i8( identifier, value:i8,  rindex=const_i16, offset=const_i16)  ->  ()
-local_store_f64(identifier, value:f64, rindex=const_i16, offset=const_i16)  ->  ()
-local_store_f32(identifier, value:f32, rindex=const_i16, offset=const_i16)  ->  ()
+local_store_i64(identifier, value:i64, rindex=literal_i16, offset=literal_i16)  ->  ()
+local_store_i32(identifier, value:i32, rindex=literal_i16, offset=literal_i16)  ->  ()
+local_store_i16(identifier, value:i16, rindex=literal_i16, offset=literal_i16)  ->  ()
+local_store_i8( identifier, value:i8,  rindex=literal_i16, offset=literal_i16)  ->  ()
+local_store_f64(identifier, value:f64, rindex=literal_i16, offset=literal_i16)  ->  ()
+local_store_f32(identifier, value:f32, rindex=literal_i16, offset=literal_i16)  ->  ()
 ```
 
 ## Local Loading/Storing Extension
 
 ```rust
-local_load_extend_i64(  identifier, offset:i64, rindex=const_i16)  ->  i64
-local_load_extend_i32_s(identifier, offset:i64, rindex=const_i16)  ->  i32
-local_load_extend_i32_u(identifier, offset:i64, rindex=const_i16)  ->  i32
-local_load_extend_i16_s(identifier, offset:i64, rindex=const_i16)  ->  i16
-local_load_extend_i16_u(identifier, offset:i64, rindex=const_i16)  ->  i16
-local_load_extend_i8_s( identifier, offset:i64, rindex=const_i16)  ->  i8
-local_load_extend_i8_u( identifier, offset:i64, rindex=const_i16)  ->  i8
-local_load_extend_f64(  identifier, offset:i64, rindex=const_i16)  ->  f64
-local_load_extend_f32(  identifier, offset:i64, rindex=const_i16)  ->  f32
+local_load_extend_i64(  identifier, offset:i64, rindex=literal_i16)  ->  i64
+local_load_extend_i32_s(identifier, offset:i64, rindex=literal_i16)  ->  i32
+local_load_extend_i32_u(identifier, offset:i64, rindex=literal_i16)  ->  i32
+local_load_extend_i16_s(identifier, offset:i64, rindex=literal_i16)  ->  i16
+local_load_extend_i16_u(identifier, offset:i64, rindex=literal_i16)  ->  i16
+local_load_extend_i8_s( identifier, offset:i64, rindex=literal_i16)  ->  i8
+local_load_extend_i8_u( identifier, offset:i64, rindex=literal_i16)  ->  i8
+local_load_extend_f64(  identifier, offset:i64, rindex=literal_i16)  ->  f64
+local_load_extend_f32(  identifier, offset:i64, rindex=literal_i16)  ->  f32
 
-local_store_extend_i64(identifier, offset:i64, value:i64, rindex=const_i16)  ->  ()
-local_store_extend_i32(identifier, offset:i64, value:i32, rindex=const_i16)  ->  ()
-local_store_extend_i16(identifier, offset:i64, value:i16, rindex=const_i16)  ->  ()
-local_store_extend_i8( identifier, offset:i64, value:i8,  rindex=const_i16)  ->  ()
-local_store_extend_f64(identifier, offset:i64, value:f64, rindex=const_i16)  ->  ()
-local_store_extend_f32(identifier, offset:i64, value:f32, rindex=const_i16)  ->  ()
+local_store_extend_i64(identifier, offset:i64, value:i64, rindex=literal_i16)  ->  ()
+local_store_extend_i32(identifier, offset:i64, value:i32, rindex=literal_i16)  ->  ()
+local_store_extend_i16(identifier, offset:i64, value:i16, rindex=literal_i16)  ->  ()
+local_store_extend_i8( identifier, offset:i64, value:i8,  rindex=literal_i16)  ->  ()
+local_store_extend_f64(identifier, offset:i64, value:f64, rindex=literal_i16)  ->  ()
+local_store_extend_f32(identifier, offset:i64, value:f32, rindex=literal_i16)  ->  ()
 ```
 
 ## Data Loading/Storing
 
 ```rust
-data_load_i64(  identifier, offset=const_i16)  ->  i64
-data_load_i32_s(identifier, offset=const_i16)  ->  i32
-data_load_i32_u(identifier, offset=const_i16)  ->  i32
-data_load_i16_s(identifier, offset=const_i16)  ->  i16
-data_load_i16_u(identifier, offset=const_i16)  ->  i16
-data_load_i8_s( identifier, offset=const_i16)  ->  i8
-data_load_i8_u( identifier, offset=const_i16)  ->  i8
-data_load_f32(  identifier, offset=const_i16)  ->  f32
-data_load_f64(  identifier, offset=const_i16)  ->  f64
+data_load_i64(  identifier, offset=literal_i16)  ->  i64
+data_load_i32_s(identifier, offset=literal_i16)  ->  i32
+data_load_i32_u(identifier, offset=literal_i16)  ->  i32
+data_load_i16_s(identifier, offset=literal_i16)  ->  i16
+data_load_i16_u(identifier, offset=literal_i16)  ->  i16
+data_load_i8_s( identifier, offset=literal_i16)  ->  i8
+data_load_i8_u( identifier, offset=literal_i16)  ->  i8
+data_load_f32(  identifier, offset=literal_i16)  ->  f32
+data_load_f64(  identifier, offset=literal_i16)  ->  f64
 
-data_store_i64(identifier, value:i64, offset=const_i16)  ->  ()
-data_store_i32(identifier, value:i32, offset=const_i16)  ->  ()
-data_store_i16(identifier, value:i16, offset=const_i16)  ->  ()
-data_store_i8( identifier, value:i8,  offset=const_i16)  ->  ()
-data_store_f64(identifier, value:f64, offset=const_i16)  ->  ()
-data_store_f32(identifier, value:f32, offset=const_i16)  ->  ()
+data_store_i64(identifier, value:i64, offset=literal_i16)  ->  ()
+data_store_i32(identifier, value:i32, offset=literal_i16)  ->  ()
+data_store_i16(identifier, value:i16, offset=literal_i16)  ->  ()
+data_store_i8( identifier, value:i8,  offset=literal_i16)  ->  ()
+data_store_f64(identifier, value:f64, offset=literal_i16)  ->  ()
+data_store_f32(identifier, value:f32, offset=literal_i16)  ->  ()
 ```
 
 ## Data Loading/Storing Extension
@@ -102,22 +102,22 @@ data_store_extend_f32(identifier, offset:i64, value:f32)  ->  ()
 ## Heap Loading/Storing
 
 ```rust
-heap_load_i64(  addr:i64, offset=const_i16)  ->  i64
-heap_load_i32_s(addr:i64, offset=const_i16)  ->  i32
-heap_load_i32_u(addr:i64, offset=const_i16)  ->  i32
-heap_load_i16_s(addr:i64, offset=const_i16)  ->  i16
-heap_load_i16_u(addr:i64, offset=const_i16)  ->  i16
-heap_load_i8_s( addr:i64, offset=const_i16)  ->  i8
-heap_load_i8_u( addr:i64, offset=const_i16)  ->  i8
-heap_load_f32(  addr:i64, offset=const_i16)  ->  f32
-heap_load_f64(  addr:i64, offset=const_i16)  ->  f64
+heap_load_i64(  addr:i64, offset=literal_i16)  ->  i64
+heap_load_i32_s(addr:i64, offset=literal_i16)  ->  i32
+heap_load_i32_u(addr:i64, offset=literal_i16)  ->  i32
+heap_load_i16_s(addr:i64, offset=literal_i16)  ->  i16
+heap_load_i16_u(addr:i64, offset=literal_i16)  ->  i16
+heap_load_i8_s( addr:i64, offset=literal_i16)  ->  i8
+heap_load_i8_u( addr:i64, offset=literal_i16)  ->  i8
+heap_load_f32(  addr:i64, offset=literal_i16)  ->  f32
+heap_load_f64(  addr:i64, offset=literal_i16)  ->  f64
 
-heap_store_i64(addr:i64, value:i64, offset=const_i16)  ->  ()
-heap_store_i32(addr:i64, value:i32, offset=const_i16)  ->  ()
-heap_store_i16(addr:i64, value:i16, offset=const_i16)  ->  ()
-heap_store_i8( addr:i64, value:i8,  offset=const_i16)  ->  ()
-heap_store_f64(addr:i64, value:f64, offset=const_i16)  ->  ()
-heap_store_f32(addr:i64, value:f32, offset=const_i16)  ->  ()
+heap_store_i64(addr:i64, value:i64, offset=literal_i16)  ->  ()
+heap_store_i32(addr:i64, value:i32, offset=literal_i16)  ->  ()
+heap_store_i16(addr:i64, value:i16, offset=literal_i16)  ->  ()
+heap_store_i8( addr:i64, value:i8,  offset=literal_i16)  ->  ()
+heap_store_f64(addr:i64, value:f64, offset=literal_i16)  ->  ()
+heap_store_f32(addr:i64, value:f32, offset=literal_i16)  ->  ()
 ```
 
 ```rust
@@ -215,8 +215,8 @@ ge_f64(left:f64 right:f64) -> i64
 ```rust
 add_i32(left:i32 right:i32) -> i32
 sub_i32(left:i32 right:i32) -> i32
-add_imm_i32(imm:const_i16, number:i32) -> i32
-sub_imm_i32(imm:const_i16, number:i32) -> i32
+add_imm_i32(imm:literal_i16, number:i32) -> i32
+sub_imm_i32(imm:literal_i16, number:i32) -> i32
 mul_i32(left:i32 right:i32) -> i32
 div_i32_s(left:i32 right:i32) -> i32
 div_i32_u(left:i32 right:i32) -> i32
@@ -227,8 +227,8 @@ rem_i32_u(left:i32 right:i32) -> i32
 ```rust
 add_i64(left:i64 right:i64) -> i64
 sub_i64(left:i64 right:i64) -> i64
-add_imm_i64(imm:const_i16, number:i64) -> i64
-sub_imm_i64(imm:const_i16, number:i64) -> i64
+add_imm_i64(imm:literal_i16, number:i64) -> i64
+sub_imm_i64(imm:literal_i16, number:i64) -> i64
 mul_i64(left:i64 right:i64) -> i64
 div_i64_s(left:i64 right:i64) -> i64
 div_i64_u(left:i64 right:i64) -> i64
@@ -401,12 +401,12 @@ call(i_need_2_args
 ## Host
 
 ```rust
-panic(code:const_i32)  ->  (never return)
-host_addr_local(identifier, rindex=const_i16, offset=const_i16) -> i64
-host_addr_local_extend(identifier, offset:i64, rindex=const_i16) -> i64
-host_addr_data(identifier, offset=const_i16) -> i64
+panic(code:literal_i32)  ->  (never return)
+host_addr_local(identifier, rindex=literal_i16, offset=literal_i16) -> i64
+host_addr_local_extend(identifier, offset:i64, rindex=literal_i16) -> i64
+host_addr_data(identifier, offset=literal_i16) -> i64
 host_addr_data_extend(identifier, offset:i64) -> i64
-host_addr_heap(addr:i64, offset=const_i16) -> i64
+host_addr_heap(addr:i64, offset=literal_i16) -> i64
 host_addr_function(identifier) -> i64
 host_copy_heap_to_memory(dst_pointer:i64, src_addr:i64, count:i64) -> ()
 host_copy_memory_to_heap(dst_addr:i64, src_pointer:i64, count:i64) -> ()

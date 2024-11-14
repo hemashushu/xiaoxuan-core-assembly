@@ -1,0 +1,802 @@
+// Copyright (c) 2024 Hemashushu <hippospark@gmail.com>, All rights reserved.
+//
+// This Source Code Form is subject to the terms of
+// the Mozilla Public License version 2.0 and additional exceptions,
+// more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
+
+use crate::ast::{
+    ArgumentValue, DataNode, DataSection, DataValue, ExpressionNode, ExternalData,
+    ExternalFunction, ExternalNode, FixedMemoryDataType, FunctionDataType, FunctionNode,
+    LiteralNumber, MemoryDataType, ModuleNode, UseNode,
+};
+use std::fmt::Display;
+use std::io::{Error, Write};
+
+pub const DEFAULT_INDENT_CHARS: &str = "    ";
+
+fn print_function_node(
+    writer: &mut dyn Write,
+    node: &FunctionNode,
+    indent_chars: &str,
+) -> Result<(), Error> {
+    if node.is_public {
+        write!(writer, "pub ")?;
+    }
+
+    write!(
+        writer,
+        "fn {}({})",
+        node.name,
+        node.params
+            .iter()
+            .map(|item| format!("{}:{}", item.name, item.data_type))
+            .collect::<Vec<String>>()
+            .join(", "),
+    )?;
+
+    if node.returns.is_empty() {
+        // return unit.
+        // `fn name(...) {...` is equivalent to `fn name(...) -> () {...`
+    } else if node.returns.len() == 1 {
+        // return 1 value.
+        // no parenthese
+        write!(writer, " -> {}", &node.returns[0])?;
+    } else {
+        // return tuple.
+        let list = node
+            .returns
+            .iter()
+            .map(|item| format!("{}", item))
+            .collect::<Vec<String>>()
+            .join(", ");
+        write!(writer, " -> ({})", list)?;
+    }
+
+    if !node.locals.is_empty() {
+        let list = node
+            .locals
+            .iter()
+            .map(|item| {
+                if let Some(align) = item.align {
+                    // e.g. `align(name:byte[1024], 4)`
+                    format!("align({}:{}, {})", item.name, item.data_type, align)
+                } else {
+                    format!("{}:{}", item.name, item.data_type)
+                }
+            })
+            .collect::<Vec<String>>()
+            .join(", ");
+        write!(writer, "\n{}[{}]", indent_chars, list)?;
+    }
+
+    write!(
+        writer,
+        " {{\n{}{}\n}}",
+        indent_chars,
+        format_expression(&node.body, indent_chars, 1)
+    )
+}
+
+fn print_data_node(
+    writer: &mut dyn Write,
+    node: &DataNode,
+    indent_chars: &str,
+) -> Result<(), Error> {
+    if node.is_public {
+        write!(writer, "pub ")?;
+    }
+
+    match &node.data_section {
+        DataSection::ReadOnly(sec) => {
+            write!(
+                writer,
+                "readonly data {}:{} = {}",
+                node.name,
+                sec.data_type,
+                format_data_value(&sec.value, indent_chars, 0)
+            )?;
+        }
+        DataSection::ReadWrite(sec) => {
+            write!(
+                writer,
+                "data {}:{} = {}",
+                node.name,
+                sec.data_type,
+                format_data_value(&sec.value, indent_chars, 0)
+            )?;
+        }
+        DataSection::Uninit(data_type) => {
+            write!(writer, "uninit data {}:{}", node.name, data_type)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn print_external_node(writer: &mut dyn Write, node: &ExternalNode) -> Result<(), Error> {
+    match node {
+        ExternalNode::Function(f) => print_external_function(writer, f),
+        ExternalNode::Data(d) => print_external_data(writer, d),
+    }
+}
+
+fn print_external_function(
+    writer: &mut dyn Write,
+    external_function: &ExternalFunction,
+) -> Result<(), Error> {
+    write!(
+        writer,
+        "external fn {}::{}",
+        external_function.library, external_function.name
+    )?;
+    write!(
+        writer,
+        "({})",
+        external_function
+            .params
+            .iter()
+            .map(|item| item.to_string())
+            .collect::<Vec<String>>()
+            .join(", ")
+    )?;
+    write!(writer, " -> ")?;
+
+    if let Some(fdt) = &external_function.return_ {
+        write!(writer, "{}", fdt)?;
+    } else {
+        write!(writer, "()")?;
+    }
+
+    if let Some(alias) = &external_function.alias_name {
+        write!(writer, " as {}", alias)?;
+    }
+    Ok(())
+}
+
+fn print_external_data(writer: &mut dyn Write, external_data: &ExternalData) -> Result<(), Error> {
+    write!(
+        writer,
+        "external data {}::{}:{}",
+        external_data.library, external_data.name, external_data.data_type
+    )?;
+
+    if let Some(alias) = &external_data.alias_name {
+        write!(writer, " as {}", alias)?;
+    }
+    Ok(())
+}
+
+fn print_use_node(writer: &mut dyn Write, node: &UseNode) -> Result<(), Error> {
+    write!(writer, "use {}", node.name_path)?;
+    if let Some(alias) = &node.alias_name {
+        write!(writer, " as {}", alias)?;
+    }
+    Ok(())
+}
+
+fn print_module_node(
+    writer: &mut dyn Write,
+    node: &ModuleNode,
+    indent_chars: &str,
+) -> Result<(), Error> {
+    if !node.uses.is_empty() {
+        for item in &node.uses {
+            print_use_node(writer, item)?;
+            writeln!(writer)?;
+        }
+        writeln!(writer)?;
+    }
+
+    if !node.externals.is_empty() {
+        for item in &node.externals {
+            print_external_node(writer, item)?;
+            writeln!(writer)?;
+        }
+        writeln!(writer)?;
+    }
+
+    if !node.datas.is_empty() {
+        for item in &node.datas {
+            print_data_node(writer, item, indent_chars)?;
+            writeln!(writer)?;
+        }
+        writeln!(writer)?;
+    }
+
+    for item in &node.functions {
+        print_function_node(writer, item, indent_chars)?;
+        writeln!(writer)?;
+    }
+
+    Ok(())
+}
+
+fn format_expression(node: &ExpressionNode, indent_chars: &str, indent_level: usize) -> String {
+    match node {
+        ExpressionNode::Instruction(inst) => {
+            // name(position_args, ..., named_args, ...)
+            let pas = inst.position_args.iter().map(|item| match item {
+                ArgumentValue::Identifier(id) => id.to_owned(),
+                ArgumentValue::LiteralNumber(num) => format_literal_number(num),
+                ArgumentValue::Expression(exp) => {
+                    format!(
+                        "\n{}{}",
+                        indent_chars.repeat(indent_level + 1),
+                        format_expression(exp, indent_chars, indent_level + 1)
+                    )
+                }
+            });
+
+            let nas = inst.named_args.iter().map(|item| {
+                format!(
+                    "{}={}",
+                    &item.name,
+                    match &item.value {
+                        ArgumentValue::Identifier(id) => id.to_owned(),
+                        ArgumentValue::LiteralNumber(num) => format_literal_number(num),
+                        ArgumentValue::Expression(exp) =>
+                            format_expression(exp, indent_chars, indent_level + 1),
+                    }
+                )
+            });
+
+            let mut args = pas.chain(nas).collect::<Vec<String>>();
+
+            args.iter_mut().skip(1).for_each(|item| {
+                if item.starts_with('\n') {
+                    *item = format!(",{}", item)
+                } else {
+                    *item = format!(", {}", item)
+                }
+            });
+
+            format!("{}({})", inst.name, args.join(""))
+        }
+        ExpressionNode::When(_) => todo!(),
+        ExpressionNode::If(_) => todo!(),
+        ExpressionNode::For(_) => todo!(),
+        ExpressionNode::Break(_) => todo!(),
+        ExpressionNode::Recur(_) => todo!(),
+        ExpressionNode::Group(_) => todo!(),
+    }
+}
+
+fn format_literal_number(num: &LiteralNumber) -> String {
+    match num {
+        LiteralNumber::I8(v) => {
+            format!("{}_i8", v)
+        }
+        LiteralNumber::I16(v) => {
+            format!("{}_i16", v)
+        }
+        LiteralNumber::I32(v) => {
+            // default type for integer numbers
+            format!("{}", v)
+        }
+        LiteralNumber::I64(v) => {
+            format!("{}_i64", v)
+        }
+        LiteralNumber::F32(v) => {
+            format!("{}_f32", v)
+        }
+        LiteralNumber::F64(v) => {
+            // default type for floating-point number s
+            // a decimal point needs to be appended if there is no decimal point
+            // in the literal.
+            let mut s = v.to_string();
+            if !s.contains('.') {
+                s.push_str(".0");
+            }
+            format!("{}", s)
+        }
+    }
+}
+
+// fn print_char(writer: &mut dyn Write, ch: &char) -> Result<(), Error> {
+//     // escape single char
+//     let s = match ch {
+//         '\\' => "\\\\".to_owned(),
+//         '\'' => "\\'".to_owned(),
+//         '\t' => {
+//             // horizontal tabulation
+//             "\\t".to_owned()
+//         }
+//         '\r' => {
+//             // carriage return, jump to the beginning of the line (CR)
+//             "\\r".to_owned()
+//         }
+//         '\n' => {
+//             // new line/line feed (LF)
+//             "\\n".to_owned()
+//         }
+//         '\0' => {
+//             // null char
+//             "\\0".to_owned()
+//         }
+//         _ => ch.to_string(),
+//     };
+//
+//     write!(writer, "'{}'", s)
+// }
+
+fn format_string(s: &str) -> String {
+    format!(
+        "\"{}\"",
+        s.chars()
+            .map(|c| match c {
+                '\\' => "\\\\".to_owned(),
+                '"' => "\\\"".to_owned(),
+
+                // null char is allowed in the source code,
+                // it is used to represent the null-terminated string.
+                '\0' => "\\0".to_owned(),
+
+                // some text editors automatically remove the tab at
+                // the end of a line, so it is best to escape the tab character.
+                '\t' => "\\t".to_owned(),
+
+                _ => c.to_string(),
+            })
+            .collect::<Vec<String>>()
+            .join("")
+    )
+}
+
+// format the byte array with fixed length hex:
+//
+// e.g.
+//
+// [
+//     00 11 22 33  44 55 66 77
+//     88 99 aa bb  cc dd ee ff
+// ]
+fn format_byte_array(data: &[u8], indent_chars: &str) -> String {
+    data.chunks(8)
+        // .enumerate()
+        // .map(|(chunk_addr, chunk)| {
+        .map(|chunk| {
+            // content
+            let content = chunk
+                .iter()
+                .enumerate()
+                .map(|(idx, byte)| {
+                    // format the bytes as the following text:
+                    // 00 11 22 33  44 55 66 77
+                    // 00 11 22 33
+                    // 00 11
+                    //
+                    // Rust std format!()
+                    // https://doc.rust-lang.org/std/fmt/
+                    if idx == 4 {
+                        format!("  {:02x}", byte)
+                    } else if idx == 0 {
+                        format!("{:02x}", byte)
+                    } else {
+                        format!(" {:02x}", byte)
+                    }
+                })
+                .collect::<Vec<String>>()
+                .join("");
+
+            // address
+            // let address = format!("0x{:04x}  {}", chunk_addr * 8, binary);
+
+            format!("{}{}", indent_chars, content)
+        })
+        .collect::<Vec<String>>()
+        .join("\n")
+}
+
+fn format_data_value(data_value: &DataValue, indent_chars: &str, indent_level: usize) -> String {
+    match data_value {
+        DataValue::I8(v) => format!("{}_i8", v),
+        DataValue::I16(v) => format!("{}_i16", v),
+        DataValue::I64(v) => format!("{}_i64", v),
+        DataValue::I32(v) => format!("{}", v), // the default type for integer
+        DataValue::F64(v) => format!("{}", v), // the default type for floating-point
+        DataValue::F32(v) => format!("{}_f32", v),
+        // DataValue::Byte(v) => {
+        //     format!(
+        //         "[\n{}\n{}]",
+        //         format_byte_array(v, &indent_chars.repeat(indent_level + 1)),
+        //         indent_chars.repeat(indent_level),
+        //     )
+        // }
+        DataValue::String(v) => format_string(v),
+        DataValue::List(v) => format!(
+            "[\n{}\n{}]",
+            v.iter()
+                .map(|item| format!(
+                    "{}{}",
+                    indent_chars.repeat(indent_level + 1),
+                    format_data_value(item, indent_chars, indent_level + 1)
+                ))
+                .collect::<Vec<String>>()
+                .join("\n"),
+            indent_chars.repeat(indent_level)
+        ),
+    }
+}
+
+impl Display for FunctionDataType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FunctionDataType::I64 => f.write_str("i64"),
+            FunctionDataType::I32 => f.write_str("i32"),
+            FunctionDataType::F64 => f.write_str("f64"),
+            FunctionDataType::F32 => f.write_str("f32"),
+        }
+    }
+}
+
+impl Display for MemoryDataType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MemoryDataType::I64 => f.write_str("i64"),
+            MemoryDataType::I32 => f.write_str("i32"),
+            MemoryDataType::F64 => f.write_str("f64"),
+            MemoryDataType::F32 => f.write_str("f32"),
+            MemoryDataType::Bytes => f.write_str("byte[]"),
+            MemoryDataType::FixedBytes(length) => write!(f, "byte[{}]", length),
+        }
+    }
+}
+
+impl Display for FixedMemoryDataType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FixedMemoryDataType::I64 => f.write_str("i64"),
+            FixedMemoryDataType::I32 => f.write_str("i32"),
+            FixedMemoryDataType::F64 => f.write_str("f64"),
+            FixedMemoryDataType::F32 => f.write_str("f32"),
+            FixedMemoryDataType::FixedBytes(length) => write!(f, "byte[{}]", length),
+        }
+    }
+}
+
+pub fn print_to_writer(writer: &mut dyn Write, node: &ModuleNode) -> Result<(), Error> {
+    // let mut printer = Printer::new(DEFAULT_INDENT_CHARS, writer);
+    print_module_node(writer, node, DEFAULT_INDENT_CHARS)
+}
+
+pub fn print_to_string(node: &ModuleNode) -> String {
+    // let mut buf = String::new();
+    let mut buf: Vec<u8> = vec![];
+    print_to_writer(&mut buf, node).unwrap();
+    String::from_utf8(buf).unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use crate::{
+        ast::{
+            ArgumentValue, DataNode, DataSection, DataTypeValuePair, DataValue, ExpressionNode,
+            ExternalData, ExternalFunction, FixedMemoryDataType, FunctionDataType, FunctionNode,
+            InstructionNode, LiteralNumber, LocalVariable, MemoryDataType, ModuleNode,
+            NamedArgument, NamedParameter, UseNode,
+        },
+        printer::{
+            print_external_data, print_external_function, print_function_node, print_use_node,
+            DEFAULT_INDENT_CHARS,
+        },
+    };
+
+    use super::{print_data_node, print_to_string};
+
+    #[test]
+    fn test_print_use_node() {
+        let print = |node: &UseNode| {
+            let mut buf: Vec<u8> = vec![];
+            print_use_node(&mut buf, node).unwrap();
+            String::from_utf8(buf).unwrap()
+        };
+
+        let node0 = UseNode {
+            name_path: "foo::bar".to_owned(),
+            alias_name: None,
+        };
+
+        assert_eq!(print(&node0), "use foo::bar");
+
+        let node1 = UseNode {
+            name_path: "foo::bar::Baz".to_owned(),
+            alias_name: Some("Bar".to_owned()),
+        };
+        assert_eq!(print(&node1), "use foo::bar::Baz as Bar");
+    }
+
+    #[test]
+    fn test_print_external_function() {
+        let print = |e: &ExternalFunction| {
+            let mut buf: Vec<u8> = vec![];
+            print_external_function(&mut buf, e).unwrap();
+            String::from_utf8(buf).unwrap()
+        };
+
+        let f0 = ExternalFunction {
+            library: "libfoo".to_owned(),
+            name: "bar".to_owned(),
+            params: vec![],
+            return_: None,
+            alias_name: None,
+        };
+
+        assert_eq!(print(&f0), "external fn libfoo::bar() -> ()");
+
+        let f1 = ExternalFunction {
+            library: "libfoo".to_owned(),
+            name: "bar".to_owned(),
+            params: vec![FunctionDataType::I32, FunctionDataType::I32],
+            return_: Some(FunctionDataType::I64),
+            alias_name: Some("baz".to_owned()),
+        };
+
+        assert_eq!(
+            print(&f1),
+            "external fn libfoo::bar(i32, i32) -> i64 as baz"
+        );
+    }
+
+    #[test]
+    fn test_print_external_data() {
+        let print = |e: &ExternalData| {
+            let mut buf: Vec<u8> = vec![];
+            print_external_data(&mut buf, e).unwrap();
+            String::from_utf8(buf).unwrap()
+        };
+
+        let d0 = ExternalData {
+            library: "libfoo".to_owned(),
+            name: "count".to_owned(),
+            data_type: MemoryDataType::I32,
+            alias_name: None,
+        };
+
+        assert_eq!(print(&d0), "external data libfoo::count:i32");
+
+        let d1 = ExternalData {
+            library: "libfoo".to_owned(),
+            name: "got".to_owned(),
+            data_type: MemoryDataType::FixedBytes(128),
+            alias_name: Some("global_offset_table".to_owned()),
+        };
+
+        assert_eq!(
+            print(&d1),
+            "external data libfoo::got:byte[128] as global_offset_table"
+        );
+    }
+
+    #[test]
+    fn test_print_data_node() {
+        let print = |node: &DataNode| {
+            let mut buf: Vec<u8> = vec![];
+            print_data_node(&mut buf, node, DEFAULT_INDENT_CHARS).unwrap();
+            String::from_utf8(buf).unwrap()
+        };
+
+        let node0 = DataNode {
+            is_public: false,
+            name: "foo".to_owned(),
+            data_section: DataSection::ReadOnly(DataTypeValuePair {
+                data_type: MemoryDataType::I32,
+                value: DataValue::I32(123),
+            }),
+        };
+
+        assert_eq!(print(&node0), "readonly data foo:i32 = 123");
+
+        let node1 = DataNode {
+            is_public: true,
+            name: "foo".to_owned(),
+            data_section: DataSection::ReadOnly(DataTypeValuePair {
+                data_type: MemoryDataType::FixedBytes(32),
+                value: DataValue::String("hello".to_owned()),
+            }),
+        };
+
+        assert_eq!(print(&node1), "pub readonly data foo:byte[32] = \"hello\"");
+
+        let node2 = DataNode {
+            is_public: true,
+            name: "foo".to_owned(),
+            data_section: DataSection::ReadWrite(DataTypeValuePair {
+                data_type: MemoryDataType::Bytes,
+                value: DataValue::String("world".to_owned()),
+            }),
+        };
+
+        assert_eq!(print(&node2), "pub data foo:byte[] = \"world\"");
+
+        let node3 = DataNode {
+            is_public: false,
+            name: "got".to_owned(),
+            data_section: DataSection::Uninit(FixedMemoryDataType::FixedBytes(1024)),
+        };
+
+        assert_eq!(print(&node3), "uninit data got:byte[1024]");
+
+        let node4 = DataNode {
+            is_public: false,
+            name: "bar".to_owned(),
+            data_section: DataSection::ReadWrite(DataTypeValuePair {
+                data_type: MemoryDataType::FixedBytes(32),
+                value: DataValue::List(vec![
+                    DataValue::I8(11),
+                    DataValue::I16(13),
+                    DataValue::I32(17),
+                    DataValue::I64(19),
+                    DataValue::String("hello".to_owned()),
+                    DataValue::List(vec![DataValue::I8(211), DataValue::I8(223)]),
+                ]),
+            }),
+        };
+
+        assert_eq!(
+            print(&node4),
+            "\
+data bar:byte[32] = [
+    11_i8
+    13_i16
+    17
+    19_i64
+    \"hello\"
+    [
+        211_i8
+        223_i8
+    ]
+]"
+        );
+    }
+
+    #[test]
+    fn test_print_function_node() {
+        let print = |node: &FunctionNode| {
+            let mut buf: Vec<u8> = vec![];
+            print_function_node(&mut buf, node, DEFAULT_INDENT_CHARS).unwrap();
+            String::from_utf8(buf).unwrap()
+        };
+
+        let node0 = FunctionNode {
+            is_public: false,
+            name: "foo".to_owned(),
+            params: vec![],
+            returns: vec![],
+            locals: vec![],
+            body: Box::new(ExpressionNode::Instruction(InstructionNode {
+                name: "local_load_i64".to_owned(),
+                position_args: vec![ArgumentValue::Identifier("left".to_owned())],
+                named_args: vec![
+                    NamedArgument {
+                        name: "rindex".to_owned(),
+                        value: ArgumentValue::LiteralNumber(LiteralNumber::I16(1)),
+                    },
+                    NamedArgument {
+                        name: "offset".to_owned(),
+                        value: ArgumentValue::LiteralNumber(LiteralNumber::I16(4)),
+                    },
+                ],
+            })),
+        };
+
+        assert_eq!(
+            print(&node0),
+            "\
+fn foo() {
+    local_load_i64(left, rindex=1_i16, offset=4_i16)
+}"
+        );
+
+        let node1 = FunctionNode {
+            is_public: true,
+            name: "add".to_owned(),
+            params: vec![
+                NamedParameter {
+                    name: "left".to_owned(),
+                    data_type: FunctionDataType::I32,
+                },
+                NamedParameter {
+                    name: "right".to_owned(),
+                    data_type: FunctionDataType::I32,
+                },
+            ],
+            returns: vec![FunctionDataType::I32],
+            locals: vec![],
+            body: Box::new(ExpressionNode::Instruction(InstructionNode {
+                name: "add_i32".to_owned(),
+                position_args: vec![
+                    ArgumentValue::Expression(Box::new(ExpressionNode::Instruction(
+                        InstructionNode {
+                            name: "local_load_i64".to_owned(),
+                            position_args: vec![ArgumentValue::Identifier("left".to_owned())],
+                            named_args: vec![],
+                        },
+                    ))),
+                    ArgumentValue::Expression(Box::new(ExpressionNode::Instruction(
+                        InstructionNode {
+                            name: "local_load_i64".to_owned(),
+                            position_args: vec![ArgumentValue::Identifier("right".to_owned())],
+                            named_args: vec![],
+                        },
+                    ))),
+                ],
+                named_args: vec![],
+            })),
+        };
+
+        assert_eq!(
+            print(&node1),
+            "\
+pub fn add(left:i32, right:i32) -> i32 {
+    add_i32(
+        local_load_i64(left),
+        local_load_i64(right))
+}"
+        );
+
+        let node2 = FunctionNode {
+            is_public: false,
+            name: "hello".to_owned(),
+            params: vec![],
+            returns: vec![FunctionDataType::I32, FunctionDataType::I64],
+            locals: vec![
+                LocalVariable {
+                    name: "foo".to_owned(),
+                    data_type: FixedMemoryDataType::I32,
+                    align: None,
+                },
+                LocalVariable {
+                    name: "bar".to_owned(),
+                    data_type: FixedMemoryDataType::FixedBytes(8),
+                    align: None,
+                },
+                LocalVariable {
+                    name: "baz".to_owned(),
+                    data_type: FixedMemoryDataType::FixedBytes(24),
+                    align: Some(4),
+                },
+            ],
+            body: Box::new(ExpressionNode::Instruction(InstructionNode {
+                name: "end".to_owned(),
+                position_args: vec![],
+                named_args: vec![],
+            })),
+        };
+
+        assert_eq!(
+            print(&node2),
+            "\
+fn hello() -> (i32, i64)
+    [foo:i32, bar:byte[8], align(baz:byte[24], 4)] {
+    end()
+}"
+        );
+    }
+
+    //     fn test_print_module_node() {
+    //         let node = ModuleNode {
+    //             name_path: "foo".to_owned(),
+    //             uses: vec![
+    //                 UseNode {
+    //                     name_path: "foo::bar".to_owned(),
+    //                     alias_name: None,
+    //                 },
+    //                 UseNode {
+    //                     name_path: "foo::bar::Baz".to_owned(),
+    //                     alias_name: Some("Bar".to_owned()),
+    //                 },
+    //             ],
+    //             externals: vec![],
+    //             datas: vec![],
+    //             functions: vec![],
+    //         };
+    //
+    //         assert_eq!(
+    //             print_to_string(&node),
+    //             "use foo::bar
+    // use foo::bar::Baz as Abc\n\n"
+    //         )
+    //     }
+}

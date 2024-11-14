@@ -11,7 +11,13 @@
 }
 ```
 
-The value of a group is the value of the last instruction/expression/group.
+A group returns one or more values, or no values at all, the number of values being determined by the expressions within it.
+
+For example:
+
+- If there are two `load` instructions in the group, two values are returned.
+- If there is one `store` instruction and one `load` instruction, one value is returned.
+- If there are two `store` instructions, no value is returned.
 
 ## Condition without branch
 

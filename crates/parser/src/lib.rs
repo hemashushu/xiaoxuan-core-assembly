@@ -14,6 +14,7 @@ mod lexer;
 mod location;
 mod peekableiter;
 mod token;
+mod printer;
 // pub mod parser;
 
 pub const NAME_PATH_SEPARATOR: &str = "::";

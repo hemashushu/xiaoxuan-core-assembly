@@ -173,24 +173,6 @@ impl<'a> Lexer<'a> {
                         1,
                     ));
                 }
-                //                 '[' => {
-                //                     self.next_char(); // consume '['
-                //
-                //                     token_with_ranges.push(TokenWithRange::from_position_and_length(
-                //                         Token::LeftBracket,
-                //                         &self.last_position,
-                //                         1,
-                //                     ));
-                //                 }
-                //                 ']' => {
-                //                     self.next_char(); // consume ']'
-                //
-                //                     token_with_ranges.push(TokenWithRange::from_position_and_length(
-                //                         Token::RightBracket,
-                //                         &self.last_position,
-                //                         1,
-                //                     ));
-                //                 }
                 '{' => {
                     self.next_char(); // consume '{'
 
@@ -249,10 +231,10 @@ impl<'a> Lexer<'a> {
                     // number
                     token_with_ranges.push(self.lex_number()?);
                 }
-                'h' if self.peek_char_and_equals(1, '"') => {
-                    // hex byte data
-                    token_with_ranges.push(self.lex_byte_data_hexadecimal()?);
-                }
+                // 'h' if self.peek_char_and_equals(1, '"') => {
+                //     // hex byte data
+                //     token_with_ranges.push(self.lex_byte_data_hexadecimal()?);
+                // }
                 'r' if self.peek_char_and_equals(1, '"') => {
                     // raw string
                     token_with_ranges.push(self.lex_raw_string()?);
@@ -274,10 +256,10 @@ impl<'a> Lexer<'a> {
 
                     token_with_ranges.push(twr);
                 }
-                '\'' => {
-                    // char
-                    token_with_ranges.push(self.lex_char()?);
-                }
+                // '\'' => {
+                //     // char
+                //     token_with_ranges.push(self.lex_char()?);
+                // }
                 '/' if self.peek_char_and_equals(1, '/') => {
                     // line comment
                     token_with_ranges.push(self.lex_line_comment()?);
@@ -378,7 +360,7 @@ impl<'a> Lexer<'a> {
                     self.next_char(); // consume char
                 }
                 ' ' | '\t' | '\r' | '\n' | ',' | ':' | '=' | '+' | '-' | '{' | '}' | '[' | ']'
-                | '(' | ')' | '/' | '\'' | '"' => {
+                | '(' | ')' | '/' | '"' => {
                     // terminator chars
                     break;
                 }
@@ -494,7 +476,7 @@ impl<'a> Lexer<'a> {
                     break;
                 }
                 ' ' | '\t' | '\r' | '\n' | ',' | ':' | '=' | '+' | '-' | '{' | '}' | '[' | ']'
-                | '(' | ')' | '/' | '\'' | '"' => {
+                | '(' | ')' | '/' | '"' => {
                     // terminator chars
                     break;
                 }
@@ -530,6 +512,16 @@ impl<'a> Lexer<'a> {
         let num_token: NumberToken = if let Some(nt) = num_type {
             // numbers with explicit type
             match nt {
+                NumberType::I8 => {
+                    let v = num_string.parse::<u8>().map_err(|_| {
+                        Error::MessageWithLocation(
+                            format!("Can not convert \"{}\" to i8 integer number.", num_string),
+                            num_range,
+                        )
+                    })?;
+
+                    NumberToken::I8(v)
+                }
                 NumberType::I16 => {
                     let v = num_string.parse::<u16>().map_err(|_| {
                         Error::MessageWithLocation(
@@ -765,7 +757,7 @@ impl<'a> Lexer<'a> {
                     break;
                 }
                 ' ' | '\t' | '\r' | '\n' | ',' | ':' | '=' | '+' | '-' | '{' | '}' | '[' | ']'
-                | '(' | ')' | '/' | '\'' | '"' => {
+                | '(' | ')' | '/' | '"' => {
                     // terminator chars
                     break;
                 }
@@ -854,6 +846,16 @@ impl<'a> Lexer<'a> {
             }
         } else if let Some(nt) = num_type {
             match nt {
+                NumberType::I8 => {
+                    let v = u8::from_str_radix(&num_string, 16).map_err(|_| {
+                        Error::MessageWithLocation(
+                            format!("Can not convert \"{}\" to i8 integer number.", num_string),
+                            num_range,
+                        )
+                    })?;
+
+                    NumberToken::I8(v)
+                }
                 NumberType::I16 => {
                     let v = u16::from_str_radix(&num_string, 16).map_err(|_| {
                         Error::MessageWithLocation(
@@ -940,7 +942,7 @@ impl<'a> Lexer<'a> {
                     break;
                 }
                 ' ' | '\t' | '\r' | '\n' | ',' | ':' | '=' | '+' | '-' | '{' | '}' | '[' | ']'
-                | '(' | ')' | '/' | '\'' | '"' => {
+                | '(' | ')' | '/' | '"' => {
                     // terminator chars
                     break;
                 }
@@ -967,6 +969,16 @@ impl<'a> Lexer<'a> {
 
         let num_token = if let Some(nt) = num_type {
             match nt {
+                NumberType::I8 => {
+                    let v = u8::from_str_radix(&num_string, 2).map_err(|_| {
+                        Error::MessageWithLocation(
+                            format!("Can not convert \"{}\" to i8 integer number.", num_string,),
+                            num_range,
+                        )
+                    })?;
+
+                    NumberToken::I8(v)
+                }
                 NumberType::I16 => {
                     let v = u16::from_str_radix(&num_string, 2).map_err(|_| {
                         Error::MessageWithLocation(
@@ -1018,128 +1030,128 @@ impl<'a> Lexer<'a> {
         Ok(TokenWithRange::new(Token::Number(num_token), num_range))
     }
 
-    fn lex_char(&mut self) -> Result<TokenWithRange, Error> {
-        // 'a'?  //
-        // ^  ^__// to here
-        // |_____// current char, validated
-
-        self.push_peek_position();
-
-        self.next_char(); // consume "'"
-
-        let character = match self.next_char() {
-            Some(previous_previous_char) => {
-                match previous_previous_char {
-                    '\\' => {
-                        // escape chars
-                        match self.next_char() {
-                            Some(previous_char) => {
-                                match previous_char {
-                                    '\\' => '\\',
-                                    '\'' => '\'',
-                                    '"' => {
-                                        // double quote does not necessary to be escaped for char
-                                        // however, it is still supported for consistency between chars and strings.
-                                        '"'
-                                    }
-                                    't' => {
-                                        // horizontal tabulation
-                                        '\t'
-                                    }
-                                    'r' => {
-                                        // carriage return (CR, ascii 13)
-                                        '\r'
-                                    }
-                                    'n' => {
-                                        // new line character (line feed, LF, ascii 10)
-                                        '\n'
-                                    }
-                                    '0' => {
-                                        // null char
-                                        '\0'
-                                    }
-                                    'u' => {
-                                        if self.peek_char_and_equals(0, '{') {
-                                            // unicode code point, e.g. '\u{2d}', '\u{6587}'
-                                            self.unescape_unicode()?
-                                        } else {
-                                            return Err(Error::MessageWithLocation(
-                                                "Missing the brace for unicode escape sequence."
-                                                    .to_owned(),
-                                                self.last_position.move_position_forward(),
-                                            ));
-                                        }
-                                    }
-                                    _ => {
-                                        return Err(Error::MessageWithLocation(
-                                            format!("Unexpected escape char '{}'.", previous_char),
-                                            // self.last_position,
-                                            Location::from_position_and_length(
-                                                &self.last_position.move_position_backward(),
-                                                2,
-                                            ),
-                                        ));
-                                    }
-                                }
-                            }
-                            None => {
-                                // `\` + EOF
-                                return Err(Error::UnexpectedEndOfDocument(
-                                    "Incomplete escape character sequence.".to_owned(),
-                                ));
-                            }
-                        }
-                    }
-                    '\'' => {
-                        // `''`
-                        return Err(Error::MessageWithLocation(
-                            "Empty char.".to_owned(),
-                            Location::from_position_pair_with_end_included(
-                                &self.pop_saved_position(),
-                                &self.last_position,
-                            ),
-                        ));
-                    }
-                    _ => {
-                        // ordinary char
-                        previous_previous_char
-                    }
-                }
-            }
-            None => {
-                // `'EOF`
-                return Err(Error::UnexpectedEndOfDocument(
-                    "Incomplete character.".to_owned(),
-                ));
-            }
-        };
-
-        // consume the right single quote
-        match self.next_char() {
-            Some('\'') => {
-                // Ok
-            }
-            Some(_) => {
-                // `'a?`
-                return Err(Error::MessageWithLocation(
-                    "Expected a closing single quote for char".to_owned(),
-                    self.last_position,
-                ));
-            }
-            None => {
-                // `'aEOF`
-                return Err(Error::UnexpectedEndOfDocument(
-                    "Incomplete character.".to_owned(),
-                ));
-            }
-        }
-
-        let character_range = Location::from_position_pair_with_end_included(
-            &self.pop_saved_position(),
-            &self.last_position,
-        );
-        Ok(TokenWithRange::new(Token::Char(character), character_range))
-    }
+    //     fn lex_char(&mut self) -> Result<TokenWithRange, Error> {
+    //         // 'a'?  //
+    //         // ^  ^__// to here
+    //         // |_____// current char, validated
+    //
+    //         self.push_peek_position();
+    //
+    //         self.next_char(); // consume "'"
+    //
+    //         let character = match self.next_char() {
+    //             Some(previous_previous_char) => {
+    //                 match previous_previous_char {
+    //                     '\\' => {
+    //                         // escape chars
+    //                         match self.next_char() {
+    //                             Some(previous_char) => {
+    //                                 match previous_char {
+    //                                     '\\' => '\\',
+    //                                     '\'' => '\'',
+    //                                     '"' => {
+    //                                         // double quote does not necessary to be escaped for char
+    //                                         // however, it is still supported for consistency between chars and strings.
+    //                                         '"'
+    //                                     }
+    //                                     't' => {
+    //                                         // horizontal tabulation
+    //                                         '\t'
+    //                                     }
+    //                                     'r' => {
+    //                                         // carriage return (CR, ascii 13)
+    //                                         '\r'
+    //                                     }
+    //                                     'n' => {
+    //                                         // new line character (line feed, LF, ascii 10)
+    //                                         '\n'
+    //                                     }
+    //                                     '0' => {
+    //                                         // null char
+    //                                         '\0'
+    //                                     }
+    //                                     'u' => {
+    //                                         if self.peek_char_and_equals(0, '{') {
+    //                                             // unicode code point, e.g. '\u{2d}', '\u{6587}'
+    //                                             self.unescape_unicode()?
+    //                                         } else {
+    //                                             return Err(Error::MessageWithLocation(
+    //                                                 "Missing the brace for unicode escape sequence."
+    //                                                     .to_owned(),
+    //                                                 self.last_position.move_position_forward(),
+    //                                             ));
+    //                                         }
+    //                                     }
+    //                                     _ => {
+    //                                         return Err(Error::MessageWithLocation(
+    //                                             format!("Unexpected escape char '{}'.", previous_char),
+    //                                             // self.last_position,
+    //                                             Location::from_position_and_length(
+    //                                                 &self.last_position.move_position_backward(),
+    //                                                 2,
+    //                                             ),
+    //                                         ));
+    //                                     }
+    //                                 }
+    //                             }
+    //                             None => {
+    //                                 // `\` + EOF
+    //                                 return Err(Error::UnexpectedEndOfDocument(
+    //                                     "Incomplete escape character sequence.".to_owned(),
+    //                                 ));
+    //                             }
+    //                         }
+    //                     }
+    //                     '\'' => {
+    //                         // `''`
+    //                         return Err(Error::MessageWithLocation(
+    //                             "Empty char.".to_owned(),
+    //                             Location::from_position_pair_with_end_included(
+    //                                 &self.pop_saved_position(),
+    //                                 &self.last_position,
+    //                             ),
+    //                         ));
+    //                     }
+    //                     _ => {
+    //                         // ordinary char
+    //                         previous_previous_char
+    //                     }
+    //                 }
+    //             }
+    //             None => {
+    //                 // `'EOF`
+    //                 return Err(Error::UnexpectedEndOfDocument(
+    //                     "Incomplete character.".to_owned(),
+    //                 ));
+    //             }
+    //         };
+    //
+    //         // consume the right single quote
+    //         match self.next_char() {
+    //             Some('\'') => {
+    //                 // Ok
+    //             }
+    //             Some(_) => {
+    //                 // `'a?`
+    //                 return Err(Error::MessageWithLocation(
+    //                     "Expected a closing single quote for char".to_owned(),
+    //                     self.last_position,
+    //                 ));
+    //             }
+    //             None => {
+    //                 // `'aEOF`
+    //                 return Err(Error::UnexpectedEndOfDocument(
+    //                     "Incomplete character.".to_owned(),
+    //                 ));
+    //             }
+    //         }
+    //
+    //         let character_range = Location::from_position_pair_with_end_included(
+    //             &self.pop_saved_position(),
+    //             &self.last_position,
+    //         );
+    //         Ok(TokenWithRange::new(Token::Char(character), character_range))
+    //     }
 
     fn unescape_unicode(&mut self) -> Result<char, Error> {
         // \u{6587}?  //
@@ -1607,121 +1619,121 @@ impl<'a> Lexer<'a> {
         Ok(TokenWithRange::new(Token::String(content), range))
     }
 
-    fn lex_byte_data_hexadecimal(&mut self) -> Result<TokenWithRange, Error> {
-        // h"00 11 aa bb"?  //
-        // ^^            ^__// to here
-        // ||_______________// validated
-        // |________________// current char, validated
-
-        let consume_zero_or_more_whitespaces = |iter: &mut Lexer| -> Result<usize, Error> {
-            // exit when encounting non-whitespaces or EOF
-            let mut amount: usize = 0;
-
-            while let Some(' ' | '\t' | '\r' | '\n') = iter.peek_char(0) {
-                amount += 1;
-                iter.next_char();
-            }
-
-            Ok(amount)
-        };
-
-        let consume_one_or_more_whitespaces = |iter: &mut Lexer| -> Result<usize, Error> {
-            let mut amount: usize = 0;
-
-            loop {
-                match iter.peek_char(0) {
-                    Some(current_char) => {
-                        match current_char {
-                            ' ' | '\t' | '\r' | '\n' => {
-                                // consume whitespace
-                                iter.next_char();
-                                amount += 1;
-                            }
-                            _ => {
-                                if amount > 0 {
-                                    break;
-                                } else {
-                                    return Err(Error::MessageWithLocation(
-                                        "Expect a whitespace between the hexadecimal byte data digits."
-                                            .to_owned(),
-                                        iter.last_position.move_position_forward()
-                                    ));
-                                }
-                            }
-                        }
-                    }
-                    None => {
-                        // h"...EOF
-                        return Err(Error::UnexpectedEndOfDocument(
-                            "Incomplete hexadecimal byte data.".to_owned(),
-                        ));
-                    }
-                }
-            }
-
-            Ok(amount)
-        };
-
-        self.push_peek_position();
-
-        self.next_char(); // consume char 'h'
-        self.next_char(); // consume quote '"'
-
-        let mut bytes: Vec<u8> = Vec::new();
-        let mut chars: [char; 2] = ['0', '0'];
-
-        consume_zero_or_more_whitespaces(self)?;
-
-        loop {
-            if self.peek_char_and_equals(0, '"') {
-                break;
-            }
-
-            for c in &mut chars {
-                match self.next_char() {
-                    Some(previous_char) => match previous_char {
-                        'a'..='f' | 'A'..='F' | '0'..='9' => {
-                            *c = previous_char;
-                        }
-                        _ => {
-                            return Err(Error::MessageWithLocation(
-                                format!(
-                                    "Invalid digit '{}' for hexadecimal byte data.",
-                                    previous_char
-                                ),
-                                self.last_position,
-                            ));
-                        }
-                    },
-                    None => {
-                        return Err(Error::UnexpectedEndOfDocument(
-                            "Incomplete hexadecimal byte data.".to_owned(),
-                        ))
-                    }
-                }
-            }
-
-            let byte_string = String::from_iter(chars);
-            let byte_number = u8::from_str_radix(&byte_string, 16).unwrap();
-            bytes.push(byte_number);
-
-            if self.peek_char_and_equals(0, '"') {
-                break;
-            }
-
-            // consume at lease one whitespace
-            consume_one_or_more_whitespaces(self)?;
-        }
-
-        self.next_char(); // consume '"'
-
-        let bytes_range = Location::from_position_pair_with_end_included(
-            &self.pop_saved_position(),
-            &self.last_position,
-        );
-
-        Ok(TokenWithRange::new(Token::ByteData(bytes), bytes_range))
-    }
+    //     fn lex_byte_data_hexadecimal(&mut self) -> Result<TokenWithRange, Error> {
+    //         // h"00 11 aa bb"?  //
+    //         // ^^            ^__// to here
+    //         // ||_______________// validated
+    //         // |________________// current char, validated
+    //
+    //         let consume_zero_or_more_whitespaces = |iter: &mut Lexer| -> Result<usize, Error> {
+    //             // exit when encounting non-whitespaces or EOF
+    //             let mut amount: usize = 0;
+    //
+    //             while let Some(' ' | '\t' | '\r' | '\n') = iter.peek_char(0) {
+    //                 amount += 1;
+    //                 iter.next_char();
+    //             }
+    //
+    //             Ok(amount)
+    //         };
+    //
+    //         let consume_one_or_more_whitespaces = |iter: &mut Lexer| -> Result<usize, Error> {
+    //             let mut amount: usize = 0;
+    //
+    //             loop {
+    //                 match iter.peek_char(0) {
+    //                     Some(current_char) => {
+    //                         match current_char {
+    //                             ' ' | '\t' | '\r' | '\n' => {
+    //                                 // consume whitespace
+    //                                 iter.next_char();
+    //                                 amount += 1;
+    //                             }
+    //                             _ => {
+    //                                 if amount > 0 {
+    //                                     break;
+    //                                 } else {
+    //                                     return Err(Error::MessageWithLocation(
+    //                                         "Expect a whitespace between the hexadecimal byte data digits."
+    //                                             .to_owned(),
+    //                                         iter.last_position.move_position_forward()
+    //                                     ));
+    //                                 }
+    //                             }
+    //                         }
+    //                     }
+    //                     None => {
+    //                         // h"...EOF
+    //                         return Err(Error::UnexpectedEndOfDocument(
+    //                             "Incomplete hexadecimal byte data.".to_owned(),
+    //                         ));
+    //                     }
+    //                 }
+    //             }
+    //
+    //             Ok(amount)
+    //         };
+    //
+    //         self.push_peek_position();
+    //
+    //         self.next_char(); // consume char 'h'
+    //         self.next_char(); // consume quote '"'
+    //
+    //         let mut bytes: Vec<u8> = Vec::new();
+    //         let mut chars: [char; 2] = ['0', '0'];
+    //
+    //         consume_zero_or_more_whitespaces(self)?;
+    //
+    //         loop {
+    //             if self.peek_char_and_equals(0, '"') {
+    //                 break;
+    //             }
+    //
+    //             for c in &mut chars {
+    //                 match self.next_char() {
+    //                     Some(previous_char) => match previous_char {
+    //                         'a'..='f' | 'A'..='F' | '0'..='9' => {
+    //                             *c = previous_char;
+    //                         }
+    //                         _ => {
+    //                             return Err(Error::MessageWithLocation(
+    //                                 format!(
+    //                                     "Invalid digit '{}' for hexadecimal byte data.",
+    //                                     previous_char
+    //                                 ),
+    //                                 self.last_position,
+    //                             ));
+    //                         }
+    //                     },
+    //                     None => {
+    //                         return Err(Error::UnexpectedEndOfDocument(
+    //                             "Incomplete hexadecimal byte data.".to_owned(),
+    //                         ))
+    //                     }
+    //                 }
+    //             }
+    //
+    //             let byte_string = String::from_iter(chars);
+    //             let byte_number = u8::from_str_radix(&byte_string, 16).unwrap();
+    //             bytes.push(byte_number);
+    //
+    //             if self.peek_char_and_equals(0, '"') {
+    //                 break;
+    //             }
+    //
+    //             // consume at lease one whitespace
+    //             consume_one_or_more_whitespaces(self)?;
+    //         }
+    //
+    //         self.next_char(); // consume '"'
+    //
+    //         let bytes_range = Location::from_position_pair_with_end_included(
+    //             &self.pop_saved_position(),
+    //             &self.last_position,
+    //         );
+    //
+    //         Ok(TokenWithRange::new(Token::ByteData(bytes), bytes_range))
+    //     }
 
     fn lex_line_comment(&mut self) -> Result<TokenWithRange, Error> {
         // xx...[\r]\n?  //
@@ -2442,6 +2454,34 @@ mod tests {
             );
         }
 
+        // byte
+        {
+            assert_eq!(
+                lex_from_str_without_location("127_i8").unwrap(),
+                vec![Token::Number(NumberToken::I8(127))]
+            );
+
+            assert_eq!(
+                lex_from_str_without_location("255_i8").unwrap(),
+                vec![Token::Number(NumberToken::I8(255))]
+            );
+
+            // err: unsigned overflow
+            assert!(matches!(
+                lex_from_str_without_location("256_i8"),
+                Err(Error::MessageWithLocation(
+                    _,
+                    Location {
+                        unit: 0,
+                        index: 0,
+                        line: 0,
+                        column: 0,
+                        length: 6
+                    }
+                ))
+            ));
+        }
+
         // short
         {
             assert_eq!(
@@ -2706,6 +2746,34 @@ mod tests {
                     ),
                 ]
             );
+        }
+
+        // byte
+        {
+            assert_eq!(
+                lex_from_str_without_location("0x7f_i8").unwrap(),
+                vec![Token::Number(NumberToken::I8(0x7f_i8 as u8))]
+            );
+
+            assert_eq!(
+                lex_from_str_without_location("0xff_i8").unwrap(),
+                vec![Token::Number(NumberToken::I8(0xff_u8))]
+            );
+
+            // err: unsigned overflow
+            assert!(matches!(
+                lex_from_str_without_location("0x1_ff_i8"),
+                Err(Error::MessageWithLocation(
+                    _,
+                    Location {
+                        unit: 0,
+                        index: 0,
+                        line: 0,
+                        column: 0,
+                        length: 9
+                    }
+                ))
+            ));
         }
 
         // short
@@ -3059,6 +3127,34 @@ mod tests {
             );
         }
 
+        // byte
+        {
+            assert_eq!(
+                lex_from_str_without_location("0b0111_1111_i8").unwrap(),
+                vec![Token::Number(NumberToken::I8(0x7f_i8 as u8))]
+            );
+
+            assert_eq!(
+                lex_from_str_without_location("0b1111_1111_i8").unwrap(),
+                vec![Token::Number(NumberToken::I8(0xff_u8))]
+            );
+
+            // err: unsigned overflow
+            assert!(matches!(
+                lex_from_str_without_location("0b1_1111_1111_i8"),
+                Err(Error::MessageWithLocation(
+                    _,
+                    Location {
+                        unit: 0,
+                        index: 0,
+                        line: 0,
+                        column: 0,
+                        length: 16
+                    }
+                ))
+            ));
+        }
+
         // short
         {
             assert_eq!(
@@ -3096,7 +3192,8 @@ mod tests {
             );
 
             assert_eq!(
-                lex_from_str_without_location("0b1111_1111_1111_1111__1111_1111_1111_1111_i32").unwrap(),
+                lex_from_str_without_location("0b1111_1111_1111_1111__1111_1111_1111_1111_i32")
+                    .unwrap(),
                 vec![Token::Number(NumberToken::I32(0xffff_ffff_u32))]
             );
 
@@ -3160,314 +3257,314 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn test_lex_char() {
-        assert_eq!(
-            lex_from_str_without_location("'a'").unwrap(),
-            vec![Token::Char('a')]
-        );
-
-        assert_eq!(
-            lex_from_str_without_location("('a')").unwrap(),
-            vec![Token::LeftParen, Token::Char('a'), Token::RightParen]
-        );
-
-        assert_eq!(
-            lex_from_str_without_location("'a' 'z'").unwrap(),
-            vec![Token::Char('a'), Token::Char('z')]
-        );
-
-        // CJK
-        assert_eq!(
-            lex_from_str_without_location("'文'").unwrap(),
-            vec![Token::Char('文')]
-        );
-
-        // emoji
-        assert_eq!(
-            lex_from_str_without_location("'😊'").unwrap(),
-            vec![Token::Char('😊')]
-        );
-
-        // escape char `\\`
-        assert_eq!(
-            lex_from_str_without_location("'\\\\'").unwrap(),
-            vec![Token::Char('\\')]
-        );
-
-        // escape char `\'`
-        assert_eq!(
-            lex_from_str_without_location("'\\\''").unwrap(),
-            vec![Token::Char('\'')]
-        );
-
-        // escape char `"`
-        assert_eq!(
-            lex_from_str_without_location("'\\\"'").unwrap(),
-            vec![Token::Char('"')]
-        );
-
-        // escape char `\t`
-        assert_eq!(
-            lex_from_str_without_location("'\\t'").unwrap(),
-            vec![Token::Char('\t')]
-        );
-
-        // escape char `\r`
-        assert_eq!(
-            lex_from_str_without_location("'\\r'").unwrap(),
-            vec![Token::Char('\r')]
-        );
-
-        // escape char `\n`
-        assert_eq!(
-            lex_from_str_without_location("'\\n'").unwrap(),
-            vec![Token::Char('\n')]
-        );
-
-        // escape char `\0`
-        assert_eq!(
-            lex_from_str_without_location("'\\0'").unwrap(),
-            vec![Token::Char('\0')]
-        );
-
-        // escape char, unicode
-        assert_eq!(
-            lex_from_str_without_location("'\\u{2d}'").unwrap(),
-            vec![Token::Char('-')]
-        );
-
-        // escape char, unicode
-        assert_eq!(
-            lex_from_str_without_location("'\\u{6587}'").unwrap(),
-            vec![Token::Char('文')]
-        );
-
-        // location
-
-        assert_eq!(
-            lex_from_str("'a' '文'").unwrap(),
-            vec![
-                TokenWithRange::from_position_and_length(
-                    Token::Char('a'),
-                    &Location::new_position(0, 0, 0, 0),
-                    3
-                ),
-                TokenWithRange::from_position_and_length(
-                    Token::Char('文'),
-                    &Location::new_position(0, 4, 0, 4),
-                    3
-                )
-            ]
-        );
-
-        assert_eq!(
-            lex_from_str("'\\t'").unwrap(),
-            vec![TokenWithRange::from_position_and_length(
-                Token::Char('\t'),
-                &Location::new_position(0, 0, 0, 0),
-                4
-            )]
-        );
-
-        assert_eq!(
-            lex_from_str("'\\u{6587}'").unwrap(),
-            vec![TokenWithRange::from_position_and_length(
-                Token::Char('文'),
-                &Location::new_position(0, 0, 0, 0),
-                10
-            )]
-        );
-
-        // err: empty char
-        assert!(matches!(
-            lex_from_str_without_location("''"),
-            Err(Error::MessageWithLocation(
-                _,
-                Location {
-                    unit: 0,
-                    index: 0,
-                    line: 0,
-                    column: 0,
-                    length: 2
-                }
-            ))
-        ));
-
-        // err: empty char, missing the char
-        assert!(matches!(
-            lex_from_str_without_location("'"),
-            Err(Error::UnexpectedEndOfDocument(_))
-        ));
-
-        // err: incomplete char, missing the right quote, encounter EOF
-        assert!(matches!(
-            lex_from_str_without_location("'a"),
-            Err(Error::UnexpectedEndOfDocument(_))
-        ));
-
-        // err: invalid char, expect the right quote, encounter another char
-        assert!(matches!(
-            lex_from_str_without_location("'ab"),
-            Err(Error::MessageWithLocation(
-                _,
-                Location {
-                    unit: 0,
-                    index: 2,
-                    line: 0,
-                    column: 2,
-                    length: 0
-                }
-            ))
-        ));
-
-        // err: invalid char, expect the right quote, encounter another char
-        assert!(matches!(
-            lex_from_str_without_location("'ab'"),
-            Err(Error::MessageWithLocation(
-                _,
-                Location {
-                    unit: 0,
-                    index: 2,
-                    line: 0,
-                    column: 2,
-                    length: 0
-                }
-            ))
-        ));
-
-        // err: unsupported escape char \v
-        assert!(matches!(
-            lex_from_str_without_location(r#"'\v'"#),
-            Err(Error::MessageWithLocation(
-                _,
-                Location {
-                    unit: 0,
-                    index: 1,
-                    line: 0,
-                    column: 1,
-                    length: 2
-                }
-            ))
-        ));
-
-        // err: unsupported hex escape "\x.."
-        assert!(matches!(
-            lex_from_str_without_location(r#"'\x33'"#),
-            Err(Error::MessageWithLocation(
-                _,
-                Location {
-                    unit: 0,
-                    index: 1,
-                    line: 0,
-                    column: 1,
-                    length: 2
-                }
-            ))
-        ));
-
-        // err: empty unicode escape string
-        // "'\\u{}'"
-        //  01 2345     // index
-        assert!(matches!(
-            lex_from_str_without_location("'\\u{}'"),
-            Err(Error::MessageWithLocation(
-                _,
-                Location {
-                    unit: 0,
-                    index: 3,
-                    line: 0,
-                    column: 3,
-                    length: 2
-                }
-            ))
-        ));
-
-        // err: invalid unicode code point, digits too much
-        // "'\\u{1000111}'"
-        //  01 234567890    // index
-        assert!(matches!(
-            lex_from_str_without_location("'\\u{1000111}'"),
-            Err(Error::MessageWithLocation(
-                _,
-                Location {
-                    unit: 0,
-                    index: 3,
-                    line: 0,
-                    column: 3,
-                    length: 8
-                }
-            ))
-        ));
-
-        // err: invalid unicode code point, code point out of range
-        // "'\\u{123456}'"
-        //  01 2345678901
-        assert!(matches!(
-            lex_from_str_without_location("'\\u{123456}'"),
-            Err(Error::MessageWithLocation(
-                _,
-                Location {
-                    unit: 0,
-                    index: 3,
-                    line: 0,
-                    column: 3,
-                    length: 8
-                }
-            ))
-        ));
-
-        // err: invalid char in the unicode escape sequence
-        assert!(matches!(
-            lex_from_str_without_location("'\\u{12mn}''"),
-            Err(Error::MessageWithLocation(
-                _,
-                Location {
-                    unit: 0,
-                    index: 6,
-                    line: 0,
-                    column: 6,
-                    length: 0
-                }
-            ))
-        ));
-
-        // err: missing the closed brace for unicode escape sequence
-        assert!(matches!(
-            lex_from_str_without_location("'\\u{1234'"),
-            Err(Error::MessageWithLocation(
-                _,
-                Location {
-                    unit: 0,
-                    index: 8,
-                    line: 0,
-                    column: 8,
-                    length: 0
-                }
-            ))
-        ));
-
-        // err: incomplete unicode escape sequence, encounter EOF
-        assert!(matches!(
-            lex_from_str_without_location("'\\u{1234"),
-            Err(Error::UnexpectedEndOfDocument(_))
-        ));
-
-        // err: missing left brace for unicode escape sequence
-        assert!(matches!(
-            lex_from_str_without_location("'\\u1234}'"),
-            Err(Error::MessageWithLocation(
-                _,
-                Location {
-                    unit: 0,
-                    index: 3,
-                    line: 0,
-                    column: 3,
-                    length: 0
-                }
-            ))
-        ));
-    }
+    //     #[test]
+    //     fn test_lex_char() {
+    //         assert_eq!(
+    //             lex_from_str_without_location("'a'").unwrap(),
+    //             vec![Token::Char('a')]
+    //         );
+    //
+    //         assert_eq!(
+    //             lex_from_str_without_location("('a')").unwrap(),
+    //             vec![Token::LeftParen, Token::Char('a'), Token::RightParen]
+    //         );
+    //
+    //         assert_eq!(
+    //             lex_from_str_without_location("'a' 'z'").unwrap(),
+    //             vec![Token::Char('a'), Token::Char('z')]
+    //         );
+    //
+    //         // CJK
+    //         assert_eq!(
+    //             lex_from_str_without_location("'文'").unwrap(),
+    //             vec![Token::Char('文')]
+    //         );
+    //
+    //         // emoji
+    //         assert_eq!(
+    //             lex_from_str_without_location("'😊'").unwrap(),
+    //             vec![Token::Char('😊')]
+    //         );
+    //
+    //         // escape char `\\`
+    //         assert_eq!(
+    //             lex_from_str_without_location("'\\\\'").unwrap(),
+    //             vec![Token::Char('\\')]
+    //         );
+    //
+    //         // escape char `\'`
+    //         assert_eq!(
+    //             lex_from_str_without_location("'\\\''").unwrap(),
+    //             vec![Token::Char('\'')]
+    //         );
+    //
+    //         // escape char `"`
+    //         assert_eq!(
+    //             lex_from_str_without_location("'\\\"'").unwrap(),
+    //             vec![Token::Char('"')]
+    //         );
+    //
+    //         // escape char `\t`
+    //         assert_eq!(
+    //             lex_from_str_without_location("'\\t'").unwrap(),
+    //             vec![Token::Char('\t')]
+    //         );
+    //
+    //         // escape char `\r`
+    //         assert_eq!(
+    //             lex_from_str_without_location("'\\r'").unwrap(),
+    //             vec![Token::Char('\r')]
+    //         );
+    //
+    //         // escape char `\n`
+    //         assert_eq!(
+    //             lex_from_str_without_location("'\\n'").unwrap(),
+    //             vec![Token::Char('\n')]
+    //         );
+    //
+    //         // escape char `\0`
+    //         assert_eq!(
+    //             lex_from_str_without_location("'\\0'").unwrap(),
+    //             vec![Token::Char('\0')]
+    //         );
+    //
+    //         // escape char, unicode
+    //         assert_eq!(
+    //             lex_from_str_without_location("'\\u{2d}'").unwrap(),
+    //             vec![Token::Char('-')]
+    //         );
+    //
+    //         // escape char, unicode
+    //         assert_eq!(
+    //             lex_from_str_without_location("'\\u{6587}'").unwrap(),
+    //             vec![Token::Char('文')]
+    //         );
+    //
+    //         // location
+    //
+    //         assert_eq!(
+    //             lex_from_str("'a' '文'").unwrap(),
+    //             vec![
+    //                 TokenWithRange::from_position_and_length(
+    //                     Token::Char('a'),
+    //                     &Location::new_position(0, 0, 0, 0),
+    //                     3
+    //                 ),
+    //                 TokenWithRange::from_position_and_length(
+    //                     Token::Char('文'),
+    //                     &Location::new_position(0, 4, 0, 4),
+    //                     3
+    //                 )
+    //             ]
+    //         );
+    //
+    //         assert_eq!(
+    //             lex_from_str("'\\t'").unwrap(),
+    //             vec![TokenWithRange::from_position_and_length(
+    //                 Token::Char('\t'),
+    //                 &Location::new_position(0, 0, 0, 0),
+    //                 4
+    //             )]
+    //         );
+    //
+    //         assert_eq!(
+    //             lex_from_str("'\\u{6587}'").unwrap(),
+    //             vec![TokenWithRange::from_position_and_length(
+    //                 Token::Char('文'),
+    //                 &Location::new_position(0, 0, 0, 0),
+    //                 10
+    //             )]
+    //         );
+    //
+    //         // err: empty char
+    //         assert!(matches!(
+    //             lex_from_str_without_location("''"),
+    //             Err(Error::MessageWithLocation(
+    //                 _,
+    //                 Location {
+    //                     unit: 0,
+    //                     index: 0,
+    //                     line: 0,
+    //                     column: 0,
+    //                     length: 2
+    //                 }
+    //             ))
+    //         ));
+    //
+    //         // err: empty char, missing the char
+    //         assert!(matches!(
+    //             lex_from_str_without_location("'"),
+    //             Err(Error::UnexpectedEndOfDocument(_))
+    //         ));
+    //
+    //         // err: incomplete char, missing the right quote, encounter EOF
+    //         assert!(matches!(
+    //             lex_from_str_without_location("'a"),
+    //             Err(Error::UnexpectedEndOfDocument(_))
+    //         ));
+    //
+    //         // err: invalid char, expect the right quote, encounter another char
+    //         assert!(matches!(
+    //             lex_from_str_without_location("'ab"),
+    //             Err(Error::MessageWithLocation(
+    //                 _,
+    //                 Location {
+    //                     unit: 0,
+    //                     index: 2,
+    //                     line: 0,
+    //                     column: 2,
+    //                     length: 0
+    //                 }
+    //             ))
+    //         ));
+    //
+    //         // err: invalid char, expect the right quote, encounter another char
+    //         assert!(matches!(
+    //             lex_from_str_without_location("'ab'"),
+    //             Err(Error::MessageWithLocation(
+    //                 _,
+    //                 Location {
+    //                     unit: 0,
+    //                     index: 2,
+    //                     line: 0,
+    //                     column: 2,
+    //                     length: 0
+    //                 }
+    //             ))
+    //         ));
+    //
+    //         // err: unsupported escape char \v
+    //         assert!(matches!(
+    //             lex_from_str_without_location(r#"'\v'"#),
+    //             Err(Error::MessageWithLocation(
+    //                 _,
+    //                 Location {
+    //                     unit: 0,
+    //                     index: 1,
+    //                     line: 0,
+    //                     column: 1,
+    //                     length: 2
+    //                 }
+    //             ))
+    //         ));
+    //
+    //         // err: unsupported hex escape "\x.."
+    //         assert!(matches!(
+    //             lex_from_str_without_location(r#"'\x33'"#),
+    //             Err(Error::MessageWithLocation(
+    //                 _,
+    //                 Location {
+    //                     unit: 0,
+    //                     index: 1,
+    //                     line: 0,
+    //                     column: 1,
+    //                     length: 2
+    //                 }
+    //             ))
+    //         ));
+    //
+    //         // err: empty unicode escape string
+    //         // "'\\u{}'"
+    //         //  01 2345     // index
+    //         assert!(matches!(
+    //             lex_from_str_without_location("'\\u{}'"),
+    //             Err(Error::MessageWithLocation(
+    //                 _,
+    //                 Location {
+    //                     unit: 0,
+    //                     index: 3,
+    //                     line: 0,
+    //                     column: 3,
+    //                     length: 2
+    //                 }
+    //             ))
+    //         ));
+    //
+    //         // err: invalid unicode code point, digits too much
+    //         // "'\\u{1000111}'"
+    //         //  01 234567890    // index
+    //         assert!(matches!(
+    //             lex_from_str_without_location("'\\u{1000111}'"),
+    //             Err(Error::MessageWithLocation(
+    //                 _,
+    //                 Location {
+    //                     unit: 0,
+    //                     index: 3,
+    //                     line: 0,
+    //                     column: 3,
+    //                     length: 8
+    //                 }
+    //             ))
+    //         ));
+    //
+    //         // err: invalid unicode code point, code point out of range
+    //         // "'\\u{123456}'"
+    //         //  01 2345678901
+    //         assert!(matches!(
+    //             lex_from_str_without_location("'\\u{123456}'"),
+    //             Err(Error::MessageWithLocation(
+    //                 _,
+    //                 Location {
+    //                     unit: 0,
+    //                     index: 3,
+    //                     line: 0,
+    //                     column: 3,
+    //                     length: 8
+    //                 }
+    //             ))
+    //         ));
+    //
+    //         // err: invalid char in the unicode escape sequence
+    //         assert!(matches!(
+    //             lex_from_str_without_location("'\\u{12mn}''"),
+    //             Err(Error::MessageWithLocation(
+    //                 _,
+    //                 Location {
+    //                     unit: 0,
+    //                     index: 6,
+    //                     line: 0,
+    //                     column: 6,
+    //                     length: 0
+    //                 }
+    //             ))
+    //         ));
+    //
+    //         // err: missing the closed brace for unicode escape sequence
+    //         assert!(matches!(
+    //             lex_from_str_without_location("'\\u{1234'"),
+    //             Err(Error::MessageWithLocation(
+    //                 _,
+    //                 Location {
+    //                     unit: 0,
+    //                     index: 8,
+    //                     line: 0,
+    //                     column: 8,
+    //                     length: 0
+    //                 }
+    //             ))
+    //         ));
+    //
+    //         // err: incomplete unicode escape sequence, encounter EOF
+    //         assert!(matches!(
+    //             lex_from_str_without_location("'\\u{1234"),
+    //             Err(Error::UnexpectedEndOfDocument(_))
+    //         ));
+    //
+    //         // err: missing left brace for unicode escape sequence
+    //         assert!(matches!(
+    //             lex_from_str_without_location("'\\u1234}'"),
+    //             Err(Error::MessageWithLocation(
+    //                 _,
+    //                 Location {
+    //                     unit: 0,
+    //                     index: 3,
+    //                     line: 0,
+    //                     column: 3,
+    //                     length: 0
+    //                 }
+    //             ))
+    //         ));
+    //     }
 
     #[test]
     fn test_lex_string() {
@@ -4084,161 +4181,161 @@ hello
         ));
     }
 
-    #[test]
-    fn test_lex_byte_data_hexadecimal() {
-        assert_eq!(
-            lex_from_str_without_location(
-                r#"
-                h""
-                "#
-            )
-            .unwrap(),
-            vec![Token::NewLine, Token::ByteData(vec![]), Token::NewLine]
-        );
-
-        assert_eq!(
-            lex_from_str_without_location(
-                r#"
-                h"11"
-                "#
-            )
-            .unwrap(),
-            vec![Token::NewLine, Token::ByteData(vec![0x11]), Token::NewLine,]
-        );
-
-        assert_eq!(
-            lex_from_str_without_location(
-                r#"
-                h"11 13 17 19"
-                "#
-            )
-            .unwrap(),
-            vec![
-                Token::NewLine,
-                Token::ByteData(vec![0x11, 0x13, 0x17, 0x19]),
-                Token::NewLine,
-            ]
-        );
-
-        assert_eq!(
-            lex_from_str_without_location(
-                "
-                h\"  11\t  13\r17\r\n  19\n  \"
-                "
-            )
-            .unwrap(),
-            vec![
-                Token::NewLine,
-                Token::ByteData(vec![0x11, 0x13, 0x17, 0x19]),
-                Token::NewLine,
-            ]
-        );
-
-        // location
-
-        assert_eq!(
-            lex_from_str("h\"11 13\"").unwrap(),
-            vec![TokenWithRange::from_position_and_length(
-                Token::ByteData(vec![0x11, 0x13]),
-                &Location::new_position(0, 0, 0, 0),
-                8
-            )]
-        );
-
-        assert_eq!(
-            lex_from_str("h\"11\" h\"13\"").unwrap(),
-            vec![
-                TokenWithRange::from_position_and_length(
-                    Token::ByteData(vec![0x11]),
-                    &Location::new_position(0, 0, 0, 0),
-                    5
-                ),
-                TokenWithRange::from_position_and_length(
-                    Token::ByteData(vec![0x13]),
-                    &Location::new_position(0, 6, 0, 6),
-                    5
-                )
-            ]
-        );
-
-        // err: not enough digits
-        assert!(matches!(
-            lex_from_str_without_location("h\"11 1\""),
-            Err(Error::MessageWithLocation(
-                _,
-                Location {
-                    unit: 0,
-                    index: 6,
-                    line: 0,
-                    column: 6,
-                    length: 0
-                }
-            ))
-        ));
-
-        // err: too much digits | no whitespace between two bytes
-        assert!(matches!(
-            lex_from_str_without_location("h\"11 1317\""),
-            Err(Error::MessageWithLocation(
-                _,
-                Location {
-                    unit: 0,
-                    index: 7,
-                    line: 0,
-                    column: 7,
-                    length: 0
-                }
-            ))
-        ));
-
-        // err: invalid char for byte string
-        assert!(matches!(
-            lex_from_str_without_location("h\"11 1x\""),
-            Err(Error::MessageWithLocation(
-                _,
-                Location {
-                    unit: 0,
-                    index: 6,
-                    line: 0,
-                    column: 6,
-                    length: 0
-                }
-            ))
-        ));
-
-        // err: invalid separator
-        assert!(matches!(
-            lex_from_str_without_location("h\"11-13\""),
-            Err(Error::MessageWithLocation(
-                _,
-                Location {
-                    unit: 0,
-                    index: 4,
-                    line: 0,
-                    column: 4,
-                    length: 0
-                }
-            ))
-        ));
-
-        // err: missing the close quote
-        assert!(matches!(
-            lex_from_str_without_location("h\"11 13"),
-            Err(Error::UnexpectedEndOfDocument(_))
-        ));
-
-        // err: missing the close quote, ends with \n
-        assert!(matches!(
-            lex_from_str_without_location("h\"11 13\n"),
-            Err(Error::UnexpectedEndOfDocument(_))
-        ));
-
-        // err: missing the close quote, ends with whitespaces/other chars
-        assert!(matches!(
-            lex_from_str_without_location("h\"11 13\n    "),
-            Err(Error::UnexpectedEndOfDocument(_))
-        ));
-    }
+    //     #[test]
+    //     fn test_lex_byte_data_hexadecimal() {
+    //         assert_eq!(
+    //             lex_from_str_without_location(
+    //                 r#"
+    //                 h""
+    //                 "#
+    //             )
+    //             .unwrap(),
+    //             vec![Token::NewLine, Token::ByteData(vec![]), Token::NewLine]
+    //         );
+    //
+    //         assert_eq!(
+    //             lex_from_str_without_location(
+    //                 r#"
+    //                 h"11"
+    //                 "#
+    //             )
+    //             .unwrap(),
+    //             vec![Token::NewLine, Token::ByteData(vec![0x11]), Token::NewLine,]
+    //         );
+    //
+    //         assert_eq!(
+    //             lex_from_str_without_location(
+    //                 r#"
+    //                 h"11 13 17 19"
+    //                 "#
+    //             )
+    //             .unwrap(),
+    //             vec![
+    //                 Token::NewLine,
+    //                 Token::ByteData(vec![0x11, 0x13, 0x17, 0x19]),
+    //                 Token::NewLine,
+    //             ]
+    //         );
+    //
+    //         assert_eq!(
+    //             lex_from_str_without_location(
+    //                 "
+    //                 h\"  11\t  13\r17\r\n  19\n  \"
+    //                 "
+    //             )
+    //             .unwrap(),
+    //             vec![
+    //                 Token::NewLine,
+    //                 Token::ByteData(vec![0x11, 0x13, 0x17, 0x19]),
+    //                 Token::NewLine,
+    //             ]
+    //         );
+    //
+    //         // location
+    //
+    //         assert_eq!(
+    //             lex_from_str("h\"11 13\"").unwrap(),
+    //             vec![TokenWithRange::from_position_and_length(
+    //                 Token::ByteData(vec![0x11, 0x13]),
+    //                 &Location::new_position(0, 0, 0, 0),
+    //                 8
+    //             )]
+    //         );
+    //
+    //         assert_eq!(
+    //             lex_from_str("h\"11\" h\"13\"").unwrap(),
+    //             vec![
+    //                 TokenWithRange::from_position_and_length(
+    //                     Token::ByteData(vec![0x11]),
+    //                     &Location::new_position(0, 0, 0, 0),
+    //                     5
+    //                 ),
+    //                 TokenWithRange::from_position_and_length(
+    //                     Token::ByteData(vec![0x13]),
+    //                     &Location::new_position(0, 6, 0, 6),
+    //                     5
+    //                 )
+    //             ]
+    //         );
+    //
+    //         // err: not enough digits
+    //         assert!(matches!(
+    //             lex_from_str_without_location("h\"11 1\""),
+    //             Err(Error::MessageWithLocation(
+    //                 _,
+    //                 Location {
+    //                     unit: 0,
+    //                     index: 6,
+    //                     line: 0,
+    //                     column: 6,
+    //                     length: 0
+    //                 }
+    //             ))
+    //         ));
+    //
+    //         // err: too much digits | no whitespace between two bytes
+    //         assert!(matches!(
+    //             lex_from_str_without_location("h\"11 1317\""),
+    //             Err(Error::MessageWithLocation(
+    //                 _,
+    //                 Location {
+    //                     unit: 0,
+    //                     index: 7,
+    //                     line: 0,
+    //                     column: 7,
+    //                     length: 0
+    //                 }
+    //             ))
+    //         ));
+    //
+    //         // err: invalid char for byte string
+    //         assert!(matches!(
+    //             lex_from_str_without_location("h\"11 1x\""),
+    //             Err(Error::MessageWithLocation(
+    //                 _,
+    //                 Location {
+    //                     unit: 0,
+    //                     index: 6,
+    //                     line: 0,
+    //                     column: 6,
+    //                     length: 0
+    //                 }
+    //             ))
+    //         ));
+    //
+    //         // err: invalid separator
+    //         assert!(matches!(
+    //             lex_from_str_without_location("h\"11-13\""),
+    //             Err(Error::MessageWithLocation(
+    //                 _,
+    //                 Location {
+    //                     unit: 0,
+    //                     index: 4,
+    //                     line: 0,
+    //                     column: 4,
+    //                     length: 0
+    //                 }
+    //             ))
+    //         ));
+    //
+    //         // err: missing the close quote
+    //         assert!(matches!(
+    //             lex_from_str_without_location("h\"11 13"),
+    //             Err(Error::UnexpectedEndOfDocument(_))
+    //         ));
+    //
+    //         // err: missing the close quote, ends with \n
+    //         assert!(matches!(
+    //             lex_from_str_without_location("h\"11 13\n"),
+    //             Err(Error::UnexpectedEndOfDocument(_))
+    //         ));
+    //
+    //         // err: missing the close quote, ends with whitespaces/other chars
+    //         assert!(matches!(
+    //             lex_from_str_without_location("h\"11 13\n    "),
+    //             Err(Error::UnexpectedEndOfDocument(_))
+    //         ));
+    //     }
 
     #[test]
     fn test_lex_line_comment() {
