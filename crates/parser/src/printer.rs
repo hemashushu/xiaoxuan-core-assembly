@@ -173,9 +173,12 @@ fn print_module_node(
         writeln!(writer)?;
     }
 
-    for item in &node.functions {
+    for (function_index, item) in node.functions.iter().enumerate() {
         print_function_node(writer, item, indent_chars)?;
         writeln!(writer)?;
+        if function_index != node.functions.len() - 1 {
+            writeln!(writer)?;
+        }
     }
 
     Ok(())
@@ -1529,8 +1532,74 @@ fn foo() -> () {
 }"
         );
 
-        // test 'for'
+        // test 'block' + 'group'
         let node2 = FunctionNode {
+            is_public: false,
+            name: "foo".to_owned(),
+            params: vec![],
+            returns: vec![],
+            locals: vec![],
+            body: ExpressionNode::Block(BlockNode {
+                params: vec![],
+                returns: vec![],
+                locals: vec![LocalVariable {
+                    name: "temp".to_owned(),
+                    data_type: FixedMemoryDataType::I32,
+                }],
+                body: Box::new(ExpressionNode::Group(vec![
+                    ExpressionNode::Instruction(InstructionNode {
+                        name: "local_store_i32".to_owned(),
+                        position_args: vec![
+                            ArgumentValue::Identifier("abc".to_owned()),
+                            ArgumentValue::Expression(Box::new(ExpressionNode::Instruction(
+                                InstructionNode {
+                                    name: "imm_i32".to_owned(),
+                                    position_args: vec![ArgumentValue::LiteralNumber(
+                                        LiteralNumber::I32(11),
+                                    )],
+                                    named_args: vec![],
+                                },
+                            ))),
+                        ],
+                        named_args: vec![],
+                    }),
+                    ExpressionNode::Instruction(InstructionNode {
+                        name: "local_store_i32".to_owned(),
+                        position_args: vec![
+                            ArgumentValue::Identifier("def".to_owned()),
+                            ArgumentValue::Expression(Box::new(ExpressionNode::Instruction(
+                                InstructionNode {
+                                    name: "imm_i32".to_owned(),
+                                    position_args: vec![ArgumentValue::LiteralNumber(
+                                        LiteralNumber::I32(31),
+                                    )],
+                                    named_args: vec![],
+                                },
+                            ))),
+                        ],
+                        named_args: vec![],
+                    }),
+                ])),
+            }),
+        };
+
+        assert_eq!(
+            print(&node2),
+            "\
+fn foo() -> () {
+    block () -> ()
+        [temp:i32]
+        {
+            local_store_i32(abc,
+                imm_i32(11))
+            local_store_i32(def,
+                imm_i32(31))
+        }
+}"
+        );
+
+        // test 'for'
+        let node3 = FunctionNode {
             is_public: false,
             name: "foo".to_owned(),
             params: vec![],
@@ -1549,7 +1618,7 @@ fn foo() -> () {
         };
 
         assert_eq!(
-            print(&node2),
+            print(&node3),
             "\
 fn foo() -> () {
     for () -> ()
@@ -1727,6 +1796,7 @@ fn foo() -> () {
         );
     }
 
+    #[test]
     fn test_print_module_node() {
         let node = ModuleNode {
             name_path: "foo".to_owned(),
@@ -1736,33 +1806,113 @@ fn foo() -> () {
                     alias_name: None,
                 },
                 UseNode {
-                    name_path: "foo::bar::Baz".to_owned(),
-                    alias_name: Some("Bar".to_owned()),
+                    name_path: "foo::bar::baz".to_owned(),
+                    alias_name: Some("Baz".to_owned()),
                 },
             ],
             externals: vec![
                 ExternalNode::Function(ExternalFunction {
-                    library: "libzstd".to_owned(),
+                    library: "liba".to_owned(),
                     name: "abc".to_owned(),
                     params: vec![FunctionDataType::I32, FunctionDataType::I64],
                     return_: Some(FunctionDataType::I64),
                     alias_name: None,
                 }),
                 ExternalNode::Data(ExternalData {
-                    library: "libz".to_owned(),
+                    library: "libb".to_owned(),
                     name: "def".to_owned(),
                     data_type: MemoryDataType::I32,
                     alias_name: Some("xyz".to_owned()),
                 }),
             ],
-            datas: vec![],
-            functions: vec![],
+            datas: vec![
+                DataNode {
+                    is_public: false,
+                    name: "count".to_owned(),
+                    data_section: DataSection::ReadWrite(DataTypeValuePair {
+                        data_type: MemoryDataType::I32,
+                        value: DataValue::I32(37),
+                    }),
+                },
+                DataNode {
+                    is_public: true,
+                    name: "plt".to_owned(),
+                    data_section: DataSection::ReadOnly(DataTypeValuePair {
+                        data_type: MemoryDataType::FixedBytes(128, Some(8)),
+                        value: DataValue::List(vec![
+                            DataValue::I8(41),
+                            DataValue::I8(43),
+                            DataValue::I8(47),
+                            DataValue::I8(53),
+                        ]),
+                    }),
+                },
+            ],
+            functions: vec![
+                FunctionNode {
+                    is_public: false,
+                    name: "add".to_owned(),
+                    params: vec![
+                        NamedParameter {
+                            name: "left".to_owned(),
+                            data_type: FunctionDataType::I32,
+                        },
+                        NamedParameter {
+                            name: "right".to_owned(),
+                            data_type: FunctionDataType::I32,
+                        },
+                    ],
+                    returns: vec![FunctionDataType::I32],
+                    locals: vec![],
+                    body: ExpressionNode::Instruction(InstructionNode {
+                        name: "nop".to_owned(),
+                        position_args: vec![],
+                        named_args: vec![],
+                    }),
+                },
+                FunctionNode {
+                    is_public: true,
+                    name: "entry".to_owned(),
+                    params: vec![],
+                    returns: vec![FunctionDataType::I32],
+                    locals: vec![LocalVariable {
+                        name: "temp".to_owned(),
+                        data_type: FixedMemoryDataType::I32,
+                    }],
+                    body: ExpressionNode::Instruction(InstructionNode {
+                        name: "nop".to_owned(),
+                        position_args: vec![],
+                        named_args: vec![],
+                    }),
+                },
+            ],
         };
 
         assert_eq!(
             print_to_string(&node),
             "use foo::bar
-    use foo::bar::Baz as Abc\n\n"
+use foo::bar::baz as Baz
+
+external fn liba::abc(i32, i64) -> i64
+external data libb::def:i32 as xyz
+
+data count:i32 = 37
+pub readonly data plt:byte[128, align=8] = [
+    41_i8
+    43_i8
+    47_i8
+    53_i8
+]
+
+fn add(left:i32, right:i32) -> i32 {
+    nop()
+}
+
+pub fn entry() -> i32
+    [temp:i32] {
+    nop()
+}
+"
         )
     }
 }
