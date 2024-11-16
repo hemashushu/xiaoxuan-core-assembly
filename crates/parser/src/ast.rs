@@ -316,6 +316,7 @@ pub enum FixedMemoryDataType {
 
 #[derive(Debug, PartialEq)]
 pub enum ExpressionNode {
+    Group(Vec<ExpressionNode>),
     Instruction(InstructionNode),
     When(WhenNode),
     If(IfNode),
@@ -323,7 +324,6 @@ pub enum ExpressionNode {
     For(BlockNode),
     Break(BreakNode),
     Recur(BreakNode),
-    Group(Vec<ExpressionNode>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -346,7 +346,7 @@ pub struct BlockNode {
     pub params: Vec<NamedParameter>,
     pub returns: Vec<FunctionDataType>,
     pub locals: Vec<LocalVariable>,
-    pub expressions: Box<ExpressionNode>,
+    pub body: Box<ExpressionNode>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -689,3 +689,39 @@ pub enum LiteralNumber {
 //     // currently the MIN value is 1.
 //     pub align: u16,
 // }
+
+impl Display for FunctionDataType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FunctionDataType::I64 => f.write_str("i64"),
+            FunctionDataType::I32 => f.write_str("i32"),
+            FunctionDataType::F64 => f.write_str("f64"),
+            FunctionDataType::F32 => f.write_str("f32"),
+        }
+    }
+}
+
+impl Display for MemoryDataType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MemoryDataType::I64 => f.write_str("i64"),
+            MemoryDataType::I32 => f.write_str("i32"),
+            MemoryDataType::F64 => f.write_str("f64"),
+            MemoryDataType::F32 => f.write_str("f32"),
+            MemoryDataType::Bytes => f.write_str("byte[]"),
+            MemoryDataType::FixedBytes(length) => write!(f, "byte[{}]", length),
+        }
+    }
+}
+
+impl Display for FixedMemoryDataType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FixedMemoryDataType::I64 => f.write_str("i64"),
+            FixedMemoryDataType::I32 => f.write_str("i32"),
+            FixedMemoryDataType::F64 => f.write_str("f64"),
+            FixedMemoryDataType::F32 => f.write_str("f32"),
+            FixedMemoryDataType::FixedBytes(length) => write!(f, "byte[{}]", length),
+        }
+    }
+}
