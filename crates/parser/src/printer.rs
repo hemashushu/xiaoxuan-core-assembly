@@ -385,14 +385,7 @@ fn format_returns(returns: &[FunctionDataType]) -> String {
 fn format_local_variables(locals: &[LocalVariable]) -> String {
     let list = locals
         .iter()
-        .map(|item| {
-            if let Some(align) = item.align {
-                // e.g. `align(name:byte[1024], 4)`
-                format!("align({}:{}, {})", item.name, item.data_type, align)
-            } else {
-                format!("{}:{}", item.name, item.data_type)
-            }
-        })
+        .map(|item| format!("{}:{}", item.name, item.data_type))
         .collect::<Vec<String>>()
         .join(", ");
     format!("[{}]", list)
@@ -737,7 +730,7 @@ mod tests {
         let d1 = ExternalData {
             library: "libfoo".to_owned(),
             name: "got".to_owned(),
-            data_type: MemoryDataType::FixedBytes(128),
+            data_type: MemoryDataType::FixedBytes(128, None),
             alias_name: Some("global_offset_table".to_owned()),
         };
 
@@ -771,7 +764,7 @@ mod tests {
             is_public: true,
             name: "foo".to_owned(),
             data_section: DataSection::ReadOnly(DataTypeValuePair {
-                data_type: MemoryDataType::FixedBytes(32),
+                data_type: MemoryDataType::FixedBytes(32, None),
                 value: DataValue::String("hello".to_owned()),
             }),
         };
@@ -783,7 +776,7 @@ mod tests {
             is_public: true,
             name: "foo".to_owned(),
             data_section: DataSection::ReadWrite(DataTypeValuePair {
-                data_type: MemoryDataType::Bytes,
+                data_type: MemoryDataType::Bytes(None),
                 value: DataValue::String("world".to_owned()),
             }),
         };
@@ -794,17 +787,26 @@ mod tests {
         let node3 = DataNode {
             is_public: false,
             name: "got".to_owned(),
-            data_section: DataSection::Uninit(FixedMemoryDataType::FixedBytes(1024)),
+            data_section: DataSection::Uninit(FixedMemoryDataType::FixedBytes(1024, None)),
         };
 
         assert_eq!(print(&node3), "uninit data got:byte[1024]");
 
-        // test list
+        // test align
         let node4 = DataNode {
+            is_public: false,
+            name: "foo".to_owned(),
+            data_section: DataSection::Uninit(FixedMemoryDataType::FixedBytes(1024, Some(8))),
+        };
+
+        assert_eq!(print(&node4), "uninit data foo:byte[1024, align=8]");
+
+        // test data value list
+        let node5 = DataNode {
             is_public: false,
             name: "bar".to_owned(),
             data_section: DataSection::ReadWrite(DataTypeValuePair {
-                data_type: MemoryDataType::FixedBytes(32),
+                data_type: MemoryDataType::Bytes(Some(4)),
                 value: DataValue::List(vec![
                     DataValue::I8(11),
                     DataValue::I16(13),
@@ -817,9 +819,9 @@ mod tests {
         };
 
         assert_eq!(
-            print(&node4),
+            print(&node5),
             "\
-data bar:byte[32] = [
+data bar:byte[align=4] = [
     11_i8
     13_i16
     17
@@ -931,7 +933,7 @@ pub fn add(left:i32, right:i32) -> i32 {
 }"
         );
 
-        // test returns multiple values
+        // test returns multiple values and local variables
         let node2 = FunctionNode {
             is_public: false,
             name: "hello".to_owned(),
@@ -941,17 +943,14 @@ pub fn add(left:i32, right:i32) -> i32 {
                 LocalVariable {
                     name: "foo".to_owned(),
                     data_type: FixedMemoryDataType::I32,
-                    align: None,
                 },
                 LocalVariable {
                     name: "bar".to_owned(),
-                    data_type: FixedMemoryDataType::FixedBytes(8),
-                    align: None,
+                    data_type: FixedMemoryDataType::FixedBytes(8, None),
                 },
                 LocalVariable {
                     name: "baz".to_owned(),
-                    data_type: FixedMemoryDataType::FixedBytes(24),
-                    align: Some(4),
+                    data_type: FixedMemoryDataType::FixedBytes(24, Some(4)),
                 },
             ],
             body: ExpressionNode::Instruction(InstructionNode {
@@ -965,7 +964,7 @@ pub fn add(left:i32, right:i32) -> i32 {
             print(&node2),
             "\
 fn hello() -> (i32, i64)
-    [foo:i32, bar:byte[8], align(baz:byte[24], 4)] {
+    [foo:i32, bar:byte[8], baz:byte[24, align=4]] {
     end()
 }"
         );
@@ -1199,17 +1198,14 @@ fn foo() -> () {
                     LocalVariable {
                         name: "foo".to_owned(),
                         data_type: FixedMemoryDataType::I32,
-                        align: None,
                     },
                     LocalVariable {
                         name: "bar".to_owned(),
-                        data_type: FixedMemoryDataType::FixedBytes(8),
-                        align: None,
+                        data_type: FixedMemoryDataType::FixedBytes(8, None),
                     },
                     LocalVariable {
                         name: "baz".to_owned(),
-                        data_type: FixedMemoryDataType::FixedBytes(24),
-                        align: Some(4),
+                        data_type: FixedMemoryDataType::FixedBytes(24, Some(4)),
                     },
                 ],
                 consequence: Box::new(ExpressionNode::Instruction(InstructionNode {
@@ -1226,7 +1222,7 @@ fn foo() -> () {
 fn foo() -> () {
     when
         imm_i32(1)
-        [foo:i32, bar:byte[8], align(baz:byte[24], 4)]
+        [foo:i32, bar:byte[8], baz:byte[24, align=4]]
         nop()
 }"
         );
@@ -1509,12 +1505,10 @@ fn foo() -> () {
                     LocalVariable {
                         name: "abc".to_owned(),
                         data_type: FixedMemoryDataType::I32,
-                        align: None,
                     },
                     LocalVariable {
                         name: "def".to_owned(),
-                        data_type: FixedMemoryDataType::FixedBytes(32),
-                        align: None,
+                        data_type: FixedMemoryDataType::FixedBytes(32, None),
                     },
                 ],
                 body: Box::new(ExpressionNode::Instruction(InstructionNode {

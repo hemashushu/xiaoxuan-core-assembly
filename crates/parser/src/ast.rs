@@ -142,8 +142,12 @@ pub enum MemoryDataType {
     I32,
     F64,
     F32,
-    Bytes,                          // e.g. `byte[]`
-    FixedBytes(/* length */ usize), // e.g. `byte[1024]`
+
+    // e.g. `byte[]`, `byte[align=4]`
+    Bytes(/* align */ Option<usize>),
+
+    // e.g. `byte[1024]`, `byte[1024, align=4]`
+    FixedBytes(/* length */ usize, /* align */ Option<usize>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -181,13 +185,6 @@ pub struct NamedParameter {
 pub struct LocalVariable {
     pub name: String,
     pub data_type: FixedMemoryDataType,
-
-    /// if the data is a byte array (e.g. a string), the value should be 1,
-    /// if the data is a struct, the value should be the max one of the length of its fields.
-    /// the MAX value of align is 8, the MIN value is 1.
-    ///
-    /// e.g. `align(name:byte[1024], 4)`
-    pub align: Option<usize>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -196,7 +193,16 @@ pub enum FixedMemoryDataType {
     I32,
     F64,
     F32,
-    FixedBytes(/* length */ usize),
+
+    /// - if the content of the data is a byte array (e.g. a string),
+    ///   the value should be 1,
+    /// - if the content of the data is a struct, the value should be
+    ///   the max length of its fields.
+    /// - for local variables, the MAX value of align is 8, the MIN value is 1.
+    /// - the value should not be 0.
+    ///
+    /// e.g. `name:byte[1024, align=4]`
+    FixedBytes(/* length */ usize, /* align */ Option<usize>),
 }
 
 // #[derive(Debug, PartialEq)]
@@ -708,8 +714,20 @@ impl Display for MemoryDataType {
             MemoryDataType::I32 => f.write_str("i32"),
             MemoryDataType::F64 => f.write_str("f64"),
             MemoryDataType::F32 => f.write_str("f32"),
-            MemoryDataType::Bytes => f.write_str("byte[]"),
-            MemoryDataType::FixedBytes(length) => write!(f, "byte[{}]", length),
+            MemoryDataType::Bytes(opt_align) => {
+                if let Some(align) = opt_align {
+                    write!(f, "byte[align={}]", align)
+                } else {
+                    f.write_str("byte[]")
+                }
+            }
+            MemoryDataType::FixedBytes(length, opt_align) => {
+                if let Some(align) = opt_align {
+                    write!(f, "byte[{}, align={}]", length, align)
+                } else {
+                    write!(f, "byte[{}]", length)
+                }
+            }
         }
     }
 }
@@ -721,7 +739,13 @@ impl Display for FixedMemoryDataType {
             FixedMemoryDataType::I32 => f.write_str("i32"),
             FixedMemoryDataType::F64 => f.write_str("f64"),
             FixedMemoryDataType::F32 => f.write_str("f32"),
-            FixedMemoryDataType::FixedBytes(length) => write!(f, "byte[{}]", length),
+            FixedMemoryDataType::FixedBytes(length, opt_align) => {
+                if let Some(align) = opt_align {
+                    write!(f, "byte[{}, align={}]", length, align)
+                } else {
+                    write!(f, "byte[{}]", length)
+                }
+            }
         }
     }
 }
