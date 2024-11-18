@@ -1,17 +1,17 @@
 [package]
-name = "ancasm-assembler"
-version = "0.1.0"
+name = "anc-assembler"
+version = "0.1.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ancasm-parser = { path = "../parser" }
+anc-parser-asm = { path = "../parser" }
 
-ancvm-isa = { path = "../../../xiaoxuan-core-vm/crates/isa" }
-ancvm-image = { path = "../../../xiaoxuan-core-vm/crates/image" }
-ancvm-context = { path = "../../../xiaoxuan-core-vm/crates/context" }
-ancvm-processor = { path = "../../../xiaoxuan-core-vm/crates/processor" }
+anc-isa = { path = "../../../xiaoxuan-core-isa" }
+anc-image = { path = "../../../xiaoxuan-core-image" }
+anc-context = { path = "../../../xiaoxuan-core-vm/crates/context" }
+anc-processor = { path = "../../../xiaoxuan-core-vm/crates/processor" }
 
 [dev-dependencies]
 pretty_assertions = "1.4.0"

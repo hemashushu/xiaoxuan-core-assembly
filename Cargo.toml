@@ -1,7 +1,6 @@
 [workspace]
 members = [
     "crates/parser",
-    # "crates/linker",
     # "crates/assembler",
 ]
 

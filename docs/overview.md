@@ -61,8 +61,8 @@ content of the file `module.ason`:
             // e.g.
             //
             // values: {
-            //    "enable_sha2": value::Bool(true)
-            //    "enable_md5": value::Bool(false)
+            //    "enable_sha2": value::bool(true)
+            //    "enable_md5": value::bool(false)
             //    "enable_foo": value::calc("{enable_xyz}")
             // }
             //
@@ -86,8 +86,8 @@ content of the file `module.ason`:
         //
         // e.g.
         //
-        // "enable_abc": prop::default::Bool(true)
-        // "enable_def": prop::default::Bool(false)
+        // "enable_abc": prop::default::bool(true)
+        // "enable_def": prop::default::bool(false)
         // "enable_xyz": prop::calc("{enable_abc} && {enable_def}")
     }
     constants: {
@@ -96,8 +96,8 @@ content of the file `module.ason`:
         //
         // e.g.
         //
-        // "foo": const::Number(123)
-        // "bar": const::String("abc")
+        // "foo": const::number(123)
+        // "bar": const::string("abc")
         //
         // Note that the name of a constant cannot duplicate
         // the name of property.

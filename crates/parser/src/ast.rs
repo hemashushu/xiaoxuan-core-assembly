@@ -83,12 +83,12 @@ pub struct UseNode {
 
 #[derive(Debug, PartialEq)]
 pub enum ExternalNode {
-    Function(ExternalFunction),
-    Data(ExternalData),
+    Function(ExternalFunctionNode),
+    Data(ExternalDataNode),
 }
 
 #[derive(Debug, PartialEq)]
-pub struct ExternalFunction {
+pub struct ExternalFunctionNode {
     pub library: String,
     pub name: String,
     pub params: Vec<FunctionDataType>,
@@ -105,10 +105,10 @@ pub enum FunctionDataType {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct ExternalData {
+pub struct ExternalDataNode {
     pub library: String,
     pub name: String,
-    pub data_type: MemoryDataType,
+    pub data_type: DefineDataType,
     pub alias_name: Option<String>,
 }
 
@@ -141,17 +141,17 @@ pub struct DataNode {
 pub enum DataSection {
     ReadOnly(DataTypeValuePair),
     ReadWrite(DataTypeValuePair),
-    Uninit(FixedMemoryDataType),
+    Uninit(FixedDefineDataType),
 }
 
 #[derive(Debug, PartialEq)]
 pub struct DataTypeValuePair {
-    pub data_type: MemoryDataType,
+    pub data_type: DefineDataType,
     pub value: DataValue,
 }
 
 #[derive(Debug, PartialEq)]
-pub enum MemoryDataType {
+pub enum DefineDataType {
     I64,
     I32,
     F64,
@@ -198,11 +198,11 @@ pub struct NamedParameter {
 #[derive(Debug, PartialEq)]
 pub struct LocalVariable {
     pub name: String,
-    pub data_type: FixedMemoryDataType,
+    pub data_type: FixedDefineDataType,
 }
 
 #[derive(Debug, PartialEq)]
-pub enum FixedMemoryDataType {
+pub enum FixedDefineDataType {
     I64,
     I32,
     F64,
@@ -721,21 +721,21 @@ impl Display for FunctionDataType {
     }
 }
 
-impl Display for MemoryDataType {
+impl Display for DefineDataType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            MemoryDataType::I64 => f.write_str("i64"),
-            MemoryDataType::I32 => f.write_str("i32"),
-            MemoryDataType::F64 => f.write_str("f64"),
-            MemoryDataType::F32 => f.write_str("f32"),
-            MemoryDataType::Bytes(opt_align) => {
+            DefineDataType::I64 => f.write_str("i64"),
+            DefineDataType::I32 => f.write_str("i32"),
+            DefineDataType::F64 => f.write_str("f64"),
+            DefineDataType::F32 => f.write_str("f32"),
+            DefineDataType::Bytes(opt_align) => {
                 if let Some(align) = opt_align {
                     write!(f, "byte[align={}]", align)
                 } else {
                     f.write_str("byte[]")
                 }
             }
-            MemoryDataType::FixedBytes(length, opt_align) => {
+            DefineDataType::FixedBytes(length, opt_align) => {
                 if let Some(align) = opt_align {
                     write!(f, "byte[{}, align={}]", length, align)
                 } else {
@@ -746,14 +746,14 @@ impl Display for MemoryDataType {
     }
 }
 
-impl Display for FixedMemoryDataType {
+impl Display for FixedDefineDataType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            FixedMemoryDataType::I64 => f.write_str("i64"),
-            FixedMemoryDataType::I32 => f.write_str("i32"),
-            FixedMemoryDataType::F64 => f.write_str("f64"),
-            FixedMemoryDataType::F32 => f.write_str("f32"),
-            FixedMemoryDataType::FixedBytes(length, opt_align) => {
+            FixedDefineDataType::I64 => f.write_str("i64"),
+            FixedDefineDataType::I32 => f.write_str("i32"),
+            FixedDefineDataType::F64 => f.write_str("f64"),
+            FixedDefineDataType::F32 => f.write_str("f32"),
+            FixedDefineDataType::FixedBytes(length, opt_align) => {
                 if let Some(align) = opt_align {
                     write!(f, "byte[{}, align={}]", length, align)
                 } else {

@@ -4,15 +4,11 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use hexfloat2::format;
-
 use crate::ast::{
     ArgumentValue, BlockNode, BreakNode, DataNode, DataSection, DataValue, ExpressionNode,
-    ExternalData, ExternalFunction, ExternalNode, FixedMemoryDataType, FunctionDataType,
-    FunctionNode, IfNode, InstructionNode, LiteralNumber, LocalVariable, MemoryDataType,
-    ModuleNode, NamedParameter, UseNode, WhenNode,
+    ExternalDataNode, ExternalFunctionNode, ExternalNode, FunctionDataType, FunctionNode, IfNode,
+    InstructionNode, LiteralNumber, LocalVariable, ModuleNode, NamedParameter, UseNode, WhenNode,
 };
-use std::fmt::Display;
 use std::io::{Error, Write};
 
 pub const DEFAULT_INDENT_CHARS: &str = "    ";
@@ -85,25 +81,20 @@ fn print_data_node(
 
 fn print_external_node(writer: &mut dyn Write, node: &ExternalNode) -> Result<(), Error> {
     match node {
-        ExternalNode::Function(f) => print_external_function(writer, f),
-        ExternalNode::Data(d) => print_external_data(writer, d),
+        ExternalNode::Function(node) => print_external_function_node(writer, node),
+        ExternalNode::Data(node) => print_external_data_node(writer, node),
     }
 }
 
-fn print_external_function(
+fn print_external_function_node(
     writer: &mut dyn Write,
-    external_function: &ExternalFunction,
+    node: &ExternalFunctionNode,
 ) -> Result<(), Error> {
-    write!(
-        writer,
-        "external fn {}::{}",
-        external_function.library, external_function.name
-    )?;
+    write!(writer, "external fn {}::{}", node.library, node.name)?;
     write!(
         writer,
         "({})",
-        external_function
-            .params
+        node.params
             .iter()
             .map(|item| item.to_string())
             .collect::<Vec<String>>()
@@ -111,26 +102,26 @@ fn print_external_function(
     )?;
     write!(writer, " -> ")?;
 
-    if let Some(fdt) = &external_function.return_ {
+    if let Some(fdt) = &node.return_ {
         write!(writer, "{}", fdt)?;
     } else {
         write!(writer, "()")?;
     }
 
-    if let Some(alias) = &external_function.alias_name {
+    if let Some(alias) = &node.alias_name {
         write!(writer, " as {}", alias)?;
     }
     Ok(())
 }
 
-fn print_external_data(writer: &mut dyn Write, external_data: &ExternalData) -> Result<(), Error> {
+fn print_external_data_node(writer: &mut dyn Write, node: &ExternalDataNode) -> Result<(), Error> {
     write!(
         writer,
         "external data {}::{}:{}",
-        external_data.library, external_data.name, external_data.data_type
+        node.library, node.name, node.data_type
     )?;
 
-    if let Some(alias) = &external_data.alias_name {
+    if let Some(alias) = &node.alias_name {
         write!(writer, " as {}", alias)?;
     }
     Ok(())
@@ -351,49 +342,6 @@ fn format_expression_if(node: &IfNode, indent_chars: &str, indent_level: usize) 
     )
 }
 
-fn format_params(params: &[NamedParameter]) -> String {
-    // this function returns:
-    // (name0:data_type0, name1:data_type1, ...)
-    format!(
-        "({})",
-        params
-            .iter()
-            .map(|item| { format!("{}:{}", item.name, item.data_type) })
-            .collect::<Vec<String>>()
-            .join(", ")
-    )
-}
-
-fn format_returns(returns: &[FunctionDataType]) -> String {
-    // this function returns:
-    // - ()
-    // - data_type
-    // - (data_type0, data_type1, ...)
-    if returns.is_empty() {
-        "()".to_owned()
-    } else if returns.len() == 1 {
-        returns[0].to_string()
-    } else {
-        format!(
-            "({})",
-            returns
-                .iter()
-                .map(|item| item.to_string())
-                .collect::<Vec<String>>()
-                .join(", ")
-        )
-    }
-}
-
-fn format_local_variables(locals: &[LocalVariable]) -> String {
-    let list = locals
-        .iter()
-        .map(|item| format!("{}:{}", item.name, item.data_type))
-        .collect::<Vec<String>>()
-        .join(", ");
-    format!("[{}]", list)
-}
-
 fn format_expression_block(
     node: &BlockNode,
     is_for: bool,
@@ -468,6 +416,49 @@ fn format_expression_break(
             )
         }
     }
+}
+
+fn format_params(params: &[NamedParameter]) -> String {
+    // this function returns:
+    // (name0:data_type0, name1:data_type1, ...)
+    format!(
+        "({})",
+        params
+            .iter()
+            .map(|item| { format!("{}:{}", item.name, item.data_type) })
+            .collect::<Vec<String>>()
+            .join(", ")
+    )
+}
+
+fn format_returns(returns: &[FunctionDataType]) -> String {
+    // this function returns:
+    // - ()
+    // - data_type
+    // - (data_type0, data_type1, ...)
+    if returns.is_empty() {
+        "()".to_owned()
+    } else if returns.len() == 1 {
+        returns[0].to_string()
+    } else {
+        format!(
+            "({})",
+            returns
+                .iter()
+                .map(|item| item.to_string())
+                .collect::<Vec<String>>()
+                .join(", ")
+        )
+    }
+}
+
+fn format_local_variables(locals: &[LocalVariable]) -> String {
+    let list = locals
+        .iter()
+        .map(|item| format!("{}:{}", item.name, item.data_type))
+        .collect::<Vec<String>>()
+        .join(", ");
+    format!("[{}]", list)
 }
 
 fn format_literal_number(num: &LiteralNumber) -> String {
@@ -552,49 +543,44 @@ fn format_string(s: &str) -> String {
 }
 
 /// format the byte array with fixed length hex:
-//
-// e.g.
-//
-// [
-//     00 11 22 33  44 55 66 77
-//     88 99 aa bb  cc dd ee ff
-// ]
-fn format_byte_array(data: &[u8], indent_chars: &str) -> String {
-    data.chunks(8)
-        // .enumerate()
-        // .map(|(chunk_addr, chunk)| {
-        .map(|chunk| {
-            // content
-            let content = chunk
-                .iter()
-                .enumerate()
-                .map(|(idx, byte)| {
-                    // format the bytes as the following text:
-                    // 00 11 22 33  44 55 66 77
-                    // 00 11 22 33
-                    // 00 11
-                    //
-                    // Rust std format!()
-                    // https://doc.rust-lang.org/std/fmt/
-                    if idx == 4 {
-                        format!("  {:02x}", byte)
-                    } else if idx == 0 {
-                        format!("{:02x}", byte)
-                    } else {
-                        format!(" {:02x}", byte)
-                    }
-                })
-                .collect::<Vec<String>>()
-                .join("");
-
-            // address
-            // let address = format!("0x{:04x}  {}", chunk_addr * 8, binary);
-
-            format!("{}{}", indent_chars, content)
-        })
-        .collect::<Vec<String>>()
-        .join("\n")
-}
+///
+/// e.g.
+///
+/// [
+///     00 11 22 33  44 55 66 77
+///     88 99 aa bb  cc dd ee ff
+/// ]
+///
+// fn format_byte_array(data: &[u8], indent_chars: &str) -> String {
+//     data.chunks(8)
+//         .map(|chunk| {
+//             // content
+//             let content = chunk
+//                 .iter()
+//                 .enumerate()
+//                 .map(|(idx, byte)| {
+//                     // format the bytes as the following text:
+//                     // 00 11 22 33  44 55 66 77
+//                     // 00 11 22 33
+//                     // 00 11
+//                     //
+//                     // Rust std format!()
+//                     // https://doc.rust-lang.org/std/fmt/
+//                     if idx == 4 {
+//                         format!("  {:02x}", byte)
+//                     } else if idx == 0 {
+//                         format!("{:02x}", byte)
+//                     } else {
+//                         format!(" {:02x}", byte)
+//                     }
+//                 })
+//                 .collect::<Vec<String>>()
+//                 .join("");
+//             format!("{}{}", indent_chars, content)
+//         })
+//         .collect::<Vec<String>>()
+//         .join("\n")
+// }
 
 fn format_data_value(data_value: &DataValue, indent_chars: &str, indent_level: usize) -> String {
     match data_value {
@@ -646,14 +632,14 @@ mod tests {
     use crate::{
         ast::{
             ArgumentValue, BlockNode, BreakNode, DataNode, DataSection, DataTypeValuePair,
-            DataValue, ExpressionNode, ExternalData, ExternalFunction, ExternalNode,
-            FixedMemoryDataType, FunctionDataType, FunctionNode, IfNode, InstructionNode,
-            LiteralNumber, LocalVariable, MemoryDataType, ModuleNode, NamedArgument,
+            DataValue, ExpressionNode, ExternalDataNode, ExternalFunctionNode, ExternalNode,
+            FixedDefineDataType, FunctionDataType, FunctionNode, IfNode, InstructionNode,
+            LiteralNumber, LocalVariable, DefineDataType, ModuleNode, NamedArgument,
             NamedParameter, UseNode, WhenNode,
         },
         printer::{
-            print_external_data, print_external_function, print_function_node, print_use_node,
-            DEFAULT_INDENT_CHARS,
+            print_external_data_node, print_external_function_node, print_function_node,
+            print_use_node, DEFAULT_INDENT_CHARS,
         },
     };
 
@@ -682,14 +668,14 @@ mod tests {
     }
 
     #[test]
-    fn test_print_external_function() {
-        let print = |e: &ExternalFunction| {
+    fn test_print_external_function_node() {
+        let print = |e: &ExternalFunctionNode| {
             let mut buf: Vec<u8> = vec![];
-            print_external_function(&mut buf, e).unwrap();
+            print_external_function_node(&mut buf, e).unwrap();
             String::from_utf8(buf).unwrap()
         };
 
-        let f0 = ExternalFunction {
+        let f0 = ExternalFunctionNode {
             library: "libfoo".to_owned(),
             name: "bar".to_owned(),
             params: vec![],
@@ -699,7 +685,7 @@ mod tests {
 
         assert_eq!(print(&f0), "external fn libfoo::bar() -> ()");
 
-        let f1 = ExternalFunction {
+        let f1 = ExternalFunctionNode {
             library: "libfoo".to_owned(),
             name: "bar".to_owned(),
             params: vec![FunctionDataType::I32, FunctionDataType::I32],
@@ -714,26 +700,26 @@ mod tests {
     }
 
     #[test]
-    fn test_print_external_data() {
-        let print = |e: &ExternalData| {
+    fn test_print_external_data_node() {
+        let print = |e: &ExternalDataNode| {
             let mut buf: Vec<u8> = vec![];
-            print_external_data(&mut buf, e).unwrap();
+            print_external_data_node(&mut buf, e).unwrap();
             String::from_utf8(buf).unwrap()
         };
 
-        let d0 = ExternalData {
+        let d0 = ExternalDataNode {
             library: "libfoo".to_owned(),
             name: "count".to_owned(),
-            data_type: MemoryDataType::I32,
+            data_type: DefineDataType::I32,
             alias_name: None,
         };
 
         assert_eq!(print(&d0), "external data libfoo::count:i32");
 
-        let d1 = ExternalData {
+        let d1 = ExternalDataNode {
             library: "libfoo".to_owned(),
             name: "got".to_owned(),
-            data_type: MemoryDataType::FixedBytes(128, None),
+            data_type: DefineDataType::FixedBytes(128, None),
             alias_name: Some("global_offset_table".to_owned()),
         };
 
@@ -755,7 +741,7 @@ mod tests {
             is_public: false,
             name: "foo".to_owned(),
             data_section: DataSection::ReadOnly(DataTypeValuePair {
-                data_type: MemoryDataType::I32,
+                data_type: DefineDataType::I32,
                 value: DataValue::I32(123),
             }),
         };
@@ -767,7 +753,7 @@ mod tests {
             is_public: true,
             name: "foo".to_owned(),
             data_section: DataSection::ReadOnly(DataTypeValuePair {
-                data_type: MemoryDataType::FixedBytes(32, None),
+                data_type: DefineDataType::FixedBytes(32, None),
                 value: DataValue::String("hello".to_owned()),
             }),
         };
@@ -779,7 +765,7 @@ mod tests {
             is_public: true,
             name: "foo".to_owned(),
             data_section: DataSection::ReadWrite(DataTypeValuePair {
-                data_type: MemoryDataType::Bytes(None),
+                data_type: DefineDataType::Bytes(None),
                 value: DataValue::String("world".to_owned()),
             }),
         };
@@ -790,7 +776,7 @@ mod tests {
         let node3 = DataNode {
             is_public: false,
             name: "got".to_owned(),
-            data_section: DataSection::Uninit(FixedMemoryDataType::FixedBytes(1024, None)),
+            data_section: DataSection::Uninit(FixedDefineDataType::FixedBytes(1024, None)),
         };
 
         assert_eq!(print(&node3), "uninit data got:byte[1024]");
@@ -799,7 +785,7 @@ mod tests {
         let node4 = DataNode {
             is_public: false,
             name: "foo".to_owned(),
-            data_section: DataSection::Uninit(FixedMemoryDataType::FixedBytes(1024, Some(8))),
+            data_section: DataSection::Uninit(FixedDefineDataType::FixedBytes(1024, Some(8))),
         };
 
         assert_eq!(print(&node4), "uninit data foo:byte[1024, align=8]");
@@ -809,7 +795,7 @@ mod tests {
             is_public: false,
             name: "bar".to_owned(),
             data_section: DataSection::ReadWrite(DataTypeValuePair {
-                data_type: MemoryDataType::Bytes(Some(4)),
+                data_type: DefineDataType::Bytes(Some(4)),
                 value: DataValue::List(vec![
                     DataValue::I8(11),
                     DataValue::I16(13),
@@ -945,15 +931,15 @@ pub fn add(left:i32, right:i32) -> i32 {
             locals: vec![
                 LocalVariable {
                     name: "foo".to_owned(),
-                    data_type: FixedMemoryDataType::I32,
+                    data_type: FixedDefineDataType::I32,
                 },
                 LocalVariable {
                     name: "bar".to_owned(),
-                    data_type: FixedMemoryDataType::FixedBytes(8, None),
+                    data_type: FixedDefineDataType::FixedBytes(8, None),
                 },
                 LocalVariable {
                     name: "baz".to_owned(),
-                    data_type: FixedMemoryDataType::FixedBytes(24, Some(4)),
+                    data_type: FixedDefineDataType::FixedBytes(24, Some(4)),
                 },
             ],
             body: ExpressionNode::Instruction(InstructionNode {
@@ -1200,15 +1186,15 @@ fn foo() -> () {
                 locals: vec![
                     LocalVariable {
                         name: "foo".to_owned(),
-                        data_type: FixedMemoryDataType::I32,
+                        data_type: FixedDefineDataType::I32,
                     },
                     LocalVariable {
                         name: "bar".to_owned(),
-                        data_type: FixedMemoryDataType::FixedBytes(8, None),
+                        data_type: FixedDefineDataType::FixedBytes(8, None),
                     },
                     LocalVariable {
                         name: "baz".to_owned(),
-                        data_type: FixedMemoryDataType::FixedBytes(24, Some(4)),
+                        data_type: FixedDefineDataType::FixedBytes(24, Some(4)),
                     },
                 ],
                 consequence: Box::new(ExpressionNode::Instruction(InstructionNode {
@@ -1507,11 +1493,11 @@ fn foo() -> () {
                 locals: vec![
                     LocalVariable {
                         name: "abc".to_owned(),
-                        data_type: FixedMemoryDataType::I32,
+                        data_type: FixedDefineDataType::I32,
                     },
                     LocalVariable {
                         name: "def".to_owned(),
-                        data_type: FixedMemoryDataType::FixedBytes(32, None),
+                        data_type: FixedDefineDataType::FixedBytes(32, None),
                     },
                 ],
                 body: Box::new(ExpressionNode::Instruction(InstructionNode {
@@ -1544,7 +1530,7 @@ fn foo() -> () {
                 returns: vec![],
                 locals: vec![LocalVariable {
                     name: "temp".to_owned(),
-                    data_type: FixedMemoryDataType::I32,
+                    data_type: FixedDefineDataType::I32,
                 }],
                 body: Box::new(ExpressionNode::Group(vec![
                     ExpressionNode::Instruction(InstructionNode {
@@ -1811,17 +1797,17 @@ fn foo() -> () {
                 },
             ],
             externals: vec![
-                ExternalNode::Function(ExternalFunction {
+                ExternalNode::Function(ExternalFunctionNode {
                     library: "liba".to_owned(),
                     name: "abc".to_owned(),
                     params: vec![FunctionDataType::I32, FunctionDataType::I64],
                     return_: Some(FunctionDataType::I64),
                     alias_name: None,
                 }),
-                ExternalNode::Data(ExternalData {
+                ExternalNode::Data(ExternalDataNode {
                     library: "libb".to_owned(),
                     name: "def".to_owned(),
-                    data_type: MemoryDataType::I32,
+                    data_type: DefineDataType::I32,
                     alias_name: Some("xyz".to_owned()),
                 }),
             ],
@@ -1830,7 +1816,7 @@ fn foo() -> () {
                     is_public: false,
                     name: "count".to_owned(),
                     data_section: DataSection::ReadWrite(DataTypeValuePair {
-                        data_type: MemoryDataType::I32,
+                        data_type: DefineDataType::I32,
                         value: DataValue::I32(37),
                     }),
                 },
@@ -1838,7 +1824,7 @@ fn foo() -> () {
                     is_public: true,
                     name: "plt".to_owned(),
                     data_section: DataSection::ReadOnly(DataTypeValuePair {
-                        data_type: MemoryDataType::FixedBytes(128, Some(8)),
+                        data_type: DefineDataType::FixedBytes(128, Some(8)),
                         value: DataValue::List(vec![
                             DataValue::I8(41),
                             DataValue::I8(43),
@@ -1877,7 +1863,7 @@ fn foo() -> () {
                     returns: vec![FunctionDataType::I32],
                     locals: vec![LocalVariable {
                         name: "temp".to_owned(),
-                        data_type: FixedMemoryDataType::I32,
+                        data_type: FixedDefineDataType::I32,
                     }],
                     body: ExpressionNode::Instruction(InstructionNode {
                         name: "nop".to_owned(),
@@ -1890,7 +1876,8 @@ fn foo() -> () {
 
         assert_eq!(
             print_to_string(&node),
-            "use foo::bar
+            "\
+use foo::bar
 use foo::bar::baz as Baz
 
 external fn liba::abc(i32, i64) -> i64

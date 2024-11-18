@@ -3,9 +3,17 @@
 version = 3
 
 [[package]]
-name = "anc-parser-asm"
-version = "0.1.0"
+name = "anc-isa"
+version = "0.1.1"
 dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "anc-parser-asm"
+version = "0.1.1"
+dependencies = [
+ "anc-isa",
  "ason",
  "hexfloat2",
  "pretty_assertions",
