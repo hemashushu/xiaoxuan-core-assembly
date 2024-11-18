@@ -8,8 +8,22 @@ use std::fmt::Display;
 
 #[derive(Debug, PartialEq)]
 pub struct ModuleNode {
-    // e.g. "network", "network::http", "network::http::client"
+
+    // sub-module name path.
+    //
+    // it is a path relative to the module, it equivalents to the 'namespace'.
+    //
+    // e.g.
+    // | full name path          | name path      |
+    // |-------------------------|----------------|
+    // | "network"               | ""             |
+    // | "network::http"         | "http"         |
+    // | "network::http::client" | "http::client" |
+    //
+    // the root sub-module, such as 'app.anc' and 'lib.anc' has
+    // the empty ("") name path.
     pub name_path: String,
+
     pub uses: Vec<UseNode>,
     pub externals: Vec<ExternalNode>,
     pub datas: Vec<DataNode>,

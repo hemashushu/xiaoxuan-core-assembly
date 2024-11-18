@@ -6,16 +6,18 @@
 
 use std::fmt::Display;
 
-pub mod ast;
 mod charposition;
 mod error;
 mod errorprinter;
 mod lexer;
 mod location;
+mod normalizer;
 mod peekableiter;
 mod token;
+
+pub mod ast;
+pub mod parser;
 pub mod printer;
-// pub mod parser;
 
 pub const NAME_PATH_SEPARATOR: &str = "::";
 
