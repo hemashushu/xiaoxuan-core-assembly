@@ -7,13 +7,16 @@
 use anc_isa::DataSectionType;
 
 use crate::{
-    ast::{DataNode, ExternalNode, FunctionNode, ModuleNode, UseNode},
+    ast::{
+        DataNode, DeclareDataType, ExternalDataNode, ExternalDataType, ExternalFunctionNode,
+        ExternalNode, FunctionDataType, FunctionNode, ModuleNode, UseNode,
+    },
     error::Error,
     lexer::lex_from_str,
     location::Location,
     normalizer::{clean, normalize},
     peekableiter::PeekableIter,
-    token::{Token, TokenWithRange},
+    token::{NumberToken, Token, TokenWithRange},
 };
 
 pub const PARSER_PEEK_TOKEN_MAX_COUNT: usize = 4;
@@ -87,6 +90,20 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn consume_new_line_or_eof(&mut self) -> Result<(), Error> {
+        match self.peek_token(0) {
+            Some(Token::NewLine) => {
+                self.next_token();
+                Ok(())
+            }
+            Some(_) => Err(Error::MessageWithLocation(
+                "Expect a new-line.".to_owned(),
+                self.peek_range(0).unwrap().get_position_by_range_start(),
+            )),
+            None => Ok(()),
+        }
+    }
+
     fn consume_new_line_or_comma(&mut self) -> Result<(), Error> {
         match self.peek_token(0) {
             Some(Token::NewLine | Token::Comma) => {
@@ -102,23 +119,6 @@ impl<'a> Parser<'a> {
             )),
         }
     }
-
-    //     fn consume_identifier(&mut self) -> Result<String, Error> {
-    //         match self.peek_token(0) {
-    //             Some(Token::Identifier(s)) => {
-    //                 let id = s.to_owned();
-    //                 self.next_token();
-    //                 Ok(id)
-    //             }
-    //             Some(_) => Err(Error::MessageWithLocation(
-    //                 "Expect an identifier.".to_owned(),
-    //                 self.last_range.get_position_by_range_start(),
-    //             )),
-    //             None => Err(Error::UnexpectedEndOfDocument(
-    //                 "Expect an identifier.".to_owned(),
-    //             )),
-    //         }
-    //     }
 
     fn consume_token(
         &mut self,
@@ -165,6 +165,49 @@ impl<'a> Parser<'a> {
             )),
             None => Err(Error::UnexpectedEndOfDocument("Expect a name.".to_owned())),
         }
+    }
+
+    fn consume_number_i32(&mut self) -> Result<u32, Error> {
+        match self.next_token() {
+            Some(Token::Number(NumberToken::I32(n))) => Ok(n),
+            Some(_) => Err(Error::MessageWithLocation(
+                "Expect an i32 number.".to_owned(),
+                self.last_range.get_position_by_range_start(),
+            )),
+            None => Err(Error::UnexpectedEndOfDocument(
+                "Expect an i32 number.".to_owned(),
+            )),
+        }
+    }
+
+    // '('
+    fn consume_left_paren(&mut self) -> Result<(), Error> {
+        self.consume_token(&Token::LeftParen, "left parenthese")
+    }
+
+    // ')'
+    fn consume_right_paren(&mut self) -> Result<(), Error> {
+        self.consume_token(&Token::RightParen, "right parenthese")
+    }
+
+    // '['
+    fn consume_left_bracket(&mut self) -> Result<(), Error> {
+        self.consume_token(&Token::LeftBracket, "left bracket")
+    }
+
+    // ']'
+    fn consume_right_bracket(&mut self) -> Result<(), Error> {
+        self.consume_token(&Token::RightBracket, "right parenthese")
+    }
+
+    // '='
+    fn consume_equal(&mut self) -> Result<(), Error> {
+        self.consume_token(&Token::Equal, "equal sign")
+    }
+
+    // ':'
+    fn consume_colon(&mut self) -> Result<(), Error> {
+        self.consume_token(&Token::Colon, "colon sign")
     }
 }
 
@@ -249,10 +292,10 @@ impl<'a> Parser<'a> {
 
         let module_node = ModuleNode {
             name_path: name_path.to_owned(),
-            uses: vec![],
-            externals: vec![],
-            datas: vec![],
-            functions: vec![],
+            uses,
+            externals,
+            datas,
+            functions,
         };
 
         Ok(module_node)
@@ -278,14 +321,264 @@ impl<'a> Parser<'a> {
             None
         };
 
-        Ok(UseNode {
+        // consume trail new line
+        self.consume_new_line_or_eof()?;
+
+        let node = UseNode {
             name_path,
             alias_name,
-        })
+        };
+        Ok(node)
     }
 
     fn parse_external_node(&mut self) -> Result<ExternalNode, Error> {
-        todo!()
+        // external {fn|data} ... ?  //
+        // ^                      ^__// to here
+        // |-------------------------// current token, validated
+
+        self.next_token(); // consume 'external'
+
+        match self.peek_token(0) {
+            Some(Token::Keyword(n)) if n == "fn" => {
+                // external fn ...
+                let function_node = self.parse_external_function_node()?;
+                Ok(ExternalNode::Function(function_node))
+            }
+            Some(Token::Keyword(n)) if n == "data" => {
+                // external data ...
+                let data_node = self.parse_external_data_node()?;
+                Ok(ExternalNode::Data(data_node))
+            }
+            Some(_) => {
+                return Err(Error::MessageWithLocation(
+                    "Expect external \"fn\" or \"data\".".to_owned(),
+                    self.peek_range(0).unwrap().get_position_by_range_start(),
+                ))
+            }
+            None => {
+                return Err(Error::UnexpectedEndOfDocument(
+                    "Expect external \"fn\" or \"data\".".to_owned(),
+                ))
+            }
+        }
+    }
+
+    fn parse_external_function_node(&mut self) -> Result<ExternalFunctionNode, Error> {
+        // fn name_path ()->() [as ...] ?  //
+        // ^                            ^__// to here
+        // |-------------------------------// current token, validated
+
+        self.next_token(); // consume 'fn'
+        self.consume_new_line_if_exist();
+
+        let name_path = self.consume_name_path()?;
+
+        // parse the parameters
+
+        self.consume_left_paren()?; // consume '('
+        self.consume_new_line_if_exist();
+
+        let mut params: Vec<FunctionDataType> = vec![];
+        while let Some(token) = self.peek_token(0) {
+            if token == &Token::RightParen {
+                break;
+            }
+
+            let data_type = self.continue_parse_function_data_type()?;
+            params.push(data_type);
+
+            let found_sep = self.consume_new_line_or_comma_if_exist();
+            if !found_sep {
+                break;
+            }
+        }
+
+        self.consume_right_paren()?; // consume ')'
+
+        // parse the return data type
+
+        let return_: Option<FunctionDataType> = if self.expect_token(0, &Token::RightArrow) {
+            self.next_token(); // consume '->'
+            self.consume_new_line_if_exist();
+
+            if self.expect_token(0, &Token::LeftParen) {
+                self.next_token(); // consume '('
+                self.consume_right_paren()?; // consume ')'
+                None
+            } else {
+                let data_type = self.continue_parse_function_data_type()?;
+                Some(data_type)
+            }
+        } else {
+            None
+        };
+
+        // parse the 'as' part
+        let alias_name = if self.expect_keyword(0, "as") {
+            self.next_token(); // consume 'as'
+            self.consume_new_line_if_exist();
+
+            let name = self.consume_name()?;
+            Some(name)
+        } else {
+            None
+        };
+
+        // consume trail new line
+        self.consume_new_line_or_eof()?;
+
+        let node = ExternalFunctionNode {
+            name_path,
+            params,
+            return_,
+            alias_name,
+        };
+
+        Ok(node)
+    }
+
+    fn continue_parse_function_data_type(&mut self) -> Result<FunctionDataType, Error> {
+        // i32 ?  //
+        // ^   ^__// to here
+        // |------// current token, validated
+        //
+        // also:
+        // i64, f32, f64
+
+        let token = self.peek_token(0).unwrap();
+        let data_type = match token {
+            // the name of data type.
+            // e.g. "i64", "i32", "byte"
+            // it does not include the type details, such as
+            // the length and alignment of byte, e.g. "byte[1024, align=8]".
+            Token::DataTypeName(dt) => {
+                match dt.as_str() {
+                    "i64" => {
+                        self.next_token(); // consume i64
+                        FunctionDataType::I64
+                    }
+                    "i32" => {
+                        self.next_token(); // consume i32
+                        FunctionDataType::I32
+                    }
+                    "f64" => {
+                        self.next_token(); // consume f64
+                        FunctionDataType::F64
+                    }
+                    "f32" => {
+                        self.next_token(); // consume f32
+                        FunctionDataType::F32
+                    }
+                    _ => {
+                        return Err(Error::MessageWithLocation(
+                            "Unsupported data type for function parameters.".to_owned(),
+                            self.peek_range(0).unwrap().get_position_by_range_start(),
+                        ));
+                    }
+                }
+            }
+            _ => {
+                return Err(Error::MessageWithLocation(
+                    "Expect a data type".to_owned(),
+                    self.peek_range(0).unwrap().get_position_by_range_start(),
+                ));
+            }
+        };
+
+        Ok(data_type)
+    }
+
+    fn parse_external_data_node(&mut self) -> Result<ExternalDataNode, Error> {
+        // data name_path:data_type [as ...] ?  //
+        // ^                                 ^__// to here
+        // |------------------------------------// current token, validated
+        self.next_token(); // consume 'data'
+        self.consume_new_line_if_exist();
+
+        let name_path = self.consume_name_path()?;
+
+        self.consume_colon()?; // consume ':'
+        self.consume_new_line_if_exist();
+
+        let data_type = self.continue_parse_external_data_type()?;
+
+        let alias_name = if self.expect_keyword(0, "as") {
+            self.next_token(); // consume 'as'
+            self.consume_new_line_if_exist();
+
+            let name = self.consume_name()?;
+            Some(name)
+        } else {
+            None
+        };
+
+        self.consume_new_line_or_eof()?;
+
+        let node = ExternalDataNode {
+            name_path,
+            data_type,
+            alias_name,
+        };
+
+        Ok(node)
+    }
+
+    fn continue_parse_external_data_type(&mut self) -> Result<ExternalDataType, Error> {
+        // i32 ?  //
+        // ^   ^__// to here
+        // |------// current token, validated
+        //
+        // also:
+        // - i64, f32, f64, byte[]
+
+        let token = self.peek_token(0).unwrap();
+        let data_type = match token {
+            // the name of data type.
+            // e.g. "i64", "i32", "byte"
+            // it does not include the type details, such as
+            // the length and alignment of byte, e.g. "byte[1024, align=8]".
+            Token::DataTypeName(dt) => {
+                match dt.as_str() {
+                    "i64" => {
+                        self.next_token(); // consume i64
+                        ExternalDataType::I64
+                    }
+                    "i32" => {
+                        self.next_token(); // consume i32
+                        ExternalDataType::I32
+                    }
+                    "f64" => {
+                        self.next_token(); // consume f64
+                        ExternalDataType::F64
+                    }
+                    "f32" => {
+                        self.next_token(); // consume f32
+                        ExternalDataType::F32
+                    }
+                    "byte" => {
+                        self.next_token(); // consume 'byte'
+                        self.consume_left_bracket()?; // consule '['
+                        self.consume_right_bracket()?;
+
+                        ExternalDataType::Bytes
+                    }
+                    _ => {
+                        return Err(Error::MessageWithLocation(
+                            "Unsupported data type for external data.".to_owned(),
+                            self.peek_range(0).unwrap().get_position_by_range_start(),
+                        ));
+                    }
+                }
+            }
+            _ => {
+                return Err(Error::MessageWithLocation(
+                    "Expect a data type".to_owned(),
+                    self.peek_range(0).unwrap().get_position_by_range_start(),
+                ));
+            }
+        };
+
+        Ok(data_type)
     }
 
     fn parse_data_node(
@@ -294,6 +587,106 @@ impl<'a> Parser<'a> {
         data_section_type: DataSectionType,
     ) -> Result<DataNode, Error> {
         todo!()
+    }
+
+    fn continue_parse_declare_data_type(&mut self) -> Result<DeclareDataType, Error> {
+        // i32 ?  //
+        // ^   ^__// to here
+        // |------// current token, validated
+        //
+        // also:
+        // - i64, f32, f64
+        // - byte[], byte[1024]
+        // - byte[align=4], byte[1024, align=8]
+
+        let token = self.peek_token(0).unwrap();
+        let data_type = match token {
+            // the name of data type.
+            // e.g. "i64", "i32", "byte"
+            // it does not include the type details, such as
+            // the length and alignment of byte, e.g. "byte[1024, align=8]".
+            Token::DataTypeName(dt) => {
+                match dt.as_str() {
+                    "i64" => {
+                        self.next_token(); // consume i64
+                        DeclareDataType::I64
+                    }
+                    "i32" => {
+                        self.next_token(); // consume i32
+                        DeclareDataType::I32
+                    }
+                    "f64" => {
+                        self.next_token(); // consume f64
+                        DeclareDataType::F64
+                    }
+                    "f32" => {
+                        self.next_token(); // consume f32
+                        DeclareDataType::F32
+                    }
+                    "byte" => {
+                        self.next_token(); // consume 'byte'
+                        self.consume_left_bracket()?; // consule '['
+                        self.consume_new_line_if_exist();
+
+                        if matches!(self.peek_token(0), Some(Token::Number(_))) {
+                            // fixed size byte array
+
+                            let length = self.consume_number_i32()? as usize; // consume i32
+
+                            let found_sep = self.consume_new_line_or_comma_if_exist();
+                            let align = if found_sep && self.expect_keyword(0, "align") {
+                                self.next_token(); // consume 'align'
+                                self.consume_equal()?; // consume '='
+                                self.consume_new_line_if_exist();
+
+                                let align = self.consume_number_i32()? as usize; // consume i32
+                                self.consume_new_line_if_exist();
+
+                                Some(align)
+                            } else {
+                                None
+                            };
+
+                            self.consume_right_bracket()?; //  consume ']'
+
+                            DeclareDataType::FixedBytes(length, align)
+                        } else if self.expect_keyword(0, "align") {
+                            // variable size byte array
+                            self.next_token(); // consume 'align'
+                            self.consume_equal()?; // consume '='
+                            self.consume_new_line_if_exist();
+
+                            let align = self.consume_number_i32()? as usize; // consume i32
+                            self.consume_new_line_if_exist();
+
+                            self.consume_right_bracket()?; //  consume ']'
+
+                            DeclareDataType::Bytes(Some(align))
+                        } else {
+                            // variable size byte array
+
+                            self.consume_right_bracket()?; //  consume ']'
+
+                            DeclareDataType::Bytes(None)
+                        }
+                    }
+                    _ => {
+                        return Err(Error::MessageWithLocation(
+                            "Unsupported data type for data.".to_owned(),
+                            self.peek_range(0).unwrap().get_position_by_range_start(),
+                        ));
+                    }
+                }
+            }
+            _ => {
+                return Err(Error::MessageWithLocation(
+                    "Expect a data type".to_owned(),
+                    self.peek_range(0).unwrap().get_position_by_range_start(),
+                ));
+            }
+        };
+
+        Ok(data_type)
     }
 
     fn parse_fn_node(&mut self, is_public: bool) -> Result<FunctionNode, Error> {
@@ -326,7 +719,127 @@ mod tests {
 
     #[test]
     fn test_parse_use_statement() {
+        assert_eq!(format("use std::memory::copy"), "use std::memory::copy\n\n");
 
+        // test 'as'
+        assert_eq!(
+            format("use parent::sub_sub_module::some_data as other_data"),
+            "use parent::sub_sub_module::some_data as other_data\n\n"
+        );
+
+        // test line break
+        assert_eq!(
+            format(
+                "use
+std::memory::copy as
+mem_copy"
+            ),
+            "use std::memory::copy as mem_copy\n\n"
+        );
+
+        // test multiple items
+        assert_eq!(
+            format(
+                "use module::sub_module::some_func
+use self::sub_module::some_func"
+            ),
+            "use module::sub_module::some_func
+use self::sub_module::some_func\n\n"
+        );
+    }
+
+    #[test]
+    fn test_parse_external_fn_statement() {
+        assert_eq!(
+            format("external fn libfoo::bar()->()"),
+            "external fn libfoo::bar() -> ()\n\n"
+        );
+
+        // test omit 'return'
+        assert_eq!(
+            format("external fn libfoo::bar()"),
+            "external fn libfoo::bar() -> ()\n\n"
+        );
+
+        // test with params
+        assert_eq!(
+            format("external fn libfoo::add(i32,i32)->i32"),
+            "external fn libfoo::add(i32, i32) -> i32\n\n"
+        );
+
+        // test 'as'
+        assert_eq!(
+            format("external fn libfoo::bar() as baz"),
+            "external fn libfoo::bar() -> () as baz\n\n"
+        );
+
+        assert_eq!(
+            format("external fn libfoo::add(i32,i32)->i32 as add_i32"),
+            "external fn libfoo::add(i32, i32) -> i32 as add_i32\n\n"
+        );
+
+        // test line break
+        assert_eq!(
+            format(
+                "external fn
+libfoo::add(
+i32
+i32
+)->
+i32 as
+add_i32"
+            ),
+            "external fn libfoo::add(i32, i32) -> i32 as add_i32\n\n"
+        );
+
+        // test multiple items
+        assert_eq!(
+            format(
+                "external fn libfoo::bar()
+external fn libfoo::add(i32,i32)->i32"
+            ),
+            "external fn libfoo::bar() -> ()
+external fn libfoo::add(i32, i32) -> i32\n\n"
+        );
+    }
+
+    #[test]
+    fn test_parse_external_data_statement() {
+        assert_eq!(
+            format("external data libfoo::PI:f32"),
+            "external data libfoo::PI:f32\n\n"
+        );
+
+        // test 'as'
+        assert_eq!(
+            format("external data libfoo::bar:byte[] as baz"),
+            "external data libfoo::bar:byte[] as baz\n\n"
+        );
+
+        // test line break
+        assert_eq!(
+            format(
+                "external data
+libfoo::bar :
+byte[] as
+baz"
+            ),
+            "external data libfoo::bar:byte[] as baz\n\n"
+        );
+
+        // test multiple items
+        assert_eq!(
+            format(
+                "external data libfoo::PI:f32
+external data libfoo::bar:byte[] as baz"
+            ),
+            "external data libfoo::PI:f32
+external data libfoo::bar:byte[] as baz\n\n"
+        );
+    }
+
+    #[test]
+    fn test_parse_data_statement() {
         // todo
     }
 }

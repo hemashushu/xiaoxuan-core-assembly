@@ -53,7 +53,11 @@ external fn libfoo::add(i32, i32) -> i32 as i32_add
 external data libfoo::PI:f32 as CONST_PI
 ```
 
-## Defining Data
+The possible data types of function's parameters and return value are: `i64`, `i32`, `f64` and `f32`. For external data, in addition to the previous, there are `byte[]`, which means that the target data can be arbitrary.
+
+> Note: XiaoXuan Core VM does not yet support external data.
+
+## Data Definitions
 
 To define data, use the `data` keyword:
 
@@ -81,7 +85,12 @@ pub readonly data bar2:byte[] = ["Hello, World!", 0_u8]
 
 ```
 
-## Defining Functions
+The `byte` type can also be specified alignment, e.g.:
+
+- `byte[1024, align=8]`
+- `byte[align=4]`
+
+## Function Definitions
 
 To define functions, use the `fn` keyword:
 
@@ -106,3 +115,33 @@ pub fn handle(number:i32)
     ...
 }
 ```
+
+## Line break rules for source code
+
+**1. A statement or expression must be followed by a newline.**
+
+todo:: examples
+
+**2. Line breaks are allowed after symbols indicating the beginning of a block, such as `(`, `{` and `[`.**
+
+todo:: examples
+
+**3. Line breaks are allowed after symbols indicating that more content will follow, such as `->`, `=`, and `:`.**
+
+todo:: examples
+
+**4. Commas (`,`) can be replaced with newlines for separating content.**
+
+todo:: examples
+
+Note that both commas and new lines can be used together.
+
+todo:: examples
+
+**5. Line breaks are allowed after keywords indicating that specific content will follow, such as `fn`, `data`, and `use`.**
+
+todo:: examples
+
+**6. Newlines cannot be placed after modifier keywords, such as `pub`, `external`, and `readonly`.**
+
+todo:: examples

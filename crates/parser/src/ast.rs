@@ -8,7 +8,6 @@ use std::fmt::Display;
 
 #[derive(Debug, PartialEq)]
 pub struct ModuleNode {
-
     // sub-module name path.
     //
     // it is a path relative to the module, it equivalents to the 'namespace'.
@@ -89,8 +88,9 @@ pub enum ExternalNode {
 
 #[derive(Debug, PartialEq)]
 pub struct ExternalFunctionNode {
-    pub library: String,
-    pub name: String,
+    // pub library: String,
+    // pub name: String,
+    pub name_path: String,
     pub params: Vec<FunctionDataType>,
     pub return_: Option<FunctionDataType>,
     pub alias_name: Option<String>,
@@ -106,10 +106,23 @@ pub enum FunctionDataType {
 
 #[derive(Debug, PartialEq)]
 pub struct ExternalDataNode {
-    pub library: String,
-    pub name: String,
-    pub data_type: DefineDataType,
+    // pub library: String,
+    // pub name: String,
+    pub name_path: String,
+    pub data_type: ExternalDataType,
     pub alias_name: Option<String>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ExternalDataType {
+    I64,
+    I32,
+    F64,
+    F32,
+
+    // i.e. `byte[]`, which means that
+    // the target data can be arbitrary.
+    Bytes,
 }
 
 // #[derive(Debug, PartialEq)]
@@ -141,17 +154,17 @@ pub struct DataNode {
 pub enum DataSection {
     ReadOnly(DataTypeValuePair),
     ReadWrite(DataTypeValuePair),
-    Uninit(FixedDefineDataType),
+    Uninit(FixedDeclareDataType),
 }
 
 #[derive(Debug, PartialEq)]
 pub struct DataTypeValuePair {
-    pub data_type: DefineDataType,
+    pub data_type: DeclareDataType,
     pub value: DataValue,
 }
 
 #[derive(Debug, PartialEq)]
-pub enum DefineDataType {
+pub enum DeclareDataType {
     I64,
     I32,
     F64,
@@ -198,11 +211,11 @@ pub struct NamedParameter {
 #[derive(Debug, PartialEq)]
 pub struct LocalVariable {
     pub name: String,
-    pub data_type: FixedDefineDataType,
+    pub data_type: FixedDeclareDataType,
 }
 
 #[derive(Debug, PartialEq)]
-pub enum FixedDefineDataType {
+pub enum FixedDeclareDataType {
     I64,
     I32,
     F64,
@@ -721,21 +734,33 @@ impl Display for FunctionDataType {
     }
 }
 
-impl Display for DefineDataType {
+impl Display for ExternalDataType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DefineDataType::I64 => f.write_str("i64"),
-            DefineDataType::I32 => f.write_str("i32"),
-            DefineDataType::F64 => f.write_str("f64"),
-            DefineDataType::F32 => f.write_str("f32"),
-            DefineDataType::Bytes(opt_align) => {
+            ExternalDataType::I64 => f.write_str("i64"),
+            ExternalDataType::I32 => f.write_str("i32"),
+            ExternalDataType::F64 => f.write_str("f64"),
+            ExternalDataType::F32 => f.write_str("f32"),
+            ExternalDataType::Bytes => f.write_str("byte[]"),
+        }
+    }
+}
+
+impl Display for DeclareDataType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DeclareDataType::I64 => f.write_str("i64"),
+            DeclareDataType::I32 => f.write_str("i32"),
+            DeclareDataType::F64 => f.write_str("f64"),
+            DeclareDataType::F32 => f.write_str("f32"),
+            DeclareDataType::Bytes(opt_align) => {
                 if let Some(align) = opt_align {
                     write!(f, "byte[align={}]", align)
                 } else {
                     f.write_str("byte[]")
                 }
             }
-            DefineDataType::FixedBytes(length, opt_align) => {
+            DeclareDataType::FixedBytes(length, opt_align) => {
                 if let Some(align) = opt_align {
                     write!(f, "byte[{}, align={}]", length, align)
                 } else {
@@ -746,14 +771,14 @@ impl Display for DefineDataType {
     }
 }
 
-impl Display for FixedDefineDataType {
+impl Display for FixedDeclareDataType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            FixedDefineDataType::I64 => f.write_str("i64"),
-            FixedDefineDataType::I32 => f.write_str("i32"),
-            FixedDefineDataType::F64 => f.write_str("f64"),
-            FixedDefineDataType::F32 => f.write_str("f32"),
-            FixedDefineDataType::FixedBytes(length, opt_align) => {
+            FixedDeclareDataType::I64 => f.write_str("i64"),
+            FixedDeclareDataType::I32 => f.write_str("i32"),
+            FixedDeclareDataType::F64 => f.write_str("f64"),
+            FixedDeclareDataType::F32 => f.write_str("f32"),
+            FixedDeclareDataType::FixedBytes(length, opt_align) => {
                 if let Some(align) = opt_align {
                     write!(f, "byte[{}, align={}]", length, align)
                 } else {

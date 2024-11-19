@@ -150,7 +150,7 @@ impl<'a> Lexer<'a> {
                     self.next_char(); // consume '>'
 
                     token_with_ranges.push(TokenWithRange::from_position_and_length(
-                        Token::Arrow,
+                        Token::RightArrow,
                         &self.pop_saved_position(),
                         2,
                     ));
@@ -385,7 +385,7 @@ impl<'a> Lexer<'a> {
                 "use" | "as" | "external" | "fn" | "data" | "pub" | "readonly" | "uninit" => {
                     Token::Keyword(name_string)
                 }
-                "i64" | "i32" | "f64" | "f32" | "byte" => Token::DataType(name_string),
+                "i64" | "i32" | "f64" | "f32" | "byte" => Token::DataTypeName(name_string),
                 _ => Token::Name(name_string),
             }
         };
@@ -1876,8 +1876,8 @@ mod tests {
             Token::Keyword(s.to_owned())
         }
 
-        pub fn new_datatype(s: &str) -> Self {
-            Token::DataType(s.to_owned())
+        pub fn new_datatype_name(s: &str) -> Self {
+            Token::DataTypeName(s.to_owned())
         }
 
         pub fn new_string(s: &str) -> Self {
@@ -1965,7 +1965,7 @@ mod tests {
                 Token::Comma,
                 Token::Colon,
                 Token::Equal,
-                Token::Arrow,
+                Token::RightArrow,
                 Token::Plus,
                 Token::Minus,
                 Token::LeftBrace,
@@ -1988,7 +1988,7 @@ mod tests {
                     1
                 ),
                 TokenWithRange::from_position_and_length(
-                    Token::Arrow,
+                    Token::RightArrow,
                     &Location::new_position(0, 1, 0, 1),
                     2
                 ),
@@ -2119,11 +2119,11 @@ mod tests {
         assert_eq!(
             lex_from_str_without_location("i64 i32 f64 f32 byte").unwrap(),
             vec![
-                Token::new_datatype("i64"),
-                Token::new_datatype("i32"),
-                Token::new_datatype("f64"),
-                Token::new_datatype("f32"),
-                Token::new_datatype("byte"),
+                Token::new_datatype_name("i64"),
+                Token::new_datatype_name("i32"),
+                Token::new_datatype_name("f64"),
+                Token::new_datatype_name("f32"),
+                Token::new_datatype_name("byte"),
             ]
         );
 
@@ -2147,7 +2147,7 @@ mod tests {
                     1
                 ),
                 TokenWithRange::from_position_and_length(
-                    Token::new_datatype("i32"),
+                    Token::new_datatype_name("i32"),
                     &Location::new_position(0, 9, 0, 9),
                     3
                 ),

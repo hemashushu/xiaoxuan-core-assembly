@@ -87,11 +87,11 @@ impl Location {
     }
 
     /// Convert Range to Position
-    pub fn get_position_by_range_end(&self) -> Self {
-        let index = self.index + self.length;
-        let column = self.column + self.length;
-        Self::new_position(self.unit, index, self.line, column)
-    }
+    // pub fn get_position_by_range_end(&self) -> Self {
+    //     let index = self.index + self.length;
+    //     let column = self.column + self.length;
+    //     Self::new_position(self.unit, index, self.line, column)
+    // }
 
     pub fn move_position_forward(&self) -> Self {
         Self {

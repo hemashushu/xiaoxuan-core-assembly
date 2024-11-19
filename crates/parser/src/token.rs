@@ -23,7 +23,7 @@ pub enum Token {
     Equal,
 
     // "->"
-    Arrow,
+    RightArrow,
 
     // `+`, for positive numbers
     Plus,
@@ -43,18 +43,25 @@ pub enum Token {
     // )
     RightParen,
 
-    // [a-zA-Z0-9_] and '\u{a0}' - '\u{d7ff}' and '\u{e000}' - '\u{10ffff}'
-    // used for object field/key name
+    // [a-zA-Z0-9_] and '\u{a0}' - '\u{d7ff}' and '\u{e000}' - '\u{10ffff}' and "::"
+    // e.g. "std::memory::copy"
     NamePath(String),
+
+    // [a-zA-Z0-9_] and '\u{a0}' - '\u{d7ff}' and '\u{e000}' - '\u{10ffff}'
+    // e.g. "foo", "bar", "data0", "data_"
     Name(String),
+
+    // e.g. "pub", "data", "readonly", "fn"
     Keyword(String),
-    DataType(String), // e.g. "i64", "i32"
+
+    // the name of data type.
+    // e.g. "i64", "i32", "byte"
+    // it does not include the type details, such as
+    // the length and alignment of byte, e.g. "byte[1024, align=8]".
+    DataTypeName(String),
 
     Number(NumberToken),
-    // Char(char),
     String(String),
-    // ByteData(Vec<u8>),
-
     Comment(Comment),
 }
 
