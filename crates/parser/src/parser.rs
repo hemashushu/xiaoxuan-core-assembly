@@ -8,8 +8,10 @@ use anc_isa::DataSectionType;
 
 use crate::{
     ast::{
-        DataNode, DeclareDataType, ExternalDataNode, ExternalDataType, ExternalFunctionNode,
-        ExternalNode, FunctionDataType, FunctionNode, ModuleNode, UseNode,
+        DataNode, DataSection, DataTypeValuePair, DataValue, DeclareDataType, ExpressionNode,
+        ExternalDataNode, ExternalDataType, ExternalFunctionNode, ExternalNode,
+        FixedDeclareDataType, FunctionDataType, FunctionNode, InstructionNode, LocalVariable,
+        ModuleNode, NamedParameter, UseNode,
     },
     error::Error,
     lexer::lex_from_str,
@@ -197,7 +199,7 @@ impl<'a> Parser<'a> {
 
     // ']'
     fn consume_right_bracket(&mut self) -> Result<(), Error> {
-        self.consume_token(&Token::RightBracket, "right parenthese")
+        self.consume_token(&Token::RightBracket, "right bracket")
     }
 
     // '='
@@ -260,7 +262,7 @@ impl<'a> Parser<'a> {
                         && self.expect_keyword(2, "data") =>
                 {
                     // public {readonly|uninit} data statement
-                    let data_section_type = if keyword == "readonly" {
+                    let data_section_type = if self.expect_keyword(1, "readonly") {
                         DataSectionType::ReadOnly
                     } else {
                         DataSectionType::Uninit
@@ -321,8 +323,7 @@ impl<'a> Parser<'a> {
             None
         };
 
-        // consume trail new line
-        self.consume_new_line_or_eof()?;
+        self.consume_new_line_or_eof()?; // consume '\n'
 
         let node = UseNode {
             name_path,
@@ -424,8 +425,7 @@ impl<'a> Parser<'a> {
             None
         };
 
-        // consume trail new line
-        self.consume_new_line_or_eof()?;
+        self.consume_new_line_or_eof()?; // consume '\n'
 
         let node = ExternalFunctionNode {
             name_path,
@@ -440,7 +440,7 @@ impl<'a> Parser<'a> {
     fn continue_parse_function_data_type(&mut self) -> Result<FunctionDataType, Error> {
         // i32 ?  //
         // ^   ^__// to here
-        // |------// current token, validated
+        // |------// current token, DataTypeName, validated
         //
         // also:
         // i64, f32, f64
@@ -512,7 +512,7 @@ impl<'a> Parser<'a> {
             None
         };
 
-        self.consume_new_line_or_eof()?;
+        self.consume_new_line_or_eof()?; // consume '\n'
 
         let node = ExternalDataNode {
             name_path,
@@ -529,7 +529,8 @@ impl<'a> Parser<'a> {
         // |------// current token, validated
         //
         // also:
-        // - i64, f32, f64, byte[]
+        // - i64, f32, f64
+        // - byte[]
 
         let token = self.peek_token(0).unwrap();
         let data_type = match token {
@@ -586,7 +587,51 @@ impl<'a> Parser<'a> {
         is_public: bool,
         data_section_type: DataSectionType,
     ) -> Result<DataNode, Error> {
-        todo!()
+        // data name:type [= value] ?  //
+        // ^                        ^__// to here
+        // |---------------------------// current token, validated
+
+        self.next_token(); // consume 'data'
+        self.consume_new_line_if_exist();
+
+        let name = self.consume_name()?;
+
+        self.consume_colon()?; // consume ':'
+        self.consume_new_line_if_exist();
+
+        match data_section_type {
+            DataSectionType::ReadOnly | DataSectionType::ReadWrite => {
+                let data_type = self.continue_parse_declare_data_type()?;
+
+                // parse value
+                self.consume_equal()?;
+                self.consume_new_line_if_exist();
+
+                let value = self.continue_parse_data_value()?;
+
+                self.consume_new_line_or_eof()?; // consume '\n'
+
+                Ok(DataNode {
+                    is_public,
+                    name,
+                    data_section: if data_section_type == DataSectionType::ReadOnly {
+                        DataSection::ReadOnly(DataTypeValuePair { data_type, value })
+                    } else {
+                        DataSection::ReadWrite(DataTypeValuePair { data_type, value })
+                    },
+                })
+            }
+            DataSectionType::Uninit => {
+                let data_type = self.continue_parse_fixed_declare_data_type()?;
+                self.consume_new_line_or_eof()?; // consume '\n'
+
+                Ok(DataNode {
+                    is_public,
+                    name,
+                    data_section: DataSection::Uninit(data_type),
+                })
+            }
+        }
     }
 
     fn continue_parse_declare_data_type(&mut self) -> Result<DeclareDataType, Error> {
@@ -596,8 +641,8 @@ impl<'a> Parser<'a> {
         //
         // also:
         // - i64, f32, f64
-        // - byte[], byte[1024]
-        // - byte[align=4], byte[1024, align=8]
+        // - byte[], byte[align=4]
+        // - byte[1024], byte[1024, align=8]
 
         let token = self.peek_token(0).unwrap();
         let data_type = match token {
@@ -630,12 +675,11 @@ impl<'a> Parser<'a> {
 
                         if matches!(self.peek_token(0), Some(Token::Number(_))) {
                             // fixed size byte array
-
                             let length = self.consume_number_i32()? as usize; // consume i32
-
                             let found_sep = self.consume_new_line_or_comma_if_exist();
                             let align = if found_sep && self.expect_keyword(0, "align") {
                                 self.next_token(); // consume 'align'
+
                                 self.consume_equal()?; // consume '='
                                 self.consume_new_line_if_exist();
 
@@ -689,8 +733,321 @@ impl<'a> Parser<'a> {
         Ok(data_type)
     }
 
+    fn continue_parse_fixed_declare_data_type(&mut self) -> Result<FixedDeclareDataType, Error> {
+        // i32 ?  //
+        // ^   ^__// to here
+        // |------// current token, validated
+        //
+        // also:
+        // - i64, f32, f64
+        // - byte[1024], byte[1024, align=8]
+
+        let token = self.peek_token(0).unwrap();
+        let data_type = match token {
+            // the name of data type.
+            // e.g. "i64", "i32", "byte"
+            // it does not include the type details, such as
+            // the length and alignment of byte, e.g. "byte[1024, align=8]".
+            Token::DataTypeName(dt) => {
+                match dt.as_str() {
+                    "i64" => {
+                        self.next_token(); // consume i64
+                        FixedDeclareDataType::I64
+                    }
+                    "i32" => {
+                        self.next_token(); // consume i32
+                        FixedDeclareDataType::I32
+                    }
+                    "f64" => {
+                        self.next_token(); // consume f64
+                        FixedDeclareDataType::F64
+                    }
+                    "f32" => {
+                        self.next_token(); // consume f32
+                        FixedDeclareDataType::F32
+                    }
+                    "byte" => {
+                        self.next_token(); // consume 'byte'
+                        self.consume_left_bracket()?; // consule '['
+                        self.consume_new_line_if_exist();
+
+                        let length = self.consume_number_i32()? as usize; // consume i32
+
+                        let found_sep = self.consume_new_line_or_comma_if_exist();
+                        let align = if found_sep && self.expect_keyword(0, "align") {
+                            self.next_token(); // consume 'align'
+                            self.consume_equal()?; // consume '='
+                            self.consume_new_line_if_exist();
+
+                            let align = self.consume_number_i32()? as usize; // consume i32
+                            self.consume_new_line_if_exist();
+
+                            Some(align)
+                        } else {
+                            None
+                        };
+
+                        self.consume_right_bracket()?; //  consume ']'
+
+                        FixedDeclareDataType::FixedBytes(length, align)
+                    }
+                    _ => {
+                        return Err(Error::MessageWithLocation(
+                            "Unsupported data type for data.".to_owned(),
+                            self.peek_range(0).unwrap().get_position_by_range_start(),
+                        ));
+                    }
+                }
+            }
+            _ => {
+                return Err(Error::MessageWithLocation(
+                    "Expect a data type".to_owned(),
+                    self.peek_range(0).unwrap().get_position_by_range_start(),
+                ));
+            }
+        };
+
+        Ok(data_type)
+    }
+
+    fn continue_parse_data_value(&mut self) -> Result<DataValue, Error> {
+        // 123 ?  //
+        // ^   ^__// to here
+        // |------// current token, validated
+
+        // The possible value of data are:
+        // - Numbers: includes decimal, hexadecimal, binary, float-point, hex float-point.
+        // - Strings: normal string, multiline string, long string, raw string, raw string with hash symbol, auto-trimmed string.
+        // - Hex byte data.
+        // - List. The element of list can be numbers, strings, hex byte data and list.
+
+        if let Some(token) = self.peek_token(0) {
+            let value = match token {
+                Token::Number(number_token) => {
+                    let value_num = match number_token {
+                        NumberToken::I8(v) => DataValue::I8(*v),
+                        NumberToken::I16(v) => DataValue::I16(*v),
+                        NumberToken::I32(v) => DataValue::I32(*v),
+                        NumberToken::I64(v) => DataValue::I64(*v),
+                        NumberToken::F32(v) => DataValue::F32(*v),
+                        NumberToken::F64(v) => DataValue::F64(*v),
+                    };
+                    self.next_token(); // consume number token
+                    value_num
+                }
+                Token::String(s) => {
+                    let value_string = DataValue::String(s.to_owned());
+                    self.next_token(); // consume string token
+                    value_string
+                }
+                Token::HexByteData(d) => {
+                    let value_byte_data = DataValue::ByteData(d.to_owned());
+                    self.next_token(); // consume hex byte data token
+                    value_byte_data
+                }
+                Token::LeftBracket => {
+                    // list
+                    self.next_token(); // consume '['
+                    self.consume_new_line_if_exist();
+
+                    let mut values: Vec<DataValue> = vec![];
+
+                    while let Some(value_token) = self.peek_token(0) {
+                        if value_token == &Token::RightBracket {
+                            break;
+                        }
+
+                        let value_element = self.continue_parse_data_value()?;
+                        values.push(value_element);
+
+                        let found_sep = self.consume_new_line_or_comma_if_exist();
+                        if !found_sep {
+                            break;
+                        }
+                    }
+
+                    self.consume_right_bracket()?; // consume ']'
+
+                    DataValue::List(values)
+                }
+                _ => {
+                    return Err(Error::MessageWithLocation(
+                        "Expect a data value.".to_owned(),
+                        self.peek_range(0).unwrap().get_position_by_range_start(),
+                    ))
+                }
+            };
+
+            Ok(value)
+        } else {
+            Err(Error::UnexpectedEndOfDocument(
+                "Expect a data value.".to_owned(),
+            ))
+        }
+    }
+
     fn parse_fn_node(&mut self, is_public: bool) -> Result<FunctionNode, Error> {
-        todo!()
+        // fn (...) [-> ...] [...] exp ?  //
+        // ^                           ^__// to here
+        // |------------------------------// current token, validated
+
+        self.next_token(); // consume 'fn'
+
+        let name = self.consume_name()?;
+        let params = self.continue_parse_fn_params()?;
+
+        let returns: Vec<FunctionDataType> = if self.expect_token(0, &Token::RightArrow) {
+            self.next_token(); // consume '->'
+            self.consume_new_line_if_exist();
+
+            self.continue_parse_fn_returns()?
+        } else {
+            vec![]
+        };
+
+        self.consume_new_line_if_exist();
+
+        let locals: Vec<LocalVariable> = if self.expect_token(0, &Token::LeftBracket) {
+            self.continue_parse_fn_local_variables()?
+        } else {
+            vec![]
+        };
+
+        self.consume_new_line_if_exist();
+
+        let body = self.parse_expression_node()?;
+
+        self.consume_new_line_or_eof()?;
+
+        let node = FunctionNode {
+            is_public,
+            name,
+            params,
+            returns,
+            locals,
+            body,
+        };
+
+        Ok(node)
+    }
+
+    fn continue_parse_fn_params(&mut self) -> Result<Vec<NamedParameter>, Error> {
+        // (name:type, name:type, ...) ?  //
+        // ^                           ^__// to here
+        // |------------------------------// current token, NOT validated
+
+        self.consume_left_paren()?; // consume '('
+        self.consume_new_line_if_exist();
+
+        let mut params = vec![];
+        while let Some(token) = self.peek_token(0) {
+            if token == &Token::RightParen {
+                break;
+            }
+
+            let name = self.consume_name()?;
+
+            self.consume_colon()?;
+            self.consume_new_line_if_exist();
+
+            let data_type = self.continue_parse_function_data_type()?;
+
+            params.push(NamedParameter { name, data_type });
+
+            let found_sep = self.consume_new_line_or_comma_if_exist();
+            if !found_sep {
+                break;
+            }
+        }
+
+        self.consume_right_paren()?; // consume ')'
+
+        Ok(params)
+    }
+
+    fn continue_parse_fn_returns(&mut self) -> Result<Vec<FunctionDataType>, Error> {
+        // (type, type, ...) ?  //
+        // ^                 ^__// to here
+        // |------- ------------// current token, NOT validated
+        //
+        // also:
+        // - "()"
+        // - "type_name"
+
+        let mut returns = vec![];
+        if self.expect_token(0, &Token::LeftParen) {
+            self.next_token(); // consume '('
+
+            while let Some(token) = self.peek_token(0) {
+                if token == &Token::RightParen {
+                    break;
+                }
+
+                let data_type = self.continue_parse_function_data_type()?;
+                returns.push(data_type);
+
+                let found_sep = self.consume_new_line_or_comma_if_exist();
+                if !found_sep {
+                    break;
+                }
+            }
+
+            self.consume_right_paren()?; // consume ')'
+        } else {
+            let data_type = self.continue_parse_function_data_type()?;
+            returns.push(data_type);
+        }
+
+        Ok(returns)
+    }
+
+    fn continue_parse_fn_local_variables(&mut self) -> Result<Vec<LocalVariable>, Error> {
+        // [name:type, name:type, ...] ?  //
+        // ^                           ^__// to here
+        // |------------------------------// current token, NOT validated
+        //
+        // also:
+        // - "[]"
+
+        self.consume_left_bracket()?; // consume '['
+        self.consume_new_line_if_exist();
+
+        let mut local_variables = vec![];
+        while let Some(token) = self.peek_token(0) {
+            if token == &Token::RightBracket {
+                break;
+            }
+
+            let name = self.consume_name()?;
+
+            self.consume_colon()?;
+            self.consume_new_line_if_exist();
+
+            let data_type = self.continue_parse_fixed_declare_data_type()?;
+
+            local_variables.push(LocalVariable { name, data_type });
+
+            let found_sep = self.consume_new_line_or_comma_if_exist();
+            if !found_sep {
+                break;
+            }
+        }
+
+        self.consume_right_bracket()?; // consume ']'
+
+        Ok(local_variables)
+    }
+
+    fn parse_expression_node(&mut self) -> Result<ExpressionNode, Error> {
+        self.consume_name()?; // nop
+        self.consume_left_paren()?; // (
+        self.consume_right_paren()?; // )
+
+        Ok(ExpressionNode::Instruction(InstructionNode {
+            name: "nop".to_owned(),
+            position_args: vec![],
+            named_args: vec![],
+        }))
     }
 }
 
@@ -840,6 +1197,98 @@ external data libfoo::bar:byte[] as baz\n\n"
 
     #[test]
     fn test_parse_data_statement() {
-        // todo
+        assert_eq!(format("data foo:i32=11"), "data foo:i32 = 11\n\n");
+
+        // section 'readonly'
+        assert_eq!(
+            format("pub readonly data bar:i32=13"),
+            "pub readonly data bar:i32 = 13\n\n"
+        );
+
+        // section 'uninit'
+        assert_eq!(
+            format("pub uninit data baz:i32"),
+            "pub uninit data baz:i32\n\n"
+        );
+
+        // data type i64
+        assert_eq!(format("data bar:i64=17_i64"), "data bar:i64 = 17_i64\n\n");
+
+        // other data types and values
+        assert_eq!(
+            format(
+                r#"pub data foo1:byte[32] = h"11 13 17 19" // length is 32
+pub data foo1:byte[32,align=8] = [0x11_i32, 0x13_i32, 0x17_i32, 0x19_i32] // length is 32
+pub data foo2:byte[align=4] = [0x11_i32, 0x13_i32, 0x17_i32, 0x19_i32] // length is 4
+pub data foo3:byte[] = "Hello, World!" // length is 13
+pub data foo4:byte[] = "Hello, World!\0" // length is 13+1
+pub data foo5:byte[] = ["Hello, World!", 0_i8] // length is 13+1""#
+            ),
+            r#"pub data foo1:byte[32] = h"11 13 17 19"
+pub data foo1:byte[32, align=8] = [
+    17
+    19
+    23
+    25
+]
+pub data foo2:byte[align=4] = [
+    17
+    19
+    23
+    25
+]
+pub data foo3:byte[] = "Hello, World!"
+pub data foo4:byte[] = "Hello, World!\0"
+pub data foo5:byte[] = [
+    "Hello, World!"
+    0_i8
+]
+
+"#
+        );
+
+        // test line breaks
+        assert_eq!(
+            format(
+                "pub data foo:
+        byte[
+        32
+        align=
+        8
+        ] =
+        [
+        11
+        \"abc\"
+            [
+                13
+                17
+            ]
+        ]
+        "
+            ),
+            "pub data foo:byte[32, align=8] = [
+    11
+    \"abc\"
+    [
+        13
+        17
+    ]
+]\n\n"
+        );
+    }
+
+    #[test]
+    fn test_parse_function_statement() {
+        assert_eq!(
+            format("fn foo()->() nop()"),
+            "fn foo() -> () {
+    nop()
+}");
+
+        // assert_eq!(
+        //     format("fn foo(a:i32,b:i32)-> (i32, i32) [c:i32, d:byte[32, align=8]] nop()"),
+        //     "");
+
+        // println!("{}", s);
     }
 }

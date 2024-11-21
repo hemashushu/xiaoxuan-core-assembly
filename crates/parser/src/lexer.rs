@@ -231,10 +231,10 @@ impl<'a> Lexer<'a> {
                     // number
                     token_with_ranges.push(self.lex_number()?);
                 }
-                // 'h' if self.peek_char_and_equals(1, '"') => {
-                //     // hex byte data
-                //     token_with_ranges.push(self.lex_byte_data_hexadecimal()?);
-                // }
+                'h' if self.peek_char_and_equals(1, '"') => {
+                    // hex byte data
+                    token_with_ranges.push(self.lex_byte_data_hexadecimal()?);
+                }
                 'r' if self.peek_char_and_equals(1, '"') => {
                     // raw string
                     token_with_ranges.push(self.lex_raw_string()?);
@@ -382,7 +382,7 @@ impl<'a> Lexer<'a> {
             Token::NamePath(name_string)
         } else {
             match name_string.as_str() {
-                "use" | "as" | "external" | "fn" | "data" | "pub" | "readonly" | "uninit" => {
+                "use" | "as" | "external" | "fn" | "data" | "pub" | "readonly" | "uninit" | "align" => {
                     Token::Keyword(name_string)
                 }
                 "i64" | "i32" | "f64" | "f32" | "byte" => Token::DataTypeName(name_string),
@@ -1619,121 +1619,121 @@ impl<'a> Lexer<'a> {
         Ok(TokenWithRange::new(Token::String(content), range))
     }
 
-    //     fn lex_byte_data_hexadecimal(&mut self) -> Result<TokenWithRange, Error> {
-    //         // h"00 11 aa bb"?  //
-    //         // ^^            ^__// to here
-    //         // ||_______________// validated
-    //         // |________________// current char, validated
-    //
-    //         let consume_zero_or_more_whitespaces = |iter: &mut Lexer| -> Result<usize, Error> {
-    //             // exit when encounting non-whitespaces or EOF
-    //             let mut amount: usize = 0;
-    //
-    //             while let Some(' ' | '\t' | '\r' | '\n') = iter.peek_char(0) {
-    //                 amount += 1;
-    //                 iter.next_char();
-    //             }
-    //
-    //             Ok(amount)
-    //         };
-    //
-    //         let consume_one_or_more_whitespaces = |iter: &mut Lexer| -> Result<usize, Error> {
-    //             let mut amount: usize = 0;
-    //
-    //             loop {
-    //                 match iter.peek_char(0) {
-    //                     Some(current_char) => {
-    //                         match current_char {
-    //                             ' ' | '\t' | '\r' | '\n' => {
-    //                                 // consume whitespace
-    //                                 iter.next_char();
-    //                                 amount += 1;
-    //                             }
-    //                             _ => {
-    //                                 if amount > 0 {
-    //                                     break;
-    //                                 } else {
-    //                                     return Err(Error::MessageWithLocation(
-    //                                         "Expect a whitespace between the hexadecimal byte data digits."
-    //                                             .to_owned(),
-    //                                         iter.last_position.move_position_forward()
-    //                                     ));
-    //                                 }
-    //                             }
-    //                         }
-    //                     }
-    //                     None => {
-    //                         // h"...EOF
-    //                         return Err(Error::UnexpectedEndOfDocument(
-    //                             "Incomplete hexadecimal byte data.".to_owned(),
-    //                         ));
-    //                     }
-    //                 }
-    //             }
-    //
-    //             Ok(amount)
-    //         };
-    //
-    //         self.push_peek_position();
-    //
-    //         self.next_char(); // consume char 'h'
-    //         self.next_char(); // consume quote '"'
-    //
-    //         let mut bytes: Vec<u8> = Vec::new();
-    //         let mut chars: [char; 2] = ['0', '0'];
-    //
-    //         consume_zero_or_more_whitespaces(self)?;
-    //
-    //         loop {
-    //             if self.peek_char_and_equals(0, '"') {
-    //                 break;
-    //             }
-    //
-    //             for c in &mut chars {
-    //                 match self.next_char() {
-    //                     Some(previous_char) => match previous_char {
-    //                         'a'..='f' | 'A'..='F' | '0'..='9' => {
-    //                             *c = previous_char;
-    //                         }
-    //                         _ => {
-    //                             return Err(Error::MessageWithLocation(
-    //                                 format!(
-    //                                     "Invalid digit '{}' for hexadecimal byte data.",
-    //                                     previous_char
-    //                                 ),
-    //                                 self.last_position,
-    //                             ));
-    //                         }
-    //                     },
-    //                     None => {
-    //                         return Err(Error::UnexpectedEndOfDocument(
-    //                             "Incomplete hexadecimal byte data.".to_owned(),
-    //                         ))
-    //                     }
-    //                 }
-    //             }
-    //
-    //             let byte_string = String::from_iter(chars);
-    //             let byte_number = u8::from_str_radix(&byte_string, 16).unwrap();
-    //             bytes.push(byte_number);
-    //
-    //             if self.peek_char_and_equals(0, '"') {
-    //                 break;
-    //             }
-    //
-    //             // consume at lease one whitespace
-    //             consume_one_or_more_whitespaces(self)?;
-    //         }
-    //
-    //         self.next_char(); // consume '"'
-    //
-    //         let bytes_range = Location::from_position_pair_with_end_included(
-    //             &self.pop_saved_position(),
-    //             &self.last_position,
-    //         );
-    //
-    //         Ok(TokenWithRange::new(Token::ByteData(bytes), bytes_range))
-    //     }
+    fn lex_byte_data_hexadecimal(&mut self) -> Result<TokenWithRange, Error> {
+        // h"00 11 aa bb"?  //
+        // ^^            ^__// to here
+        // ||_______________// validated
+        // |________________// current char, validated
+
+        let consume_zero_or_more_whitespaces = |iter: &mut Lexer| -> Result<usize, Error> {
+            // exit when encounting non-whitespaces or EOF
+            let mut amount: usize = 0;
+
+            while let Some(' ' | '\t' | '\r' | '\n') = iter.peek_char(0) {
+                amount += 1;
+                iter.next_char();
+            }
+
+            Ok(amount)
+        };
+
+        let consume_one_or_more_whitespaces = |iter: &mut Lexer| -> Result<usize, Error> {
+            let mut amount: usize = 0;
+
+            loop {
+                match iter.peek_char(0) {
+                    Some(current_char) => {
+                        match current_char {
+                            ' ' | '\t' | '\r' | '\n' => {
+                                // consume whitespace
+                                iter.next_char();
+                                amount += 1;
+                            }
+                            _ => {
+                                if amount > 0 {
+                                    break;
+                                } else {
+                                    return Err(Error::MessageWithLocation(
+                                            "Expect a whitespace between the hexadecimal byte data digits."
+                                                .to_owned(),
+                                            iter.last_position.move_position_forward()
+                                        ));
+                                }
+                            }
+                        }
+                    }
+                    None => {
+                        // h"...EOF
+                        return Err(Error::UnexpectedEndOfDocument(
+                            "Incomplete hexadecimal byte data.".to_owned(),
+                        ));
+                    }
+                }
+            }
+
+            Ok(amount)
+        };
+
+        self.push_peek_position();
+
+        self.next_char(); // consume char 'h'
+        self.next_char(); // consume quote '"'
+
+        let mut bytes: Vec<u8> = Vec::new();
+        let mut chars: [char; 2] = ['0', '0'];
+
+        consume_zero_or_more_whitespaces(self)?;
+
+        loop {
+            if self.peek_char_and_equals(0, '"') {
+                break;
+            }
+
+            for c in &mut chars {
+                match self.next_char() {
+                    Some(previous_char) => match previous_char {
+                        'a'..='f' | 'A'..='F' | '0'..='9' => {
+                            *c = previous_char;
+                        }
+                        _ => {
+                            return Err(Error::MessageWithLocation(
+                                format!(
+                                    "Invalid digit '{}' for hexadecimal byte data.",
+                                    previous_char
+                                ),
+                                self.last_position,
+                            ));
+                        }
+                    },
+                    None => {
+                        return Err(Error::UnexpectedEndOfDocument(
+                            "Incomplete hexadecimal byte data.".to_owned(),
+                        ))
+                    }
+                }
+            }
+
+            let byte_string = String::from_iter(chars);
+            let byte_number = u8::from_str_radix(&byte_string, 16).unwrap();
+            bytes.push(byte_number);
+
+            if self.peek_char_and_equals(0, '"') {
+                break;
+            }
+
+            // consume at lease one whitespace
+            consume_one_or_more_whitespaces(self)?;
+        }
+
+        self.next_char(); // consume '"'
+
+        let bytes_range = Location::from_position_pair_with_end_included(
+            &self.pop_saved_position(),
+            &self.last_position,
+        );
+
+        Ok(TokenWithRange::new(Token::HexByteData(bytes), bytes_range))
+    }
 
     fn lex_line_comment(&mut self) -> Result<TokenWithRange, Error> {
         // xx...[\r]\n?  //
@@ -4181,161 +4181,165 @@ hello
         ));
     }
 
-    //     #[test]
-    //     fn test_lex_byte_data_hexadecimal() {
-    //         assert_eq!(
-    //             lex_from_str_without_location(
-    //                 r#"
-    //                 h""
-    //                 "#
-    //             )
-    //             .unwrap(),
-    //             vec![Token::NewLine, Token::ByteData(vec![]), Token::NewLine]
-    //         );
-    //
-    //         assert_eq!(
-    //             lex_from_str_without_location(
-    //                 r#"
-    //                 h"11"
-    //                 "#
-    //             )
-    //             .unwrap(),
-    //             vec![Token::NewLine, Token::ByteData(vec![0x11]), Token::NewLine,]
-    //         );
-    //
-    //         assert_eq!(
-    //             lex_from_str_without_location(
-    //                 r#"
-    //                 h"11 13 17 19"
-    //                 "#
-    //             )
-    //             .unwrap(),
-    //             vec![
-    //                 Token::NewLine,
-    //                 Token::ByteData(vec![0x11, 0x13, 0x17, 0x19]),
-    //                 Token::NewLine,
-    //             ]
-    //         );
-    //
-    //         assert_eq!(
-    //             lex_from_str_without_location(
-    //                 "
-    //                 h\"  11\t  13\r17\r\n  19\n  \"
-    //                 "
-    //             )
-    //             .unwrap(),
-    //             vec![
-    //                 Token::NewLine,
-    //                 Token::ByteData(vec![0x11, 0x13, 0x17, 0x19]),
-    //                 Token::NewLine,
-    //             ]
-    //         );
-    //
-    //         // location
-    //
-    //         assert_eq!(
-    //             lex_from_str("h\"11 13\"").unwrap(),
-    //             vec![TokenWithRange::from_position_and_length(
-    //                 Token::ByteData(vec![0x11, 0x13]),
-    //                 &Location::new_position(0, 0, 0, 0),
-    //                 8
-    //             )]
-    //         );
-    //
-    //         assert_eq!(
-    //             lex_from_str("h\"11\" h\"13\"").unwrap(),
-    //             vec![
-    //                 TokenWithRange::from_position_and_length(
-    //                     Token::ByteData(vec![0x11]),
-    //                     &Location::new_position(0, 0, 0, 0),
-    //                     5
-    //                 ),
-    //                 TokenWithRange::from_position_and_length(
-    //                     Token::ByteData(vec![0x13]),
-    //                     &Location::new_position(0, 6, 0, 6),
-    //                     5
-    //                 )
-    //             ]
-    //         );
-    //
-    //         // err: not enough digits
-    //         assert!(matches!(
-    //             lex_from_str_without_location("h\"11 1\""),
-    //             Err(Error::MessageWithLocation(
-    //                 _,
-    //                 Location {
-    //                     unit: 0,
-    //                     index: 6,
-    //                     line: 0,
-    //                     column: 6,
-    //                     length: 0
-    //                 }
-    //             ))
-    //         ));
-    //
-    //         // err: too much digits | no whitespace between two bytes
-    //         assert!(matches!(
-    //             lex_from_str_without_location("h\"11 1317\""),
-    //             Err(Error::MessageWithLocation(
-    //                 _,
-    //                 Location {
-    //                     unit: 0,
-    //                     index: 7,
-    //                     line: 0,
-    //                     column: 7,
-    //                     length: 0
-    //                 }
-    //             ))
-    //         ));
-    //
-    //         // err: invalid char for byte string
-    //         assert!(matches!(
-    //             lex_from_str_without_location("h\"11 1x\""),
-    //             Err(Error::MessageWithLocation(
-    //                 _,
-    //                 Location {
-    //                     unit: 0,
-    //                     index: 6,
-    //                     line: 0,
-    //                     column: 6,
-    //                     length: 0
-    //                 }
-    //             ))
-    //         ));
-    //
-    //         // err: invalid separator
-    //         assert!(matches!(
-    //             lex_from_str_without_location("h\"11-13\""),
-    //             Err(Error::MessageWithLocation(
-    //                 _,
-    //                 Location {
-    //                     unit: 0,
-    //                     index: 4,
-    //                     line: 0,
-    //                     column: 4,
-    //                     length: 0
-    //                 }
-    //             ))
-    //         ));
-    //
-    //         // err: missing the close quote
-    //         assert!(matches!(
-    //             lex_from_str_without_location("h\"11 13"),
-    //             Err(Error::UnexpectedEndOfDocument(_))
-    //         ));
-    //
-    //         // err: missing the close quote, ends with \n
-    //         assert!(matches!(
-    //             lex_from_str_without_location("h\"11 13\n"),
-    //             Err(Error::UnexpectedEndOfDocument(_))
-    //         ));
-    //
-    //         // err: missing the close quote, ends with whitespaces/other chars
-    //         assert!(matches!(
-    //             lex_from_str_without_location("h\"11 13\n    "),
-    //             Err(Error::UnexpectedEndOfDocument(_))
-    //         ));
-    //     }
+    #[test]
+    fn test_lex_hex_byte_data() {
+        assert_eq!(
+            lex_from_str_without_location(
+                r#"
+                    h""
+                    "#
+            )
+            .unwrap(),
+            vec![Token::NewLine, Token::HexByteData(vec![]), Token::NewLine]
+        );
+
+        assert_eq!(
+            lex_from_str_without_location(
+                r#"
+                    h"11"
+                    "#
+            )
+            .unwrap(),
+            vec![
+                Token::NewLine,
+                Token::HexByteData(vec![0x11]),
+                Token::NewLine,
+            ]
+        );
+
+        assert_eq!(
+            lex_from_str_without_location(
+                r#"
+                    h"11 13 17 19"
+                    "#
+            )
+            .unwrap(),
+            vec![
+                Token::NewLine,
+                Token::HexByteData(vec![0x11, 0x13, 0x17, 0x19]),
+                Token::NewLine,
+            ]
+        );
+
+        assert_eq!(
+            lex_from_str_without_location(
+                "
+                    h\"  11\t  13\r17\r\n  19\n  \"
+                    "
+            )
+            .unwrap(),
+            vec![
+                Token::NewLine,
+                Token::HexByteData(vec![0x11, 0x13, 0x17, 0x19]),
+                Token::NewLine,
+            ]
+        );
+
+        // location
+
+        assert_eq!(
+            lex_from_str("h\"11 13\"").unwrap(),
+            vec![TokenWithRange::from_position_and_length(
+                Token::HexByteData(vec![0x11, 0x13]),
+                &Location::new_position(0, 0, 0, 0),
+                8
+            )]
+        );
+
+        assert_eq!(
+            lex_from_str("h\"11\" h\"13\"").unwrap(),
+            vec![
+                TokenWithRange::from_position_and_length(
+                    Token::HexByteData(vec![0x11]),
+                    &Location::new_position(0, 0, 0, 0),
+                    5
+                ),
+                TokenWithRange::from_position_and_length(
+                    Token::HexByteData(vec![0x13]),
+                    &Location::new_position(0, 6, 0, 6),
+                    5
+                )
+            ]
+        );
+
+        // err: not enough digits
+        assert!(matches!(
+            lex_from_str_without_location("h\"11 1\""),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 6,
+                    line: 0,
+                    column: 6,
+                    length: 0
+                }
+            ))
+        ));
+
+        // err: too much digits | no whitespace between two bytes
+        assert!(matches!(
+            lex_from_str_without_location("h\"11 1317\""),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 7,
+                    line: 0,
+                    column: 7,
+                    length: 0
+                }
+            ))
+        ));
+
+        // err: invalid char for byte string
+        assert!(matches!(
+            lex_from_str_without_location("h\"11 1x\""),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 6,
+                    line: 0,
+                    column: 6,
+                    length: 0
+                }
+            ))
+        ));
+
+        // err: invalid separator
+        assert!(matches!(
+            lex_from_str_without_location("h\"11-13\""),
+            Err(Error::MessageWithLocation(
+                _,
+                Location {
+                    unit: 0,
+                    index: 4,
+                    line: 0,
+                    column: 4,
+                    length: 0
+                }
+            ))
+        ));
+
+        // err: missing the close quote
+        assert!(matches!(
+            lex_from_str_without_location("h\"11 13"),
+            Err(Error::UnexpectedEndOfDocument(_))
+        ));
+
+        // err: missing the close quote, ends with \n
+        assert!(matches!(
+            lex_from_str_without_location("h\"11 13\n"),
+            Err(Error::UnexpectedEndOfDocument(_))
+        ));
+
+        // err: missing the close quote, ends with whitespaces/other chars
+        assert!(matches!(
+            lex_from_str_without_location("h\"11 13\n    "),
+            Err(Error::UnexpectedEndOfDocument(_))
+        ));
+    }
 
     #[test]
     fn test_lex_line_comment() {

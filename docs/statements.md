@@ -61,15 +61,24 @@ The possible data types of function's parameters and return value are: `i64`, `i
 
 To define data, use the `data` keyword:
 
-`[pub] [readonly|uninit] name:type [=value]`
+`[pub] [readonly|uninit] data name:type [=value]`
 
 Example of `data` statement:
 
 ```rust
 data foo:i32 = 0x11
-pub readonly bar:i32 = 0x13
-pub uninit baz:i64
+pub readonly data bar:i32 = 0x13
+pub uninit data baz:i64
 ```
+
+The possible value of data are:
+
+- Numbers: includes decimal, hexadecimal, binary, float-point, hex float-point.
+- Strings: normal string, multiline string, long string, raw string, raw string with hash symbol, auto-trimmed string.
+- Hex byte data.
+- List. The element of list can be numbers, strings, hex byte data and list.
+
+todo:: examples
 
 There are two ways to declare the length of a byte array:
 
@@ -77,12 +86,12 @@ There are two ways to declare the length of a byte array:
 2. `byte[]`: Do not specify the length of the byte array, the length is automatically determined by the length of content.
 
 ```rust
-pub data foo:byte[32] = b"01 02 03 04" // length 32
-pub data foo2:byte[] = [11_i32, 13_i32, 17_i32, 19_i32] // length 4
-pub readonly data bar:byte[] = "Hello, World!"
-pub readonly data bar1:byte[] = "Hello, World!\0"
-pub readonly data bar2:byte[] = ["Hello, World!", 0_u8]
-
+pub data foo1:byte[32] = h"11 13 17 19" // length is 32
+pub data foo1:byte[32] = [0x11_i32, 0x13_i32, 0x17_i32, 0x19_i32] // length is 32
+pub data foo2:byte[] = [0x11_i32, 0x13_i32, 0x17_i32, 0x19_i32] // length is 4
+pub data foo3:byte[] = "Hello, World!" // length is 13
+pub data foo4:byte[] = "Hello, World!\0" // length is 13+1
+pub data foo5:byte[] = ["Hello, World!", 0_i8] // length is 13+1
 ```
 
 The `byte` type can also be specified alignment, e.g.:
@@ -109,11 +118,18 @@ fn add(left:i32, right:i32) -> i32 {
     )
 }
 
-// Function without return values but with local variables.
+// Function with local variables.
 pub fn handle(number:i32)
     [var0:i32, var1:byte[16], var2:f32] {
     ...
 }
+```
+
+The function body can also be an expression, e.g.:
+
+```rust
+fn inc_one(num:i32) -> i32
+    add_imm_i32(1, local_load_i32_s(left))
 ```
 
 ## Line break rules for source code

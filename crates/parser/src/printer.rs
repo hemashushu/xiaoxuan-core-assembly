@@ -22,25 +22,29 @@ fn print_function_node(
         write!(writer, "pub ")?;
     }
 
-    write!(
-        writer,
-        "fn {}{} -> {}",
-        node.name,
-        format_params(&node.params),
-        format_returns(&node.returns)
-    )?;
-
-    if !node.locals.is_empty() {
-        let list = format_local_variables(&node.locals);
-        write!(writer, "\n{}{}", indent_chars, list)?;
+    if node.locals.is_empty() {
+        write!(
+            writer,
+            "fn {}{} -> {}\n{}{}",
+            node.name,
+            format_params(&node.params),
+            format_returns(&node.returns),
+            indent_chars,
+            format_expression(&node.body, indent_chars, 1)
+        )
+    } else {
+        write!(
+            writer,
+            "fn {}{} -> {}\n{}{}\n{}{}",
+            node.name,
+            format_params(&node.params),
+            format_returns(&node.returns),
+            indent_chars,
+            format_local_variables(&node.locals),
+            indent_chars,
+            format_expression(&node.body, indent_chars, 1)
+        )
     }
-
-    write!(
-        writer,
-        " {{\n{}{}\n}}",
-        indent_chars,
-        format_expression(&node.body, indent_chars, 1)
-    )
 }
 
 fn print_data_node(
@@ -418,7 +422,7 @@ fn format_expression_break(
         BreakNode::BreakFn(nodes) => {
             format!(
                 "{} (\n{}\n{})",
-                if is_recur { "recur" } else { "break" },
+                if is_recur { "recur_fn" } else { "break_fn" },
                 format_expression_list(nodes, indent_chars, indent_level + 1),
                 indent_chars.repeat(indent_level)
             )
@@ -554,41 +558,42 @@ fn format_string(s: &str) -> String {
 ///
 /// e.g.
 ///
-/// [
-///     00 11 22 33  44 55 66 77
-///     88 99 aa bb  cc dd ee ff
-/// ]
+/// h"00 11 22 33  44 55 66 77
+///   88 99 aa bb  cc dd ee ff"
 ///
-// fn format_byte_array(data: &[u8], indent_chars: &str) -> String {
-//     data.chunks(8)
-//         .map(|chunk| {
-//             // content
-//             let content = chunk
-//                 .iter()
-//                 .enumerate()
-//                 .map(|(idx, byte)| {
-//                     // format the bytes as the following text:
-//                     // 00 11 22 33  44 55 66 77
-//                     // 00 11 22 33
-//                     // 00 11
-//                     //
-//                     // Rust std format!()
-//                     // https://doc.rust-lang.org/std/fmt/
-//                     if idx == 4 {
-//                         format!("  {:02x}", byte)
-//                     } else if idx == 0 {
-//                         format!("{:02x}", byte)
-//                     } else {
-//                         format!(" {:02x}", byte)
-//                     }
-//                 })
-//                 .collect::<Vec<String>>()
-//                 .join("");
-//             format!("{}{}", indent_chars, content)
-//         })
-//         .collect::<Vec<String>>()
-//         .join("\n")
-// }
+fn format_hex_byte_data(data: &[u8], indent_chars: &str) -> String {
+    let line_sep = format!("\n{}", indent_chars);
+    let content = data
+        .chunks(8)
+        .map(|chunk| {
+            // line
+            chunk
+                .iter()
+                .enumerate()
+                .map(|(idx, byte)| {
+                    // format the bytes as the following text:
+                    // 00 11 22 33  44 55 66 77
+                    // 00 11 22 33
+                    // 00 11
+                    //
+                    // Rust std format!()
+                    // https://doc.rust-lang.org/std/fmt/
+                    if idx == 4 {
+                        format!("  {:02x}", byte)
+                    } else if idx == 0 {
+                        format!("{:02x}", byte)
+                    } else {
+                        format!(" {:02x}", byte)
+                    }
+                })
+                .collect::<Vec<String>>()
+                .join("")
+        })
+        .collect::<Vec<String>>()
+        .join(&line_sep);
+
+    format!("h\"{}\"", content)
+}
 
 fn format_data_value(data_value: &DataValue, indent_chars: &str, indent_level: usize) -> String {
     match data_value {
@@ -598,13 +603,7 @@ fn format_data_value(data_value: &DataValue, indent_chars: &str, indent_level: u
         DataValue::I32(v) => format!("{}", v), // the default type for integer
         DataValue::F64(v) => format!("{}", v), // the default type for floating-point
         DataValue::F32(v) => format!("{}_f32", v),
-        // DataValue::Byte(v) => {
-        //     format!(
-        //         "[\n{}\n{}]",
-        //         format_byte_array(v, &indent_chars.repeat(indent_level + 1)),
-        //         indent_chars.repeat(indent_level),
-        //     )
-        // }
+        DataValue::ByteData(v) => format_hex_byte_data(v, &indent_chars.repeat(indent_level + 1)),
         DataValue::String(v) => format_string(v),
         DataValue::List(v) => format!(
             "[\n{}\n{}]",
@@ -639,7 +638,11 @@ mod tests {
 
     use crate::{
         ast::{
-            ArgumentValue, BlockNode, BreakNode, DataNode, DataSection, DataTypeValuePair, DataValue, DeclareDataType, ExpressionNode, ExternalDataNode, ExternalDataType, ExternalFunctionNode, ExternalNode, FixedDeclareDataType, FunctionDataType, FunctionNode, IfNode, InstructionNode, LiteralNumber, LocalVariable, ModuleNode, NamedArgument, NamedParameter, UseNode, WhenNode
+            ArgumentValue, BlockNode, BreakNode, DataNode, DataSection, DataTypeValuePair,
+            DataValue, DeclareDataType, ExpressionNode, ExternalDataNode, ExternalDataType,
+            ExternalFunctionNode, ExternalNode, FixedDeclareDataType, FunctionDataType,
+            FunctionNode, IfNode, InstructionNode, LiteralNumber, LocalVariable, ModuleNode,
+            NamedArgument, NamedParameter, UseNode, WhenNode,
         },
         printer::{
             print_external_data_node, print_external_function_node, print_function_node,
@@ -789,7 +792,7 @@ mod tests {
 
         assert_eq!(print(&node3), "uninit data got:byte[1024]");
 
-        // test align
+        // test byte array align
         let node4 = DataNode {
             is_public: false,
             name: "foo".to_owned(),
@@ -798,8 +801,28 @@ mod tests {
 
         assert_eq!(print(&node4), "uninit data foo:byte[1024, align=8]");
 
-        // test data value list
+        // test hex byte data
         let node5 = DataNode {
+            is_public: true,
+            name: "foo".to_owned(),
+            data_section: DataSection::ReadWrite(DataTypeValuePair {
+                data_type: DeclareDataType::Bytes(None),
+                value: DataValue::ByteData(vec![
+                    0x11u8, 0x13, 0x17, 0x19, 0x23, 0x29, 0x31, 0x37, 0x41, 0x43, 0x47, 0x53, 0x59,
+                    0x61, 0x67, 0x71, 0x73, 0x79,
+                ]),
+            }),
+        };
+
+        assert_eq!(
+            print(&node5),
+            "pub data foo:byte[] = h\"11 13 17 19  23 29 31 37
+    41 43 47 53  59 61 67 71
+    73 79\""
+        );
+
+        // test data value list
+        let node6 = DataNode {
             is_public: false,
             name: "bar".to_owned(),
             data_section: DataSection::ReadWrite(DataTypeValuePair {
@@ -810,13 +833,14 @@ mod tests {
                     DataValue::I32(17),
                     DataValue::I64(19),
                     DataValue::String("hello".to_owned()),
+                    DataValue::ByteData(vec![0x11, 0x13, 0x17]),
                     DataValue::List(vec![DataValue::I8(211), DataValue::I8(223)]),
                 ]),
             }),
         };
 
         assert_eq!(
-            print(&node5),
+            print(&node6),
             "\
 data bar:byte[align=4] = [
     11_i8
@@ -824,6 +848,7 @@ data bar:byte[align=4] = [
     17
     19_i64
     \"hello\"
+    h\"11 13 17\"
     [
         211_i8
         223_i8
@@ -833,7 +858,7 @@ data bar:byte[align=4] = [
     }
 
     #[test]
-    fn test_print_function_node_and_expression_instruction() {
+    fn test_print_function_node() {
         let print = |node: &FunctionNode| {
             let mut buf: Vec<u8> = vec![];
             print_function_node(&mut buf, node, DEFAULT_INDENT_CHARS).unwrap();
@@ -865,12 +890,11 @@ data bar:byte[align=4] = [
         assert_eq!(
             print(&node0),
             "\
-fn foo() -> () {
-    local_load_i64(left, rindex=1_i16, offset=4_i16)
-}"
+fn foo() -> ()
+    local_load_i64(left, rindex=1_i16, offset=4_i16)"
         );
 
-        // test params, returns and multiple layers instructions
+        // test params, returns
         let node1 = FunctionNode {
             is_public: true,
             name: "add".to_owned(),
@@ -922,12 +946,11 @@ fn foo() -> () {
         assert_eq!(
             print(&node1),
             "\
-pub fn add(left:i32, right:i32) -> i32 {
+pub fn add(left:i32, right:i32) -> i32
     add_i32(
         local_load_i32(left),
         add_imm_i32(11_i16,
-            local_load_i32(right)))
-}"
+            local_load_i32(right)))"
         );
 
         // test returns multiple values and local variables
@@ -961,9 +984,8 @@ pub fn add(left:i32, right:i32) -> i32 {
             print(&node2),
             "\
 fn hello() -> (i32, i64)
-    [foo:i32, bar:byte[8], baz:byte[24, align=4]] {
-    end()
-}"
+    [foo:i32, bar:byte[8], baz:byte[24, align=4]]
+    end()"
         );
     }
 
@@ -1042,7 +1064,7 @@ fn hello() -> (i32, i64)
         assert_eq!(
             print(&node0),
             "\
-fn foo() -> () {
+fn foo() -> ()
     {
         nop()
         local_store_i32(left,
@@ -1051,8 +1073,7 @@ fn foo() -> () {
             add_i32(
                 imm_i32(123),
                 imm_i32(123)))
-    }
-}"
+    }"
         );
 
         // test nested group
@@ -1079,14 +1100,13 @@ fn foo() -> () {
         assert_eq!(
             print(&node1),
             "\
-fn foo() -> () {
+fn foo() -> ()
     {
         nop()
         {
             nop()
         }
-    }
-}"
+    }"
         );
     }
 
@@ -1122,11 +1142,10 @@ fn foo() -> () {
         assert_eq!(
             print(&node0),
             "\
-fn foo() -> () {
+fn foo() -> ()
     when
         imm_i32(1)
-        nop()
-}"
+        nop()"
         );
 
         // test `when` with multiple layers instructions
@@ -1169,13 +1188,12 @@ fn foo() -> () {
         assert_eq!(
             print(&node1),
             "\
-fn foo() -> () {
+fn foo() -> ()
     when
         eqz_i32(
             local_load_i32(a))
         data_store_i32(b,
-            local_load_i32(a))
-}"
+            local_load_i32(a))"
         );
 
         // test `when` with local variables
@@ -1216,15 +1234,14 @@ fn foo() -> () {
         assert_eq!(
             print(&node2),
             "\
-fn foo() -> () {
+fn foo() -> ()
     when
         imm_i32(1)
         [foo:i32, bar:byte[8], baz:byte[24, align=4]]
-        nop()
-}"
+        nop()"
         );
 
-        // test 'when' + 'group'
+        // test 'when' with 'group'
         let node3 = FunctionNode {
             is_public: false,
             name: "foo".to_owned(),
@@ -1267,15 +1284,14 @@ fn foo() -> () {
         assert_eq!(
             print(&node3),
             "\
-fn foo() -> () {
+fn foo() -> ()
     when
         imm_i32(1)
         {
             nop()
             local_store_i32(left,
                 local_load_i32(right))
-        }
-}"
+        }"
         );
     }
 
@@ -1344,15 +1360,14 @@ fn foo() -> () {
         assert_eq!(
             print(&node0),
             "\
-fn foo() -> () {
+fn foo() -> ()
     if -> ()
         eqz_i32(
             local_load_i32(in))
         local_store_i32(out,
             imm_i32(11))
         local_store_i32(out,
-            imm_i32(13))
-}"
+            imm_i32(13))"
         );
 
         // test `if` with return value
@@ -1385,15 +1400,14 @@ fn foo() -> () {
         assert_eq!(
             print(&node1),
             "\
-fn foo() -> () {
+fn foo() -> ()
     if -> i32
         imm_i32(11)
         imm_i32(13)
-        imm_i32(17)
-}"
+        imm_i32(17)"
         );
 
-        // test `if` with multiple return values
+        // test `if` with multiple return multiple values
         let node2 = FunctionNode {
             is_public: false,
             name: "foo".to_owned(),
@@ -1423,12 +1437,11 @@ fn foo() -> () {
         assert_eq!(
             print(&node2),
             "\
-fn foo() -> () {
+fn foo() -> ()
     if -> (i32, i64)
         imm_i32(11)
         nop()
-        nop()
-}"
+        nop()"
         );
     }
 
@@ -1472,11 +1485,10 @@ fn foo() -> () {
         assert_eq!(
             print(&node0),
             "\
-fn foo() -> () {
+fn foo() -> ()
     block () -> ()
         local_store_i32(out,
-            imm_i32(11))
-}"
+            imm_i32(11))"
         );
 
         // test 'block' with params, returns and local variablers
@@ -1519,14 +1531,13 @@ fn foo() -> () {
         assert_eq!(
             print(&node1),
             "\
-fn foo() -> () {
+fn foo() -> ()
     block (left:i32, right:i32) -> i32
         [abc:i32, def:byte[32]]
-        nop()
-}"
+        nop()"
         );
 
-        // test 'block' + 'group'
+        // test 'block' with 'group'
         let node2 = FunctionNode {
             is_public: false,
             name: "foo".to_owned(),
@@ -1580,7 +1591,7 @@ fn foo() -> () {
         assert_eq!(
             print(&node2),
             "\
-fn foo() -> () {
+fn foo() -> ()
     block () -> ()
         [temp:i32]
         {
@@ -1588,8 +1599,7 @@ fn foo() -> () {
                 imm_i32(11))
             local_store_i32(def,
                 imm_i32(31))
-        }
-}"
+        }"
         );
 
         // test 'for'
@@ -1614,10 +1624,9 @@ fn foo() -> () {
         assert_eq!(
             print(&node3),
             "\
-fn foo() -> () {
+fn foo() -> ()
     for () -> ()
-        nop()
-}"
+        nop()"
         );
     }
 
@@ -1644,7 +1653,7 @@ fn foo() -> () {
                     }),
                     ExpressionNode::Instruction(InstructionNode {
                         name: "imm_i32".to_owned(),
-                        position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(31))],
+                        position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(13))],
                         named_args: vec![],
                     }),
                 ])),
@@ -1658,14 +1667,14 @@ fn foo() -> () {
                         ExpressionNode::Instruction(InstructionNode {
                             name: "imm_i32".to_owned(),
                             position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(
-                                11,
+                                17,
                             ))],
                             named_args: vec![],
                         }),
                         ExpressionNode::Instruction(InstructionNode {
                             name: "imm_i32".to_owned(),
                             position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(
-                                31,
+                                19,
                             ))],
                             named_args: vec![],
                         }),
@@ -1674,12 +1683,12 @@ fn foo() -> () {
                 ExpressionNode::Break(BreakNode::BreakFn(vec![
                     ExpressionNode::Instruction(InstructionNode {
                         name: "imm_i32".to_owned(),
-                        position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(11))],
+                        position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(23))],
                         named_args: vec![],
                     }),
                     ExpressionNode::Instruction(InstructionNode {
                         name: "imm_i32".to_owned(),
-                        position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(31))],
+                        position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(29))],
                         named_args: vec![],
                     }),
                 ])),
@@ -1689,26 +1698,26 @@ fn foo() -> () {
         assert_eq!(
             print(&node0),
             "\
-fn foo() -> () {
+fn foo() -> ()
     {
         break (
             imm_i32(11)
-            imm_i32(31)
+            imm_i32(13)
         )
         break_if
             imm_i32(7)
             (
-            imm_i32(11)
-            imm_i32(31)
+            imm_i32(17)
+            imm_i32(19)
         )
-        break (
-            imm_i32(11)
-            imm_i32(31)
+        break_fn (
+            imm_i32(23)
+            imm_i32(29)
         )
-    }
-}"
+    }"
         );
 
+        // test 'recur'
         let node1 = FunctionNode {
             is_public: false,
             name: "foo".to_owned(),
@@ -1724,7 +1733,7 @@ fn foo() -> () {
                     }),
                     ExpressionNode::Instruction(InstructionNode {
                         name: "imm_i32".to_owned(),
-                        position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(31))],
+                        position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(13))],
                         named_args: vec![],
                     }),
                 ])),
@@ -1738,14 +1747,14 @@ fn foo() -> () {
                         ExpressionNode::Instruction(InstructionNode {
                             name: "imm_i32".to_owned(),
                             position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(
-                                11,
+                                17,
                             ))],
                             named_args: vec![],
                         }),
                         ExpressionNode::Instruction(InstructionNode {
                             name: "imm_i32".to_owned(),
                             position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(
-                                31,
+                                19,
                             ))],
                             named_args: vec![],
                         }),
@@ -1754,12 +1763,12 @@ fn foo() -> () {
                 ExpressionNode::Recur(BreakNode::BreakFn(vec![
                     ExpressionNode::Instruction(InstructionNode {
                         name: "imm_i32".to_owned(),
-                        position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(11))],
+                        position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(23))],
                         named_args: vec![],
                     }),
                     ExpressionNode::Instruction(InstructionNode {
                         name: "imm_i32".to_owned(),
-                        position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(31))],
+                        position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(29))],
                         named_args: vec![],
                     }),
                 ])),
@@ -1769,24 +1778,23 @@ fn foo() -> () {
         assert_eq!(
             print(&node1),
             "\
-fn foo() -> () {
+fn foo() -> ()
     {
         recur (
             imm_i32(11)
-            imm_i32(31)
+            imm_i32(13)
         )
         recur_if
             imm_i32(7)
             (
-            imm_i32(11)
-            imm_i32(31)
+            imm_i32(17)
+            imm_i32(19)
         )
-        recur (
-            imm_i32(11)
-            imm_i32(31)
+        recur_fn (
+            imm_i32(23)
+            imm_i32(29)
         )
-    }
-}"
+    }"
         );
     }
 
@@ -1901,14 +1909,12 @@ pub readonly data plt:byte[128, align=8] = [
     53_i8
 ]
 
-fn add(left:i32, right:i32) -> i32 {
+fn add(left:i32, right:i32) -> i32
     nop()
-}
 
 pub fn entry() -> i32
-    [temp:i32] {
+    [temp:i32]
     nop()
-}
 "
         )
     }

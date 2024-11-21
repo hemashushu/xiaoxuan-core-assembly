@@ -88,7 +88,7 @@ content of the file `module.ason`:
         //
         // "enable_abc": prop::default::bool(true)
         // "enable_def": prop::default::bool(false)
-        // "enable_xyz": prop::calc("{enable_abc} && {enable_def}")
+        // "enable_xyz": prop::eval("{enable_abc} && {enable_def}")
     }
     constants: {
         // Declares constants and their values for used

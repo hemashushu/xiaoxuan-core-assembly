@@ -185,8 +185,8 @@ pub enum DataValue {
     I32(u32),
     F64(f64),
     F32(f32),
-    // Byte(Vec<u8>),
     String(String),
+    ByteData(Vec<u8>),
 
     // e.g. [11_i32, 13_i32, 17_i32, 19_i32]
     List(Vec<DataValue>),
