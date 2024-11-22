@@ -1,8 +1,22 @@
 # Expressions
 
-There are three types of expressions:
+<!-- @import "[TOC]" {cmd="toc" depthFrom=2 depthTo=4 orderedList=false} -->
 
-- Instruction calls
+<!-- code_chunk_output -->
+
+- [Groups](#groups)
+- [Control Flow Expressions](#control-flow-expressions)
+  - [Condition without branch](#condition-without-branch)
+  - [Condition with branch](#condition-with-branch)
+  - [Block](#block)
+  - [Break](#break)
+  - [Recur](#recur)
+
+<!-- /code_chunk_output -->
+
+The function body consists of expressions. There are three types of expressions:
+
+- Instruction expressions
 - Control flow expressions
 - Groups
 
@@ -24,7 +38,7 @@ For example:
 - If there is one `_store_` instruction and one `_load_` instruction, one value is returned.
 - If there are two `_store_` instructions, no value is returned.
 
-## Control flows
+## Control Flow Expressions
 
 ### Condition without branch
 
@@ -86,7 +100,7 @@ Variants:
 
 `recur (value0, value1, ...)`
 
-Recur to the nearest 'for', this expression never return.
+Recur to the nearest `for` expression , this expression never return.
 
 Variants:
 

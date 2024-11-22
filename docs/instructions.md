@@ -1,12 +1,78 @@
-# Instructions
+# Instruction Expressions
 
-## Base
+<!-- @import "[TOC]" {cmd="toc" depthFrom=2 depthTo=4 orderedList=false} -->
+
+<!-- code_chunk_output -->
+
+- [Instructions](#instructions)
+  - [Base](#base)
+  - [Immediately Numbers](#immediately-numbers)
+  - [Local Loading/Storing](#local-loadingstoring)
+  - [Local Loading/Storing Extension](#local-loadingstoring-extension)
+  - [Data Loading/Storing](#data-loadingstoring)
+  - [Data Loading/Storing Extension](#data-loadingstoring-extension)
+  - [Heap Loading/Storing](#heap-loadingstoring)
+  - [Conversion](#conversion)
+  - [Comparison](#comparison)
+  - [Arithmetic](#arithmetic)
+  - [Bitwise](#bitwise)
+  - [Math](#math)
+  - [Calling](#calling)
+  - [Host](#host)
+
+<!-- /code_chunk_output -->
+
+Instruction expressions are used to generate instructions for the virtual machine (VM).
+
+The Syntax of instruction expresions resembles function calls, following the format:
+
+```rust
+inst_name(arg0, arg1, ...)
+```
+
+Examples:
+
+- `imm_i64(42)`: This loads the immediate 64-integer value 42.
+- `local_load_i64(num)`: This loads a 64-bit integer from a local variable named "num".
+
+Type of arguments:
+
+1. Positional arguments
+
+Values can be numberical literals, identifiers (names of functions or data), or the return values of other instruction expressions.
+
+Note that XiaoXuan Core assembly language does not support variable definitions. Therefor, when an argument requires the return value of another instruction, it must be nested. For example:
+
+```rust
+local_store_i64(
+    temp,
+    local_load_i64(num)
+)
+```
+
+2. Named arguments
+
+These are optional and have the format `name=value`. Values are usually numerical literals. For example:
+
+```rust
+local_store_i64(
+    temp,           // positional argument
+    imm_i64(42),    // positional argument
+    offset=4        // named (optional) argument
+)
+```
+
+Instruction expressions have an almost one-to-one correspondence with the instructions of the VM. However, some parameters will be converted by the assembler. For example, the identifier in the instruction expression `local_load_i64` will be automatically converted to the `index` and `rev-index` of the local varialbe. Additionally, all VM control flow instructions are replaced by the [control flow expressions](./expressions/#control-flow-expressions).
+
+## Instructions
+
+### Base
 
 ```rust
 nop()  ->  ()
 ```
 
-## Immediately Numbers
+### Immediately Numbers
 
 ```rust
 imm_i32(literal_i32) -> i32
@@ -15,49 +81,49 @@ imm_f32(literal_f32) -> f32
 imm_f64(literal_f64) -> f64
 ```
 
-## Local Loading/Storing
+### Local Loading/Storing
 
 ```rust
-local_load_i64(  identifier, rindex=literal_i16, offset=literal_i16)  ->  i64
-local_load_i32_s(identifier, rindex=literal_i16, offset=literal_i16)  ->  i32
-local_load_i32_u(identifier, rindex=literal_i16, offset=literal_i16)  ->  i32
-local_load_i16_s(identifier, rindex=literal_i16, offset=literal_i16)  ->  i16
-local_load_i16_u(identifier, rindex=literal_i16, offset=literal_i16)  ->  i16
-local_load_i8_s( identifier, rindex=literal_i16, offset=literal_i16)  ->  i8
-local_load_i8_u( identifier, rindex=literal_i16, offset=literal_i16)  ->  i8
-local_load_f32(  identifier, rindex=literal_i16, offset=literal_i16)  ->  f32
-local_load_f64(  identifier, rindex=literal_i16, offset=literal_i16)  ->  f64
+local_load_i64(  identifier, offset=literal_i16)  ->  i64
+local_load_i32_s(identifier, offset=literal_i16)  ->  i32
+local_load_i32_u(identifier, offset=literal_i16)  ->  i32
+local_load_i16_s(identifier, offset=literal_i16)  ->  i16
+local_load_i16_u(identifier, offset=literal_i16)  ->  i16
+local_load_i8_s( identifier, offset=literal_i16)  ->  i8
+local_load_i8_u( identifier, offset=literal_i16)  ->  i8
+local_load_f32(  identifier, offset=literal_i16)  ->  f32
+local_load_f64(  identifier, offset=literal_i16)  ->  f64
 
-local_store_i64(identifier, value:i64, rindex=literal_i16, offset=literal_i16)  ->  ()
-local_store_i32(identifier, value:i32, rindex=literal_i16, offset=literal_i16)  ->  ()
-local_store_i16(identifier, value:i16, rindex=literal_i16, offset=literal_i16)  ->  ()
-local_store_i8( identifier, value:i8,  rindex=literal_i16, offset=literal_i16)  ->  ()
-local_store_f64(identifier, value:f64, rindex=literal_i16, offset=literal_i16)  ->  ()
-local_store_f32(identifier, value:f32, rindex=literal_i16, offset=literal_i16)  ->  ()
+local_store_i64(identifier, value:i64, offset=literal_i16)  ->  ()
+local_store_i32(identifier, value:i32, offset=literal_i16)  ->  ()
+local_store_i16(identifier, value:i16, offset=literal_i16)  ->  ()
+local_store_i8( identifier, value:i8,  offset=literal_i16)  ->  ()
+local_store_f64(identifier, value:f64, offset=literal_i16)  ->  ()
+local_store_f32(identifier, value:f32, offset=literal_i16)  ->  ()
 ```
 
-## Local Loading/Storing Extension
+### Local Loading/Storing Extension
 
 ```rust
-local_load_extend_i64(  identifier, offset:i64, rindex=literal_i16)  ->  i64
-local_load_extend_i32_s(identifier, offset:i64, rindex=literal_i16)  ->  i32
-local_load_extend_i32_u(identifier, offset:i64, rindex=literal_i16)  ->  i32
-local_load_extend_i16_s(identifier, offset:i64, rindex=literal_i16)  ->  i16
-local_load_extend_i16_u(identifier, offset:i64, rindex=literal_i16)  ->  i16
-local_load_extend_i8_s( identifier, offset:i64, rindex=literal_i16)  ->  i8
-local_load_extend_i8_u( identifier, offset:i64, rindex=literal_i16)  ->  i8
-local_load_extend_f64(  identifier, offset:i64, rindex=literal_i16)  ->  f64
-local_load_extend_f32(  identifier, offset:i64, rindex=literal_i16)  ->  f32
+local_load_extend_i64(  identifier, offset:i64)  ->  i64
+local_load_extend_i32_s(identifier, offset:i64)  ->  i32
+local_load_extend_i32_u(identifier, offset:i64)  ->  i32
+local_load_extend_i16_s(identifier, offset:i64)  ->  i16
+local_load_extend_i16_u(identifier, offset:i64)  ->  i16
+local_load_extend_i8_s( identifier, offset:i64)  ->  i8
+local_load_extend_i8_u( identifier, offset:i64)  ->  i8
+local_load_extend_f64(  identifier, offset:i64)  ->  f64
+local_load_extend_f32(  identifier, offset:i64)  ->  f32
 
-local_store_extend_i64(identifier, offset:i64, value:i64, rindex=literal_i16)  ->  ()
-local_store_extend_i32(identifier, offset:i64, value:i32, rindex=literal_i16)  ->  ()
-local_store_extend_i16(identifier, offset:i64, value:i16, rindex=literal_i16)  ->  ()
-local_store_extend_i8( identifier, offset:i64, value:i8,  rindex=literal_i16)  ->  ()
-local_store_extend_f64(identifier, offset:i64, value:f64, rindex=literal_i16)  ->  ()
-local_store_extend_f32(identifier, offset:i64, value:f32, rindex=literal_i16)  ->  ()
+local_store_extend_i64(identifier, offset:i64, value:i64)  ->  ()
+local_store_extend_i32(identifier, offset:i64, value:i32)  ->  ()
+local_store_extend_i16(identifier, offset:i64, value:i16)  ->  ()
+local_store_extend_i8( identifier, offset:i64, value:i8)  ->  ()
+local_store_extend_f64(identifier, offset:i64, value:f64)  ->  ()
+local_store_extend_f32(identifier, offset:i64, value:f32)  ->  ()
 ```
 
-## Data Loading/Storing
+### Data Loading/Storing
 
 ```rust
 data_load_i64(  identifier, offset=literal_i16)  ->  i64
@@ -78,7 +144,7 @@ data_store_f64(identifier, value:f64, offset=literal_i16)  ->  ()
 data_store_f32(identifier, value:f32, offset=literal_i16)  ->  ()
 ```
 
-## Data Loading/Storing Extension
+### Data Loading/Storing Extension
 
 ```rust
 data_load_extend_i64(  identifier, offset:i64)  ->  i64
@@ -99,7 +165,7 @@ data_store_extend_f64(identifier, offset:i64, value:f64)  ->  ()
 data_store_extend_f32(identifier, offset:i64, value:f32)  ->  ()
 ```
 
-## Heap Loading/Storing
+### Heap Loading/Storing
 
 ```rust
 heap_load_i64(  addr:i64, offset=literal_i16)  ->  i64
@@ -127,7 +193,7 @@ heap_capacity()  ->  i64
 heap_resize(pages:i64)  ->  i64
 ```
 
-## Conversion
+### Conversion
 
 ```rust
 truncate_i64_to_i32(number:i64) -> i32
@@ -163,7 +229,7 @@ convert_i64_s_to_f64(number:i64) -> f64
 convert_i64_u_to_f64(number:i64) -> f64
 ```
 
-## Comparison
+### Comparison
 
 ```rust
 eqz_i32(number:i32) -> i64
@@ -210,7 +276,7 @@ le_f64(left:f64 right:f64) -> i64
 ge_f64(left:f64 right:f64) -> i64
 ```
 
-## Arithmetic
+### Arithmetic
 
 ```rust
 add_i32(left:i32 right:i32) -> i32
@@ -247,7 +313,7 @@ mul_f64(left:f64 right:f64)  ->  f64
 div_f64(left:f64 right:f64)  ->  f64
 ```
 
-## Bitwise
+### Bitwise
 
 ```rust
 and(left:i64 right:i64)  ->  i64
@@ -280,7 +346,7 @@ count_trailing_zeros_i64(number:i64) -> i32
 count_ones_i64(number:i64) -> i32
 ```
 
-## Math
+### Math
 
 ```rust
 abs_i32(number:i32) -> i32
@@ -347,7 +413,7 @@ pow_f64(left:f64 right:f64) -> f64
 log_f64(left:f64 right:f64) -> f64
 ```
 
-## Calling
+### Calling
 
 - `call(identifier, value0, value1, ...)`
    call a function
@@ -398,12 +464,12 @@ call(i_need_2_args
 )
 ```
 
-## Host
+### Host
 
 ```rust
 panic(code:literal_i32)  ->  (never return)
-host_addr_local(identifier, rindex=literal_i16, offset=literal_i16) -> i64
-host_addr_local_extend(identifier, offset:i64, rindex=literal_i16) -> i64
+host_addr_local(identifier, offset=literal_i16) -> i64
+host_addr_local_extend(identifier, offset:i64) -> i64
 host_addr_data(identifier, offset=literal_i16) -> i64
 host_addr_data_extend(identifier, offset:i64) -> i64
 host_addr_heap(addr:i64, offset=literal_i16) -> i64

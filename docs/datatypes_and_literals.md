@@ -1,17 +1,29 @@
 # Data types and literals
 
+<!-- @import "[TOC]" {cmd="toc" depthFrom=2 depthTo=4 orderedList=false} -->
+
+<!-- code_chunk_output -->
+
+- [Data Types](#data-types)
+- [Literals](#literals)
+  - [Numbers](#numbers)
+  - [Strings](#strings)
+  - [List](#list)
+
+<!-- /code_chunk_output -->
+
 ## Data Types
 
-Data types for parameters and return values of function:
+Possible data types for parameters and return values of function are:
 
 - i64: unsigned 64-bit integers
 - i32: unsigned 32-bit integers
 - f64: 64-bit floating-piont numbers
 - f32: 32-bit floating-piont numbers
 
-The data types for local variables (局部变量) (as well as "data" and "external data") support fixed-length byte arryas (`byte[length]`) in addition to the data types above.
+The data types of local variables (局部变量) (as well as "data" and "external data") support fixed-length byte arryas (`byte[length]`) in addition to the data types above.
 
-Note that when declaring "uninitialized data" and "external data", an unspecified length byte array `byte[]` is sometimes used. The length of such byte arrays is determined by the specific content, so it is not a new data type.
+Note that when declaring "read-write data", "read-only data" and "external data", an unspecified length byte array `byte[]` is sometimes used. The length of such byte arrays is determined by the specific content, so it is not a new data type.
 
 ## Literals
 

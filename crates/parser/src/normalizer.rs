@@ -129,8 +129,8 @@ pub fn normalize(tokens: Vec<TokenWithRange>) -> Result<Vec<TokenWithRange>, Err
             Token::Plus => {
                 match peekable_token_iter.peek(0) {
                     Some(TokenWithRange {
-                        token: Token::Number(num),
-                        range: current_range,
+                        token: Token::Number(_),
+                        ..
                     }) => {
                         // consumes the the plus sign (it's already done) and the
                         // number token.

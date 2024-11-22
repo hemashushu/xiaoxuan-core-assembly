@@ -1,6 +1,20 @@
 # The Statements
 
-## Using identifiers
+<!-- @import "[TOC]" {cmd="toc" depthFrom=2 depthTo=4 orderedList=false} -->
+
+<!-- code_chunk_output -->
+
+- [The `use` Statements](#the-use-statements)
+- [The `external` Statements](#the-external-statements)
+- [The `data` Statements](#the-data-statements)
+- [The `fn` Statements](#the-fn-statements)
+- [Line Break Rules](#line-break-rules)
+
+<!-- /code_chunk_output -->
+
+A module consists of statements.
+
+## The `use` Statements
 
 To import identifiers (the name of functions or data) from other modules, use the `use` keyword:
 
@@ -39,7 +53,7 @@ use self::sub_module::some_func
 use parent::sub_sub_module::some_data as other_data
 ```
 
-## External Functions and Data
+## The `external` Statements
 
 To declear external functions or data, use the `external` keyword:
 
@@ -57,7 +71,7 @@ The possible data types of function's parameters and return value are: `i64`, `i
 
 > Note: XiaoXuan Core VM does not yet support external data.
 
-## Data Definitions
+## The `data` Statements
 
 To define data, use the `data` keyword:
 
@@ -99,7 +113,7 @@ The `byte` type can also be specified alignment, e.g.:
 - `byte[1024, align=8]`
 - `byte[align=4]`
 
-## Function Definitions
+## The `fn` Statements
 
 To define functions, use the `fn` keyword:
 
@@ -132,21 +146,33 @@ fn inc_one(num:i32) -> i32
     add_imm_i32(1, local_load_i32_s(left))
 ```
 
-## Line break rules for source code
+## Line Break Rules
 
-**1. A statement or expression must be followed by a newline.**
-
-todo:: examples
-
-**2. Line breaks are allowed after symbols indicating the beginning of a block, such as `(`, `{` and `[`.**
+**1. A statement must be followed by a newline.**
 
 todo:: examples
 
-**3. Line breaks are allowed after symbols indicating that more content will follow, such as `->`, `=`, and `:`.**
+**2. A newline is required between two sequential expressions.**
+
+Sequential expressions are often found within groups of expressions. For instance:
+
+```rust
+{
+    imm_i32(11)
+    imm_i32(31)
+    local_store_i32(num, imm_i32(42))
+}
+```
+
+**3. Line breaks are allowed after symbols indicating the beginning of a block, such as `(`, `{` and `[`.**
 
 todo:: examples
 
-**4. Commas (`,`) can be replaced with newlines for separating content.**
+**4. Line breaks are allowed after symbols indicating that more content will follow, such as `->`, `=`, and `:`.**
+
+todo:: examples
+
+**5. Commas (`,`) can be replaced with newlines for separating content.**
 
 todo:: examples
 
@@ -154,10 +180,10 @@ Note that both commas and new lines can be used together.
 
 todo:: examples
 
-**5. Line breaks are allowed after keywords indicating that specific content will follow, such as `fn`, `data`, and `use`.**
+**6. Line breaks are allowed after keywords indicating that specific content will follow, such as `fn`, `data`, and `use`.**
 
 todo:: examples
 
-**6. Newlines cannot be placed after modifier keywords, such as `pub`, `external`, and `readonly`.**
+**7. Newlines cannot be placed after modifier keywords, such as `pub`, `external`, and `readonly`.**
 
 todo:: examples

@@ -8,10 +8,11 @@ use anc_isa::DataSectionType;
 
 use crate::{
     ast::{
-        DataNode, DataSection, DataTypeValuePair, DataValue, DeclareDataType, ExpressionNode,
-        ExternalDataNode, ExternalDataType, ExternalFunctionNode, ExternalNode,
-        FixedDeclareDataType, FunctionDataType, FunctionNode, InstructionNode, LocalVariable,
-        ModuleNode, NamedParameter, UseNode,
+        ArgumentValue, BlockNode, BreakNode, DataNode, DataSection, DataTypeValuePair, DataValue,
+        DeclareDataType, ExpressionNode, ExternalDataNode, ExternalDataType, ExternalFunctionNode,
+        ExternalNode, FixedDeclareDataType, FunctionDataType, FunctionNode, IfNode,
+        InstructionNode, LiteralNumber, LocalVariable, ModuleNode, NamedArgument, NamedParameter,
+        UseNode, WhenNode,
     },
     error::Error,
     lexer::lex_from_str,
@@ -106,21 +107,21 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn consume_new_line_or_comma(&mut self) -> Result<(), Error> {
-        match self.peek_token(0) {
-            Some(Token::NewLine | Token::Comma) => {
-                self.next_token();
-                Ok(())
-            }
-            Some(_) => Err(Error::MessageWithLocation(
-                "Expect a comma or new-line.".to_owned(),
-                self.peek_range(0).unwrap().get_position_by_range_start(),
-            )),
-            None => Err(Error::UnexpectedEndOfDocument(
-                "Expect a comma or new-line.".to_owned(),
-            )),
-        }
-    }
+    // fn consume_new_line_or_comma(&mut self) -> Result<(), Error> {
+    //     match self.peek_token(0) {
+    //         Some(Token::NewLine | Token::Comma) => {
+    //             self.next_token();
+    //             Ok(())
+    //         }
+    //         Some(_) => Err(Error::MessageWithLocation(
+    //             "Expect a comma or new-line.".to_owned(),
+    //             self.peek_range(0).unwrap().get_position_by_range_start(),
+    //         )),
+    //         None => Err(Error::UnexpectedEndOfDocument(
+    //             "Expect a comma or new-line.".to_owned(),
+    //         )),
+    //     }
+    // }
 
     fn consume_token(
         &mut self,
@@ -202,6 +203,11 @@ impl<'a> Parser<'a> {
         self.consume_token(&Token::RightBracket, "right bracket")
     }
 
+    // '}'
+    fn consume_right_brace(&mut self) -> Result<(), Error> {
+        self.consume_token(&Token::RightBrace, "right brace")
+    }
+
     // '='
     fn consume_equal(&mut self) -> Result<(), Error> {
         self.consume_token(&Token::Equal, "equal sign")
@@ -275,13 +281,13 @@ impl<'a> Parser<'a> {
                 }
                 Token::Keyword(keyword) if keyword == "fn" => {
                     // private fn statement
-                    functions.push(self.parse_fn_node(false)?);
+                    functions.push(self.parse_function_node(false)?);
                 }
                 Token::Keyword(keyword) if keyword == "pub" && self.expect_keyword(1, "fn") => {
                     // public fn statement
                     self.next_token(); // consume 'pub'
 
-                    functions.push(self.parse_fn_node(true)?);
+                    functions.push(self.parse_function_node(true)?);
                 }
                 _ => {
                     return Err(Error::MessageWithLocation(
@@ -886,21 +892,24 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_fn_node(&mut self, is_public: bool) -> Result<FunctionNode, Error> {
+    fn parse_function_node(&mut self, is_public: bool) -> Result<FunctionNode, Error> {
         // fn (...) [-> ...] [...] exp ?  //
         // ^                           ^__// to here
         // |------------------------------// current token, validated
 
         self.next_token(); // consume 'fn'
+        self.consume_new_line_if_exist();
 
         let name = self.consume_name()?;
-        let params = self.continue_parse_fn_params()?;
+        self.consume_new_line_if_exist();
+
+        let params = self.continue_parse_function_params()?;
 
         let returns: Vec<FunctionDataType> = if self.expect_token(0, &Token::RightArrow) {
             self.next_token(); // consume '->'
             self.consume_new_line_if_exist();
 
-            self.continue_parse_fn_returns()?
+            self.continue_parse_function_returns()?
         } else {
             vec![]
         };
@@ -908,7 +917,7 @@ impl<'a> Parser<'a> {
         self.consume_new_line_if_exist();
 
         let locals: Vec<LocalVariable> = if self.expect_token(0, &Token::LeftBracket) {
-            self.continue_parse_fn_local_variables()?
+            self.continue_parse_function_local_variables()?
         } else {
             vec![]
         };
@@ -925,13 +934,13 @@ impl<'a> Parser<'a> {
             params,
             returns,
             locals,
-            body,
+            body: Box::new(body),
         };
 
         Ok(node)
     }
 
-    fn continue_parse_fn_params(&mut self) -> Result<Vec<NamedParameter>, Error> {
+    fn continue_parse_function_params(&mut self) -> Result<Vec<NamedParameter>, Error> {
         // (name:type, name:type, ...) ?  //
         // ^                           ^__// to here
         // |------------------------------// current token, NOT validated
@@ -965,7 +974,7 @@ impl<'a> Parser<'a> {
         Ok(params)
     }
 
-    fn continue_parse_fn_returns(&mut self) -> Result<Vec<FunctionDataType>, Error> {
+    fn continue_parse_function_returns(&mut self) -> Result<Vec<FunctionDataType>, Error> {
         // (type, type, ...) ?  //
         // ^                 ^__// to here
         // |------- ------------// current token, NOT validated
@@ -977,6 +986,7 @@ impl<'a> Parser<'a> {
         let mut returns = vec![];
         if self.expect_token(0, &Token::LeftParen) {
             self.next_token(); // consume '('
+            self.consume_new_line_if_exist();
 
             while let Some(token) = self.peek_token(0) {
                 if token == &Token::RightParen {
@@ -1001,15 +1011,15 @@ impl<'a> Parser<'a> {
         Ok(returns)
     }
 
-    fn continue_parse_fn_local_variables(&mut self) -> Result<Vec<LocalVariable>, Error> {
+    fn continue_parse_function_local_variables(&mut self) -> Result<Vec<LocalVariable>, Error> {
         // [name:type, name:type, ...] ?  //
         // ^                           ^__// to here
-        // |------------------------------// current token, NOT validated
+        // |------------------------------// current token, validated
         //
         // also:
         // - "[]"
 
-        self.consume_left_bracket()?; // consume '['
+        self.next_token(); // consume '['
         self.consume_new_line_if_exist();
 
         let mut local_variables = vec![];
@@ -1039,15 +1049,368 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expression_node(&mut self) -> Result<ExpressionNode, Error> {
-        self.consume_name()?; // nop
-        self.consume_left_paren()?; // (
-        self.consume_right_paren()?; // )
+        // expression ?  //
+        // ^          ^__// to here
+        // |-------------// current token, NOT validated
 
-        Ok(ExpressionNode::Instruction(InstructionNode {
-            name: "nop".to_owned(),
-            position_args: vec![],
-            named_args: vec![],
-        }))
+        if let Some(token) = self.peek_token(0) {
+            let node = match token {
+                Token::LeftBrace => {
+                    // group
+                    let exps = self.parse_group_expression()?;
+                    ExpressionNode::Group(exps)
+                }
+                Token::Keyword(keyword) if keyword == "when" => {
+                    // "when" expression
+                    let when_node = self.parse_when_expression()?;
+                    ExpressionNode::When(when_node)
+                }
+                Token::Keyword(keyword) if keyword == "if" => {
+                    // "if" expression
+                    let if_node = self.parse_if_expression()?;
+                    ExpressionNode::If(if_node)
+                }
+                Token::Keyword(keyword) if keyword == "block" => {
+                    // "block" expression
+                    let block_node = self.parse_block_expression()?;
+                    ExpressionNode::Block(block_node)
+                }
+                Token::Keyword(keyword) if keyword == "for" => {
+                    // "for" expression
+                    let block_node = self.parse_block_expression()?;
+                    ExpressionNode::For(block_node)
+                }
+                Token::Keyword(keyword)
+                    if (keyword == "break" || keyword == "break_if" || keyword == "break_fn") =>
+                {
+                    // "break*" expression
+                    let keyword_ref = &keyword.to_owned();
+                    let break_node = self.parse_break_expression(keyword_ref)?;
+                    ExpressionNode::Break(break_node)
+                }
+                Token::Keyword(keyword)
+                    if (keyword == "recur" || keyword == "recur_if" || keyword == "recur_fn") =>
+                {
+                    // "recur*" expression
+                    let keyword_ref = &keyword.to_owned();
+                    let recur_node = self.parse_break_expression(keyword_ref)?;
+                    ExpressionNode::Recur(recur_node)
+                }
+                Token::Name(_) if self.expect_token(1, &Token::LeftParen) => {
+                    // maybe an instruction expression
+                    let instruction_node = self.parse_instruction_expression()?;
+                    ExpressionNode::Instruction(instruction_node)
+                }
+                _ => {
+                    return Err(Error::MessageWithLocation(
+                        "Expect an expression.".to_owned(),
+                        self.peek_range(0).unwrap().get_position_by_range_start(),
+                    ));
+                }
+            };
+
+            Ok(node)
+        } else {
+            Err(Error::UnexpectedEndOfDocument(
+                "Expect an expression.".to_owned(),
+            ))
+        }
+    }
+
+    fn parse_instruction_expression(&mut self) -> Result<InstructionNode, Error> {
+        // name (arg, ...) ?  //
+        // ^    ^          ^__// to here
+        // |    |
+        // |------------------// current token, validated
+
+        let name = self.consume_name()?;
+        let (positional_args, named_args) = self.continue_parse_calling_arguments()?;
+
+        let node = InstructionNode {
+            name,
+            positional_args,
+            named_args,
+        };
+
+        Ok(node)
+    }
+
+    fn continue_parse_calling_arguments(
+        &mut self,
+    ) -> Result<(Vec<ArgumentValue>, Vec<NamedArgument>), Error> {
+        // (arg, ..., name=value, ...) ?  //
+        // ^                           ^__// to here
+        // |------------------------------// current token, validated
+
+        self.next_token(); // consume '('
+        self.consume_new_line_if_exist();
+
+        let mut positional_args: Vec<ArgumentValue> = vec![];
+        let mut named_args: Vec<NamedArgument> = vec![];
+
+        while let Some(token) = self.peek_token(0) {
+            if token == &Token::RightParen {
+                break;
+            }
+
+            if matches!(token, Token::Name(_)) && self.expect_token(1, &Token::Equal) {
+                // named arg
+                let name = self.consume_name()?; // consume the name
+                self.consume_equal()?; // consume '='
+                self.consume_new_line_if_exist();
+
+                let value = self.continue_parse_argument_value()?;
+                let arg = NamedArgument { name, value };
+                named_args.push(arg);
+            } else {
+                // positional arg
+                let value = self.continue_parse_argument_value()?;
+                positional_args.push(value);
+            }
+
+            let found_sep = self.consume_new_line_or_comma_if_exist();
+            if !found_sep {
+                break;
+            }
+        }
+
+        self.consume_right_paren()?; // consume ')'
+
+        Ok((positional_args, named_args))
+    }
+
+    fn continue_parse_argument_value(&mut self) -> Result<ArgumentValue, Error> {
+        // 123 ?  //
+        // ^   ^__// to here
+        // |------// current token, NOT validated
+
+        // The possible value of data are:
+        // - Numbers: includes decimal, hexadecimal, binary, float-point, hex float-point.
+        // - Identifiers: name of functions or data.
+        // - Expression: an expression.
+        if let Some(token) = self.peek_token(0) {
+            let value = match token {
+                Token::Number(number_token) => {
+                    let value_num = match number_token {
+                        NumberToken::I8(v) => ArgumentValue::LiteralNumber(LiteralNumber::I8(*v)),
+                        NumberToken::I16(v) => ArgumentValue::LiteralNumber(LiteralNumber::I16(*v)),
+                        NumberToken::I32(v) => ArgumentValue::LiteralNumber(LiteralNumber::I32(*v)),
+                        NumberToken::I64(v) => ArgumentValue::LiteralNumber(LiteralNumber::I64(*v)),
+                        NumberToken::F32(v) => ArgumentValue::LiteralNumber(LiteralNumber::F32(*v)),
+                        NumberToken::F64(v) => ArgumentValue::LiteralNumber(LiteralNumber::F64(*v)),
+                    };
+                    self.next_token(); // consume number token
+                    value_num
+                }
+                Token::Name(name) if !self.expect_token(1, &Token::LeftParen) => {
+                    let identifier = name.to_owned();
+                    self.next_token(); // consume name
+                    ArgumentValue::Identifier(identifier)
+                }
+                _ => {
+                    let expression_node = self.parse_expression_node()?;
+                    ArgumentValue::Expression(Box::new(expression_node))
+                }
+            };
+
+            Ok(value)
+        } else {
+            Err(Error::UnexpectedEndOfDocument(
+                "Expect a value for argument.".to_owned(),
+            ))
+        }
+    }
+
+    fn parse_break_expression(&mut self, keyword: &str) -> Result<BreakNode, Error> {
+        // break (value0, value1, ...) ?  //
+        // ^                           ^__// to here
+        // |------------------------------// current token, validated
+        //
+        // also:
+        // - break_if testing (value0, value1, ...)
+        // - break_fn (value0, value1, ...)
+
+        self.next_token(); // consume 'break' or 'recur'
+        self.consume_new_line_if_exist();
+
+        let node = if keyword == "break_if" || keyword == "recur_if" {
+            let testing = self.parse_expression_node()?;
+            self.consume_new_line_if_exist();
+
+            let args = self.continue_parse_break_arguments()?;
+            BreakNode::BreakIf(Box::new(testing), args)
+        } else if keyword == "break" || keyword == "recur" {
+            let args = self.continue_parse_break_arguments()?;
+            BreakNode::Break(args)
+        } else {
+            let args = self.continue_parse_break_arguments()?;
+            BreakNode::BreakFn(args)
+        };
+
+        Ok(node)
+    }
+
+    fn continue_parse_break_arguments(&mut self) -> Result<Vec<ExpressionNode>, Error> {
+        // (arg, ...) ?  //
+        // ^          ^__// to here
+        // |-------------// current token, NOT validated
+
+        self.consume_left_paren()?; // consume '('
+        self.consume_new_line_if_exist();
+
+        let mut args: Vec<ExpressionNode> = vec![];
+
+        while let Some(token) = self.peek_token(0) {
+            if token == &Token::RightParen {
+                break;
+            }
+
+            let value = self.parse_expression_node()?;
+            args.push(value);
+
+            let found_sep = self.consume_new_line_or_comma_if_exist();
+            if !found_sep {
+                break;
+            }
+        }
+
+        self.consume_right_paren()?; // consume ')'
+
+        Ok(args)
+    }
+
+    fn parse_block_expression(&mut self) -> Result<BlockNode, Error> {
+        // block params -> returns [locals] body ?  //
+        // ^                                     ^__// to here
+        // |----------------------------------------// current token, validated
+
+        self.next_token(); // consume 'block' or 'for'
+        self.consume_new_line_if_exist();
+
+        let params = self.continue_parse_function_params()?;
+
+        let returns: Vec<FunctionDataType> = if self.expect_token(0, &Token::RightArrow) {
+            self.next_token(); // consume '->'
+            self.consume_new_line_if_exist();
+
+            self.continue_parse_function_returns()?
+        } else {
+            vec![]
+        };
+
+        self.consume_new_line_if_exist();
+
+        let locals: Vec<LocalVariable> = if self.expect_token(0, &Token::LeftBracket) {
+            self.continue_parse_function_local_variables()?
+        } else {
+            vec![]
+        };
+
+        self.consume_new_line_if_exist();
+
+        let body = self.parse_expression_node()?;
+
+        self.consume_new_line_or_eof()?;
+
+        let node = BlockNode {
+            params,
+            returns,
+            locals,
+            body: Box::new(body),
+        };
+
+        Ok(node)
+    }
+
+    fn parse_if_expression(&mut self) -> Result<IfNode, Error> {
+        // if -> returns tesing consequence alternative ?  //
+        // ^                                            ^__// to here
+        // |-----------------------------------------------// current token, validated
+
+        self.next_token(); // consume 'if'
+        self.consume_new_line_if_exist();
+
+        let returns = if self.expect_token(0, &Token::RightArrow) {
+            self.next_token(); // consume '->'
+            self.consume_new_line_if_exist();
+
+            self.continue_parse_function_returns()?
+        } else {
+            vec![]
+        };
+
+        let testing = self.parse_expression_node()?;
+        self.consume_new_line_if_exist();
+
+        let consequence = self.parse_expression_node()?;
+        self.consume_new_line_if_exist();
+
+        let alternative = self.parse_expression_node()?;
+
+        let node = IfNode {
+            returns,
+            testing: Box::new(testing),
+            consequence: Box::new(consequence),
+            alternative: Box::new(alternative),
+        };
+
+        Ok(node)
+    }
+
+    fn parse_when_expression(&mut self) -> Result<WhenNode, Error> {
+        // when testing [locals] consequence ?  //
+        // ^                                 ^__// to here
+        // |------------------------------------// current token, validated
+
+        self.next_token(); // consume 'when'
+        self.consume_new_line_if_exist();
+
+        let testing = self.parse_expression_node()?;
+        self.consume_new_line_if_exist();
+
+        let locals = if self.expect_token(0, &Token::LeftBracket) {
+            self.continue_parse_function_local_variables()?
+        } else {
+            vec![]
+        };
+        self.consume_new_line_if_exist();
+
+        let consequence = self.parse_expression_node()?;
+
+        let node = WhenNode {
+            testing: Box::new(testing),
+            locals,
+            consequence: Box::new(consequence),
+        };
+        Ok(node)
+    }
+
+    fn parse_group_expression(&mut self) -> Result<Vec<ExpressionNode>, Error> {
+        // {expression ...} ?  //
+        // ^                ^__// to here
+        // |-------------------// current token, validated
+
+        self.next_token(); // consume '{'
+        self.consume_new_line_if_exist();
+
+        let mut expressions = vec![];
+        while let Some(token) = self.peek_token(0) {
+            if token == &Token::RightBrace {
+                break;
+            }
+
+            let expression_node = self.parse_expression_node()?;
+            expressions.push(expression_node);
+
+            let found_sep = self.consume_new_line_if_exist();
+            if !found_sep {
+                break;
+            }
+        }
+
+        self.consume_right_brace()?; // consume '}'
+
+        Ok(expressions)
     }
 }
 
@@ -1087,7 +1450,8 @@ mod tests {
         // test line break
         assert_eq!(
             format(
-                "use
+                "\
+use
 std::memory::copy as
 mem_copy"
             ),
@@ -1097,16 +1461,18 @@ mem_copy"
         // test multiple items
         assert_eq!(
             format(
-                "use module::sub_module::some_func
+                "\
+use module::sub_module::some_func
 use self::sub_module::some_func"
             ),
-            "use module::sub_module::some_func
+            "\
+use module::sub_module::some_func
 use self::sub_module::some_func\n\n"
         );
     }
 
     #[test]
-    fn test_parse_external_fn_statement() {
+    fn test_parse_external_function_statement() {
         assert_eq!(
             format("external fn libfoo::bar()->()"),
             "external fn libfoo::bar() -> ()\n\n"
@@ -1138,7 +1504,8 @@ use self::sub_module::some_func\n\n"
         // test line break
         assert_eq!(
             format(
-                "external fn
+                "\
+external fn
 libfoo::add(
 i32
 i32
@@ -1152,10 +1519,12 @@ add_i32"
         // test multiple items
         assert_eq!(
             format(
-                "external fn libfoo::bar()
+                "\
+external fn libfoo::bar()
 external fn libfoo::add(i32,i32)->i32"
             ),
-            "external fn libfoo::bar() -> ()
+            "\
+external fn libfoo::bar() -> ()
 external fn libfoo::add(i32, i32) -> i32\n\n"
         );
     }
@@ -1176,7 +1545,8 @@ external fn libfoo::add(i32, i32) -> i32\n\n"
         // test line break
         assert_eq!(
             format(
-                "external data
+                "\
+external data
 libfoo::bar :
 byte[] as
 baz"
@@ -1187,10 +1557,12 @@ baz"
         // test multiple items
         assert_eq!(
             format(
-                "external data libfoo::PI:f32
+                "\
+external data libfoo::PI:f32
 external data libfoo::bar:byte[] as baz"
             ),
-            "external data libfoo::PI:f32
+            "\
+external data libfoo::PI:f32
 external data libfoo::bar:byte[] as baz\n\n"
         );
     }
@@ -1217,14 +1589,16 @@ external data libfoo::bar:byte[] as baz\n\n"
         // other data types and values
         assert_eq!(
             format(
-                r#"pub data foo1:byte[32] = h"11 13 17 19" // length is 32
+                r#"
+pub data foo1:byte[32] = h"11 13 17 19" // length is 32
 pub data foo1:byte[32,align=8] = [0x11_i32, 0x13_i32, 0x17_i32, 0x19_i32] // length is 32
 pub data foo2:byte[align=4] = [0x11_i32, 0x13_i32, 0x17_i32, 0x19_i32] // length is 4
 pub data foo3:byte[] = "Hello, World!" // length is 13
 pub data foo4:byte[] = "Hello, World!\0" // length is 13+1
 pub data foo5:byte[] = ["Hello, World!", 0_i8] // length is 13+1""#
             ),
-            r#"pub data foo1:byte[32] = h"11 13 17 19"
+            "\
+pub data foo1:byte[32] = h\"11 13 17 19\"
 pub data foo1:byte[32, align=8] = [
     17
     19
@@ -1237,36 +1611,39 @@ pub data foo2:byte[align=4] = [
     23
     25
 ]
-pub data foo3:byte[] = "Hello, World!"
-pub data foo4:byte[] = "Hello, World!\0"
+pub data foo3:byte[] = \"Hello, World!\"
+pub data foo4:byte[] = \"Hello, World!\\0\"
 pub data foo5:byte[] = [
-    "Hello, World!"
+    \"Hello, World!\"
     0_i8
 ]
 
-"#
+"
         );
 
         // test line breaks
         assert_eq!(
             format(
-                "pub data foo:
-        byte[
-        32
-        align=
-        8
-        ] =
-        [
-        11
-        \"abc\"
-            [
-                13
-                17
-            ]
-        ]
-        "
+                "\
+pub data
+foo:
+byte[
+32
+align=
+8
+] =
+[
+11
+\"abc\"
+    [
+        13
+        17
+    ]
+]
+"
             ),
-            "pub data foo:byte[32, align=8] = [
+            "\
+pub data foo:byte[32, align=8] = [
     11
     \"abc\"
     [
@@ -1280,15 +1657,170 @@ pub data foo5:byte[] = [
     #[test]
     fn test_parse_function_statement() {
         assert_eq!(
-            format("fn foo()->() nop()"),
-            "fn foo() -> () {
+            format("fn foo() nop()"),
+            "\
+fn foo() -> ()
     nop()
-}");
+"
+        );
 
-        // assert_eq!(
-        //     format("fn foo(a:i32,b:i32)-> (i32, i32) [c:i32, d:byte[32, align=8]] nop()"),
-        //     "");
+        // with params and return
+        assert_eq!(
+            format("fn foo(hi:i32,lo:i32)->i64 nop()"),
+            "\
+fn foo(hi:i32, lo:i32) -> i64
+    nop()
+"
+        );
 
-        // println!("{}", s);
+        // with returns
+        assert_eq!(
+            format("fn foo(n:i64)->(i32,i32) nop()"),
+            "\
+fn foo(n:i64) -> (i32, i32)
+    nop()
+"
+        );
+
+        // with empty local variable
+        assert_eq!(
+            format("fn foo()->() [] nop()"),
+            "\
+fn foo() -> ()
+    nop()
+"
+        );
+
+        // with local variable
+        assert_eq!(
+            format("fn foo() [a:i32] nop()"),
+            "\
+fn foo() -> ()
+    [a:i32]
+    nop()
+"
+        );
+
+        // with multiple local variables
+        assert_eq!(
+            format("fn foo() [a:i32,b:byte[16,align=4]] nop()"),
+            "\
+fn foo() -> ()
+    [a:i32, b:byte[16, align=4]]
+    nop()
+"
+        );
+
+        // with instruction expressions
+        assert_eq!(
+            format(
+                "\
+fn foo(left:i32,right:i32)-> i32 []
+    add_i32(
+        local_load_i32s(left),
+        local_load_i32s(right),
+    )"
+            ),
+            "\
+fn foo(left:i32, right:i32) -> i32
+    add_i32(
+        local_load_i32s(left),
+        local_load_i32s(right))
+"
+        );
+
+        // with line breaks
+        assert_eq!(
+            format(
+                "\
+fn
+foo
+(
+left:
+i32
+right:
+i32
+) ->
+i32
+[
+abc:
+i32]
+nop(
+)"
+            ),
+            "\
+fn foo(left:i32, right:i32) -> i32
+    [abc:i32]
+    nop()
+"
+        );
+    }
+
+    #[test]
+    fn test_parse_expression_group() {
+        assert_eq!(
+            format(
+                "\
+fn foo() {
+    imm_i32(11)
+    imm_i32(31)
+}"
+            ),
+            "\
+fn foo() -> ()
+    {
+        imm_i32(11)
+        imm_i32(31)
+    }
+"
+        );
+
+        // nested group
+        assert_eq!(
+            format(
+                "\
+fn foo()
+    {
+        imm_i32(11)
+        {
+            imm_i32(31)
+        }
+    }"
+            ),
+            "\
+fn foo() -> ()
+    {
+        imm_i32(11)
+        {
+            imm_i32(31)
+        }
+    }
+"
+        );
+    }
+
+    #[test]
+    fn test_parse_expression_when() {
+        // todo
+    }
+
+    #[test]
+    fn test_parse_expression_if() {
+        // todo
+    }
+
+    #[test]
+    fn test_parse_expression_block() {
+        // todo
+    }
+
+    #[test]
+    fn test_parse_expression_break() {
+        // todo
+    }
+
+    #[test]
+    fn test_parse_expression_recur() {
+        // todo
     }
 }

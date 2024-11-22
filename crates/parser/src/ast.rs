@@ -199,7 +199,7 @@ pub struct FunctionNode {
     pub params: Vec<NamedParameter>,
     pub returns: Vec<FunctionDataType>,
     pub locals: Vec<LocalVariable>,
-    pub body: ExpressionNode,
+    pub body: Box<ExpressionNode>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -405,7 +405,7 @@ pub enum BreakNode {
 #[derive(Debug, PartialEq)]
 pub struct InstructionNode {
     pub name: String,
-    pub position_args: Vec<ArgumentValue>,
+    pub positional_args: Vec<ArgumentValue>,
     pub named_args: Vec<NamedArgument>,
 }
 

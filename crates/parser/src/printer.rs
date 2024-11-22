@@ -220,7 +220,7 @@ fn format_expression_instruction(
     indent_level: usize,
 ) -> String {
     // name(position_args, ..., named_args, ...)
-    let pas = node.position_args.iter().map(|item| match item {
+    let pas = node.positional_args.iter().map(|item| match item {
         ArgumentValue::Identifier(id) => id.to_owned(),
         ArgumentValue::LiteralNumber(num) => format_literal_number(num),
         ArgumentValue::Expression(exp) => {
@@ -871,9 +871,9 @@ data bar:byte[align=4] = [
             params: vec![],
             returns: vec![],
             locals: vec![],
-            body: ExpressionNode::Instruction(InstructionNode {
+            body: Box::new( ExpressionNode::Instruction(InstructionNode {
                 name: "local_load_i64".to_owned(),
-                position_args: vec![ArgumentValue::Identifier("left".to_owned())],
+                positional_args: vec![ArgumentValue::Identifier("left".to_owned())],
                 named_args: vec![
                     NamedArgument {
                         name: "rindex".to_owned(),
@@ -884,7 +884,7 @@ data bar:byte[align=4] = [
                         value: ArgumentValue::LiteralNumber(LiteralNumber::I16(4)),
                     },
                 ],
-            }),
+            })),
         };
 
         assert_eq!(
@@ -910,25 +910,25 @@ fn foo() -> ()
             ],
             returns: vec![FunctionDataType::I32],
             locals: vec![],
-            body: ExpressionNode::Instruction(InstructionNode {
+            body: Box::new(ExpressionNode::Instruction(InstructionNode {
                 name: "add_i32".to_owned(),
-                position_args: vec![
+                positional_args: vec![
                     ArgumentValue::Expression(Box::new(ExpressionNode::Instruction(
                         InstructionNode {
                             name: "local_load_i32".to_owned(),
-                            position_args: vec![ArgumentValue::Identifier("left".to_owned())],
+                            positional_args: vec![ArgumentValue::Identifier("left".to_owned())],
                             named_args: vec![],
                         },
                     ))),
                     ArgumentValue::Expression(Box::new(ExpressionNode::Instruction(
                         InstructionNode {
                             name: "add_imm_i32".to_owned(),
-                            position_args: vec![
+                            positional_args: vec![
                                 ArgumentValue::LiteralNumber(LiteralNumber::I16(11)),
                                 ArgumentValue::Expression(Box::new(ExpressionNode::Instruction(
                                     InstructionNode {
                                         name: "local_load_i32".to_owned(),
-                                        position_args: vec![ArgumentValue::Identifier(
+                                        positional_args: vec![ArgumentValue::Identifier(
                                             "right".to_owned(),
                                         )],
                                         named_args: vec![],
@@ -940,7 +940,7 @@ fn foo() -> ()
                     ))),
                 ],
                 named_args: vec![],
-            }),
+            })),
         };
 
         assert_eq!(
@@ -973,11 +973,11 @@ pub fn add(left:i32, right:i32) -> i32
                     data_type: FixedDeclareDataType::FixedBytes(24, Some(4)),
                 },
             ],
-            body: ExpressionNode::Instruction(InstructionNode {
+            body: Box::new(ExpressionNode::Instruction(InstructionNode {
                 name: "end".to_owned(),
-                position_args: vec![],
+                positional_args: vec![],
                 named_args: vec![],
-            }),
+            })),
         };
 
         assert_eq!(
@@ -1003,20 +1003,20 @@ fn hello() -> (i32, i64)
             params: vec![],
             returns: vec![],
             locals: vec![],
-            body: ExpressionNode::Group(vec![
+            body:Box::new( ExpressionNode::Group(vec![
                 ExpressionNode::Instruction(InstructionNode {
                     name: "nop".to_owned(),
-                    position_args: vec![],
+                    positional_args: vec![],
                     named_args: vec![],
                 }),
                 ExpressionNode::Instruction(InstructionNode {
                     name: "local_store_i32".to_owned(),
-                    position_args: vec![
+                    positional_args: vec![
                         ArgumentValue::Identifier("left".to_owned()),
                         ArgumentValue::Expression(Box::new(ExpressionNode::Instruction(
                             InstructionNode {
                                 name: "imm_i32".to_owned(),
-                                position_args: vec![ArgumentValue::LiteralNumber(
+                                positional_args: vec![ArgumentValue::LiteralNumber(
                                     LiteralNumber::I32(123),
                                 )],
                                 named_args: vec![],
@@ -1027,16 +1027,16 @@ fn hello() -> (i32, i64)
                 }),
                 ExpressionNode::Instruction(InstructionNode {
                     name: "local_store_i32".to_owned(),
-                    position_args: vec![
+                    positional_args: vec![
                         ArgumentValue::Identifier("right".to_owned()),
                         ArgumentValue::Expression(Box::new(ExpressionNode::Instruction(
                             InstructionNode {
                                 name: "add_i32".to_owned(),
-                                position_args: vec![
+                                positional_args: vec![
                                     ArgumentValue::Expression(Box::new(
                                         ExpressionNode::Instruction(InstructionNode {
                                             name: "imm_i32".to_owned(),
-                                            position_args: vec![ArgumentValue::LiteralNumber(
+                                            positional_args: vec![ArgumentValue::LiteralNumber(
                                                 LiteralNumber::I32(123),
                                             )],
                                             named_args: vec![],
@@ -1045,7 +1045,7 @@ fn hello() -> (i32, i64)
                                     ArgumentValue::Expression(Box::new(
                                         ExpressionNode::Instruction(InstructionNode {
                                             name: "imm_i32".to_owned(),
-                                            position_args: vec![ArgumentValue::LiteralNumber(
+                                            positional_args: vec![ArgumentValue::LiteralNumber(
                                                 LiteralNumber::I32(123),
                                             )],
                                             named_args: vec![],
@@ -1058,7 +1058,7 @@ fn hello() -> (i32, i64)
                     ],
                     named_args: vec![],
                 }),
-            ]),
+            ])),
         };
 
         assert_eq!(
@@ -1083,18 +1083,18 @@ fn foo() -> ()
             params: vec![],
             returns: vec![],
             locals: vec![],
-            body: ExpressionNode::Group(vec![
+            body: Box::new(ExpressionNode::Group(vec![
                 ExpressionNode::Instruction(InstructionNode {
                     name: "nop".to_owned(),
-                    position_args: vec![],
+                    positional_args: vec![],
                     named_args: vec![],
                 }),
                 ExpressionNode::Group(vec![ExpressionNode::Instruction(InstructionNode {
                     name: "nop".to_owned(),
-                    position_args: vec![],
+                    positional_args: vec![],
                     named_args: vec![],
                 })]),
-            ]),
+            ])),
         };
 
         assert_eq!(
@@ -1124,19 +1124,19 @@ fn foo() -> ()
             params: vec![],
             returns: vec![],
             locals: vec![],
-            body: ExpressionNode::When(WhenNode {
+            body: Box::new(ExpressionNode::When(WhenNode {
                 testing: Box::new(ExpressionNode::Instruction(InstructionNode {
                     name: "imm_i32".to_owned(),
-                    position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(1))],
+                    positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(1))],
                     named_args: vec![],
                 })),
                 locals: vec![],
                 consequence: Box::new(ExpressionNode::Instruction(InstructionNode {
                     name: "nop".to_owned(),
-                    position_args: vec![],
+                    positional_args: vec![],
                     named_args: vec![],
                 })),
-            }),
+            })),
         };
 
         assert_eq!(
@@ -1155,13 +1155,13 @@ fn foo() -> ()
             params: vec![],
             returns: vec![],
             locals: vec![],
-            body: ExpressionNode::When(WhenNode {
+            body: Box::new(ExpressionNode::When(WhenNode {
                 testing: Box::new(ExpressionNode::Instruction(InstructionNode {
                     name: "eqz_i32".to_owned(),
-                    position_args: vec![ArgumentValue::Expression(Box::new(
+                    positional_args: vec![ArgumentValue::Expression(Box::new(
                         ExpressionNode::Instruction(InstructionNode {
                             name: "local_load_i32".to_owned(),
-                            position_args: vec![ArgumentValue::Identifier("a".to_owned())],
+                            positional_args: vec![ArgumentValue::Identifier("a".to_owned())],
                             named_args: vec![],
                         }),
                     ))],
@@ -1170,19 +1170,19 @@ fn foo() -> ()
                 locals: vec![],
                 consequence: Box::new(ExpressionNode::Instruction(InstructionNode {
                     name: "data_store_i32".to_owned(),
-                    position_args: vec![
+                    positional_args: vec![
                         ArgumentValue::Identifier("b".to_owned()),
                         ArgumentValue::Expression(Box::new(ExpressionNode::Instruction(
                             InstructionNode {
                                 name: "local_load_i32".to_owned(),
-                                position_args: vec![ArgumentValue::Identifier("a".to_owned())],
+                                positional_args: vec![ArgumentValue::Identifier("a".to_owned())],
                                 named_args: vec![],
                             },
                         ))),
                     ],
                     named_args: vec![],
                 })),
-            }),
+            })),
         };
 
         assert_eq!(
@@ -1203,10 +1203,10 @@ fn foo() -> ()
             params: vec![],
             returns: vec![],
             locals: vec![],
-            body: ExpressionNode::When(WhenNode {
+            body: Box::new(ExpressionNode::When(WhenNode {
                 testing: Box::new(ExpressionNode::Instruction(InstructionNode {
                     name: "imm_i32".to_owned(),
-                    position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(1))],
+                    positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(1))],
                     named_args: vec![],
                 })),
                 locals: vec![
@@ -1225,10 +1225,10 @@ fn foo() -> ()
                 ],
                 consequence: Box::new(ExpressionNode::Instruction(InstructionNode {
                     name: "nop".to_owned(),
-                    position_args: vec![],
+                    positional_args: vec![],
                     named_args: vec![],
                 })),
-            }),
+            })),
         };
 
         assert_eq!(
@@ -1248,27 +1248,27 @@ fn foo() -> ()
             params: vec![],
             returns: vec![],
             locals: vec![],
-            body: ExpressionNode::When(WhenNode {
+            body: Box::new(ExpressionNode::When(WhenNode {
                 testing: Box::new(ExpressionNode::Instruction(InstructionNode {
                     name: "imm_i32".to_owned(),
-                    position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(1))],
+                    positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(1))],
                     named_args: vec![],
                 })),
                 locals: vec![],
                 consequence: Box::new(ExpressionNode::Group(vec![
                     ExpressionNode::Instruction(InstructionNode {
                         name: "nop".to_owned(),
-                        position_args: vec![],
+                        positional_args: vec![],
                         named_args: vec![],
                     }),
                     ExpressionNode::Instruction(InstructionNode {
                         name: "local_store_i32".to_owned(),
-                        position_args: vec![
+                        positional_args: vec![
                             ArgumentValue::Identifier("left".to_owned()),
                             ArgumentValue::Expression(Box::new(ExpressionNode::Instruction(
                                 InstructionNode {
                                     name: "local_load_i32".to_owned(),
-                                    position_args: vec![ArgumentValue::Identifier(
+                                    positional_args: vec![ArgumentValue::Identifier(
                                         "right".to_owned(),
                                     )],
                                     named_args: vec![],
@@ -1278,7 +1278,7 @@ fn foo() -> ()
                         named_args: vec![],
                     }),
                 ])),
-            }),
+            })),
         };
 
         assert_eq!(
@@ -1309,14 +1309,14 @@ fn foo() -> ()
             params: vec![],
             returns: vec![],
             locals: vec![],
-            body: ExpressionNode::If(IfNode {
+            body: Box::new(ExpressionNode::If(IfNode {
                 returns: vec![],
                 testing: Box::new(ExpressionNode::Instruction(InstructionNode {
                     name: "eqz_i32".to_owned(),
-                    position_args: vec![ArgumentValue::Expression(Box::new(
+                    positional_args: vec![ArgumentValue::Expression(Box::new(
                         ExpressionNode::Instruction(InstructionNode {
                             name: "local_load_i32".to_owned(),
-                            position_args: vec![ArgumentValue::Identifier("in".to_owned())],
+                            positional_args: vec![ArgumentValue::Identifier("in".to_owned())],
                             named_args: vec![],
                         }),
                     ))],
@@ -1324,12 +1324,12 @@ fn foo() -> ()
                 })),
                 consequence: Box::new(ExpressionNode::Instruction(InstructionNode {
                     name: "local_store_i32".to_owned(),
-                    position_args: vec![
+                    positional_args: vec![
                         ArgumentValue::Identifier("out".to_owned()),
                         ArgumentValue::Expression(Box::new(ExpressionNode::Instruction(
                             InstructionNode {
                                 name: "imm_i32".to_owned(),
-                                position_args: vec![ArgumentValue::LiteralNumber(
+                                positional_args: vec![ArgumentValue::LiteralNumber(
                                     LiteralNumber::I32(11),
                                 )],
                                 named_args: vec![],
@@ -1340,12 +1340,12 @@ fn foo() -> ()
                 })),
                 alternative: Box::new(ExpressionNode::Instruction(InstructionNode {
                     name: "local_store_i32".to_owned(),
-                    position_args: vec![
+                    positional_args: vec![
                         ArgumentValue::Identifier("out".to_owned()),
                         ArgumentValue::Expression(Box::new(ExpressionNode::Instruction(
                             InstructionNode {
                                 name: "imm_i32".to_owned(),
-                                position_args: vec![ArgumentValue::LiteralNumber(
+                                positional_args: vec![ArgumentValue::LiteralNumber(
                                     LiteralNumber::I32(13),
                                 )],
                                 named_args: vec![],
@@ -1354,7 +1354,7 @@ fn foo() -> ()
                     ],
                     named_args: vec![],
                 })),
-            }),
+            })),
         };
 
         assert_eq!(
@@ -1377,24 +1377,24 @@ fn foo() -> ()
             params: vec![],
             returns: vec![],
             locals: vec![],
-            body: ExpressionNode::If(IfNode {
+            body:Box::new( ExpressionNode::If(IfNode {
                 returns: vec![FunctionDataType::I32],
                 testing: Box::new(ExpressionNode::Instruction(InstructionNode {
                     name: "imm_i32".to_owned(),
-                    position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(11))],
+                    positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(11))],
                     named_args: vec![],
                 })),
                 consequence: Box::new(ExpressionNode::Instruction(InstructionNode {
                     name: "imm_i32".to_owned(),
-                    position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(13))],
+                    positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(13))],
                     named_args: vec![],
                 })),
                 alternative: Box::new(ExpressionNode::Instruction(InstructionNode {
                     name: "imm_i32".to_owned(),
-                    position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(17))],
+                    positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(17))],
                     named_args: vec![],
                 })),
-            }),
+            })),
         };
 
         assert_eq!(
@@ -1414,24 +1414,24 @@ fn foo() -> ()
             params: vec![],
             returns: vec![],
             locals: vec![],
-            body: ExpressionNode::If(IfNode {
+            body: Box::new(ExpressionNode::If(IfNode {
                 returns: vec![FunctionDataType::I32, FunctionDataType::I64],
                 testing: Box::new(ExpressionNode::Instruction(InstructionNode {
                     name: "imm_i32".to_owned(),
-                    position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(11))],
+                    positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(11))],
                     named_args: vec![],
                 })),
                 consequence: Box::new(ExpressionNode::Instruction(InstructionNode {
                     name: "nop".to_owned(),
-                    position_args: vec![],
+                    positional_args: vec![],
                     named_args: vec![],
                 })),
                 alternative: Box::new(ExpressionNode::Instruction(InstructionNode {
                     name: "nop".to_owned(),
-                    position_args: vec![],
+                    positional_args: vec![],
                     named_args: vec![],
                 })),
-            }),
+            })),
         };
 
         assert_eq!(
@@ -1459,18 +1459,18 @@ fn foo() -> ()
             params: vec![],
             returns: vec![],
             locals: vec![],
-            body: ExpressionNode::Block(BlockNode {
+            body: Box::new(ExpressionNode::Block(BlockNode {
                 params: vec![],
                 returns: vec![],
                 locals: vec![],
                 body: Box::new(ExpressionNode::Instruction(InstructionNode {
                     name: "local_store_i32".to_owned(),
-                    position_args: vec![
+                    positional_args: vec![
                         ArgumentValue::Identifier("out".to_owned()),
                         ArgumentValue::Expression(Box::new(ExpressionNode::Instruction(
                             InstructionNode {
                                 name: "imm_i32".to_owned(),
-                                position_args: vec![ArgumentValue::LiteralNumber(
+                                positional_args: vec![ArgumentValue::LiteralNumber(
                                     LiteralNumber::I32(11),
                                 )],
                                 named_args: vec![],
@@ -1479,7 +1479,7 @@ fn foo() -> ()
                     ],
                     named_args: vec![],
                 })),
-            }),
+            })),
         };
 
         assert_eq!(
@@ -1498,7 +1498,7 @@ fn foo() -> ()
             params: vec![],
             returns: vec![],
             locals: vec![],
-            body: ExpressionNode::Block(BlockNode {
+            body: Box::new(ExpressionNode::Block(BlockNode {
                 params: vec![
                     NamedParameter {
                         name: "left".to_owned(),
@@ -1522,10 +1522,10 @@ fn foo() -> ()
                 ],
                 body: Box::new(ExpressionNode::Instruction(InstructionNode {
                     name: "nop".to_owned(),
-                    position_args: vec![],
+                    positional_args: vec![],
                     named_args: vec![],
                 })),
-            }),
+            })),
         };
 
         assert_eq!(
@@ -1544,7 +1544,7 @@ fn foo() -> ()
             params: vec![],
             returns: vec![],
             locals: vec![],
-            body: ExpressionNode::Block(BlockNode {
+            body: Box::new(ExpressionNode::Block(BlockNode {
                 params: vec![],
                 returns: vec![],
                 locals: vec![LocalVariable {
@@ -1554,12 +1554,12 @@ fn foo() -> ()
                 body: Box::new(ExpressionNode::Group(vec![
                     ExpressionNode::Instruction(InstructionNode {
                         name: "local_store_i32".to_owned(),
-                        position_args: vec![
+                        positional_args: vec![
                             ArgumentValue::Identifier("abc".to_owned()),
                             ArgumentValue::Expression(Box::new(ExpressionNode::Instruction(
                                 InstructionNode {
                                     name: "imm_i32".to_owned(),
-                                    position_args: vec![ArgumentValue::LiteralNumber(
+                                    positional_args: vec![ArgumentValue::LiteralNumber(
                                         LiteralNumber::I32(11),
                                     )],
                                     named_args: vec![],
@@ -1570,12 +1570,12 @@ fn foo() -> ()
                     }),
                     ExpressionNode::Instruction(InstructionNode {
                         name: "local_store_i32".to_owned(),
-                        position_args: vec![
+                        positional_args: vec![
                             ArgumentValue::Identifier("def".to_owned()),
                             ArgumentValue::Expression(Box::new(ExpressionNode::Instruction(
                                 InstructionNode {
                                     name: "imm_i32".to_owned(),
-                                    position_args: vec![ArgumentValue::LiteralNumber(
+                                    positional_args: vec![ArgumentValue::LiteralNumber(
                                         LiteralNumber::I32(31),
                                     )],
                                     named_args: vec![],
@@ -1585,7 +1585,7 @@ fn foo() -> ()
                         named_args: vec![],
                     }),
                 ])),
-            }),
+            })),
         };
 
         assert_eq!(
@@ -1609,16 +1609,16 @@ fn foo() -> ()
             params: vec![],
             returns: vec![],
             locals: vec![],
-            body: ExpressionNode::For(BlockNode {
+            body:Box::new( ExpressionNode::For(BlockNode {
                 params: vec![],
                 returns: vec![],
                 locals: vec![],
                 body: Box::new(ExpressionNode::Instruction(InstructionNode {
                     name: "nop".to_owned(),
-                    position_args: vec![],
+                    positional_args: vec![],
                     named_args: vec![],
                 })),
-            }),
+            })),
         };
 
         assert_eq!(
@@ -1644,36 +1644,36 @@ fn foo() -> ()
             params: vec![],
             returns: vec![],
             locals: vec![],
-            body: ExpressionNode::Group(vec![
+            body:Box::new( ExpressionNode::Group(vec![
                 ExpressionNode::Break(BreakNode::Break(vec![
                     ExpressionNode::Instruction(InstructionNode {
                         name: "imm_i32".to_owned(),
-                        position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(11))],
+                        positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(11))],
                         named_args: vec![],
                     }),
                     ExpressionNode::Instruction(InstructionNode {
                         name: "imm_i32".to_owned(),
-                        position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(13))],
+                        positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(13))],
                         named_args: vec![],
                     }),
                 ])),
                 ExpressionNode::Break(BreakNode::BreakIf(
                     Box::new(ExpressionNode::Instruction(InstructionNode {
                         name: "imm_i32".to_owned(),
-                        position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(7))],
+                        positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(7))],
                         named_args: vec![],
                     })),
                     vec![
                         ExpressionNode::Instruction(InstructionNode {
                             name: "imm_i32".to_owned(),
-                            position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(
+                            positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(
                                 17,
                             ))],
                             named_args: vec![],
                         }),
                         ExpressionNode::Instruction(InstructionNode {
                             name: "imm_i32".to_owned(),
-                            position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(
+                            positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(
                                 19,
                             ))],
                             named_args: vec![],
@@ -1683,16 +1683,16 @@ fn foo() -> ()
                 ExpressionNode::Break(BreakNode::BreakFn(vec![
                     ExpressionNode::Instruction(InstructionNode {
                         name: "imm_i32".to_owned(),
-                        position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(23))],
+                        positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(23))],
                         named_args: vec![],
                     }),
                     ExpressionNode::Instruction(InstructionNode {
                         name: "imm_i32".to_owned(),
-                        position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(29))],
+                        positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(29))],
                         named_args: vec![],
                     }),
                 ])),
-            ]),
+            ])),
         };
 
         assert_eq!(
@@ -1724,36 +1724,36 @@ fn foo() -> ()
             params: vec![],
             returns: vec![],
             locals: vec![],
-            body: ExpressionNode::Group(vec![
+            body: Box::new(ExpressionNode::Group(vec![
                 ExpressionNode::Recur(BreakNode::Break(vec![
                     ExpressionNode::Instruction(InstructionNode {
                         name: "imm_i32".to_owned(),
-                        position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(11))],
+                        positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(11))],
                         named_args: vec![],
                     }),
                     ExpressionNode::Instruction(InstructionNode {
                         name: "imm_i32".to_owned(),
-                        position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(13))],
+                        positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(13))],
                         named_args: vec![],
                     }),
                 ])),
                 ExpressionNode::Recur(BreakNode::BreakIf(
                     Box::new(ExpressionNode::Instruction(InstructionNode {
                         name: "imm_i32".to_owned(),
-                        position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(7))],
+                        positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(7))],
                         named_args: vec![],
                     })),
                     vec![
                         ExpressionNode::Instruction(InstructionNode {
                             name: "imm_i32".to_owned(),
-                            position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(
+                            positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(
                                 17,
                             ))],
                             named_args: vec![],
                         }),
                         ExpressionNode::Instruction(InstructionNode {
                             name: "imm_i32".to_owned(),
-                            position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(
+                            positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(
                                 19,
                             ))],
                             named_args: vec![],
@@ -1763,16 +1763,16 @@ fn foo() -> ()
                 ExpressionNode::Recur(BreakNode::BreakFn(vec![
                     ExpressionNode::Instruction(InstructionNode {
                         name: "imm_i32".to_owned(),
-                        position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(23))],
+                        positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(23))],
                         named_args: vec![],
                     }),
                     ExpressionNode::Instruction(InstructionNode {
                         name: "imm_i32".to_owned(),
-                        position_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(29))],
+                        positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(29))],
                         named_args: vec![],
                     }),
                 ])),
-            ]),
+            ])),
         };
 
         assert_eq!(
@@ -1868,11 +1868,11 @@ fn foo() -> ()
                     ],
                     returns: vec![FunctionDataType::I32],
                     locals: vec![],
-                    body: ExpressionNode::Instruction(InstructionNode {
+                    body:Box::new( ExpressionNode::Instruction(InstructionNode {
                         name: "nop".to_owned(),
-                        position_args: vec![],
+                        positional_args: vec![],
                         named_args: vec![],
-                    }),
+                    })),
                 },
                 FunctionNode {
                     is_public: true,
@@ -1883,11 +1883,11 @@ fn foo() -> ()
                         name: "temp".to_owned(),
                         data_type: FixedDeclareDataType::I32,
                     }],
-                    body: ExpressionNode::Instruction(InstructionNode {
+                    body: Box::new(ExpressionNode::Instruction(InstructionNode {
                         name: "nop".to_owned(),
-                        position_args: vec![],
+                        positional_args: vec![],
                         named_args: vec![],
-                    }),
+                    })),
                 },
             ],
         };
