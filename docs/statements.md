@@ -16,11 +16,15 @@ A module consists of statements.
 
 ## The `use` Statements
 
-To import identifiers (the name of functions or data) from other modules, use the `use` keyword:
+To use identifiers (the name of functions or data) from other namespace of the current modules to the current namespace, use the `use` keyword:
 
-`use namepath`
+`use full_name [as new_name]`
 
-Where `namepath` is formed of the module name, namespace path and identifier, i.e. `module_name::sub_module_name::identifier`.
+Where:
+
+- `path` = `module_name::name_path`
+- `name_path` = `namespace::identifier`
+- `namespace` = `sub_module_name::`{0,}
 
 Example of `use` statement:
 
@@ -29,17 +33,13 @@ use std::memory::copy
 use digest::sha2::init
 ```
 
-You can rename an imported identifer using the `as` keyword:
-
-`use namepath as identifier`
-
-For example:
+You can rename the external identifer using the `as` keyword, for example:
 
 ```rust
 use std::memory::copy as mem_copy
 ```
 
-Using identifiers from other namespaces of the current module:
+There are three special module names:
 
 - `module`: The current module
 - `self`: The current namespace
@@ -53,12 +53,29 @@ use self::sub_module::some_func
 use parent::sub_sub_module::some_data as other_data
 ```
 
+## The `import` Statements
+
+To import identifiers (the name of functions or data) from the other modules to the current namespace, use the `import` keyword:
+
+- `import fn full_name signature [as new_name]`
+- `import [readonly|uninit] data full_name:data_type [as new_name]`
+
+Where:
+
+- `full_name` = `module_name::name_path`
+- `name_path` = `namespace::identifier`
+- `namespace` = `sub_module_name::`{0,}
+
 ## The `external` Statements
 
 To declear external functions or data, use the `external` keyword:
 
-- `external fn library_name::identifier signature [as identifier]`
-- `external data library_name::identifier:data_type [as identifier]`
+- `external fn full_name signature [as new_name]`
+- `external data full_name:data_type [as new_name]`
+
+Where:
+
+- `full_name` = `library_name::identifier`
 
 Example of `external` statement:
 
@@ -75,7 +92,8 @@ The possible data types of function's parameters and return value are: `i64`, `i
 
 To define data, use the `data` keyword:
 
-`[pub] [readonly|uninit] data name:type [=value]`
+- `[pub] [readonly] data name:type = value`
+- `[pub] uninit data name:type`
 
 Example of `data` statement:
 
@@ -148,7 +166,7 @@ fn inc_one(num:i32) -> i32
 
 ## Line Break Rules
 
-Anasm has only four types of statements: `use`, `external`, `data`, and `fn`. Unlike programming languages such as C/C++/Java, Anasm statements do not require a semicolon (`;`) as a statement terminator. This is because the semantics of Anasm statements are unambiguous, meaning that no matter how you break lines, indent, or write all statements together, it will not lead to ambiguity. Therefore, semicolons or newlines are not needed to indicate the end of statement.
+Anasm has only 5 types of statements: `use`, `import`, `external`, `data`, and `fn`. Unlike programming languages such as C/C++/Java, Anasm statements do not require a semicolon (`;`) as a statement terminator. This is because the semantics of Anasm statements are unambiguous, meaning that no matter how you break lines, indent, or write all statements together, it will not lead to ambiguity. Therefore, semicolons or newlines are not needed to indicate the end of statement.
 
 Of course, for better readability, it is recommended to insert a newline after ecah statement. For example, the following five statements are all terminated with a newline, and an extra newline is inserted between different types of statements:
 

@@ -426,6 +426,12 @@ log_f64(left:f64 right:f64) -> f64
 - `dyncall(fn_pub_index:i32, value0, value1, ...)`
    dynamic call
 
+The identifier can be:
+
+- The name of function or data.
+- A relative name path, e.g. "sub_module::some_func".
+- A full name, e.g. "module_name::sub_module::some_data".
+
 The arguments to `*call` can be the return values of other instructions, or other functions or groups, as long as they have the same number of arguments. For example, if a function takes three arguments, it can composed of an instruction that returns one value and a function call that returns two values, e.g.:
 
 ```rust

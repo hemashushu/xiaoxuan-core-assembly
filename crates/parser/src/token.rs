@@ -43,13 +43,13 @@ pub enum Token {
     // )
     RightParen,
 
-    // [a-zA-Z0-9_] and '\u{a0}' - '\u{d7ff}' and '\u{e000}' - '\u{10ffff}' and "::"
-    // e.g. "std::memory::copy"
-    NamePath(String),
-
     // [a-zA-Z0-9_] and '\u{a0}' - '\u{d7ff}' and '\u{e000}' - '\u{10ffff}'
     // e.g. "foo", "bar", "data0", "data_"
     Name(String),
+
+    // name with "::"
+    // e.g. "std::memory::copy"
+    FullName(String),
 
     // e.g. "pub", "data", "readonly", "fn"
     Keyword(String),

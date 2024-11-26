@@ -379,10 +379,10 @@ impl<'a> Lexer<'a> {
         );
 
         let token = if found_double_colon {
-            Token::NamePath(name_string)
+            Token::FullName(name_string)
         } else {
             match name_string.as_str() {
-                "use" | "as" | "external" | "fn" | "data" | "pub" | "readonly" | "uninit"
+                "use" | "as" | "import" | "external" | "fn" | "data" | "pub" | "readonly" | "uninit"
                 | "align" | "block" | "for" | "when" | "if" | "break" | "break_if" | "break_fn"
                 | "recur" | "recur_if" | "recur_fn" => Token::Keyword(name_string),
                 "i64" | "i32" | "i16" | "i8" | "f64" | "f32" | "byte" => Token::DataTypeName(name_string),
@@ -1864,8 +1864,8 @@ mod tests {
     use super::lex_from_str;
 
     impl Token {
-        pub fn new_namepath(s: &str) -> Self {
-            Token::NamePath(s.to_owned())
+        pub fn new_full_name(s: &str) -> Self {
+            Token::FullName(s.to_owned())
         }
 
         pub fn new_name(s: &str) -> Self {
@@ -2072,12 +2072,12 @@ mod tests {
             lex_from_str("foo::bar a::bc::def a:b").unwrap(),
             vec![
                 TokenWithRange::from_position_and_length(
-                    Token::new_namepath("foo::bar"),
+                    Token::new_full_name("foo::bar"),
                     &Location::new_position(0, 0, 0, 0),
                     8
                 ),
                 TokenWithRange::from_position_and_length(
-                    Token::new_namepath("a::bc::def"),
+                    Token::new_full_name("a::bc::def"),
                     &Location::new_position(0, 9, 0, 9),
                     10
                 ),

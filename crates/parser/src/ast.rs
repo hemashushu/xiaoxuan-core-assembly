@@ -6,14 +6,16 @@
 
 use std::fmt::Display;
 
+use anc_isa::DataSectionType;
+
 #[derive(Debug, PartialEq)]
 pub struct ModuleNode {
-    // sub-module name path.
+    // the relative path of sub-module.
     //
-    // it is a path relative to the module, it equivalents to the 'namespace'.
+    // it is a path relative to the current module, it equivalents to the 'namespace'.
     //
     // e.g.
-    // | full name path          | name path      |
+    // | full name               | name path      |
     // |-------------------------|----------------|
     // | "network"               | ""             |
     // | "network::http"         | "http"         |
@@ -24,6 +26,7 @@ pub struct ModuleNode {
     pub name_path: String,
 
     pub uses: Vec<UseNode>,
+    pub imports: Vec<ImportNode>,
     pub externals: Vec<ExternalNode>,
     pub datas: Vec<DataNode>,
     pub functions: Vec<FunctionNode>,
@@ -75,24 +78,24 @@ pub struct ModuleNode {
 
 #[derive(Debug, PartialEq)]
 pub struct UseNode {
-    // e.g. "network", "network::http", "network::http::status_code"
-    pub name_path: String,
+    // e.g. "network::http", "network::http::status_code"
+    pub full_name: String,
     pub alias_name: Option<String>,
 }
 
 #[derive(Debug, PartialEq)]
-pub enum ExternalNode {
-    Function(ExternalFunctionNode),
-    Data(ExternalDataNode),
+pub enum ImportNode {
+    Function(ImportFunctionNode),
+    Data(ImportDataNode),
 }
 
 #[derive(Debug, PartialEq)]
-pub struct ExternalFunctionNode {
+pub struct ImportFunctionNode {
     // pub library: String,
     // pub name: String,
-    pub name_path: String,
+    pub full_name: String,
     pub params: Vec<FunctionDataType>,
-    pub return_: Option<FunctionDataType>,
+    pub returns: Vec<FunctionDataType>,
     pub alias_name: Option<String>,
 }
 
@@ -105,16 +108,15 @@ pub enum FunctionDataType {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct ExternalDataNode {
-    // pub library: String,
-    // pub name: String,
-    pub name_path: String,
-    pub data_type: ExternalDataType,
+pub struct ImportDataNode {
+    pub data_section_type: DataSectionType,
+    pub full_name: String,
+    pub data_type: ImportDataType,
     pub alias_name: Option<String>,
 }
 
 #[derive(Debug, PartialEq)]
-pub enum ExternalDataType {
+pub enum ImportDataType {
     I64,
     I32,
     F64,
@@ -123,6 +125,29 @@ pub enum ExternalDataType {
     // i.e. `byte[]`, which means that
     // the target data can be arbitrary.
     Bytes,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ExternalNode {
+    Function(ExternalFunctionNode),
+    Data(ExternalDataNode),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct ExternalFunctionNode {
+    // pub library: String,
+    // pub name: String,
+    pub full_name: String,
+    pub params: Vec<FunctionDataType>,
+    pub return_: Option<FunctionDataType>,
+    pub alias_name: Option<String>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct ExternalDataNode {
+    pub full_name: String,
+    pub data_type: ImportDataType,
+    pub alias_name: Option<String>,
 }
 
 // #[derive(Debug, PartialEq)]
@@ -145,7 +170,7 @@ pub enum ExternalDataType {
 
 #[derive(Debug, PartialEq)]
 pub struct DataNode {
-    pub is_public: bool,
+    pub export: bool,
     pub name: String,
     pub data_section: DataSection,
 }
@@ -194,7 +219,7 @@ pub enum DataValue {
 
 #[derive(Debug, PartialEq)]
 pub struct FunctionNode {
-    pub is_public: bool,
+    pub export: bool,
     pub name: String,
     pub params: Vec<NamedParameter>,
     pub returns: Vec<FunctionDataType>,
@@ -412,7 +437,13 @@ pub struct InstructionNode {
 
 #[derive(Debug, PartialEq)]
 pub enum ArgumentValue {
+    // The identifier can be:
+    //
+    // - The name of function or data.
+    // - A relative name path, e.g. "sub_module::some_func".
+    // - A full name, e.g. "module_name::sub_module::some_data".
     Identifier(String),
+
     LiteralNumber(LiteralNumber),
     Expression(Box<ExpressionNode>),
 }
@@ -735,14 +766,14 @@ impl Display for FunctionDataType {
     }
 }
 
-impl Display for ExternalDataType {
+impl Display for ImportDataType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ExternalDataType::I64 => f.write_str("i64"),
-            ExternalDataType::I32 => f.write_str("i32"),
-            ExternalDataType::F64 => f.write_str("f64"),
-            ExternalDataType::F32 => f.write_str("f32"),
-            ExternalDataType::Bytes => f.write_str("byte[]"),
+            ImportDataType::I64 => f.write_str("i64"),
+            ImportDataType::I32 => f.write_str("i32"),
+            ImportDataType::F64 => f.write_str("f64"),
+            ImportDataType::F32 => f.write_str("f32"),
+            ImportDataType::Bytes => f.write_str("byte[]"),
         }
     }
 }

@@ -6,13 +6,15 @@
 
 use std::fmt::Display;
 
-pub mod assembler;
-pub mod imagegenerator;
-pub mod linker;
-pub mod preprocessor;
-pub mod utils;
+// mod merged_ast;
 
-pub const UNREACHABLE_CODE_NO_DEFAULT_ARM: u32 = 0x100;
+// pub mod assembler;
+// pub mod imagegenerator;
+// pub mod linker;
+// pub mod preprocessor;
+// pub mod utils;
+//
+// pub const UNREACHABLE_CODE_NO_DEFAULT_ARM: u32 = 0x100;
 
 #[derive(Debug)]
 pub struct AssembleError {

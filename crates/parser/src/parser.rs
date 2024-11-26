@@ -9,10 +9,10 @@ use anc_isa::DataSectionType;
 use crate::{
     ast::{
         ArgumentValue, BlockNode, BreakNode, DataNode, DataSection, DataTypeValuePair, DataValue,
-        DeclareDataType, ExpressionNode, ExternalDataNode, ExternalDataType, ExternalFunctionNode,
-        ExternalNode, FixedDeclareDataType, FunctionDataType, FunctionNode, IfNode,
-        InstructionNode, LiteralNumber, LocalVariable, ModuleNode, NamedArgument, NamedParameter,
-        UseNode, WhenNode,
+        DeclareDataType, ExpressionNode, ExternalDataNode, ExternalFunctionNode, ExternalNode,
+        FixedDeclareDataType, FunctionDataType, FunctionNode, IfNode, ImportDataNode,
+        ImportDataType, ImportFunctionNode, ImportNode, InstructionNode, LiteralNumber,
+        LocalVariable, ModuleNode, NamedArgument, NamedParameter, UseNode, WhenNode,
     },
     error::Error,
     lexer::lex_from_str,
@@ -178,9 +178,9 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn consume_name_path(&mut self) -> Result<String, Error> {
+    fn consume_full_name(&mut self) -> Result<String, Error> {
         match self.next_token() {
-            Some(Token::NamePath(s)) => Ok(s),
+            Some(Token::FullName(s)) => Ok(s),
             Some(_) => Err(Error::MessageWithLocation(
                 "Expect a name path.".to_owned(),
                 self.last_range.get_position_by_range_start(),
@@ -199,6 +199,20 @@ impl<'a> Parser<'a> {
                 self.last_range.get_position_by_range_start(),
             )),
             None => Err(Error::UnexpectedEndOfDocument("Expect a name.".to_owned())),
+        }
+    }
+
+    fn consume_keyword(&mut self, keyword: &str) -> Result<String, Error> {
+        match self.next_token() {
+            Some(Token::Keyword(s)) if s == keyword => Ok(s),
+            Some(_) => Err(Error::MessageWithLocation(
+                format!("Expect keyword \"{}\".", keyword),
+                self.last_range.get_position_by_range_start(),
+            )),
+            None => Err(Error::UnexpectedEndOfDocument(format!(
+                "Expect keyword \"{}\".",
+                keyword
+            ))),
         }
     }
 
@@ -252,8 +266,10 @@ impl<'a> Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
+    /// name_path: the relative path of sub-module
     pub fn parse_module_node(&mut self, name_path: &str) -> Result<ModuleNode, Error> {
         let mut uses: Vec<UseNode> = vec![];
+        let mut imports: Vec<ImportNode> = vec![];
         let mut externals: Vec<ExternalNode> = vec![];
         let mut datas: Vec<DataNode> = vec![];
         let mut functions: Vec<FunctionNode> = vec![];
@@ -263,6 +279,10 @@ impl<'a> Parser<'a> {
                 Token::Keyword(keyword) if keyword == "use" => {
                     // use statement
                     uses.push(self.parse_use_node()?);
+                }
+                Token::Keyword(keyword) if keyword == "import" => {
+                    // import statements
+                    imports.push(self.parse_import_node()?);
                 }
                 Token::Keyword(keyword) if keyword == "external" => {
                     // external statement
@@ -287,21 +307,7 @@ impl<'a> Parser<'a> {
                     self.next_token(); // consume 'readonly' or 'uninit'
                     self.consume_new_line_if_exist();
 
-                    if let Some(next_token) = self.peek_token(0) {
-                        match next_token {
-                            Token::Keyword(next_keyword) if next_keyword == "data" => {
-                                datas.push(self.parse_data_node(false, data_section_type)?);
-                            }
-                            _ => {
-                                return Err(Error::MessageWithLocation(
-                                    "Expect a data.".to_owned(),
-                                    self.peek_range(0).unwrap().get_position_by_range_start(),
-                                ));
-                            }
-                        }
-                    } else {
-                        return Err(Error::UnexpectedEndOfDocument("Expect a data.".to_owned()));
-                    }
+                    datas.push(self.parse_data_node(false, data_section_type)?);
                 }
                 Token::Keyword(keyword) if keyword == "pub" => {
                     self.next_token(); // consume 'pub'
@@ -330,29 +336,7 @@ impl<'a> Parser<'a> {
                                 self.next_token(); // consume 'readonly' or 'uninit'
                                 self.consume_new_line_if_exist();
 
-                                if let Some(next_next_token) = self.peek_token(0) {
-                                    match next_next_token {
-                                        Token::Keyword(next_next_keyword)
-                                            if next_next_keyword == "data" =>
-                                        {
-                                            datas.push(
-                                                self.parse_data_node(true, data_section_type)?,
-                                            );
-                                        }
-                                        _ => {
-                                            return Err(Error::MessageWithLocation(
-                                                "Expect a data.".to_owned(),
-                                                self.peek_range(0)
-                                                    .unwrap()
-                                                    .get_position_by_range_start(),
-                                            ));
-                                        }
-                                    }
-                                } else {
-                                    return Err(Error::UnexpectedEndOfDocument(
-                                        "Expect a data.".to_owned(),
-                                    ));
-                                }
+                                datas.push(self.parse_data_node(true, data_section_type)?);
                             }
                             _ => {
                                 return Err(Error::MessageWithLocation(
@@ -379,6 +363,7 @@ impl<'a> Parser<'a> {
         let module_node = ModuleNode {
             name_path: name_path.to_owned(),
             uses,
+            imports,
             externals,
             datas,
             functions,
@@ -395,7 +380,7 @@ impl<'a> Parser<'a> {
         self.next_token(); // consume 'use'
         self.consume_new_line_if_exist();
 
-        let name_path = self.consume_name_path()?;
+        let full_name = self.consume_full_name()?;
 
         let alias_name = match self.expect_keyword_ignore_newline(0, "as") {
             Some(exists_newline) => {
@@ -414,9 +399,181 @@ impl<'a> Parser<'a> {
         self.consume_new_line_if_exist(); // consume '\n'
 
         let node = UseNode {
-            name_path,
+            full_name,
             alias_name,
         };
+        Ok(node)
+    }
+
+    fn parse_import_node(&mut self) -> Result<ImportNode, Error> {
+        // import {fn|data} ... ?  //
+        // ^                      ^__// to here
+        // |-------------------------// current token, validated
+
+        self.next_token(); // consume 'import'
+        self.consume_new_line_if_exist();
+
+        if let Some(token) = self.peek_token(0) {
+            match token {
+                Token::Keyword(keyword) if keyword == "fn" => {
+                    let function_node = self.parse_import_function_node()?;
+                    Ok(ImportNode::Function(function_node))
+                }
+                Token::Keyword(keyword) if keyword == "data" => {
+                    let data_node = self.parse_import_data_node(DataSectionType::ReadWrite)?;
+                    Ok(ImportNode::Data(data_node))
+                }
+                Token::Keyword(keyword) if keyword == "readonly" => {
+                    self.next_token(); // consume 'readonly'
+                    self.consume_new_line_if_exist();
+
+                    let data_node = self.parse_import_data_node(DataSectionType::ReadOnly)?;
+                    Ok(ImportNode::Data(data_node))
+                }
+                Token::Keyword(keyword) if keyword == "uninit" => {
+                    self.next_token(); // consume 'uninit'
+                    self.consume_new_line_if_exist();
+
+                    let data_node = self.parse_import_data_node(DataSectionType::Uninit)?;
+                    Ok(ImportNode::Data(data_node))
+                }
+                _ => {
+                    return Err(Error::MessageWithLocation(
+                        "Expect import \"fn\" or \"data\".".to_owned(),
+                        self.peek_range(0).unwrap().get_position_by_range_start(),
+                    ));
+                }
+            }
+        } else {
+            Err(Error::UnexpectedEndOfDocument(
+                "Expect import \"fn\" or \"data\".".to_owned(),
+            ))
+        }
+    }
+
+    fn parse_import_function_node(&mut self) -> Result<ImportFunctionNode, Error> {
+        // fn name_path ()->() [as ...] ?  //
+        // ^                            ^__// to here
+        // |-------------------------------// current token, validated
+
+        self.next_token(); // consume 'fn'
+        self.consume_new_line_if_exist();
+
+        let full_name = self.consume_full_name()?;
+        self.consume_new_line_if_exist();
+
+        // parse the parameters
+        let params = self.continue_parse_function_signature_params()?;
+        self.consume_new_line_if_exist();
+
+        // parse the return data type
+        let returns: Vec<FunctionDataType> = if self.expect_token(0, &Token::RightArrow) {
+            self.next_token(); // consume '->'
+            self.consume_new_line_if_exist();
+
+            self.continue_parse_function_returns()?
+        } else {
+            vec![]
+        };
+        self.consume_new_line_if_exist();
+
+        // parse the 'as' part
+        let alias_name = match self.expect_keyword_ignore_newline(0, "as") {
+            Some(exists_newline) => {
+                if exists_newline {
+                    self.next_token(); // consume '\n'
+                }
+                self.next_token(); // consume 'as'
+                self.consume_new_line_if_exist();
+
+                let name = self.consume_name()?;
+                Some(name)
+            }
+            None => None,
+        };
+
+        self.consume_new_line_if_exist(); // consume '\n'
+
+        let node = ImportFunctionNode {
+            full_name,
+            params,
+            returns,
+            alias_name,
+        };
+
+        Ok(node)
+    }
+
+    fn continue_parse_function_signature_params(&mut self) -> Result<Vec<FunctionDataType>, Error> {
+        // (type, type, ...) ?  //
+        // ^                 ^__// to here
+        // |--------------------// current token, NOT validated
+
+        self.consume_left_paren()?; // consume '('
+        self.consume_new_line_if_exist();
+
+        let mut params = vec![];
+        while let Some(token) = self.peek_token(0) {
+            if token == &Token::RightParen {
+                break;
+            }
+
+            let data_type = self.continue_parse_function_data_type()?;
+            params.push(data_type);
+
+            let found_sep = self.consume_new_line_or_comma_if_exist();
+            if !found_sep {
+                break;
+            }
+        }
+
+        self.consume_right_paren()?; // consume ')'
+
+        Ok(params)
+    }
+
+    fn parse_import_data_node(
+        &mut self,
+        data_section_type: DataSectionType,
+    ) -> Result<ImportDataNode, Error> {
+        // data name_path:data_type [as ...] ?  //
+        // ^                                 ^__// to here
+        // |------------------------------------// current token, NOT validated
+
+        self.consume_keyword("data")?; // consume 'data'
+        self.consume_new_line_if_exist();
+
+        let full_name = self.consume_full_name()?;
+        self.consume_new_line_if_exist();
+
+        self.consume_colon()?; // consume ':'
+        self.consume_new_line_if_exist();
+
+        let data_type = self.continue_parse_external_data_type()?;
+
+        let alias_name = match self.expect_keyword_ignore_newline(0, "as") {
+            Some(exists_newline) => {
+                if exists_newline {
+                    self.next_token(); // consume '\n'
+                }
+                self.next_token(); // consume 'as'
+                self.consume_new_line_if_exist();
+
+                let name = self.consume_name()?;
+                Some(name)
+            }
+            None => None,
+        };
+
+        self.consume_new_line_if_exist(); // consume '\n'
+
+        let node = ImportDataNode {
+            data_section_type,
+            full_name,
+            data_type,
+            alias_name,
+        };
+
         Ok(node)
     }
 
@@ -462,7 +619,7 @@ impl<'a> Parser<'a> {
         self.next_token(); // consume 'fn'
         self.consume_new_line_if_exist();
 
-        let name_path = self.consume_name_path()?;
+        let full_name = self.consume_full_name()?;
         self.consume_new_line_if_exist();
 
         // parse the parameters
@@ -489,7 +646,6 @@ impl<'a> Parser<'a> {
         self.consume_new_line_if_exist();
 
         // parse the return data type
-
         let return_: Option<FunctionDataType> = if self.expect_token(0, &Token::RightArrow) {
             self.next_token(); // consume '->'
             self.consume_new_line_if_exist();
@@ -524,7 +680,7 @@ impl<'a> Parser<'a> {
         self.consume_new_line_if_exist(); // consume '\n'
 
         let node = ExternalFunctionNode {
-            name_path,
+            full_name,
             params,
             return_,
             alias_name,
@@ -591,7 +747,7 @@ impl<'a> Parser<'a> {
         self.next_token(); // consume 'data'
         self.consume_new_line_if_exist();
 
-        let name_path = self.consume_name_path()?;
+        let full_name = self.consume_full_name()?;
         self.consume_new_line_if_exist();
 
         self.consume_colon()?; // consume ':'
@@ -616,7 +772,7 @@ impl<'a> Parser<'a> {
         self.consume_new_line_if_exist(); // consume '\n'
 
         let node = ExternalDataNode {
-            name_path,
+            full_name,
             data_type,
             alias_name,
         };
@@ -624,7 +780,7 @@ impl<'a> Parser<'a> {
         Ok(node)
     }
 
-    fn continue_parse_external_data_type(&mut self) -> Result<ExternalDataType, Error> {
+    fn continue_parse_external_data_type(&mut self) -> Result<ImportDataType, Error> {
         // i32 ?  //
         // ^   ^__// to here
         // |------// current token, validated
@@ -643,19 +799,19 @@ impl<'a> Parser<'a> {
                 match dt.as_str() {
                     "i64" => {
                         self.next_token(); // consume i64
-                        ExternalDataType::I64
+                        ImportDataType::I64
                     }
                     "i32" => {
                         self.next_token(); // consume i32
-                        ExternalDataType::I32
+                        ImportDataType::I32
                     }
                     "f64" => {
                         self.next_token(); // consume f64
-                        ExternalDataType::F64
+                        ImportDataType::F64
                     }
                     "f32" => {
                         self.next_token(); // consume f32
-                        ExternalDataType::F32
+                        ImportDataType::F32
                     }
                     "byte" => {
                         self.next_token(); // consume 'byte'
@@ -665,7 +821,7 @@ impl<'a> Parser<'a> {
                         self.consume_new_line_if_exist();
 
                         self.consume_right_bracket()?; // consume ']'
-                        ExternalDataType::Bytes
+                        ImportDataType::Bytes
                     }
                     _ => {
                         return Err(Error::MessageWithLocation(
@@ -688,14 +844,17 @@ impl<'a> Parser<'a> {
 
     fn parse_data_node(
         &mut self,
-        is_public: bool,
+        export: bool,
         data_section_type: DataSectionType,
     ) -> Result<DataNode, Error> {
-        // data name:type [= value] ?  //
-        // ^                        ^__// to here
-        // |---------------------------// current token, validated
+        // data name:type = value ?  //
+        // ^                      ^__// to here
+        // |-------------------------// current token, NOT validated
+        //
+        // also:
+        // - data name:type (for 'uninit' type data section)
 
-        self.next_token(); // consume 'data'
+        self.consume_keyword("data")?; // consume 'data'
         self.consume_new_line_if_exist();
 
         let name = self.consume_name()?;
@@ -718,7 +877,7 @@ impl<'a> Parser<'a> {
                 self.consume_new_line_if_exist(); // consume '\n'
 
                 Ok(DataNode {
-                    is_public,
+                    export,
                     name,
                     data_section: if data_section_type == DataSectionType::ReadOnly {
                         DataSection::ReadOnly(DataTypeValuePair { data_type, value })
@@ -732,7 +891,7 @@ impl<'a> Parser<'a> {
                 self.consume_new_line_if_exist(); // consume '\n'
 
                 Ok(DataNode {
-                    is_public,
+                    export,
                     name,
                     data_section: DataSection::Uninit(data_type),
                 })
@@ -1001,7 +1160,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_function_node(&mut self, is_public: bool) -> Result<FunctionNode, Error> {
+    fn parse_function_node(&mut self, export: bool) -> Result<FunctionNode, Error> {
         // fn (...) [-> ...] [...] exp ?  //
         // ^                           ^__// to here
         // |------------------------------// current token, validated
@@ -1038,7 +1197,7 @@ impl<'a> Parser<'a> {
         self.consume_new_line_if_exist();
 
         let node = FunctionNode {
-            is_public,
+            export,
             name,
             params,
             returns,
@@ -1304,9 +1463,17 @@ impl<'a> Parser<'a> {
         // |------// current token, NOT validated
 
         // The possible value of data are:
+        //
         // - Numbers: includes decimal, hexadecimal, binary, float-point, hex float-point.
         // - Identifiers: name of functions or data.
         // - Expression: an expression.
+        //
+        // The identifier can be:
+        //
+        // - The name of function or data.
+        // - A relative name path, e.g. "sub_module::some_func".
+        // - A full name, e.g. "module_name::sub_module::some_data".
+
         if let Some(token) = self.peek_token(0) {
             let value = match token {
                 Token::Number(number_token) => {
@@ -1328,6 +1495,11 @@ impl<'a> Parser<'a> {
                 {
                     let identifier = name.to_owned();
                     self.next_token(); // consume name
+                    ArgumentValue::Identifier(identifier)
+                }
+                Token::FullName(full_name) => {
+                    let identifier = full_name.to_owned();
+                    self.next_token(); // consume full name
                     ArgumentValue::Identifier(identifier)
                 }
                 _ => {
@@ -1617,13 +1789,136 @@ mem_copy"
     }
 
     #[test]
+    fn test_parse_import_function_statement() {
+        assert_eq!(
+            format("import fn foo::bar()->()"),
+            "import fn foo::bar() -> ()\n\n"
+        );
+
+        // test omit return part
+        assert_eq!(
+            format("import fn foo::bar()"),
+            "import fn foo::bar() -> ()\n\n"
+        );
+
+        // test with params
+        assert_eq!(
+            format("import fn foo::add(i32,i32)->i32"),
+            "import fn foo::add(i32, i32) -> i32\n\n"
+        );
+
+        // test with params and returns
+        assert_eq!(
+            format("import fn foo::div(i64)->(i32,i32)"),
+            "import fn foo::div(i64) -> (i32, i32)\n\n"
+        );
+
+        // test 'as'
+        assert_eq!(
+            format("import fn foo::add(i32,i32)->i32 as add_i32"),
+            "import fn foo::add(i32, i32) -> i32 as add_i32\n\n"
+        );
+
+        // test 'as' without returns
+        assert_eq!(
+            format("import fn foo::bar() as baz"),
+            "import fn foo::bar() -> () as baz\n\n"
+        );
+
+        // test multiple items
+        assert_eq!(
+            format(
+                "\
+import fn foo::bar()
+import fn foo::add(i32,i32)->i32"
+            ),
+            "\
+import fn foo::bar() -> ()
+import fn foo::add(i32, i32) -> i32\n\n"
+        );
+
+        // test line breaks
+        assert_eq!(
+            format(
+                "\
+import
+fn
+foo::add
+(
+i32
+i32
+)
+->
+i32
+as
+add_i32"
+            ),
+            "import fn foo::add(i32, i32) -> i32 as add_i32\n\n"
+        );
+    }
+
+    #[test]
+    fn test_parse_import_data_statement() {
+        assert_eq!(
+            format("import data foo::count:i32"),
+            "import data foo::count:i32\n\n"
+        );
+
+        assert_eq!(
+            format("import readonly data foo::PI:f32"),
+            "import readonly data foo::PI:f32\n\n"
+        );
+
+        assert_eq!(
+            format("import uninit data foo::table:byte[]"),
+            "import uninit data foo::table:byte[]\n\n"
+        );
+
+        // test 'as'
+        assert_eq!(
+            format("import data foo::bar:byte[] as baz"),
+            "import data foo::bar:byte[] as baz\n\n"
+        );
+
+        // test multiple items
+        assert_eq!(
+            format(
+                "\
+import readonly data foo::PI:f32
+import data foo::bar:byte[] as baz"
+            ),
+            "\
+import readonly data foo::PI:f32
+import data foo::bar:byte[] as baz\n\n"
+        );
+
+        // test line breaks
+        assert_eq!(
+            format(
+                "\
+import
+readonly
+data
+foo::bar
+:
+byte
+[
+]
+as
+baz"
+            ),
+            "import readonly data foo::bar:byte[] as baz\n\n"
+        );
+    }
+
+    #[test]
     fn test_parse_external_function_statement() {
         assert_eq!(
             format("external fn libfoo::bar()->()"),
             "external fn libfoo::bar() -> ()\n\n"
         );
 
-        // test omit 'return'
+        // test omit return part
         assert_eq!(
             format("external fn libfoo::bar()"),
             "external fn libfoo::bar() -> ()\n\n"
@@ -1637,13 +1932,14 @@ mem_copy"
 
         // test 'as'
         assert_eq!(
-            format("external fn libfoo::bar() as baz"),
-            "external fn libfoo::bar() -> () as baz\n\n"
-        );
-
-        assert_eq!(
             format("external fn libfoo::add(i32,i32)->i32 as add_i32"),
             "external fn libfoo::add(i32, i32) -> i32 as add_i32\n\n"
+        );
+
+        // test 'as' without return
+        assert_eq!(
+            format("external fn libfoo::bar() as baz"),
+            "external fn libfoo::bar() -> () as baz\n\n"
         );
 
         // test multiple items

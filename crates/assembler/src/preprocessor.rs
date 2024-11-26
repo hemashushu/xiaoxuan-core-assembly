@@ -70,8 +70,9 @@ use crate::AssembleError;
 //
 // relative paths begin with the keywords 'module' and 'self', e.g.
 //
-// - `(call $package::utils::add ...)`
+// - `(call $package::utils::add ...)` `module`
 // - `(call $self::utils::add ...)`
+// - `parent`
 //
 // 3. canonicalize the identifiers of external functions.
 //
@@ -149,70 +150,6 @@ use crate::AssembleError;
 //
 // 2. the identifier of call/extcall/data loading/data_storing can be
 // absolute path, relative path or just an identifier.
-
-#[derive(Debug, PartialEq)]
-pub struct MergedModuleNode {
-    // the main module name
-    pub name: String,
-
-    pub runtime_version: EffectiveVersion,
-    pub constructor_function_name_path: Option<String>,
-    pub destructor_function_name_path: Option<String>,
-
-    pub function_nodes: Vec<CanonicalFunctionNode>,
-    pub read_only_data_nodes: Vec<CanonicalDataNode>,
-    pub read_write_data_nodes: Vec<CanonicalDataNode>,
-    pub uninit_data_nodes: Vec<CanonicalDataNode>,
-
-    pub depend_items: Vec<DependItem>,
-    pub import_nodes: Vec<ImportNode>,
-    pub external_nodes: Vec<ExternalNode>,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct CanonicalFunctionNode {
-    // the full name path, for function calling instructions
-    //
-    // e.g.
-    // the id of function 'add' in main module 'myapp' is 'myapp::add'
-    // the id of function 'add' in submodule 'myapp:utils' is 'myapp::utils::add'
-    pub id: String,
-
-    // the canonicalize name path, which includes the submodule path, but
-    // excludes the module name.
-    //
-    // e.g.
-    // the name path of function 'add' in main module 'myapp' is 'add'
-    // the name path of function 'add' in submodule 'myapp:utils' is 'utils::add'
-    pub name_path: String,
-
-    pub export: bool,
-    pub params: Vec<ParamNode>,
-    pub results: Vec<DataType>,
-    pub locals: Vec<LocalNode>,
-    pub code: Vec<Instruction>,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct CanonicalDataNode {
-    // the full name path, for data loading/storing instructions
-    //
-    // e.g.
-    // the id of data 'buf' in main module 'myapp' is 'myapp::buf'
-    // the id of data 'buf' in submodule 'myapp:utils' is 'myapp::utils::buf'
-    pub id: String,
-
-    // the canonicalize name path, which includes the submodule path, but
-    // excludes the module name.
-    //
-    // e.g.
-    // the name path of data 'buf' in main module 'myapp' is 'buf'
-    // the name path of data 'buf' in submodule 'myapp:utils' is 'utils::buf'
-    pub name_path: String,
-
-    pub export: bool,
-    pub data_kind: DataDetailNode,
-}
 
 /**
  * The module object which is used for containing RenameItem

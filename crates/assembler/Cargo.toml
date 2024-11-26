@@ -10,11 +10,9 @@ anc-parser-asm = { path = "../parser" }
 
 anc-isa = { path = "../../../xiaoxuan-core-isa" }
 anc-image = { path = "../../../xiaoxuan-core-image" }
-anc-context = { path = "../../../xiaoxuan-core-vm/crates/context" }
-anc-processor = { path = "../../../xiaoxuan-core-vm/crates/processor" }
+# anc-context = { path = "../../../xiaoxuan-core-vm/crates/context" }
+# anc-processor = { path = "../../../xiaoxuan-core-vm/crates/processor" }
 
 [dev-dependencies]
 pretty_assertions = "1.4.0"
-# ancvm_syscall_util = { path = "../../../syscall_util" }
-# ancvm_extfunc_util = { path = "../../../extfunc_util" }
-libc = "0.2"
+# libc = "0.2"
