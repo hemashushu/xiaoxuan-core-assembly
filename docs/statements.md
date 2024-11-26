@@ -148,42 +148,63 @@ fn inc_one(num:i32) -> i32
 
 ## Line Break Rules
 
-**1. A statement must be followed by a newline.**
+Anasm has only four types of statements: `use`, `external`, `data`, and `fn`. Unlike programming languages such as C/C++/Java, Anasm statements do not require a semicolon (`;`) as a statement terminator. This is because the semantics of Anasm statements are unambiguous, meaning that no matter how you break lines, indent, or write all statements together, it will not lead to ambiguity. Therefore, semicolons or newlines are not needed to indicate the end of statement.
 
-todo:: examples
+Of course, for better readability, it is recommended to insert a newline after ecah statement. For example, the following five statements are all terminated with a newline, and an extra newline is inserted between different types of statements:
 
-**2. A newline is required between two sequential expressions.**
+```anasm
+use std::math::sqrt
+use mymod::format
 
-Sequential expressions are often found within groups of expressions. For instance:
+data readonly msg:byte[] = "hello world!\0"
+data foo:i32 = 42
 
-```rust
-{
-    imm_i32(11)
-    imm_i32(31)
-    local_store_i32(num, imm_i32(42))
+fn bar() {...}
+```
+
+In addition to the unambiguous semantics of statements, Anasm expressions are also semantically unambiguous. Therefore, when writing expressions, you do not need to use semicolons (`;`) or newlines to indicate the end. You can even write all expressions on the same line or insert a newline after each token, which is the same for the Assembler. For example, the following two code blocks are equivalent:
+
+```anasm
+imm_i32(10)
+```
+
+and
+
+```anasm
+imm_i32
+(
+10
+)
+```
+
+Of course, to prevent programmers from taking advantage of this "highly flexible" syntax to write code that is very difficult to read (such as writing all code on the same line), Anasm adds two restrictions to the syntax:
+
+1. Comma separation for function arguments.
+
+When calling a function, arguments must be separated by commas (`,`). Similary, when defining a function, mutiple parameters and multiple return values must also be separated by commas. (It is worth mentioning that commas can be replaces with newlines, or commas and newlines can be mixed in this case.)
+
+Example:
+
+```anasm
+fn add(left:i32, right:i32)->i32 {
+    add_i32(
+        local_load_i32s(left)
+        local_load_i32s(right)
+    )
 }
 ```
 
-**3. Line breaks are allowed after symbols indicating the beginning of a block, such as `(`, `{` and `[`.**
+In the above code, the comma between the parameters `left` and `right` cannot be omitted (although it can be replaced with a newline), and the two `local_load_i32s` instruction expressions need to be separated by a comma or newline.
 
-todo:: examples
+2. Newline separation for parallel expressions.
 
-**4. Line breaks are allowed after symbols indicating that more content will follow, such as `->`, `=`, and `:`.**
+In expression group (i.e., expressions enclosed in a pair of curly braces, also known as a code block), multiple parallel expressions must be separated by newlines.
 
-todo:: examples
+```anasm
+when nez(local_load_i32s(num)) {
+    local_store_i32(a, imm_i32(11))
+    local_store_i32(b, imm_i32(13))
+}
+```
 
-**5. Commas (`,`) can be replaced with newlines for separating content.**
-
-todo:: examples
-
-Note that both commas and new lines can be used together.
-
-todo:: examples
-
-**6. Line breaks are allowed after keywords indicating that specific content will follow, such as `fn`, `data`, and `use`.**
-
-todo:: examples
-
-**7. Newlines cannot be placed after modifier keywords, such as `pub`, `external`, and `readonly`.**
-
-todo:: examples
+The "parallel expressions" refer to expressions at the same level in the same group. For example, the two `local_store_i32` instruction expressions in the above code are parallel. However, the instruction expressions `local_store_i32` and `imm_i32` are not parallel but nested, so `imm_i32` does not need to be written on a separate line.

@@ -368,6 +368,7 @@ pub struct WhenNode {
 
 #[derive(Debug, PartialEq)]
 pub struct IfNode {
+    pub params: Vec<NamedParameter>,
     pub returns: Vec<FunctionDataType>,
     pub testing: Box<ExpressionNode>,
     pub consequence: Box<ExpressionNode>,

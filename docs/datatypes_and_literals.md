@@ -16,12 +16,16 @@
 
 Possible data types for parameters and return values of function are:
 
-- i64: unsigned 64-bit integers
-- i32: unsigned 32-bit integers
+- i64: 64-bit integers
+- i32: 32-bit integers
 - f64: 64-bit floating-piont numbers
 - f32: 32-bit floating-piont numbers
 
-The data types of local variables (局部变量) (as well as "data" and "external data") support fixed-length byte arryas (`byte[length]`) in addition to the data types above.
+In addition to the data types above, the data types of local variables (局部变量) (as well as "data" and "external data") support:
+
+- i16: 16-bit integers
+- i8: 8-bit integers
+- byte[length]: fixed-length byte arryas
 
 Note that when declaring "read-write data", "read-only data" and "external data", an unspecified length byte array `byte[]` is sometimes used. The length of such byte arrays is determined by the specific content, so it is not a new data type.
 

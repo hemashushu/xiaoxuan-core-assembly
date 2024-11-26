@@ -53,7 +53,7 @@ Where:
 
 ### Condition with branch
 
-`if -> returns tesing consequence alternative`
+`if params -> returns tesing consequence alternative`
 
 Where:
 
@@ -65,9 +65,10 @@ Where:
 
 Note that:
 
-- `if` expression have return values but no parameters.
-- It has no list of local variables.
+- `if` expression has no list of local variables.
 - If the expression has no return value, the `-> returns` can be omitted.
+- If the expression has no params but has return values, the format is `() -> returns`.
+- If the expression has no params and no return value, the entire `params -> returns` can be omitted.
 
 ### Block
 

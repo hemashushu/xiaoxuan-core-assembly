@@ -67,8 +67,40 @@ impl<'a> Parser<'a> {
             Some(token) if token == expected_token)
     }
 
+    /// Returns:
+    /// - `None` if the specified token is not found,
+    /// - `Some(false)` if no new-line is found,
+    /// - `Some(true)` otherwise.
+    fn expect_token_ignore_newline(&self, offset: usize, expected_token: &Token) -> Option<bool> {
+        if self.expect_token(offset, expected_token) {
+            Some(false)
+        } else if self.expect_token(offset, &Token::NewLine)
+            && self.expect_token(offset + 1, expected_token)
+        {
+            Some(true)
+        } else {
+            None
+        }
+    }
+
     fn expect_keyword(&self, offset: usize, expected_keyword: &str) -> bool {
         matches!(self.peek_token(offset), Some(Token::Keyword(keyword)) if keyword == expected_keyword )
+    }
+
+    /// Returns:
+    /// - `None` if the specified token is not found,
+    /// - `Some(false)` if no new-line is found,
+    /// - `Some(true)` otherwise.
+    fn expect_keyword_ignore_newline(&self, offset: usize, expected_keyword: &str) -> Option<bool> {
+        if self.expect_keyword(offset, expected_keyword) {
+            Some(false)
+        } else if self.expect_token(offset, &Token::NewLine)
+            && self.expect_keyword(offset + 1, expected_keyword)
+        {
+            Some(true)
+        } else {
+            None
+        }
     }
 
     // consume '\n' if it exists.
@@ -93,19 +125,19 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn consume_new_line_or_eof(&mut self) -> Result<(), Error> {
-        match self.peek_token(0) {
-            Some(Token::NewLine) => {
-                self.next_token();
-                Ok(())
-            }
-            Some(_) => Err(Error::MessageWithLocation(
-                "Expect a new-line.".to_owned(),
-                self.peek_range(0).unwrap().get_position_by_range_start(),
-            )),
-            None => Ok(()),
-        }
-    }
+    // fn consume_new_line_or_eof(&mut self) -> Result<(), Error> {
+    //     match self.peek_token(0) {
+    //         Some(Token::NewLine) => {
+    //             self.next_token();
+    //             Ok(())
+    //         }
+    //         Some(_) => Err(Error::MessageWithLocation(
+    //             "Expect a new-line.".to_owned(),
+    //             self.peek_range(0).unwrap().get_position_by_range_start(),
+    //         )),
+    //         None => Ok(()),
+    //     }
+    // }
 
     // fn consume_new_line_or_comma(&mut self) -> Result<(), Error> {
     //     match self.peek_token(0) {
@@ -240,10 +272,11 @@ impl<'a> Parser<'a> {
                     // private read-write data statement
                     datas.push(self.parse_data_node(false, DataSectionType::ReadWrite)?);
                 }
-                Token::Keyword(keyword)
-                    if (keyword == "readonly" || keyword == "uninit")
-                        && self.expect_keyword(1, "data") =>
-                {
+                Token::Keyword(keyword) if keyword == "fn" => {
+                    // private fn statement
+                    functions.push(self.parse_function_node(false)?);
+                }
+                Token::Keyword(keyword) if keyword == "readonly" || keyword == "uninit" => {
                     // private {readonly|uninit} data statement
                     let data_section_type = if keyword == "readonly" {
                         DataSectionType::ReadOnly
@@ -252,42 +285,87 @@ impl<'a> Parser<'a> {
                     };
 
                     self.next_token(); // consume 'readonly' or 'uninit'
+                    self.consume_new_line_if_exist();
 
-                    datas.push(self.parse_data_node(false, data_section_type)?);
-                }
-                Token::Keyword(keyword) if keyword == "pub" && self.expect_keyword(1, "data") => {
-                    // public read-write data statement
-                    self.next_token(); // consume 'pub'
-
-                    datas.push(self.parse_data_node(true, DataSectionType::ReadWrite)?);
-                }
-                Token::Keyword(keyword)
-                    if keyword == "pub"
-                        && (self.expect_keyword(1, "readonly")
-                            || self.expect_keyword(1, "uninit"))
-                        && self.expect_keyword(2, "data") =>
-                {
-                    // public {readonly|uninit} data statement
-                    let data_section_type = if self.expect_keyword(1, "readonly") {
-                        DataSectionType::ReadOnly
+                    if let Some(next_token) = self.peek_token(0) {
+                        match next_token {
+                            Token::Keyword(next_keyword) if next_keyword == "data" => {
+                                datas.push(self.parse_data_node(false, data_section_type)?);
+                            }
+                            _ => {
+                                return Err(Error::MessageWithLocation(
+                                    "Expect a data.".to_owned(),
+                                    self.peek_range(0).unwrap().get_position_by_range_start(),
+                                ));
+                            }
+                        }
                     } else {
-                        DataSectionType::Uninit
-                    };
-
-                    self.next_token(); // consume 'pub'
-                    self.next_token(); // consume 'readonly' or 'uninit'
-
-                    datas.push(self.parse_data_node(true, data_section_type)?);
+                        return Err(Error::UnexpectedEndOfDocument("Expect a data.".to_owned()));
+                    }
                 }
-                Token::Keyword(keyword) if keyword == "fn" => {
-                    // private fn statement
-                    functions.push(self.parse_function_node(false)?);
-                }
-                Token::Keyword(keyword) if keyword == "pub" && self.expect_keyword(1, "fn") => {
-                    // public fn statement
+                Token::Keyword(keyword) if keyword == "pub" => {
                     self.next_token(); // consume 'pub'
+                    self.consume_new_line_if_exist();
 
-                    functions.push(self.parse_function_node(true)?);
+                    if let Some(next_token) = self.peek_token(0) {
+                        match next_token {
+                            Token::Keyword(next_keyword) if next_keyword == "data" => {
+                                // public read-write data statement
+                                datas.push(self.parse_data_node(true, DataSectionType::ReadWrite)?);
+                            }
+                            Token::Keyword(next_keyword) if next_keyword == "fn" => {
+                                // public fn statement
+                                functions.push(self.parse_function_node(true)?);
+                            }
+                            Token::Keyword(next_keyword)
+                                if next_keyword == "readonly" || next_keyword == "uninit" =>
+                            {
+                                // public {readonly|uninit} data statement
+                                let data_section_type = if next_keyword == "readonly" {
+                                    DataSectionType::ReadOnly
+                                } else {
+                                    DataSectionType::Uninit
+                                };
+
+                                self.next_token(); // consume 'readonly' or 'uninit'
+                                self.consume_new_line_if_exist();
+
+                                if let Some(next_next_token) = self.peek_token(0) {
+                                    match next_next_token {
+                                        Token::Keyword(next_next_keyword)
+                                            if next_next_keyword == "data" =>
+                                        {
+                                            datas.push(
+                                                self.parse_data_node(true, data_section_type)?,
+                                            );
+                                        }
+                                        _ => {
+                                            return Err(Error::MessageWithLocation(
+                                                "Expect a data.".to_owned(),
+                                                self.peek_range(0)
+                                                    .unwrap()
+                                                    .get_position_by_range_start(),
+                                            ));
+                                        }
+                                    }
+                                } else {
+                                    return Err(Error::UnexpectedEndOfDocument(
+                                        "Expect a data.".to_owned(),
+                                    ));
+                                }
+                            }
+                            _ => {
+                                return Err(Error::MessageWithLocation(
+                                    "Expect a data or a function.".to_owned(),
+                                    self.peek_range(0).unwrap().get_position_by_range_start(),
+                                ));
+                            }
+                        }
+                    } else {
+                        return Err(Error::UnexpectedEndOfDocument(
+                            "Expect a data or a function.".to_owned(),
+                        ));
+                    }
                 }
                 _ => {
                     return Err(Error::MessageWithLocation(
@@ -319,17 +397,21 @@ impl<'a> Parser<'a> {
 
         let name_path = self.consume_name_path()?;
 
-        let alias_name = if self.expect_keyword(0, "as") {
-            self.next_token(); // consume 'as'
-            self.consume_new_line_if_exist();
+        let alias_name = match self.expect_keyword_ignore_newline(0, "as") {
+            Some(exists_newline) => {
+                if exists_newline {
+                    self.next_token(); // consume '\n'
+                }
+                self.next_token(); // consume 'as'
+                self.consume_new_line_if_exist();
 
-            let name = self.consume_name()?;
-            Some(name)
-        } else {
-            None
+                let name = self.consume_name()?;
+                Some(name)
+            }
+            _ => None,
         };
 
-        self.consume_new_line_or_eof()?; // consume '\n'
+        self.consume_new_line_if_exist(); // consume '\n'
 
         let node = UseNode {
             name_path,
@@ -344,29 +426,31 @@ impl<'a> Parser<'a> {
         // |-------------------------// current token, validated
 
         self.next_token(); // consume 'external'
+        self.consume_new_line_if_exist();
 
-        match self.peek_token(0) {
-            Some(Token::Keyword(n)) if n == "fn" => {
-                // external fn ...
-                let function_node = self.parse_external_function_node()?;
-                Ok(ExternalNode::Function(function_node))
+        if let Some(token) = self.peek_token(0) {
+            match token {
+                Token::Keyword(keyword) if keyword == "fn" => {
+                    // external fn ...
+                    let function_node = self.parse_external_function_node()?;
+                    Ok(ExternalNode::Function(function_node))
+                }
+                Token::Keyword(keyword) if keyword == "data" => {
+                    // external data ...
+                    let data_node = self.parse_external_data_node()?;
+                    Ok(ExternalNode::Data(data_node))
+                }
+                _ => {
+                    return Err(Error::MessageWithLocation(
+                        "Expect external \"fn\" or \"data\".".to_owned(),
+                        self.peek_range(0).unwrap().get_position_by_range_start(),
+                    ))
+                }
             }
-            Some(Token::Keyword(n)) if n == "data" => {
-                // external data ...
-                let data_node = self.parse_external_data_node()?;
-                Ok(ExternalNode::Data(data_node))
-            }
-            Some(_) => {
-                return Err(Error::MessageWithLocation(
-                    "Expect external \"fn\" or \"data\".".to_owned(),
-                    self.peek_range(0).unwrap().get_position_by_range_start(),
-                ))
-            }
-            None => {
-                return Err(Error::UnexpectedEndOfDocument(
-                    "Expect external \"fn\" or \"data\".".to_owned(),
-                ))
-            }
+        } else {
+            Err(Error::UnexpectedEndOfDocument(
+                "Expect external \"fn\" or \"data\".".to_owned(),
+            ))
         }
     }
 
@@ -379,6 +463,7 @@ impl<'a> Parser<'a> {
         self.consume_new_line_if_exist();
 
         let name_path = self.consume_name_path()?;
+        self.consume_new_line_if_exist();
 
         // parse the parameters
 
@@ -401,6 +486,7 @@ impl<'a> Parser<'a> {
         }
 
         self.consume_right_paren()?; // consume ')'
+        self.consume_new_line_if_exist();
 
         // parse the return data type
 
@@ -421,17 +507,21 @@ impl<'a> Parser<'a> {
         };
 
         // parse the 'as' part
-        let alias_name = if self.expect_keyword(0, "as") {
-            self.next_token(); // consume 'as'
-            self.consume_new_line_if_exist();
+        let alias_name = match self.expect_keyword_ignore_newline(0, "as") {
+            Some(exists_newline) => {
+                if exists_newline {
+                    self.next_token(); // consume '\n'
+                }
+                self.next_token(); // consume 'as'
+                self.consume_new_line_if_exist();
 
-            let name = self.consume_name()?;
-            Some(name)
-        } else {
-            None
+                let name = self.consume_name()?;
+                Some(name)
+            }
+            None => None,
         };
 
-        self.consume_new_line_or_eof()?; // consume '\n'
+        self.consume_new_line_if_exist(); // consume '\n'
 
         let node = ExternalFunctionNode {
             name_path,
@@ -502,23 +592,28 @@ impl<'a> Parser<'a> {
         self.consume_new_line_if_exist();
 
         let name_path = self.consume_name_path()?;
+        self.consume_new_line_if_exist();
 
         self.consume_colon()?; // consume ':'
         self.consume_new_line_if_exist();
 
         let data_type = self.continue_parse_external_data_type()?;
 
-        let alias_name = if self.expect_keyword(0, "as") {
-            self.next_token(); // consume 'as'
-            self.consume_new_line_if_exist();
+        let alias_name = match self.expect_keyword_ignore_newline(0, "as") {
+            Some(exists_newline) => {
+                if exists_newline {
+                    self.next_token(); // consume '\n'
+                }
+                self.next_token(); // consume 'as'
+                self.consume_new_line_if_exist();
 
-            let name = self.consume_name()?;
-            Some(name)
-        } else {
-            None
+                let name = self.consume_name()?;
+                Some(name)
+            }
+            None => None,
         };
 
-        self.consume_new_line_or_eof()?; // consume '\n'
+        self.consume_new_line_if_exist(); // consume '\n'
 
         let node = ExternalDataNode {
             name_path,
@@ -564,9 +659,12 @@ impl<'a> Parser<'a> {
                     }
                     "byte" => {
                         self.next_token(); // consume 'byte'
-                        self.consume_left_bracket()?; // consule '['
-                        self.consume_right_bracket()?;
+                        self.consume_new_line_if_exist();
 
+                        self.consume_left_bracket()?; // consule '['
+                        self.consume_new_line_if_exist();
+
+                        self.consume_right_bracket()?; // consume ']'
                         ExternalDataType::Bytes
                     }
                     _ => {
@@ -601,6 +699,7 @@ impl<'a> Parser<'a> {
         self.consume_new_line_if_exist();
 
         let name = self.consume_name()?;
+        self.consume_new_line_if_exist();
 
         self.consume_colon()?; // consume ':'
         self.consume_new_line_if_exist();
@@ -608,6 +707,7 @@ impl<'a> Parser<'a> {
         match data_section_type {
             DataSectionType::ReadOnly | DataSectionType::ReadWrite => {
                 let data_type = self.continue_parse_declare_data_type()?;
+                self.consume_new_line_if_exist();
 
                 // parse value
                 self.consume_equal()?;
@@ -615,7 +715,7 @@ impl<'a> Parser<'a> {
 
                 let value = self.continue_parse_data_value()?;
 
-                self.consume_new_line_or_eof()?; // consume '\n'
+                self.consume_new_line_if_exist(); // consume '\n'
 
                 Ok(DataNode {
                     is_public,
@@ -629,7 +729,7 @@ impl<'a> Parser<'a> {
             }
             DataSectionType::Uninit => {
                 let data_type = self.continue_parse_fixed_declare_data_type()?;
-                self.consume_new_line_or_eof()?; // consume '\n'
+                self.consume_new_line_if_exist(); // consume '\n'
 
                 Ok(DataNode {
                     is_public,
@@ -676,6 +776,8 @@ impl<'a> Parser<'a> {
                     }
                     "byte" => {
                         self.next_token(); // consume 'byte'
+                        self.consume_new_line_if_exist();
+
                         self.consume_left_bracket()?; // consule '['
                         self.consume_new_line_if_exist();
 
@@ -685,6 +787,7 @@ impl<'a> Parser<'a> {
                             let found_sep = self.consume_new_line_or_comma_if_exist();
                             let align = if found_sep && self.expect_keyword(0, "align") {
                                 self.next_token(); // consume 'align'
+                                self.consume_new_line_if_exist();
 
                                 self.consume_equal()?; // consume '='
                                 self.consume_new_line_if_exist();
@@ -703,6 +806,8 @@ impl<'a> Parser<'a> {
                         } else if self.expect_keyword(0, "align") {
                             // variable size byte array
                             self.next_token(); // consume 'align'
+                            self.consume_new_line_if_exist();
+
                             self.consume_equal()?; // consume '='
                             self.consume_new_line_if_exist();
 
@@ -774,6 +879,8 @@ impl<'a> Parser<'a> {
                     }
                     "byte" => {
                         self.next_token(); // consume 'byte'
+                        self.consume_new_line_if_exist();
+
                         self.consume_left_bracket()?; // consule '['
                         self.consume_new_line_if_exist();
 
@@ -782,6 +889,8 @@ impl<'a> Parser<'a> {
                         let found_sep = self.consume_new_line_or_comma_if_exist();
                         let align = if found_sep && self.expect_keyword(0, "align") {
                             self.next_token(); // consume 'align'
+                            self.consume_new_line_if_exist();
+
                             self.consume_equal()?; // consume '='
                             self.consume_new_line_if_exist();
 
@@ -904,6 +1013,7 @@ impl<'a> Parser<'a> {
         self.consume_new_line_if_exist();
 
         let params = self.continue_parse_function_params()?;
+        self.consume_new_line_if_exist();
 
         let returns: Vec<FunctionDataType> = if self.expect_token(0, &Token::RightArrow) {
             self.next_token(); // consume '->'
@@ -913,7 +1023,6 @@ impl<'a> Parser<'a> {
         } else {
             vec![]
         };
-
         self.consume_new_line_if_exist();
 
         let locals: Vec<LocalVariable> = if self.expect_token(0, &Token::LeftBracket) {
@@ -926,7 +1035,7 @@ impl<'a> Parser<'a> {
 
         let body = self.parse_expression_node()?;
 
-        self.consume_new_line_or_eof()?;
+        self.consume_new_line_if_exist();
 
         let node = FunctionNode {
             is_public,
@@ -955,6 +1064,7 @@ impl<'a> Parser<'a> {
             }
 
             let name = self.consume_name()?;
+            self.consume_new_line_if_exist();
 
             self.consume_colon()?;
             self.consume_new_line_if_exist();
@@ -1029,6 +1139,7 @@ impl<'a> Parser<'a> {
             }
 
             let name = self.consume_name()?;
+            self.consume_new_line_if_exist();
 
             self.consume_colon()?;
             self.consume_new_line_if_exist();
@@ -1096,7 +1207,11 @@ impl<'a> Parser<'a> {
                     let recur_node = self.parse_break_expression(keyword_ref)?;
                     ExpressionNode::Recur(recur_node)
                 }
-                Token::Name(_) if self.expect_token(1, &Token::LeftParen) => {
+                Token::Name(_)
+                    if self
+                        .expect_token_ignore_newline(1, &Token::LeftParen)
+                        .is_some() =>
+                {
                     // maybe an instruction expression
                     let instruction_node = self.parse_instruction_expression()?;
                     ExpressionNode::Instruction(instruction_node)
@@ -1124,6 +1239,8 @@ impl<'a> Parser<'a> {
         // |------------------// current token, validated
 
         let name = self.consume_name()?;
+        self.consume_new_line_if_exist();
+
         let (positional_args, named_args) = self.continue_parse_calling_arguments()?;
 
         let node = InstructionNode {
@@ -1156,6 +1273,8 @@ impl<'a> Parser<'a> {
             if matches!(token, Token::Name(_)) && self.expect_token(1, &Token::Equal) {
                 // named arg
                 let name = self.consume_name()?; // consume the name
+                self.consume_new_line_if_exist();
+
                 self.consume_equal()?; // consume '='
                 self.consume_new_line_if_exist();
 
@@ -1202,7 +1321,11 @@ impl<'a> Parser<'a> {
                     self.next_token(); // consume number token
                     value_num
                 }
-                Token::Name(name) if !self.expect_token(1, &Token::LeftParen) => {
+                Token::Name(name)
+                    if self
+                        .expect_token_ignore_newline(1, &Token::LeftParen)
+                        .is_none() =>
+                {
                     let identifier = name.to_owned();
                     self.next_token(); // consume name
                     ArgumentValue::Identifier(identifier)
@@ -1229,6 +1352,7 @@ impl<'a> Parser<'a> {
         // also:
         // - break_if testing (value0, value1, ...)
         // - break_fn (value0, value1, ...)
+        // - recur*
 
         self.next_token(); // consume 'break' or 'recur'
         self.consume_new_line_if_exist();
@@ -1287,18 +1411,24 @@ impl<'a> Parser<'a> {
         self.next_token(); // consume 'block' or 'for'
         self.consume_new_line_if_exist();
 
-        let params = self.continue_parse_function_params()?;
-
-        let returns: Vec<FunctionDataType> = if self.expect_token(0, &Token::RightArrow) {
-            self.next_token(); // consume '->'
+        let (params, returns) = if self.expect_token(0, &Token::LeftParen) {
+            let params = self.continue_parse_function_params()?;
             self.consume_new_line_if_exist();
 
-            self.continue_parse_function_returns()?
-        } else {
-            vec![]
-        };
+            let returns: Vec<FunctionDataType> = if self.expect_token(0, &Token::RightArrow) {
+                self.next_token(); // consume '->'
+                self.consume_new_line_if_exist();
 
-        self.consume_new_line_if_exist();
+                self.continue_parse_function_returns()?
+            } else {
+                vec![]
+            };
+            self.consume_new_line_if_exist();
+
+            (params, returns)
+        } else {
+            (vec![], vec![])
+        };
 
         let locals: Vec<LocalVariable> = if self.expect_token(0, &Token::LeftBracket) {
             self.continue_parse_function_local_variables()?
@@ -1310,7 +1440,7 @@ impl<'a> Parser<'a> {
 
         let body = self.parse_expression_node()?;
 
-        self.consume_new_line_or_eof()?;
+        self.consume_new_line_if_exist();
 
         let node = BlockNode {
             params,
@@ -1323,20 +1453,30 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_if_expression(&mut self) -> Result<IfNode, Error> {
-        // if -> returns tesing consequence alternative ?  //
-        // ^                                            ^__// to here
-        // |-----------------------------------------------// current token, validated
+        // if params -> returns tesing consequence alternative ?  //
+        // ^                                                   ^__// to here
+        // |------------------------------------------------------// current token, validated
 
         self.next_token(); // consume 'if'
         self.consume_new_line_if_exist();
 
-        let returns = if self.expect_token(0, &Token::RightArrow) {
-            self.next_token(); // consume '->'
+        let (params, returns) = if self.expect_token(0, &Token::LeftParen) {
+            let params = self.continue_parse_function_params()?;
             self.consume_new_line_if_exist();
 
-            self.continue_parse_function_returns()?
+            let returns = if self.expect_token(0, &Token::RightArrow) {
+                self.next_token(); // consume '->'
+                self.consume_new_line_if_exist();
+
+                self.continue_parse_function_returns()?
+            } else {
+                vec![]
+            };
+            self.consume_new_line_if_exist();
+
+            (params, returns)
         } else {
-            vec![]
+            (vec![], vec![])
         };
 
         let testing = self.parse_expression_node()?;
@@ -1348,6 +1488,7 @@ impl<'a> Parser<'a> {
         let alternative = self.parse_expression_node()?;
 
         let node = IfNode {
+            params,
             returns,
             testing: Box::new(testing),
             consequence: Box::new(consequence),
@@ -1406,6 +1547,9 @@ impl<'a> Parser<'a> {
             if !found_sep {
                 break;
             }
+
+            // // the separators which follows the expression are optional
+            // self.consume_new_line_if_exist();
         }
 
         self.consume_right_brace()?; // consume '}'
@@ -1447,17 +1591,6 @@ mod tests {
             "use parent::sub_sub_module::some_data as other_data\n\n"
         );
 
-        // test line break
-        assert_eq!(
-            format(
-                "\
-use
-std::memory::copy as
-mem_copy"
-            ),
-            "use std::memory::copy as mem_copy\n\n"
-        );
-
         // test multiple items
         assert_eq!(
             format(
@@ -1468,6 +1601,18 @@ use self::sub_module::some_func"
             "\
 use module::sub_module::some_func
 use self::sub_module::some_func\n\n"
+        );
+
+        // test line breaks
+        assert_eq!(
+            format(
+                "\
+use
+std::memory::copy
+as
+mem_copy"
+            ),
+            "use std::memory::copy as mem_copy\n\n"
         );
     }
 
@@ -1501,21 +1646,6 @@ use self::sub_module::some_func\n\n"
             "external fn libfoo::add(i32, i32) -> i32 as add_i32\n\n"
         );
 
-        // test line break
-        assert_eq!(
-            format(
-                "\
-external fn
-libfoo::add(
-i32
-i32
-)->
-i32 as
-add_i32"
-            ),
-            "external fn libfoo::add(i32, i32) -> i32 as add_i32\n\n"
-        );
-
         // test multiple items
         assert_eq!(
             format(
@@ -1526,6 +1656,25 @@ external fn libfoo::add(i32,i32)->i32"
             "\
 external fn libfoo::bar() -> ()
 external fn libfoo::add(i32, i32) -> i32\n\n"
+        );
+
+        // test line breaks
+        assert_eq!(
+            format(
+                "\
+external
+fn
+libfoo::add
+(
+i32
+i32
+)
+->
+i32
+as
+add_i32"
+            ),
+            "external fn libfoo::add(i32, i32) -> i32 as add_i32\n\n"
         );
     }
 
@@ -1542,18 +1691,6 @@ external fn libfoo::add(i32, i32) -> i32\n\n"
             "external data libfoo::bar:byte[] as baz\n\n"
         );
 
-        // test line break
-        assert_eq!(
-            format(
-                "\
-external data
-libfoo::bar :
-byte[] as
-baz"
-            ),
-            "external data libfoo::bar:byte[] as baz\n\n"
-        );
-
         // test multiple items
         assert_eq!(
             format(
@@ -1564,6 +1701,23 @@ external data libfoo::bar:byte[] as baz"
             "\
 external data libfoo::PI:f32
 external data libfoo::bar:byte[] as baz\n\n"
+        );
+
+        // test line breaks
+        assert_eq!(
+            format(
+                "\
+external
+data
+libfoo::bar
+:
+byte
+[
+]
+as
+baz"
+            ),
+            "external data libfoo::bar:byte[] as baz\n\n"
         );
     }
 
@@ -1625,13 +1779,18 @@ pub data foo5:byte[] = [
         assert_eq!(
             format(
                 "\
-pub data
-foo:
-byte[
+pub
+data
+foo
+:
+byte
+[
 32
-align=
+align
+=
 8
-] =
+]
+=
 [
 11
 \"abc\"
@@ -1729,29 +1888,37 @@ fn foo(left:i32, right:i32) -> i32
 "
         );
 
-        // with line breaks
+        // test line breaks
         assert_eq!(
             format(
                 "\
+pub
 fn
 foo
 (
-left:
+left
+:
 i32
-right:
+right
+:
 i32
-) ->
+)
+->
 i32
 [
-abc:
-i32]
-nop(
+abc
+:
+i32
+]
+imm_i32
+(
+11
 )"
             ),
             "\
-fn foo(left:i32, right:i32) -> i32
+pub fn foo(left:i32, right:i32) -> i32
     [abc:i32]
-    nop()
+    imm_i32(11)
 "
         );
     }
@@ -1801,26 +1968,417 @@ fn foo() -> ()
 
     #[test]
     fn test_parse_expression_when() {
-        // todo
+        assert_eq!(
+            format(
+                "\
+fn foo()
+    when imm_i32(1)
+        local_store_i32(imm_i32(11))"
+            ),
+            "\
+fn foo() -> ()
+    when
+        imm_i32(1)
+        local_store_i32(
+            imm_i32(11))
+"
+        );
+
+        // with local variables
+        assert_eq!(
+            format(
+                "\
+fn foo()
+    when imm_i32(1) [left:i32,right:i32] nop()
+"
+            ),
+            "\
+fn foo() -> ()
+    when
+        imm_i32(1)
+        [left:i32, right:i32]
+        nop()
+"
+        );
+
+        // test line breaks
+        assert_eq!(
+            format(
+                "\
+fn foo()
+    when
+    imm_i32
+    (
+    1
+    )
+    [
+    left
+    :
+    i32
+    right
+    :
+    i32
+    ]
+    nop
+    (
+    )
+"
+            ),
+            "\
+fn foo() -> ()
+    when
+        imm_i32(1)
+        [left:i32, right:i32]
+        nop()
+"
+        );
     }
 
     #[test]
     fn test_parse_expression_if() {
-        // todo
+        assert_eq!(
+            format(
+                "\
+fn foo()
+    if (num:i32)
+        eqz_i32(local_load_i32_s(num))
+        imm_i32(11)
+        imm_i32(13)
+        "
+            ),
+            "\
+fn foo() -> ()
+    if (num:i32) -> ()
+        eqz_i32(
+            local_load_i32_s(num))
+        imm_i32(11)
+        imm_i32(13)
+"
+        );
+
+        // with params and return values
+        assert_eq!(
+            format(
+                "\
+fn foo()
+    if (left:i32,right:i32)->(i32,i32)
+        eqz_i32(local_load_i32_s(num))
+        imm_i32(11)
+        imm_i32(13)
+        "
+            ),
+            "\
+fn foo() -> ()
+    if (left:i32, right:i32) -> (i32, i32)
+        eqz_i32(
+            local_load_i32_s(num))
+        imm_i32(11)
+        imm_i32(13)
+"
+        );
+
+        // without params
+        assert_eq!(
+            format(
+                "\
+fn foo()
+    if ()->i32
+        eqz_i32(local_load_i32_s(num))
+        imm_i32(11)
+        imm_i32(13)
+        "
+            ),
+            "\
+fn foo() -> ()
+    if () -> i32
+        eqz_i32(
+            local_load_i32_s(num))
+        imm_i32(11)
+        imm_i32(13)
+"
+        );
+
+        // without params and return values
+        assert_eq!(
+            format(
+                "\
+fn foo()
+    if eqz_i32(local_load_i32_s(num))
+        imm_i32(11)
+        imm_i32(13)
+        "
+            ),
+            "\
+fn foo() -> ()
+    if () -> ()
+        eqz_i32(
+            local_load_i32_s(num))
+        imm_i32(11)
+        imm_i32(13)
+"
+        );
+
+        // test line breaks
+        assert_eq!(
+            format(
+                "\
+fn
+foo()
+if
+(
+num
+:
+i32
+)
+->
+(
+i32
+i32
+)
+imm_i32(11)
+imm_i32(13)
+imm_i32(17)
+        "
+            ),
+            "\
+fn foo() -> ()
+    if (num:i32) -> (i32, i32)
+        imm_i32(11)
+        imm_i32(13)
+        imm_i32(17)
+"
+        );
     }
 
     #[test]
     fn test_parse_expression_block() {
-        // todo
+        assert_eq!(
+            format(
+                "\
+fn foo()
+    block (num:i32)
+        imm_i32(11)
+        "
+            ),
+            "\
+fn foo() -> ()
+    block (num:i32) -> ()
+        imm_i32(11)
+"
+        );
+
+        // with params and return values
+        assert_eq!(
+            format(
+                "\
+fn foo()
+    block (left:i32, right:i32)->i32
+        imm_i32(11)
+        "
+            ),
+            "\
+fn foo() -> ()
+    block (left:i32, right:i32) -> i32
+        imm_i32(11)
+"
+        );
+
+        // without params
+        assert_eq!(
+            format(
+                "\
+fn foo()
+    block ()->i32
+        imm_i32(11)
+        "
+            ),
+            "\
+fn foo() -> ()
+    block () -> i32
+        imm_i32(11)
+"
+        );
+
+        // omits params and return values
+        assert_eq!(
+            format(
+                "\
+fn foo()
+    block imm_i32(11)
+        "
+            ),
+            "\
+fn foo() -> ()
+    block () -> ()
+        imm_i32(11)
+"
+        );
+
+        // test line breaks
+        assert_eq!(
+            format(
+                "\
+fn foo()
+block
+(
+left
+:
+i32
+right
+:
+i32
+)
+->
+i32
+imm_i32
+(
+11
+)
+"
+            ),
+            "\
+fn foo() -> ()
+    block (left:i32, right:i32) -> i32
+        imm_i32(11)
+"
+        );
     }
 
     #[test]
     fn test_parse_expression_break() {
-        // todo
+        assert_eq!(
+            format(
+                "\
+fn foo()
+    block {
+        break(imm_i32(11), imm_i32(13))
+        break_if imm_i32(15) (imm_i32(17), imm_i32(23))
+        break_fn(imm_i32(29))
+    }"
+            ),
+            "\
+fn foo() -> ()
+    block () -> ()
+        {
+            break(
+                imm_i32(11)
+                imm_i32(13)
+            )
+            break_if
+                imm_i32(15)
+                (
+                imm_i32(17)
+                imm_i32(23)
+            )
+            break_fn(
+                imm_i32(29)
+            )
+        }
+"
+        );
+
+        // test line breaks
+        assert_eq!(
+            format(
+                "\
+fn foo()
+block
+break_if
+imm_i32
+(
+15
+)
+(
+imm_i32
+(
+17
+)
+imm_i32
+(
+23
+)
+)
+    "
+            ),
+            "\
+fn foo() -> ()
+    block () -> ()
+        break_if
+            imm_i32(15)
+            (
+            imm_i32(17)
+            imm_i32(23)
+        )
+"
+        );
     }
 
     #[test]
     fn test_parse_expression_recur() {
-        // todo
+        assert_eq!(
+            format(
+                "\
+fn foo()
+    block {
+        recur(imm_i32(11), imm_i32(13))
+        recur_if imm_i32(15) (imm_i32(17), imm_i32(23))
+        recur_fn(imm_i32(29))
+    }"
+            ),
+            "\
+fn foo() -> ()
+    block () -> ()
+        {
+            recur(
+                imm_i32(11)
+                imm_i32(13)
+            )
+            recur_if
+                imm_i32(15)
+                (
+                imm_i32(17)
+                imm_i32(23)
+            )
+            recur_fn(
+                imm_i32(29)
+            )
+        }
+"
+        );
+
+        // test line breaks
+        assert_eq!(
+            format(
+                "\
+fn foo()
+block
+recur_if
+imm_i32
+(
+15
+)
+(
+imm_i32
+(
+17
+)
+imm_i32
+(
+23
+)
+)
+    "
+            ),
+            "\
+fn foo() -> ()
+    block () -> ()
+        recur_if
+            imm_i32(15)
+            (
+            imm_i32(17)
+            imm_i32(23)
+        )
+"
+        );
     }
 }

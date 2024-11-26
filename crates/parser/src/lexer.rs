@@ -382,10 +382,10 @@ impl<'a> Lexer<'a> {
             Token::NamePath(name_string)
         } else {
             match name_string.as_str() {
-                "use" | "as" | "external" | "fn" | "data" | "pub" | "readonly" | "uninit" | "align" => {
-                    Token::Keyword(name_string)
-                }
-                "i64" | "i32" | "f64" | "f32" | "byte" => Token::DataTypeName(name_string),
+                "use" | "as" | "external" | "fn" | "data" | "pub" | "readonly" | "uninit"
+                | "align" | "block" | "for" | "when" | "if" | "break" | "break_if" | "break_fn"
+                | "recur" | "recur_if" | "recur_fn" => Token::Keyword(name_string),
+                "i64" | "i32" | "i16" | "i8" | "f64" | "f32" | "byte" => Token::DataTypeName(name_string),
                 _ => Token::Name(name_string),
             }
         };

@@ -417,48 +417,55 @@ log_f64(left:f64 right:f64) -> f64
 
 - `call(identifier, value0, value1, ...)`
    call a function
+- `extcall(identifier, value0, value1, ...)`
+   call a external function
+- `envcall(env_call_number:liter_i32, value0, value1, ...)`
+   environment call
+- `syscall(sys_call_number:liter_i32, value0, value1, ...)`
+   system call
 - `dyncall(fn_pub_index:i32, value0, value1, ...)`
    dynamic call
-- `envcall(env_call_number:i32, value0, value1, ...)`
-   environment call
-- `syscall(sys_call_number:i32, value0, value1, ...)`
-   syscall
-- `extcall(identifier, value0, value1, ...)`
 
 The arguments to `*call` can be the return values of other instructions, or other functions or groups, as long as they have the same number of arguments. For example, if a function takes three arguments, it can composed of an instruction that returns one value and a function call that returns two values, e.g.:
 
 ```rust
-call(i_need_2_args
+call(fn_with_2_args
     local_load_i32_u(left)
     local_load_i32_u(right)
 )
 
-call(i_need_3_args
+call(fn_with_3_args
     local_load_i32_u(init)
-    call(i_return_2_values)
+    call(fn_return_2_values)
 )
 ```
 
-If a function call returns more than the number of arguments needed for a function, or in a different order, some method (such as using a local variable) is used to discard or swap some of the return values.
+If a function call returns more than the number of arguments needed for a function, or in a different order, a temporary local variable can be used to discard or swap some of the return values.
+
+Discard some return values:
 
 ```rust
-call(i_need_1_args
+call(fn_with_1_args
     // discard the last return value
     local_store_i32(
         trash   // The `trash` is a local variable
-        call(i_return_2_values)
+        call(fn_return_2_values)
     )
 )
+```
 
+Swap return values:
+
+```rust
 // store the return values to cache
 local_store_i32(left,
     local_store_i32(right,
-        call(i_return_2_values)
+        call(fn_return_2_values)
     )
 )
 
-// load cache in reverse order
-call(i_need_2_args
+call(fn_with_2_args
+    // load cache in reverse order
     local_load_i32_u(right)
     local_load_i32_u(left)
 )
@@ -467,13 +474,16 @@ call(i_need_2_args
 ### Host
 
 ```rust
-panic(code:literal_i32)  ->  (never return)
 host_addr_local(identifier, offset=literal_i16) -> i64
 host_addr_local_extend(identifier, offset:i64) -> i64
 host_addr_data(identifier, offset=literal_i16) -> i64
 host_addr_data_extend(identifier, offset:i64) -> i64
-host_addr_heap(addr:i64, offset=literal_i16) -> i64
 host_addr_function(identifier) -> i64
+```
+
+```rust
+panic(code:literal_i32)  ->  (never return)
+host_addr_heap(addr:i64, offset=literal_i16) -> i64
 host_copy_heap_to_memory(dst_pointer:i64, src_addr:i64, count:i64) -> ()
 host_copy_memory_to_heap(dst_addr:i64, src_pointer:i64, count:i64) -> ()
 host_memory_copy(dst_pointer:i64, src_pointer:i64, count:i64) -> ()
