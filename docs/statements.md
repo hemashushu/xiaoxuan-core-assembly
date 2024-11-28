@@ -4,7 +4,7 @@
 
 <!-- code_chunk_output -->
 
-- [The `use` Statements](#the-use-statements)
+- [The `import` Statements](#the-import-statements)
 - [The `external` Statements](#the-external-statements)
 - [The `data` Statements](#the-data-statements)
 - [The `fn` Statements](#the-fn-statements)
@@ -14,9 +14,11 @@
 
 A module consists of statements.
 
+<!--
+
 ## The `use` Statements
 
-To use identifiers (the name of functions or data) from other namespace of the current modules to the current namespace, use the `use` keyword:
+To use identifiers (the name of functions or data) from other namespace (or other namespaces of the current modules) in the current namespace, use the `use` keyword:
 
 `use full_name [as new_name]`
 
@@ -52,6 +54,8 @@ use module::sub_module::some_func
 use self::sub_module::some_func
 use parent::sub_sub_module::some_data as other_data
 ```
+
+-->
 
 ## The `import` Statements
 
@@ -95,6 +99,10 @@ To define data, use the `data` keyword:
 - `[pub] [readonly] data name:type = value`
 - `[pub] uninit data name:type`
 
+The keyword `pub` is used to indicate the visibility of this item when this module is used as a shared module.
+
+Note that in the case of static linking, the item is always visible to other modules with or without this keyword.
+
 Example of `data` statement:
 
 ```rust
@@ -110,7 +118,7 @@ The possible value of data are:
 - Hex byte data.
 - List. The element of list can be numbers, strings, hex byte data and list.
 
-todo:: examples
+TODO:: list examples
 
 There are two ways to declare the length of a byte array:
 
@@ -135,9 +143,13 @@ The `byte` type can also be specified alignment, e.g.:
 
 To define functions, use the `fn` keyword:
 
-`[pub] fn name (params) -> returns [locals] {...}`
+`[pub] fn name (params) -> results [locals] {...}`
 
 where `[locals]` is an optional list of local variables.
+
+The keyword `pub` is used to indicate the visibility of this item when this module is used as a shared module.
+
+Note that in the case of static linking, the item is always visible to other modules with or without this keyword.
 
 Example of `fn` statement:
 
@@ -166,13 +178,13 @@ fn inc_one(num:i32) -> i32
 
 ## Line Break Rules
 
-Anasm has only 5 types of statements: `use`, `import`, `external`, `data`, and `fn`. Unlike programming languages such as C/C++/Java, Anasm statements do not require a semicolon (`;`) as a statement terminator. This is because the semantics of Anasm statements are unambiguous, meaning that no matter how you break lines, indent, or write all statements together, it will not lead to ambiguity. Therefore, semicolons or newlines are not needed to indicate the end of statement.
+Ancasm has only 5 types of statements: `use`, `import`, `external`, `data`, and `fn`. Unlike programming languages such as C/C++/Java, Ancasm statements do not require a semicolon (`;`) as a statement terminator. This is because the semantics of Ancasm statements are unambiguous, meaning that no matter how you break lines, indent, or write all statements together, it will not lead to ambiguity. Therefore, semicolons or newlines are not needed to indicate the end of statement.
 
 Of course, for better readability, it is recommended to insert a newline after ecah statement. For example, the following five statements are all terminated with a newline, and an extra newline is inserted between different types of statements:
 
-```anasm
-use std::math::sqrt
-use mymod::format
+```ancasm
+import fn std::math::sqrt(f64)->f64
+import data mymod::count:i32
 
 data readonly msg:byte[] = "hello world!\0"
 data foo:i32 = 42
@@ -180,22 +192,22 @@ data foo:i32 = 42
 fn bar() {...}
 ```
 
-In addition to the unambiguous semantics of statements, Anasm expressions are also semantically unambiguous. Therefore, when writing expressions, you do not need to use semicolons (`;`) or newlines to indicate the end. You can even write all expressions on the same line or insert a newline after each token, which is the same for the Assembler. For example, the following two code blocks are equivalent:
+In addition to the unambiguous semantics of statements, Ancasm expressions are also semantically unambiguous. Therefore, when writing expressions, you do not need to use semicolons (`;`) or newlines to indicate the end. You can even write all expressions on the same line or insert a newline after each token, which is the same for the Assembler. For example, the following two code blocks are equivalent:
 
-```anasm
+```ancasm
 imm_i32(10)
 ```
 
 and
 
-```anasm
+```ancasm
 imm_i32
 (
 10
 )
 ```
 
-Of course, to prevent programmers from taking advantage of this "highly flexible" syntax to write code that is very difficult to read (such as writing all code on the same line), Anasm adds two restrictions to the syntax:
+Of course, to prevent programmers from taking advantage of this "highly flexible" syntax to write code that is very difficult to read (such as writing all code on the same line), Ancasm adds two restrictions to the syntax:
 
 1. Comma separation for function arguments.
 
@@ -203,7 +215,7 @@ When calling a function, arguments must be separated by commas (`,`). Similary, 
 
 Example:
 
-```anasm
+```ancasm
 fn add(left:i32, right:i32)->i32 {
     add_i32(
         local_load_i32s(left)
@@ -218,7 +230,7 @@ In the above code, the comma between the parameters `left` and `right` cannot be
 
 In expression group (i.e., expressions enclosed in a pair of curly braces, also known as a code block), multiple parallel expressions must be separated by newlines.
 
-```anasm
+```ancasm
 when nez(local_load_i32s(num)) {
     local_store_i32(a, imm_i32(11))
     local_store_i32(b, imm_i32(13))

@@ -6,7 +6,8 @@
 
 use std::fmt::Display;
 
-// mod merged_ast;
+pub mod assembler;
+mod entry;
 
 // pub mod assembler;
 // pub mod imagegenerator;

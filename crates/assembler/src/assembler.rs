@@ -1,533 +1,153 @@
-// Copyright (c) 2023 Hemashushu <hippospark@gmail.com>, All rights reserved.
+// Copyright (c) 2024 Hemashushu <hippospark@gmail.com>, All rights reserved.
 //
 // This Source Code Form is subject to the terms of
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancasm_parser::ast::{
-    DataDetailNode, DependItem, ExternalItem, ExternalNode, ImportItem, ImportNode,
+use anc_image::{
+    bytecode_writer::BytecodeWriter,
+    entry::{
+        DataNamePathEntry, ExternalFunctionEntry, ExternalLibraryEntry, FunctionEntry,
+        FunctionNamePathEntry, ImportDataEntry, ImportFunctionEntry, ImportModuleEntry,
+        LocalVariableEntry, LocalVariableListEntry, TypeEntry,
+    },
 };
-use ancasm_parser::ast::{Instruction, LocalNode, ParamNode};
-use ancvm_binary::bytecode_writer::BytecodeWriter;
-use ancvm_types::entry::{
-    DataNameEntry, ExternalFunctionEntry, ExternalLibraryEntry, FunctionEntry, FunctionNameEntry,
-    ImportDataEntry, ImportFunctionEntry, ImportModuleEntry, InitedDataEntry, LocalListEntry,
-    LocalVariableEntry, ModuleEntry, TypeEntry, UninitDataEntry,
+use anc_isa::{DataSectionType, MemoryDataType, OperandDataType};
+use anc_parser_asm::ast::{
+    DataNode, DataSection, ExpressionNode, ExternalNode, FixedDeclareDataType, FunctionNode, ImportNode, LocalVariable, ModuleNode, NamedParameter
 };
-use ancvm_types::DataSectionType;
 
-use ancvm_types::{opcode::Opcode, DataType};
+use crate::{entry::ImageCommonEntry, AssembleError};
 
-use crate::preprocessor::{CanonicalDataNode, CanonicalFunctionNode, FUNCTION_ENTRY_NAME};
-use crate::{preprocessor::MergedModuleNode, AssembleError, UNREACHABLE_CODE_NO_DEFAULT_ARM};
-
-// the identifier of functions and data items
-//
-// the identifier is used for the function calling, the data loading,
-// and thestoring instructions.
-//
-// the 'path name' in the function name entry, data name entry,
-// import function entry, and import data entry are different from the identifier,
-// the 'path name' is used for exporting and linking.
-struct IdentifierLookupTable {
-    function_identifiers: Vec<IdentifierIndex>,
-    data_identifiers: Vec<IdentifierIndex>,
-    external_function_identifiers: Vec<IdentifierIndex>,
+/// Get the "module name" and "name path" from a "full name",
+/// note that the "name path" may be empty if the "full name"
+/// does not include that part.
+///
+/// about the "full_name" and "name_path"
+/// -------------------------------------
+/// - "full_name" = "module_name::name_path"
+/// - "name_path" = "namespace::identifier"
+/// - "namespace" = "sub_module_name"{0,N}
+///
+fn get_module_name_and_name_path(full_name: &str) -> (&str, &str) {
+    full_name.split_once("::").unwrap_or((full_name, ""))
 }
 
-struct IdentifierIndex {
-    id: String,
-
-    // the function or data public index.
-    //
-    // the index of function item in public
-    //
-    // the function public index includes (and are sorted by the following order):
-    // - the imported functions
-    // - the internal functions
-    //
-    //
-    // the data public index includes (and are sorted by the following order):
-    //
-    // - imported read-only data items
-    // - internal read-only data items
-    // - imported read-write data items
-    // - internal read-write data items
-    // - imported uninitilized data items
-    // - internal uninitilized data items
-    public_index: usize,
+/// Get the "namespace" and "identifier" from a "name path",
+/// note that the "namespace" may be empty if the "name path"
+/// does not include that part.
+///
+/// about the "full_name" and "name_path"
+/// -------------------------------------
+/// - "full_name" = "module_name::name_path"
+/// - "name_path" = "namespace::identifier"
+/// - "namespace" = "sub_module_name"{0,N}
+fn get_namespace_and_identifier(name_path: &str) -> (&str, &str) {
+    name_path.rsplit_once("::").unwrap_or(("", name_path))
 }
 
-struct IdentifierSource {
-    import_function_ids: Vec<String>,
-    function_ids: Vec<String>,
-    import_read_only_data_ids: Vec<String>,
-    read_only_data_ids: Vec<String>,
-    import_read_write_data_ids: Vec<String>,
-    read_write_data_ids: Vec<String>,
-    import_uninit_data_ids: Vec<String>,
-    uninit_data_ids: Vec<String>,
-    external_function_ids: Vec<String>,
+/// about library "full_name"
+/// -------------------------
+/// "full_name" = "library_name::identifier"
+fn get_library_name_and_identifier(full_name: &str) -> (&str, &str) {
+    full_name.split_once("::").unwrap()
 }
 
-impl IdentifierLookupTable {
-    pub fn new(identifier_source: IdentifierSource) -> Self {
-        let mut function_identifiers: Vec<IdentifierIndex> = vec![];
-        let mut data_identifiers: Vec<IdentifierIndex> = vec![];
-        let mut external_function_identifiers: Vec<IdentifierIndex> = vec![];
+/// about the "full_name" and "name_path"
+/// -------------------------------------
+/// - "full_name" = "module_name::name_path"
+/// - "name_path" = "namespace::identifier"
+/// - "namespace" = "sub_module_name"{0,N}
+pub fn assemble_module_node(
+    module_node: &ModuleNode,
+    module_full_name: &str,
+    import_module_entries: &[ImportModuleEntry],
+    external_library_entries: &[ExternalLibraryEntry],
+) -> Result<ImageCommonEntry, AssembleError> {
+    let (module_name, module_name_path) = get_module_name_and_name_path(module_full_name);
 
-        let mut function_public_index_offset: usize = 0;
-        let mut data_public_index_offset: usize = 0;
+    let mut type_entries: Vec<TypeEntry> = vec![];
+    let mut local_variable_list_entries: Vec<LocalVariableListEntry> = vec![];
 
-        // fill function ids
+    // add an empty params and results type record.
+    type_entries.push(TypeEntry {
+        params: vec![],
+        results: vec![],
+    });
 
-        function_identifiers.extend(
-            identifier_source
-                .import_function_ids
-                .iter()
-                .enumerate()
-                .map(|(idx, id)| IdentifierIndex {
-                    id: id.to_owned(),
-                    public_index: function_public_index_offset + idx,
-                }),
-        );
+    // add an empty local variable list record.
+    local_variable_list_entries.push(LocalVariableListEntry::new(vec![]));
 
-        function_public_index_offset += identifier_source.import_function_ids.len();
-
-        function_identifiers.extend(identifier_source.function_ids.iter().enumerate().map(
-            |(idx, id)| IdentifierIndex {
-                id: id.to_owned(),
-                public_index: function_public_index_offset + idx,
-            },
-        ));
-
-        // fill read-only data ids
-
-        data_identifiers.extend(
-            identifier_source
-                .import_read_only_data_ids
-                .iter()
-                .enumerate()
-                .map(|(idx, id)| IdentifierIndex {
-                    id: id.to_owned(),
-                    public_index: data_public_index_offset + idx,
-                }),
-        );
-
-        data_public_index_offset += identifier_source.import_read_only_data_ids.len();
-
-        data_identifiers.extend(identifier_source.read_only_data_ids.iter().enumerate().map(
-            |(idx, id)| IdentifierIndex {
-                id: id.to_owned(),
-                public_index: data_public_index_offset + idx,
-            },
-        ));
-
-        data_public_index_offset += identifier_source.read_only_data_ids.len();
-
-        // fill read-write data ids
-
-        data_identifiers.extend(
-            identifier_source
-                .import_read_write_data_ids
-                .iter()
-                .enumerate()
-                .map(|(idx, id)| IdentifierIndex {
-                    id: id.to_owned(),
-                    public_index: data_public_index_offset + idx,
-                }),
-        );
-
-        data_public_index_offset += identifier_source.import_read_write_data_ids.len();
-
-        data_identifiers.extend(
-            identifier_source
-                .read_write_data_ids
-                .iter()
-                .enumerate()
-                .map(|(idx, id)| IdentifierIndex {
-                    id: id.to_owned(),
-                    public_index: data_public_index_offset + idx,
-                }),
-        );
-
-        data_public_index_offset += identifier_source.read_write_data_ids.len();
-
-        // fill uninit data ids
-
-        data_identifiers.extend(
-            identifier_source
-                .import_uninit_data_ids
-                .iter()
-                .enumerate()
-                .map(|(idx, id)| IdentifierIndex {
-                    id: id.to_owned(),
-                    public_index: data_public_index_offset + idx,
-                }),
-        );
-
-        data_public_index_offset += identifier_source.import_uninit_data_ids.len();
-
-        data_identifiers.extend(identifier_source.uninit_data_ids.iter().enumerate().map(
-            |(idx, id)| IdentifierIndex {
-                id: id.to_owned(),
-                public_index: data_public_index_offset + idx,
-            },
-        ));
-
-        // external function ids
-
-        external_function_identifiers.extend(
-            identifier_source
-                .external_function_ids
-                .iter()
-                .enumerate()
-                .map(|(idx, id)| IdentifierIndex {
-                    id: id.to_owned(),
-                    public_index: idx,
-                }),
-        );
-
-        // complete
-
-        Self {
-            function_identifiers,
-            data_identifiers,
-            external_function_identifiers,
-        }
-    }
-
-    pub fn get_function_public_index(&self, identifier: &str) -> Result<usize, AssembleError> {
-        match self
-            .function_identifiers
-            .iter()
-            .find(|entry| entry.id == identifier)
-        {
-            Some(ii) => Ok(ii.public_index),
-            None => Err(AssembleError::new(&format!(
-                "Can not find the function: {}",
-                identifier
-            ))),
-        }
-    }
-
-    pub fn get_data_public_index(&self, identifier: &str) -> Result<usize, AssembleError> {
-        match self
-            .data_identifiers
-            .iter()
-            .find(|entry| entry.id == identifier)
-        {
-            Some(ii) => Ok(ii.public_index),
-            None => Err(AssembleError::new(&format!(
-                "Can not find the data: {}",
-                identifier
-            ))),
-        }
-    }
-
-    pub fn get_external_function_index(&self, identifier: &str) -> Result<usize, AssembleError> {
-        match self
-            .external_function_identifiers
-            .iter()
-            .find(|entry| entry.id == identifier)
-        {
-            Some(ii) => Ok(ii.public_index),
-            None => Err(AssembleError::new(&format!(
-                "Can not find the external function: {}",
-                identifier
-            ))),
-        }
-    }
-}
-
-// a stack for the control flows of a function.
-// used to stub out instructions such as 'block', 'block_*' and 'break'.
-//
-// - call FlowStack::push() when entering a block
-//   (includes instruction 'block', 'block_nez', 'blocl_alt')
-// - call FlowStack::add_break() when encounting instruction 'break'
-// - call FlowStack::pop() when leaving a block (i.e. when encounting
-//   the instruction 'end'), and then fill all stubs.
-//
-// note that instruction 'recur' doesn't need to stub,
-// because in the XiaoXuan Core Assembly, it only exists in
-// the child nodes of node 'block', and
-// the address of the 'block' is known at compile time.
-struct FlowStack {
-    items: Vec<FlowStackItem>,
-}
-
-struct FlowStackItem {
-    // the address of the flow control instruction
-    addr: usize,
-
-    // flow control instruction type
-    flow_kind: FlowKind,
-
-    // 'break' instructions which require a stub to be filled when
-    // the current control flow reach the instruction 'end'.
-    // note that if the target of 'break' is the function itself, this
-    // 'break' instruction does not require stub, because the 'next_inst_offset'
-    // is ignored in this scenario.
-    break_items: Vec<BreakItem>,
-
-    local_names: Vec<String>,
-}
-
-#[derive(Debug, PartialEq)]
-enum FlowKind {
-    // the function itself is a 'big' block
-    Function,
-
-    // for structure: 'branch', 'for'
-    // bytecode:
-    // (opcode:u16 padding:u16 type_index:i32, local_list_index:i32)
-    Block,
-
-    // for structure: 'when', 'case'
-    //
-    // bytecode:
-    // (opcode:u16 padding:u16 local_list_index:u32 next_inst_offset:u32)
-    //
-    // stub:
-    // - next_inst_offset:u32
-    BlockNez,
-
-    // for structure: 'if'
-    //
-    // bytecode:
-    // (opcode:u16 padding:u16 type_index:u32 local_list_index:u32 alt_inst_offset:u32)
-    //
-    // stub:
-    // - alt_inst_offset:u32
-    BlockAlt,
-}
-
-// bytecode:
-// (opcode:u16 param reversed_index:u16 next_inst_offset:i32)
-//
-// stub:
-// - next_inst_offset:i32
-struct BreakItem {
-    // the address of the 'break' instruction
-    addr: usize,
-}
-
-impl FlowStack {
-    pub fn new() -> Self {
-        Self { items: vec![] }
-    }
-
-    pub fn push(&mut self, addr: usize, flow_kind: FlowKind, local_names: Vec<String>) {
-        let stub_item = FlowStackItem {
-            addr,
-            flow_kind,
-            break_items: vec![],
-            local_names,
-        };
-        self.items.push(stub_item);
-    }
-
-    pub fn pop(&mut self) -> FlowStackItem {
-        self.items.pop().unwrap()
-    }
-
-    pub fn pop_and_fill_stubs(
-        &mut self,
-        bytecode_writer: &mut BytecodeWriter,
-        addr_of_next_to_end: usize,
-    ) {
-        // pop flow stack
-        let flow_item = self.pop();
-
-        // fill stubs of 'block_nez'
-        // in all 'block_*' insts, only the inst 'block_nez' has stub 'next_inst_offset'.
-        match flow_item.flow_kind {
-            FlowKind::BlockNez => {
-                let addr_of_block = flow_item.addr;
-                let next_inst_offset = (addr_of_next_to_end - addr_of_block) as u32;
-                bytecode_writer.fill_block_nez_stub(addr_of_block, next_inst_offset);
-            }
-            _ => {
-                // only inst 'block_nez' has stub 'next_inst_offset'.
-            }
-        }
-
-        // fill stubs of insts 'break'
-        // inst 'break' also has stub 'next_inst_offset'.
-        for break_item in &flow_item.break_items {
-            let addr_of_break = break_item.addr;
-            let next_inst_offset = (addr_of_next_to_end - addr_of_break) as u32;
-            bytecode_writer.fill_break_stub(break_item.addr, next_inst_offset);
-        }
-    }
-
-    pub fn add_break(&mut self, addr: usize, reversed_index: usize) {
-        let flow_item = self.get_flow_item_by_reversed_index(reversed_index);
-
-        if flow_item.flow_kind == FlowKind::Function {
-            // the instruction 'break' does not need to stub when the
-            // target is a function.
-            // because the param 'next_inst_offset' of 'break' is ignored
-            // (where can be set to '0') when the target block is the function itself.
-        } else {
-            flow_item.break_items.push(BreakItem { addr });
-        }
-    }
-
-    fn get_flow_item_by_reversed_index(&mut self, reversed_index: usize) -> &mut FlowStackItem {
-        let idx = self.items.len() - reversed_index - 1;
-        &mut self.items[idx]
-    }
-
-    pub fn get_block_addr(&self, reversed_index: usize) -> usize {
-        let idx = self.items.len() - reversed_index - 1;
-        self.items[idx].addr
-    }
-
-    pub fn get_reversed_index_to_function(&self) -> usize {
-        self.items.len() - 1
-    }
-
-    pub fn get_reversed_index_to_nearest_block(&self) -> usize {
-        let idx = self
-            .items
-            .iter()
-            .rposition(|item| item.flow_kind == FlowKind::Block)
-            .expect("Can't find \"block\" on the control flow stack.");
-        self.items.len() - idx - 1
-    }
-
-    // return (reversed_index, variable_index)
-    //
-    // all local variables, including the parameters
-    // of function and all parameters and local varialbes within all blocks,
-    // must not have duplicate names in the valid scope. e.g.
-    //
-    // ```text
-    // {
-    //     let abc = 0
-    //     {
-    //         let abc = 1     // invalid
-    //         let xyz = 2     // valid
-    //     }
-    //
-    //     {
-    //         let xyz = 3     // valid
-    //     }
-    // }
-    // ```
-    //
-    pub fn get_local_variable_reversed_index_and_variable_index(
-        &self,
-        local_variable_name: &str,
-    ) -> Result<(usize, usize), AssembleError> {
-        let mut result: Option<(usize, usize)> = None;
-
-        for (level_index, flow_item) in self.items.iter().enumerate() {
-            if let Some(variable_index) = flow_item
-                .local_names
-                .iter()
-                .position(|name| name == local_variable_name)
-            {
-                let reversed_index = self.items.len() - level_index - 1;
-
-                if result.is_none() {
-                    result.replace((reversed_index, variable_index));
-                } else {
-                    return Err(AssembleError::new(&format!(
-                        "Local variable with duplicate name found: {}",
-                        local_variable_name
-                    )));
-                }
-            }
-        }
-
-        if let Some(val) = result {
-            Ok(val)
-        } else {
-            Err(AssembleError::new(&format!(
-                "Can not find the local variable: {}",
-                local_variable_name
-            )))
-        }
-    }
-}
-
-// note:
-// the auto-generated functions '__entry', '_init' and '_fini'.
-// should be inserted before assemble
-pub fn assemble_merged_module_node(
-    merged_module_node: &MergedModuleNode,
-) -> Result<(ModuleEntry, Option<u32>), AssembleError> {
-    let module_name = merged_module_node.name.clone();
-    let runtime_version = merged_module_node.runtime_version;
-
-    let mut type_entries = vec![];
-
-    let AssembleResultForDependItems {
+    let AssembleResultForDependencies {
         import_module_entries,
         import_module_ids,
         external_library_entries,
         external_library_ids,
-    } = assemble_depend_items(&merged_module_node.depend_items)?;
+    } = assemble_dependencies(import_module_entries, external_library_entries)?;
 
     let AssembleResultForImportNodes {
         import_function_entries,
-        import_data_entries,
         import_function_ids,
+        import_data_entries,
         import_read_only_data_ids,
         import_read_write_data_ids,
         import_uninit_data_ids,
-    } = assemble_import_nodes(
-        &import_module_ids,
-        &merged_module_node.import_nodes,
-        &mut type_entries,
-    )?;
+    } = assemble_import_nodes(&import_module_ids, &module_node.imports, &mut type_entries)?;
 
-    let (external_function_entries, external_function_ids) = assemble_external_nodes(
+    let AssembleResultForExternalNode {
+        external_function_entries,
+        external_function_ids,
+    } = assemble_external_nodes(
         &external_library_ids,
-        &merged_module_node.external_nodes,
+        &module_node.externals,
         &mut type_entries,
     )?;
 
-    let import_function_count = import_function_ids.len();
-    let import_read_only_data_count = import_read_only_data_ids.len();
-    let import_read_write_data_count = import_read_write_data_ids.len();
-    let import_uninit_data_count = import_uninit_data_ids.len();
+    //     let import_function_count = import_function_entries.len();
+    //     let import_data_count = import_data_entries.len();
+    //
+    //     let import_read_only_data_count = import_read_only_data_ids.len();
+    //     let import_read_write_data_count = import_read_write_data_ids.len();
+    //     let import_uninit_data_count = import_uninit_data_ids.len();
 
-    let (function_name_entries, function_ids) =
-        build_function_name_entries(&merged_module_node.function_nodes, import_function_count);
+    let (function_name_path_entries, function_ids) =
+        assemble_function_name_entries(&module_node.functions, module_name_path);
 
-    let BuildDataNameEntryResult {
-        data_name_entries,
+    let AssembleResultForDataNameEntry {
+        data_name_path_entries,
         read_only_data_ids,
         read_write_data_ids,
         uninit_data_ids,
-    } = build_data_name_entries(
-        &merged_module_node.read_only_data_nodes,
-        &merged_module_node.read_write_data_nodes,
-        &merged_module_node.uninit_data_nodes,
-        import_read_only_data_count,
-        import_read_write_data_count,
-        import_uninit_data_count,
+    } = assemble_data_name_entries(
+        // &merged_module_node.read_only_data_nodes,
+        // &merged_module_node.read_write_data_nodes,
+        // &merged_module_node.uninit_data_nodes,
+        // import_read_only_data_count,
+        // import_read_write_data_count,
+        // import_uninit_data_count,
+        &module_node.datas,
+        module_name_path,
     );
 
-    let identifier_lookup_table = IdentifierLookupTable::new(IdentifierSource {
+    let identifier_lookup_table = IdentifierPublicIndexLookupTable::build(IdentifierSource {
         import_function_ids,
         function_ids,
+        //
         import_read_only_data_ids,
-        read_only_data_ids,
         import_read_write_data_ids,
-        read_write_data_ids,
         import_uninit_data_ids,
+        //
+        read_only_data_ids,
+        read_write_data_ids,
         uninit_data_ids,
+        //
         external_function_ids,
     });
 
-    let (local_list_entries, function_entries) = assemble_function_nodes(
-        &merged_module_node.function_nodes,
+    let function_entries = assemble_function_nodes(
+        &module_node.functions,
         &mut type_entries,
+        &mut local_variable_list_entries,
         &identifier_lookup_table,
     )?;
 
@@ -538,51 +158,51 @@ pub fn assemble_merged_module_node(
             &merged_module_node.uninit_data_nodes,
         )?;
 
-    // find the public index of constructor and destructor
-    let constructor_function_public_index =
-        if let Some(function_name) = &merged_module_node.constructor_function_name_path {
-            let entry_opt = function_name_entries
-                .iter()
-                .find(|entry| &entry.name_path == function_name);
-
-            if let Some(entry) = entry_opt {
-                Some(entry.function_public_index as u32)
-            } else {
-                return Err(AssembleError {
-                    message: format!(
-                        "Can not find the constructor function \"{}\" in module \"{}\".",
-                        function_name, module_name
-                    ),
-                });
-            }
-        } else {
-            None
-        };
-
-    let destructor_function_public_index =
-        if let Some(function_name) = &merged_module_node.destructor_function_name_path {
-            let entry_opt = function_name_entries
-                .iter()
-                .find(|entry| &entry.name_path == function_name);
-
-            if let Some(entry) = entry_opt {
-                Some(entry.function_public_index as u32)
-            } else {
-                return Err(AssembleError {
-                    message: format!(
-                        "Can not find the destructor function \"{}\" in module \"{}\".",
-                        function_name, module_name
-                    ),
-                });
-            }
-        } else {
-            None
-        };
-
-    let entry_function_public_index = function_name_entries
-        .iter()
-        .find(|entry| entry.name_path == FUNCTION_ENTRY_NAME)
-        .map(|entry| entry.function_public_index as u32);
+    //     // find the public index of constructor and destructor
+    //     let constructor_function_public_index =
+    //         if let Some(function_name) = &merged_module_node.constructor_function_name_path {
+    //             let entry_opt = function_name_entries
+    //                 .iter()
+    //                 .find(|entry| &entry.name_path == function_name);
+    //
+    //             if let Some(entry) = entry_opt {
+    //                 Some(entry.function_public_index as u32)
+    //             } else {
+    //                 return Err(AssembleError {
+    //                     message: format!(
+    //                         "Can not find the constructor function \"{}\" in module \"{}\".",
+    //                         function_name, module_name
+    //                     ),
+    //                 });
+    //             }
+    //         } else {
+    //             None
+    //         };
+    //
+    //     let destructor_function_public_index =
+    //         if let Some(function_name) = &merged_module_node.destructor_function_name_path {
+    //             let entry_opt = function_name_entries
+    //                 .iter()
+    //                 .find(|entry| &entry.name_path == function_name);
+    //
+    //             if let Some(entry) = entry_opt {
+    //                 Some(entry.function_public_index as u32)
+    //             } else {
+    //                 return Err(AssembleError {
+    //                     message: format!(
+    //                         "Can not find the destructor function \"{}\" in module \"{}\".",
+    //                         function_name, module_name
+    //                     ),
+    //                 });
+    //             }
+    //         } else {
+    //             None
+    //         };
+    //
+    //     let entry_function_public_index = function_name_entries
+    //         .iter()
+    //         .find(|entry| entry.name_path == FUNCTION_ENTRY_NAME)
+    //         .map(|entry| entry.function_public_index as u32);
 
     let module_entry = ModuleEntry {
         name: module_name,
@@ -597,7 +217,7 @@ pub fn assemble_merged_module_node(
         destructor_function_public_index,
         //
         type_entries,
-        local_list_entries,
+        local_list_entries: local_variable_list_entries,
         function_entries,
         read_only_data_entries,
         read_write_data_entries,
@@ -617,204 +237,358 @@ pub fn assemble_merged_module_node(
     Ok((module_entry, entry_function_public_index))
 }
 
-// fn count_imported_function(merged_module_node: &MergedModuleNode) -> usize {
-//     let mut count: usize = 0;
-//     for import_node in &merged_module_node.import_nodes {
-//         for import_item in &import_node.import_items {
-//             if let ImportItem::ImportFunction(_) = import_item {
-//                 count += 1;
-//             }
-//         }
-//     }
-//     count
-// }
-//
-// fn count_imported_data(merged_module_node: &MergedModuleNode) -> (usize, usize, usize) {
-//     let mut count_ro: usize = 0;
-//     let mut count_rw: usize = 0;
-//     let mut count_uninit: usize = 0;
-//     for import_node in &merged_module_node.import_nodes {
-//         for import_item in &import_node.import_items {
-//             if let ImportItem::ImportData(import_data) = import_item {
-//                 match import_data.data_kind_node {
-//                     SimplifiedDataKindNode::ReadOnly(_) => count_ro += 1,
-//                     SimplifiedDataKindNode::ReadWrite(_) => count_rw += 1,
-//                     SimplifiedDataKindNode::Uninit(_) => count_uninit += 1,
-//                 }
-//             }
-//         }
-//     }
-//     (count_ro, count_rw, count_uninit)
-// }
-
-fn build_function_name_entries(
-    function_nodes: &[CanonicalFunctionNode],
-    import_function_count: usize,
-) -> (Vec<FunctionNameEntry>, Vec<String>) {
-    let mut function_name_entries = vec![];
-    let mut function_public_index = import_function_count;
+fn assemble_function_name_entries(
+    function_nodes: &[FunctionNode],
+    module_name_path: &str,
+) -> (Vec<FunctionNamePathEntry>, Vec<String>) {
+    let mut function_name_path_entries = vec![];
+    // let mut function_public_index = import_function_count;
     let mut function_ids: Vec<String> = vec![];
 
     for function_node in function_nodes {
         // add function id
-        function_ids.push(function_node.id.clone());
+        function_ids.push(function_node.name.to_owned());
 
-        // add function name entry
-        let function_name_entry = FunctionNameEntry {
-            name_path: function_node.name_path.clone(),
-            function_public_index,
-            export: function_node.export,
+        let name_path = if module_name_path.is_empty() {
+            function_node.name.to_owned()
+        } else {
+            format!("{}::{}", module_name_path, function_node.name)
         };
 
-        function_name_entries.push(function_name_entry);
-        function_public_index += 1;
+        // add function name entry
+        let function_name_path_entry = FunctionNamePathEntry::new(name_path, function_node.export);
+
+        function_name_path_entries.push(function_name_path_entry);
     }
 
-    (function_name_entries, function_ids)
+    (function_name_path_entries, function_ids)
 }
 
-struct BuildDataNameEntryResult {
-    data_name_entries: Vec<DataNameEntry>,
+struct AssembleResultForDataNameEntry {
+    data_name_path_entries: Vec<DataNamePathEntry>,
     read_only_data_ids: Vec<String>,
     read_write_data_ids: Vec<String>,
     uninit_data_ids: Vec<String>,
 }
 
-fn build_data_name_entries(
-    read_only_data_nodes: &[CanonicalDataNode],
-    read_write_data_nodes: &[CanonicalDataNode],
-    uninit_data_nodes: &[CanonicalDataNode],
-    import_read_only_data_count: usize,
-    import_read_write_data_count: usize,
-    import_uninit_data_count: usize,
-) -> BuildDataNameEntryResult {
-    let mut data_name_entries = vec![];
-    let mut data_public_index = 0;
+fn assemble_data_name_entries(
+    data_nodes: &[DataNode],
+    // read_write_data_nodes: &[DataNode],
+    // uninit_data_nodes: &[DataNode],
+    // import_read_only_data_count: usize,
+    // import_read_write_data_count: usize,
+    // import_uninit_data_count: usize,
+    module_name_path: &str,
+) -> AssembleResultForDataNameEntry {
+    // the data name paths in `DataNamePathSection` follow these order:
+    // 1. internal read-only data
+    // 2. internal read-write data
+    // 3. internal uninit data
+    let mut data_name_path_entries = vec![];
 
     let mut read_only_data_ids: Vec<String> = vec![];
     let mut read_write_data_ids: Vec<String> = vec![];
     let mut uninit_data_ids: Vec<String> = vec![];
 
-    data_public_index += import_read_only_data_count;
+    // data_public_index += import_read_only_data_count;
 
-    for read_only_data_node in read_only_data_nodes {
-        // add data id
-        read_only_data_ids.push(read_only_data_node.id.clone());
+    //     for read_only_data_node in read_only_data_nodes {
+    //         // add data id
+    //         read_only_data_ids.push(read_only_data_node.id.clone());
+    //
+    //         // add data name entry
+    //         let data_name_entry = DataNameEntry {
+    //             name_path: read_only_data_node.name_path.clone(),
+    //             data_public_index,
+    //             export: read_only_data_node.export,
+    //         };
+    //         data_name_entries.push(data_name_entry);
+    //         data_public_index += 1;
+    //     }
+    //
+    //     data_public_index += import_read_write_data_count;
+    //
+    //     for read_write_data_node in read_write_data_nodes {
+    //         // add data id
+    //         read_write_data_ids.push(read_write_data_node.id.clone());
+    //
+    //         // add data name entry
+    //         let data_name_entry = DataNameEntry {
+    //             name_path: read_write_data_node.name_path.clone(),
+    //             data_public_index,
+    //             export: read_write_data_node.export,
+    //         };
+    //         data_name_entries.push(data_name_entry);
+    //         data_public_index += 1;
+    //     }
+    //
+    //     data_public_index += import_uninit_data_count;
+    //
+    //     for uninit_data_node in uninit_data_nodes {
+    //         // add data id
+    //         uninit_data_ids.push(uninit_data_node.id.clone());
+    //
+    //         // add data name entry
+    //         let data_name_entry = DataNameEntry {
+    //             name_path: uninit_data_node.name_path.clone(),
+    //             data_public_index,
+    //             export: uninit_data_node.export,
+    //         };
+    //         data_name_entries.push(data_name_entry);
+    //         data_public_index += 1;
+    //     }
 
-        // add data name entry
-        let data_name_entry = DataNameEntry {
-            name_path: read_only_data_node.name_path.clone(),
-            data_public_index,
-            export: read_only_data_node.export,
+    for data_node in data_nodes {
+        let id = data_node.name.to_owned();
+        match data_node.data_section {
+            DataSection::ReadOnly(_) => {
+                read_only_data_ids.push(id);
+            }
+            DataSection::ReadWrite(_) => {
+                read_write_data_ids.push(id);
+            }
+            DataSection::Uninit(_) => {
+                uninit_data_ids.push(id);
+            }
+        }
+
+        let name_path = if module_name_path.is_empty() {
+            data_node.name.to_owned()
+        } else {
+            format!("{}::{}", module_name_path, data_node.name)
         };
-        data_name_entries.push(data_name_entry);
-        data_public_index += 1;
+
+        let data_name_path_entry = DataNamePathEntry::new(name_path, data_node.export);
+        data_name_path_entries.push(data_name_path_entry);
     }
 
-    data_public_index += import_read_write_data_count;
-
-    for read_write_data_node in read_write_data_nodes {
-        // add data id
-        read_write_data_ids.push(read_write_data_node.id.clone());
-
-        // add data name entry
-        let data_name_entry = DataNameEntry {
-            name_path: read_write_data_node.name_path.clone(),
-            data_public_index,
-            export: read_write_data_node.export,
-        };
-        data_name_entries.push(data_name_entry);
-        data_public_index += 1;
-    }
-
-    data_public_index += import_uninit_data_count;
-
-    for uninit_data_node in uninit_data_nodes {
-        // add data id
-        uninit_data_ids.push(uninit_data_node.id.clone());
-
-        // add data name entry
-        let data_name_entry = DataNameEntry {
-            name_path: uninit_data_node.name_path.clone(),
-            data_public_index,
-            export: uninit_data_node.export,
-        };
-        data_name_entries.push(data_name_entry);
-        data_public_index += 1;
-    }
-
-    BuildDataNameEntryResult {
-        data_name_entries,
+    AssembleResultForDataNameEntry {
+        data_name_path_entries,
         read_only_data_ids,
         read_write_data_ids,
         uninit_data_ids,
     }
 }
 
-type AssembleResultForFuncNode = (Vec<LocalListEntry>, Vec<FunctionEntry>);
+/// this table only contains function/data names,
+/// does NOT contain name path or fullname.
+///
+/// about the "full_name" and "name_path"
+/// -------------------------------------
+/// - "full_name" = "module_name::name_path"
+/// - "name_path" = "namespace::identifier"
+/// - "namespace" = "sub_module_name"{0,N}
+struct IdentifierSource {
+    import_function_ids: Vec<String>,
+    function_ids: Vec<String>,
+    //
+    import_read_only_data_ids: Vec<String>,
+    import_read_write_data_ids: Vec<String>,
+    import_uninit_data_ids: Vec<String>,
+    //
+    read_only_data_ids: Vec<String>,
+    read_write_data_ids: Vec<String>,
+    uninit_data_ids: Vec<String>,
+    //
+    external_function_ids: Vec<String>,
+}
+
+/// this table only contains function/data names,
+/// does NOT contain name path or fullname.
+///
+/// about the "full_name" and "name_path"
+/// -------------------------------------
+/// - "full_name" = "module_name::name_path"
+/// - "name_path" = "namespace::identifier"
+/// - "namespace" = "sub_module_name"{0,N}
+struct IdentifierPublicIndexLookupTable {
+    functions: Vec<NameIndexPair>,
+    datas: Vec<NameIndexPair>,
+    external_functions: Vec<NameIndexPair>,
+}
+
+struct NameIndexPair {
+    // the identifier/name of function or data.
+    // for the import and external items, the id may also be the alias name.
+    //
+    // this id should only be the function/data names,
+    // is NOT name path or fullname.
+    //
+    // about the "full_name" and "name_path"
+    // -------------------------------------
+    // - "full_name" = "module_name::name_path"
+    // - "name_path" = "namespace::identifier"
+    // - "namespace" = "sub_module_name"{0,N}
+    id: String,
+
+    // the function public index is mixed by the following items (and are sorted by the following order):
+    // - the imported functions
+    // - the internal functions
+    //
+    // the data public index is mixed by the following items (and are sorted by the following order):
+    //
+    // - imported read-only data items
+    // - imported read-write data items
+    // - imported uninitilized data items
+    //
+    // - internal read-only data items
+    // - internal read-write data items
+    // - internal uninitilized data items
+    public_index: usize,
+}
+
+impl IdentifierPublicIndexLookupTable {
+    pub fn build(identifier_source: IdentifierSource) -> Self {
+        let mut functions: Vec<NameIndexPair> = vec![];
+        let mut datas: Vec<NameIndexPair> = vec![];
+        let mut external_functions: Vec<NameIndexPair> = vec![];
+
+        // fill function ids
+        for function_ids in [
+            &identifier_source.import_function_ids,
+            &identifier_source.function_ids,
+        ] {
+            functions.extend(
+                function_ids
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, id)| NameIndexPair {
+                        id: id.to_owned(),
+                        public_index: idx,
+                    }),
+            );
+        }
+
+        // fill  data ids
+        for data_ids in [
+            &identifier_source.import_read_only_data_ids,
+            &identifier_source.import_read_write_data_ids
+                & identifier_source.import_uninit_data_ids
+                & identifier_source.read_only_data_ids
+                & identifier_source.read_write_data_ids
+                & identifier_source.uninit_data_ids,
+        ] {
+            datas.extend(data_ids.iter().enumerate().map(|(idx, id)| NameIndexPair {
+                id: id.to_owned(),
+                public_index: idx,
+            }));
+        }
+
+        // full external function ids
+        external_functions.extend(
+            identifier_source
+                .external_function_ids
+                .iter()
+                .enumerate()
+                .map(|(idx, id)| NameIndexPair {
+                    id: id.to_owned(),
+                    public_index: idx,
+                }),
+        );
+
+        Self {
+            functions,
+            datas,
+            external_functions,
+        }
+    }
+
+    pub fn get_function_public_index(&self, identifier: &str) -> Result<usize, AssembleError> {
+        match self.functions.iter().find(|entry| entry.id == identifier) {
+            Some(p) => Ok(p.public_index),
+            None => Err(AssembleError::new(&format!(
+                "Can not find the function: {}",
+                identifier
+            ))),
+        }
+    }
+
+    pub fn get_data_public_index(&self, identifier: &str) -> Result<usize, AssembleError> {
+        match self.datas.iter().find(|entry| entry.id == identifier) {
+            Some(p) => Ok(p.public_index),
+            None => Err(AssembleError::new(&format!(
+                "Can not find the data: {}",
+                identifier
+            ))),
+        }
+    }
+
+    pub fn get_external_function_index(&self, identifier: &str) -> Result<usize, AssembleError> {
+        match self
+            .external_functions
+            .iter()
+            .find(|entry| entry.id == identifier)
+        {
+            Some(p) => Ok(p.public_index),
+            None => Err(AssembleError::new(&format!(
+                "Can not find the external function: {}",
+                identifier
+            ))),
+        }
+    }
+}
 
 fn assemble_function_nodes(
-    function_nodes: &[CanonicalFunctionNode],
+    function_nodes: &[FunctionNode],
     type_entries: &mut Vec<TypeEntry>,
-    identifier_lookup_table: &IdentifierLookupTable,
-) -> Result<AssembleResultForFuncNode, AssembleError> {
-    let mut local_list_entries = vec![];
+    local_variable_list_entries: &mut Vec<LocalVariableListEntry>,
+    identifier_lookup_table: &IdentifierPublicIndexLookupTable,
+) -> Result<Vec<FunctionEntry>, AssembleError> {
     let mut function_entries = vec![];
 
     for function_node in function_nodes {
-        let type_index = find_existing_type_index_with_creating_when_not_found_by_param_nodes(
+        let type_index = find_or_create_function_type_index2(
             type_entries,
             &function_node.params,
             &function_node.results,
         );
 
-        let local_list_index = find_existing_local_index_with_creating_when_not_found(
-            &mut local_list_entries,
+        let local_variable_list_index = find_or_create_local_variable_list_index(
+            local_variable_list_entries,
             &function_node.params,
             &function_node.locals,
         );
 
-        let local_names =
-            get_local_names_with_params_and_locals(&function_node.params, &function_node.locals);
+        let local_variable_names_include_params =
+            build_local_variable_names_by_params_and_local_variables(&function_node.params, &function_node.locals);
 
         let code = assemble_function_code(
-            &function_node.name_path,
-            local_names,
-            &function_node.code,
+            &function_node.name, // for building error message
+            local_variable_names_include_params,
+            &function_node.body,
             identifier_lookup_table,
             type_entries,
-            &mut local_list_entries,
+            local_variable_list_entries,
             // &mut flow_stack,
         )?;
 
         function_entries.push(FunctionEntry {
             type_index,
-            local_list_index,
+            local_list_index: local_variable_list_index,
             code,
         });
     }
 
-    Ok((local_list_entries, function_entries))
+    Ok((local_variable_list_entries, function_entries))
 }
 
-fn find_existing_type_index_with_creating_when_not_found_by_param_nodes(
-    type_entries: &mut Vec<TypeEntry>,
-    param_nodes: &[ParamNode],
-    results: &[DataType],
-) -> usize {
-    let params = param_nodes
-        .iter()
-        .map(|node| node.data_type)
-        .collect::<Vec<_>>();
-    find_existing_type_index_with_creating_when_not_found(type_entries, &params, results)
-}
+// fn find_existing_type_index_with_creating_when_not_found_by_param_nodes(
+//     type_entries: &mut Vec<TypeEntry>,
+//     param_nodes: &[ParamNode],
+//     results: &[DataType],
+// ) -> usize {
+//     let params = param_nodes
+//         .iter()
+//         .map(|node| node.data_type)
+//         .collect::<Vec<_>>();
+//     find_or_create_function_type_index(type_entries, &params, results)
+// }
 
-// type = params + results
-// local = params + local vars
-fn find_existing_type_index_with_creating_when_not_found(
+/// function type = params + results
+fn find_or_create_function_type_index(
     type_entries: &mut Vec<TypeEntry>,
-    params: &[DataType],
-    results: &[DataType],
+    params: &[OperandDataType],
+    results: &[OperandDataType],
 ) -> usize {
     let opt_idx = type_entries
         .iter()
@@ -832,84 +606,109 @@ fn find_existing_type_index_with_creating_when_not_found(
     }
 }
 
-fn find_existing_local_index_with_creating_when_not_found(
-    local_list_entries: &mut Vec<LocalListEntry>,
-    param_nodes: &[ParamNode],
-    local_nodes: &[LocalNode],
+/// function type = params + results
+fn find_or_create_function_type_index2(
+    type_entries: &mut Vec<TypeEntry>,
+    named_params: &[NamedParameter],
+    results: &[OperandDataType],
 ) -> usize {
-    let variable_entries_from_params = param_nodes
-        .iter()
-        .map(|node| LocalVariableEntry::from_datatype(node.data_type))
-        .collect::<Vec<_>>();
+    let params: Vec<OperandDataType> = named_params.iter().map(|item| item.data_type).collect();
+    find_or_create_function_type_index(type_entries, &params, results)
+}
 
-    let variable_entries_from_local = local_nodes
+/// local variable list type = function params + local vars
+fn find_or_create_local_variable_list_index(
+    local_variable_list_entries: &mut Vec<LocalVariableListEntry>,
+    named_params: &[NamedParameter],
+    local_variables: &[LocalVariable],
+) -> usize {
+    let entries_from_params = named_params
         .iter()
-        .map(|node| LocalVariableEntry {
-            memory_data_type: node.memory_data_type,
-            length: node.data_length,
-            align: node.align,
+        .map(|item| match item.data_type {
+            OperandDataType::I32 => LocalVariableEntry::from_i32(),
+            OperandDataType::I64 => LocalVariableEntry::from_i64(),
+            OperandDataType::F32 => LocalVariableEntry::from_f32(),
+            OperandDataType::F64 => LocalVariableEntry::from_f64(),
         })
         .collect::<Vec<_>>();
 
-    let mut variable_entries = vec![];
-    variable_entries.extend_from_slice(&variable_entries_from_params);
-    variable_entries.extend_from_slice(&variable_entries_from_local);
-
-    let opt_idx = local_list_entries
+    let entries_from_local_variables = local_variables
         .iter()
-        .position(|entry| entry.local_variable_entries == variable_entries);
+        .map(|item| match item.data_type {
+            FixedDeclareDataType::I64 => LocalVariableEntry::from_i64(),
+            FixedDeclareDataType::I32 => LocalVariableEntry::from_i32(),
+            FixedDeclareDataType::F64 => LocalVariableEntry::from_f64(),
+            FixedDeclareDataType::F32 => LocalVariableEntry::from_f32(),
+            FixedDeclareDataType::FixedBytes(length, align) => LocalVariableEntry {
+                memory_data_type: MemoryDataType::Bytes,
+                length: length as u32,
+                align: if let Some(value) = align {
+                    value as u16
+                } else {
+                    1_u16
+                },
+            },
+        })
+        .collect::<Vec<_>>();
+
+    let mut entries = vec![];
+    entries.extend_from_slice(&entries_from_params);
+    entries.extend_from_slice(&entries_from_local_variables);
+
+    let opt_idx = local_variable_list_entries
+        .iter()
+        .position(|item| item.local_variable_entries == entries);
 
     if let Some(idx) = opt_idx {
         idx
     } else {
-        let idx = local_list_entries.len();
-        local_list_entries.push(LocalListEntry::new(variable_entries));
+        let idx = local_variable_list_entries.len();
+        local_variable_list_entries.push(LocalVariableListEntry::new(entries));
         idx
     }
 }
 
-fn get_local_names_with_params_and_locals(
-    param_nodes: &[ParamNode],
-    local_nodes: &[LocalNode],
+fn build_local_variable_names_by_params_and_local_variables(
+    named_params: &[NamedParameter],
+    local_variables: &[LocalVariable],
 ) -> Vec<String> {
-    let names_from_params = param_nodes
+    let names_from_params = named_params
         .iter()
-        .map(|node| node.name.clone())
+        .map(|item| item.name.clone())
         .collect::<Vec<_>>();
 
-    let names_from_locals = local_nodes
+    let names_from_local_variables = local_variables
         .iter()
-        .map(|node| node.name.clone())
+        .map(|item| item.name.clone())
         .collect::<Vec<_>>();
 
     let mut names = vec![];
     names.extend_from_slice(&names_from_params);
-    names.extend_from_slice(&names_from_locals);
+    names.extend_from_slice(&names_from_local_variables);
 
     names
 }
 
 fn assemble_function_code(
-    function_name: &str,
-    local_names: Vec<String>,
-    instructions: &[Instruction],
-    identifier_lookup_table: &IdentifierLookupTable,
+    function_name: &str, // for building error message
+    local_variable_names_include_params: Vec<String>,
+    expression_node: &ExpressionNode,
+    identifier_lookup_table: &IdentifierPublicIndexLookupTable,
     type_entries: &mut Vec<TypeEntry>,
-    local_list_entries: &mut Vec<LocalListEntry>,
-    // flow_stack: &mut FlowStack,
+    local_variable_list_entries: &mut Vec<LocalVariableListEntry>,
 ) -> Result<Vec<u8>, AssembleError> {
     let mut bytecode_writer = BytecodeWriter::new();
 
     // push flow stack
-    let mut flow_stack = FlowStack::new();
-    flow_stack.push(0, FlowKind::Function, local_names);
+    let mut flow_stack = ControlFlowStack::new();
+    flow_stack.push(0, ControlFlowKind::Function, local_variable_names_include_params);
 
     for instruction in instructions {
         assemble_instruction(
             instruction,
             identifier_lookup_table,
             type_entries,
-            local_list_entries,
+            local_variable_list_entries,
             &mut flow_stack,
             &mut bytecode_writer,
         )?;
@@ -934,10 +733,10 @@ fn assemble_function_code(
 
 fn assemble_instruction(
     instruction: &Instruction,
-    identifier_lookup_table: &IdentifierLookupTable,
+    identifier_lookup_table: &IdentifierPublicIndexLookupTable,
     type_entries: &mut Vec<TypeEntry>,
     local_list_entries: &mut Vec<LocalListEntry>,
-    flow_stack: &mut FlowStack,
+    flow_stack: &mut ControlFlowStack,
     bytecode_writer: &mut BytecodeWriter,
 ) -> Result<(), AssembleError> {
     match instruction {
@@ -1270,11 +1069,8 @@ fn assemble_instruction(
             )?;
 
             // local index and names
-            let local_list_index = find_existing_local_index_with_creating_when_not_found(
-                local_list_entries,
-                &[],
-                &[],
-            );
+            let local_list_index =
+                find_or_create_local_variable_list_index(local_list_entries, &[], &[]);
 
             // write inst 'block_nez'
             let addr_of_block_nez = bytecode_writer.write_opcode_i32_i32(
@@ -1284,7 +1080,7 @@ fn assemble_instruction(
             );
 
             // push flow stack
-            flow_stack.push(addr_of_block_nez, FlowKind::BlockNez, vec![]);
+            flow_stack.push(addr_of_block_nez, ControlFlowKind::BlockNez, vec![]);
 
             // assemble node 'consequent'
             assemble_instruction(
@@ -1350,15 +1146,11 @@ fn assemble_instruction(
             )?;
 
             // type index
-            let type_index =
-                find_existing_type_index_with_creating_when_not_found(type_entries, &[], results);
+            let type_index = find_or_create_function_type_index(type_entries, &[], results);
 
             // local index
-            let local_list_index = find_existing_local_index_with_creating_when_not_found(
-                local_list_entries,
-                &[],
-                &[],
-            );
+            let local_list_index =
+                find_or_create_local_variable_list_index(local_list_entries, &[], &[]);
 
             // write inst 'block_alt'
             let addr_of_block_alt = bytecode_writer.write_opcode_i32_i32_i32(
@@ -1369,7 +1161,7 @@ fn assemble_instruction(
             );
 
             // push flow stack
-            flow_stack.push(addr_of_block_alt, FlowKind::BlockAlt, vec![]);
+            flow_stack.push(addr_of_block_alt, ControlFlowKind::BlockAlt, vec![]);
 
             // assemble node 'consequent'
             assemble_instruction(
@@ -1444,15 +1236,11 @@ fn assemble_instruction(
             // - break (param reversed_index:i16, next_inst_offset:i32)
 
             // type index
-            let type_index =
-                find_existing_type_index_with_creating_when_not_found(type_entries, &[], results);
+            let type_index = find_or_create_function_type_index(type_entries, &[], results);
 
             // local index and names
-            let local_list_index = find_existing_local_index_with_creating_when_not_found(
-                local_list_entries,
-                &[],
-                &[],
-            );
+            let local_list_index =
+                find_or_create_local_variable_list_index(local_list_entries, &[], &[]);
 
             // write inst 'block'
             let addr_of_block = bytecode_writer.write_opcode_i32_i32(
@@ -1462,7 +1250,7 @@ fn assemble_instruction(
             );
 
             // push flow stack
-            flow_stack.push(addr_of_block, FlowKind::Block, vec![]);
+            flow_stack.push(addr_of_block, ControlFlowKind::Block, vec![]);
 
             // write branches
             for case in cases {
@@ -1477,11 +1265,8 @@ fn assemble_instruction(
                 )?;
 
                 // local index and names
-                let case_local_list_index = find_existing_local_index_with_creating_when_not_found(
-                    local_list_entries,
-                    &[],
-                    &[],
-                );
+                let case_local_list_index =
+                    find_or_create_local_variable_list_index(local_list_entries, &[], &[]);
 
                 // write inst 'block_nez'
                 let addr_of_block_nez = bytecode_writer.write_opcode_i32_i32(
@@ -1491,7 +1276,7 @@ fn assemble_instruction(
                 );
 
                 // push flow stack
-                flow_stack.push(addr_of_block_nez, FlowKind::BlockNez, vec![]);
+                flow_stack.push(addr_of_block_nez, ControlFlowKind::BlockNez, vec![]);
 
                 // assemble node 'consequent'
                 assemble_instruction(
@@ -1594,14 +1379,11 @@ fn assemble_instruction(
             );
 
             // local index
-            let local_list_index = find_existing_local_index_with_creating_when_not_found(
-                local_list_entries,
-                params,
-                locals,
-            );
+            let local_list_index =
+                find_or_create_local_variable_list_index(local_list_entries, params, locals);
 
             // local names
-            let local_names = get_local_names_with_params_and_locals(params, locals);
+            let local_names = build_local_variable_names_by_params_and_local_variables(params, locals);
 
             // write inst 'block'
             let addr_of_block = bytecode_writer.write_opcode_i32_i32(
@@ -1611,7 +1393,7 @@ fn assemble_instruction(
             );
 
             // push flow stack
-            flow_stack.push(addr_of_block, FlowKind::Block, local_names);
+            flow_stack.push(addr_of_block, ControlFlowKind::Block, local_names);
 
             // assemble node 'consequent'
             assemble_instruction(
@@ -1657,7 +1439,7 @@ fn assemble_instruction(
                 )?;
             }
 
-            let reversed_index = flow_stack.get_reversed_index_to_nearest_block();
+            let reversed_index = flow_stack.get_reversed_index_to_for();
 
             // write inst 'break'
             let addr_of_break = bytecode_writer.write_opcode_i16_i32(
@@ -1683,7 +1465,7 @@ fn assemble_instruction(
                 )?;
             }
 
-            let reversed_index = flow_stack.get_reversed_index_to_nearest_block();
+            let reversed_index = flow_stack.get_reversed_index_to_for();
 
             // write inst 'recur'
             let addr_of_recur = bytecode_writer.write_opcode_i16_i32(
@@ -1855,10 +1637,10 @@ fn assemble_instruction(
 fn assemble_instruction_kind_no_params(
     opcode: &Opcode,
     operands: &[Instruction],
-    identifier_lookup_table: &IdentifierLookupTable,
+    identifier_lookup_table: &IdentifierPublicIndexLookupTable,
     type_entries: &mut Vec<TypeEntry>,
     local_list_entries: &mut Vec<LocalListEntry>,
-    flow_stack: &mut FlowStack,
+    flow_stack: &mut ControlFlowStack,
     bytecode_writer: &mut BytecodeWriter,
 ) -> Result<(), AssembleError> {
     for instruction in operands {
@@ -1876,6 +1658,236 @@ fn assemble_instruction_kind_no_params(
 
     Ok(())
 }
+
+
+// a stack for the control flows of a function.
+// used to stub out instructions such as 'block', 'block_*' and 'break'.
+//
+// - call FlowStack::push() when entering a block
+//   (includes instruction 'block', 'block_nez', 'blocl_alt')
+// - call FlowStack::add_break() when encounting instruction 'break'
+//   'break_alt' is equivalent to 'break 0, next_inst_offset'.
+// - call FlowStack::pop() when leaving a block (i.e. when encounting
+//   the instruction 'end'), and then fill all stubs.
+//
+// note that instruction 'recur' doesn't need to stub,
+// because in the XiaoXuan Core Assembly, it only exists in
+// the child nodes of node 'block', and
+// the address of the 'block' is known at compile time.
+struct ControlFlowStack {
+    items: Vec<ControlFlowItem>,
+}
+
+struct ControlFlowItem {
+    // the address of the flow control instruction
+    address: usize,
+
+    // flow control instruction type
+    control_flow_kind: ControlFlowKind,
+
+    // 'break' instructions which require a stub to be filled when
+    // the current control flow reach the instruction 'end'.
+    // note that if the target of 'break' is the function itself, this
+    // 'break' instruction does not require stub, because the 'next_inst_offset'
+    // is ignored in this scenario.
+    break_items: Vec<BreakItem>,
+
+    // used to find the index of local variables by name/id
+    local_variable_names: Vec<String>,
+}
+
+#[derive(Debug, PartialEq)]
+enum ControlFlowKind {
+    // the function itself is also a 'big' block
+    // this item is used to record the function start address
+    Function,
+
+    // for structure: 'block'
+    // bytecode:
+    // (opcode:u16 padding:u16 type_index:i32, local_list_index:i32)
+    Block,
+
+    // for structure: 'for'
+    // bytecode:
+    // (opcode:u16 padding:u16 type_index:i32, local_list_index:i32)
+    For,
+
+    // for structure: 'when'
+    //
+    // bytecode:
+    // (opcode:u16 padding:u16 local_list_index:u32 next_inst_offset:u32)
+    //
+    // stub:
+    // - next_inst_offset:u32
+    BlockNez,
+
+    // for structure: 'if'
+    //
+    // bytecode:
+    // (opcode:u16 padding:u16 type_index:u32 local_list_index:u32 alt_inst_offset:u32)
+    //
+    // stub:
+    // - alt_inst_offset:u32
+    BlockAlt,
+}
+
+// bytecode:
+// (opcode:u16 param reversed_index:u16 next_inst_offset:i32)
+//
+// stub:
+// - next_inst_offset:i32
+struct BreakItem {
+    // the address of the 'break' instruction
+    address: usize,
+}
+
+impl ControlFlowStack {
+    pub fn new() -> Self {
+        Self { items: vec![] }
+    }
+
+    /// call this function when entering a block
+    /// (includes instruction 'block', 'block_nez', 'blocl_alt')
+    pub fn push(&mut self, addr: usize, flow_kind: ControlFlowKind, local_names: Vec<String>) {
+        let stub_item = ControlFlowItem {
+            address: addr,
+            control_flow_kind: flow_kind,
+            break_items: vec![],
+            local_variable_names: local_names,
+        };
+        self.items.push(stub_item);
+    }
+
+    /// call this function when encounting instruction 'break'
+    /// 'break_alt' is equivalent to 'break 0, next_inst_offset'.
+    pub fn add_break(&mut self, addr: usize, reversed_index: usize) {
+        let flow_item = self.get_flow_item_by_reversed_index(reversed_index);
+
+        if flow_item.control_flow_kind == ControlFlowKind::Function {
+            // the instruction 'break' does not need to stub when the
+            // target is a function.
+            // because the param 'next_inst_offset' of 'break' is ignored
+            // (where can be set to '0') when the target block is the function itself.
+        } else {
+            flow_item.break_items.push(BreakItem { address: addr });
+        }
+    }
+
+    /// call this function when leaving a block (i.e. when encounting
+    /// the instruction 'end'), and then fill all stubs.
+    pub fn pop(&mut self) -> ControlFlowItem {
+        self.items.pop().unwrap()
+    }
+
+    pub fn pop_and_fill_stubs(
+        &mut self,
+        bytecode_writer: &mut BytecodeWriter,
+        addr_of_next_to_end: usize,
+    ) {
+        // pop flow stack
+        let flow_item = self.pop();
+
+        // fill stubs of 'block_nez'.
+        // not that only the inst 'block_nez' has stub 'next_inst_offset'.
+        match flow_item.control_flow_kind {
+            ControlFlowKind::BlockNez => {
+                let addr_of_block = flow_item.address;
+                let next_inst_offset = (addr_of_next_to_end - addr_of_block) as u32;
+                bytecode_writer.fill_block_nez_stub(addr_of_block, next_inst_offset);
+            }
+            _ => {
+                // only inst 'block_nez' has stub 'next_inst_offset'.
+            }
+        }
+
+        // fill stubs of insts 'break'
+        // inst 'break' also has stub 'next_inst_offset'.
+        for break_item in &flow_item.break_items {
+            let addr_of_break = break_item.address;
+            let next_inst_offset = (addr_of_next_to_end - addr_of_break) as u32;
+            bytecode_writer.fill_break_stub(break_item.address, next_inst_offset);
+        }
+    }
+
+    fn get_flow_item_by_reversed_index(&mut self, reversed_index: usize) -> &mut ControlFlowItem {
+        let idx = self.items.len() - reversed_index - 1;
+        &mut self.items[idx]
+    }
+
+    pub fn get_block_addr(&self, reversed_index: usize) -> usize {
+        let idx = self.items.len() - reversed_index - 1;
+        self.items[idx].address
+    }
+
+    pub fn get_reversed_index_to_function(&self) -> usize {
+        self.items.len() - 1
+    }
+
+    pub fn get_reversed_index_to_for(&self) -> usize {
+        let idx = self
+            .items
+            .iter()
+            .rposition(|item| item.control_flow_kind == ControlFlowKind::For)
+            .expect("Can't find \"for\" statement on the control flow stack.");
+        self.items.len() - idx - 1
+    }
+
+    // return (reversed_index, variable_index)
+    //
+    // all local variables, including the parameters
+    // of function and all parameters and local varialbes within all blocks,
+    // must not have duplicate names in the valid scope. e.g.
+    //
+    // ```text
+    // {
+    //     let abc = 0
+    //     {
+    //         let abc = 1     // invalid
+    //         let xyz = 2     // valid
+    //     }
+    //
+    //     {
+    //         let xyz = 3     // valid
+    //     }
+    // }
+    // ```
+    //
+    pub fn get_local_variable_reversed_index_and_variable_index(
+        &self,
+        local_variable_name: &str,
+    ) -> Result<(usize, usize), AssembleError> {
+        let mut result: Option<(usize, usize)> = None;
+
+        for (level_index, flow_item) in self.items.iter().enumerate() {
+            if let Some(variable_index) = flow_item
+                .local_variable_names
+                .iter()
+                .position(|name| name == local_variable_name)
+            {
+                let reversed_index = self.items.len() - level_index - 1;
+
+                if result.is_none() {
+                    result.replace((reversed_index, variable_index));
+                } else {
+                    return Err(AssembleError::new(&format!(
+                        "Local variable with duplicate name found: {}",
+                        local_variable_name
+                    )));
+                }
+            }
+        }
+
+        if let Some(val) = result {
+            Ok(val)
+        } else {
+            Err(AssembleError::new(&format!(
+                "Can not find the local variable: {}",
+                local_variable_name
+            )))
+        }
+    }
+}
+
 
 type AssembleResultForDataNodes = (
     Vec<InitedDataEntry>,
@@ -1933,58 +1945,38 @@ fn assemble_data_nodes(
     ))
 }
 
-struct AssembleResultForDependItems {
+struct AssembleResultForDependencies {
     import_module_entries: Vec<ImportModuleEntry>,
     import_module_ids: Vec<String>,
     external_library_entries: Vec<ExternalLibraryEntry>,
     external_library_ids: Vec<String>,
 }
 
-fn assemble_depend_items(
-    depend_items: &[DependItem],
-) -> Result<AssembleResultForDependItems, AssembleError> {
-    let mut import_module_entries: Vec<ImportModuleEntry> = vec![];
-    let mut import_module_ids: Vec<String> = vec![];
-    let mut external_library_entries: Vec<ExternalLibraryEntry> = vec![];
-    let mut external_library_ids: Vec<String> = vec![];
+fn assemble_dependencies(
+    import_module_entries: &[ImportModuleEntry],
+    external_library_entries: &[ExternalLibraryEntry],
+) -> Result<AssembleResultForDependencies, AssembleError> {
+    let import_module_ids: Vec<String> = import_module_entries
+        .iter()
+        .map(|item| item.name.to_owned())
+        .collect();
+    let external_library_ids: Vec<String> = external_library_entries
+        .iter()
+        .map(|item| item.name.to_owned())
+        .collect();
 
-    // check duplicate items?
-
-    for item in depend_items {
-        match item {
-            DependItem::DependentModule(module) => {
-                let import_module_entry = ImportModuleEntry {
-                    name: module.name.clone(),
-                    module_share_type: module.module_share_type,
-                    module_version: module.module_version,
-                };
-                import_module_entries.push(import_module_entry);
-                import_module_ids.push(module.id.clone());
-            }
-            DependItem::DependentLibrary(library) => {
-                let external_library_entry = ExternalLibraryEntry {
-                    name: library.name.clone(),
-                    external_library_type: library.external_library_type,
-                };
-                external_library_entries.push(external_library_entry);
-                external_library_ids.push(library.id.clone());
-            }
-        }
-    }
-
-    Ok(AssembleResultForDependItems {
-        import_module_entries,
+    Ok(AssembleResultForDependencies {
+        import_module_entries: import_module_entries.to_vec(),
         import_module_ids,
-        external_library_entries,
+        external_library_entries: external_library_entries.to_vec(),
         external_library_ids,
     })
 }
 
 struct AssembleResultForImportNodes {
-    // import_module_entries: Vec<ImportModuleEntry>,
     import_function_entries: Vec<ImportFunctionEntry>,
-    import_data_entries: Vec<ImportDataEntry>,
     import_function_ids: Vec<String>,
+    import_data_entries: Vec<ImportDataEntry>,
     import_read_only_data_ids: Vec<String>,
     import_read_write_data_ids: Vec<String>,
     import_uninit_data_ids: Vec<String>,
@@ -1996,83 +1988,90 @@ fn assemble_import_nodes(
     type_entries: &mut Vec<TypeEntry>,
 ) -> Result<AssembleResultForImportNodes, AssembleError> {
     let mut import_function_entries: Vec<ImportFunctionEntry> = vec![];
-    let mut import_data_entries: Vec<ImportDataEntry> = vec![];
-
     let mut import_function_ids: Vec<String> = vec![];
+
+    let mut import_data_entries: Vec<ImportDataEntry> = vec![];
     let mut import_read_only_data_ids: Vec<String> = vec![];
     let mut import_read_write_data_ids: Vec<String> = vec![];
     let mut import_uninit_data_ids: Vec<String> = vec![];
 
-    //    for (import_module_index, import_node) in import_nodes.iter().enumerate() {
-    //         let import_module_node = &import_node.import_module_node;
-    //
-    //         // add import module entry
-    //         let import_module_entry = ImportModuleEntry::new(
-    //             import_module_node.name.clone(),
-    //             import_module_node.module_share_type,
-    //             import_module_node.version_major,
-    //             import_module_node.version_minor,
-    //         );
-    //         import_module_entries.push(import_module_entry);
+    let get_module_index_by_name = |module_ids: &[String], name: &str| -> usize {
+        module_ids.iter().position(|id| id == name).unwrap()
+    };
 
     for import_node in import_nodes {
-        let import_module_index = import_module_ids
-            .iter()
-            .position(|id| id == &import_node.module_id)
-            .unwrap();
+        match import_node {
+            ImportNode::Function(import_function_node) => {
+                let (module_name, name_path) =
+                    get_module_name_and_name_path(&import_function_node.full_name);
+                let (_, function_name) = get_namespace_and_identifier(name_path);
+                let import_module_index = get_module_index_by_name(import_module_ids, module_name);
 
-        for import_item in &import_node.import_items {
-            match import_item {
-                ImportItem::ImportFunction(import_function_node) => {
-                    // add function id
-                    import_function_ids.push(import_function_node.id.clone());
+                // use the alias name if it presents.
+                let identifier = if let Some(alias_name) = &import_function_node.alias_name {
+                    alias_name.to_owned()
+                } else {
+                    function_name.to_owned()
+                };
 
-                    // get type index
-                    let type_index = find_existing_type_index_with_creating_when_not_found(
-                        type_entries,
-                        &import_function_node.params,
-                        &import_function_node.results,
-                    );
+                // add function identifier
+                import_function_ids.push(identifier);
 
-                    // add import function entry
-                    let import_function_entry = ImportFunctionEntry::new(
-                        import_function_node.name_path.clone(),
-                        import_module_index,
-                        type_index,
-                    );
-                    import_function_entries.push(import_function_entry);
-                }
-                ImportItem::ImportData(import_data_node) => {
-                    // add data id
-                    match import_data_node.data_section_type {
-                        DataSectionType::ReadOnly => {
-                            import_read_only_data_ids.push(import_data_node.id.clone());
-                        }
-                        DataSectionType::ReadWrite => {
-                            import_read_write_data_ids.push(import_data_node.id.clone());
-                        }
-                        DataSectionType::Uninit => {
-                            import_uninit_data_ids.push(import_data_node.id.clone());
-                        }
-                    };
+                // get type index
+                let type_index = find_or_create_function_type_index(
+                    type_entries,
+                    &import_function_node.params,
+                    &import_function_node.results,
+                );
 
-                    // add import data entry
-                    let import_data_entry = ImportDataEntry {
-                        name_path: import_data_node.name_path.clone(),
-                        import_module_index,
-                        data_section_type: import_data_node.data_section_type,
-                        memory_data_type: import_data_node.memory_data_type,
-                    };
-                    import_data_entries.push(import_data_entry);
-                }
+                // add import function entry
+                let import_function_entry =
+                    ImportFunctionEntry::new(name_path.to_owned(), import_module_index, type_index);
+                import_function_entries.push(import_function_entry);
+            }
+            ImportNode::Data(import_data_node) => {
+                let (module_name, name_path) =
+                    get_module_name_and_name_path(&import_data_node.full_name);
+                let (_, data_name) = get_namespace_and_identifier(name_path);
+                let import_module_index = get_module_index_by_name(import_module_ids, module_name);
+
+                // use the alias name if it presents.
+                let identifier = if let Some(alias_name) = &import_data_node.alias_name {
+                    alias_name.to_owned()
+                } else {
+                    data_name.to_owned()
+                };
+
+                // add data id
+                match import_data_node.data_section_type {
+                    DataSectionType::ReadOnly => {
+                        import_read_only_data_ids.push(identifier);
+                    }
+                    DataSectionType::ReadWrite => {
+                        import_read_write_data_ids.push(identifier);
+                    }
+                    DataSectionType::Uninit => {
+                        import_uninit_data_ids.push(identifier);
+                    }
+                };
+
+                // add import data entry
+                let import_data_entry = ImportDataEntry::new(
+                    name_path.to_owned(),
+                    import_module_index,
+                    import_data_node.data_section_type,
+                    import_data_node.data_type,
+                );
+
+                import_data_entries.push(import_data_entry);
             }
         }
     }
 
     let result = AssembleResultForImportNodes {
-        // import_module_entries,
         import_function_entries,
         import_data_entries,
+        //
         import_function_ids,
         import_read_only_data_ids,
         import_read_write_data_ids,
@@ -2082,65 +2081,75 @@ fn assemble_import_nodes(
     Ok(result)
 }
 
-type AssembleResultForExternNode = (
-    // Vec<ExternalLibraryEntry>,
-    Vec<ExternalFunctionEntry>,
-    Vec<String>,
-);
+struct AssembleResultForExternalNode {
+    external_function_entries: Vec<ExternalFunctionEntry>,
+    external_function_ids: Vec<String>,
+}
 
 fn assemble_external_nodes(
     external_library_ids: &[String],
     external_nodes: &[ExternalNode],
     type_entries: &mut Vec<TypeEntry>,
-) -> Result<AssembleResultForExternNode, AssembleError> {
-    // let mut external_library_entries: Vec<ExternalLibraryEntry> = vec![];
+) -> Result<AssembleResultForExternalNode, AssembleError> {
     let mut external_function_entries: Vec<ExternalFunctionEntry> = vec![];
     let mut external_function_ids: Vec<String> = vec![];
 
+    let get_library_index_by_name = |library_ids: &[String], name: &str| -> usize {
+        library_ids.iter().position(|id| id == name).unwrap()
+    };
+
     for external_node in external_nodes {
-        // // build ExternalLibraryEntry
-        // let external_library_node = &external_node.external_library_node;
-        // let external_library_entry = ExternalLibraryEntry {
-        //     name: external_library_node.name.clone(),
-        //     external_library_type: external_library_node.external_library_type,
-        // };
-        // let external_library_index = external_library_entries.len();
-        // external_library_entries.push(external_library_entry);
+        match external_node {
+            ExternalNode::Function(external_function_node) => {
+                let (library_name, function_name) =
+                    get_library_name_and_identifier(&external_function_node.full_name);
+                let external_library_index =
+                    get_library_index_by_name(external_library_ids, library_name);
 
-        let external_library_index = external_library_ids
-            .iter()
-            .position(|id| id == &external_node.library_id)
-            .unwrap();
+                // use the alias name if it presents.
+                let identifier = if let Some(alias_name) = &external_function_node.alias_name {
+                    alias_name.to_owned()
+                } else {
+                    function_name.to_owned()
+                };
 
-        for external_item in &external_node.external_items {
-            let ExternalItem::ExternalFunction(external_function) = external_item;
+                // add external function id
+                external_function_ids.push(identifier);
 
-            // add external function id
-            external_function_ids.push(external_function.id.clone());
+                let results = if let Some(result) = external_function_node.result {
+                    vec![result]
+                } else {
+                    vec![]
+                };
 
-            // get type index
-            let type_index = find_existing_type_index_with_creating_when_not_found(
-                type_entries,
-                &external_function.params,
-                &external_function.results,
-            );
+                // get type index
+                let type_index = find_or_create_function_type_index(
+                    type_entries,
+                    &external_function_node.params,
+                    &results,
+                );
 
-            // build ExternalFunctionEntry
-            let external_function_entry = ExternalFunctionEntry {
-                name: external_function.name.clone(),
-                external_library_index,
-                type_index,
-            };
+                // build ExternalFunctionEntry
+                let external_function_entry = ExternalFunctionEntry::new(
+                    function_name.to_owned(),
+                    external_library_index,
+                    type_index,
+                );
 
-            external_function_entries.push(external_function_entry);
+                external_function_entries.push(external_function_entry);
+            }
+            ExternalNode::Data(_) => {
+                return Err(AssembleError {
+                    message: "Does not support external data yet.".to_owned(),
+                })
+            }
         }
     }
 
-    Ok((
-        // external_library_entries,
+    Ok(AssembleResultForExternalNode {
         external_function_entries,
         external_function_ids,
-    ))
+    })
 }
 
 #[cfg(test)]

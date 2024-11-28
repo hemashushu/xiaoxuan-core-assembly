@@ -102,6 +102,8 @@ local_store_f64(identifier, value:f64, offset=literal_i16)  ->  ()
 local_store_f32(identifier, value:f32, offset=literal_i16)  ->  ()
 ```
 
+The `identifier` argument is the name of local variables.
+
 ### Local Loading/Storing Extension
 
 ```rust
@@ -143,6 +145,8 @@ data_store_i8( identifier, value:i8,  offset=literal_i16)  ->  ()
 data_store_f64(identifier, value:f64, offset=literal_i16)  ->  ()
 data_store_f32(identifier, value:f32, offset=literal_i16)  ->  ()
 ```
+
+The `identifier` argument is the name of data, note that name path is not allowed.
 
 ### Data Loading/Storing Extension
 
@@ -425,14 +429,19 @@ log_f64(left:f64 right:f64) -> f64
    system call
 - `dyncall(fn_pub_index:i32, value0, value1, ...)`
    dynamic call
+- `pub_index_function(identifier)`
+   get the public index of the specified function
 
-The identifier can be:
+The `identifier` argument is the name of function, note that name path is not allowed.
 
+<!--
 - The name of function or data.
 - A relative name path, e.g. "sub_module::some_func".
+- A relative name path starts with identifier imported by `use` statements.
 - A full name, e.g. "module_name::sub_module::some_data".
+-->
 
-The arguments to `*call` can be the return values of other instructions, or other functions or groups, as long as they have the same number of arguments. For example, if a function takes three arguments, it can composed of an instruction that returns one value and a function call that returns two values, e.g.:
+The argument values of `*call` instruction expression can be the return values of other instructions, or other functions or groups, as long as they have the same number of arguments. For example, if a function takes three arguments, it can composed of an instruction that returns one value and a function call that returns two values, e.g.:
 
 ```rust
 call(fn_with_2_args

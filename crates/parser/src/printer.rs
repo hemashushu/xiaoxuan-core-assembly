@@ -4,10 +4,13 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use anc_isa::DataSectionType;
+use anc_isa::{DataSectionType, OperandDataType};
 
 use crate::ast::{
-    ArgumentValue, BlockNode, BreakNode, DataNode, DataSection, DataValue, ExpressionNode, ExternalDataNode, ExternalFunctionNode, ExternalNode, FunctionDataType, FunctionNode, IfNode, ImportDataNode, ImportFunctionNode, ImportNode, InstructionNode, LiteralNumber, LocalVariable, ModuleNode, NamedParameter, UseNode, WhenNode
+    ArgumentValue, BlockNode, BreakNode, DataNode, DataSection, DataValue, ExpressionNode,
+    ExternalDataNode, ExternalFunctionNode, ExternalNode, FunctionNode, IfNode, ImportDataNode,
+    ImportFunctionNode, ImportNode, InstructionNode, LiteralNumber, LocalVariable, ModuleNode,
+    NamedParameter, WhenNode,
 };
 use std::io::{Error, Write};
 
@@ -28,7 +31,7 @@ fn print_function_node(
             "fn {}{} -> {}\n{}{}",
             node.name,
             format_params(&node.params),
-            format_returns(&node.returns),
+            format_results(&node.results),
             indent_chars,
             format_expression(&node.body, indent_chars, 1)
         )
@@ -38,7 +41,7 @@ fn print_function_node(
             "fn {}{} -> {}\n{}{}\n{}{}",
             node.name,
             format_params(&node.params),
-            format_returns(&node.returns),
+            format_results(&node.results),
             indent_chars,
             format_local_variables(&node.locals),
             indent_chars,
@@ -94,10 +97,12 @@ fn print_import_function_node(
     writer: &mut dyn Write,
     node: &ImportFunctionNode,
 ) -> Result<(), Error> {
-    write!(writer, "import fn {}{} -> {}",
+    write!(
+        writer,
+        "import fn {}{} -> {}",
         node.full_name,
         format_import_params(&node.params),
-        format_returns(&node.returns),
+        format_results(&node.results),
     )?;
 
     if let Some(alias) = &node.alias_name {
@@ -114,21 +119,17 @@ fn print_import_data_node(writer: &mut dyn Write, node: &ImportDataNode) -> Resu
                 "import readonly data {}:{}",
                 node.full_name, node.data_type
             )?;
-        },
+        }
         DataSectionType::ReadWrite => {
-            write!(
-                writer,
-                "import data {}:{}",
-                node.full_name, node.data_type
-            )?;
-        },
+            write!(writer, "import data {}:{}", node.full_name, node.data_type)?;
+        }
         DataSectionType::Uninit => {
             write!(
                 writer,
                 "import uninit data {}:{}",
                 node.full_name, node.data_type
             )?;
-        },
+        }
     }
 
     if let Some(alias) = &node.alias_name {
@@ -149,10 +150,12 @@ fn print_external_function_node(
     writer: &mut dyn Write,
     node: &ExternalFunctionNode,
 ) -> Result<(), Error> {
-    write!(writer, "external fn {}{} -> {}",
+    write!(
+        writer,
+        "external fn {}{} -> {}",
         node.full_name,
         format_import_params(&node.params),
-        if let Some(fdt) = &node.return_ {
+        if let Some(fdt) = &node.result {
             fdt.to_string()
         } else {
             "()".to_owned()
@@ -178,26 +181,26 @@ fn print_external_data_node(writer: &mut dyn Write, node: &ExternalDataNode) -> 
     Ok(())
 }
 
-fn print_use_node(writer: &mut dyn Write, node: &UseNode) -> Result<(), Error> {
-    write!(writer, "use {}", node.full_name)?;
-    if let Some(alias) = &node.alias_name {
-        write!(writer, " as {}", alias)?;
-    }
-    Ok(())
-}
+// fn print_use_node(writer: &mut dyn Write, node: &UseNode) -> Result<(), Error> {
+//     write!(writer, "use {}", node.full_name)?;
+//     if let Some(alias) = &node.alias_name {
+//         write!(writer, " as {}", alias)?;
+//     }
+//     Ok(())
+// }
 
 fn print_module_node(
     writer: &mut dyn Write,
     node: &ModuleNode,
     indent_chars: &str,
 ) -> Result<(), Error> {
-    if !node.uses.is_empty() {
-        for item in &node.uses {
-            print_use_node(writer, item)?;
-            writeln!(writer)?;
-        }
-        writeln!(writer)?;
-    }
+    // if !node.uses.is_empty() {
+    //     for item in &node.uses {
+    //         print_use_node(writer, item)?;
+    //         writeln!(writer)?;
+    //     }
+    //     writeln!(writer)?;
+    // }
 
     if !node.imports.is_empty() {
         for item in &node.imports {
@@ -395,7 +398,7 @@ fn format_expression_if(node: &IfNode, indent_chars: &str, indent_level: usize) 
     format!(
         "if {} -> {}\n{}{}\n{}{}\n{}{}",
         format_params(&node.params),
-        format_returns(&node.returns),
+        format_results(&node.results),
         indent,
         format_expression(&node.testing, indent_chars, indent_level + 1),
         indent,
@@ -424,7 +427,7 @@ fn format_expression_block(
             "{} {} -> {}\n{}{}",
             /* title */ if is_for { "for" } else { "block" },
             /* params */ format_params(&node.params),
-            /* returns */ format_returns(&node.returns),
+            /* results */ format_results(&node.results),
             indent,
             format_expression(&node.body, indent_chars, indent_level + 1)
         )
@@ -433,7 +436,7 @@ fn format_expression_block(
             "{} {} -> {}\n{}{}\n{}{}",
             /* title */ if is_for { "for" } else { "block" },
             /* params */ format_params(&node.params),
-            /* returns */ format_returns(&node.returns),
+            /* results */ format_results(&node.results),
             indent,
             format_local_variables(&node.locals),
             indent,
@@ -481,7 +484,7 @@ fn format_expression_break(
     }
 }
 
-/// function returns:
+/// format:
 /// "(name0:data_type0, name1:data_type1, ...)"
 fn format_params(params: &[NamedParameter]) -> String {
     format!(
@@ -494,30 +497,30 @@ fn format_params(params: &[NamedParameter]) -> String {
     )
 }
 
-fn format_import_params(params: &[FunctionDataType]) -> String {
+fn format_import_params(params: &[OperandDataType]) -> String {
     format!(
         "({})",
         params
-        .iter()
-        .map(|item| item.to_string())
-        .collect::<Vec<String>>()
-        .join(", ")
+            .iter()
+            .map(|item| item.to_string())
+            .collect::<Vec<String>>()
+            .join(", ")
     )
 }
 
-/// function returns:
+/// format:
 /// - ()
 /// - data_type
 /// - (data_type0, data_type1, ...)
-fn format_returns(returns: &[FunctionDataType]) -> String {
-    if returns.is_empty() {
+fn format_results(results: &[OperandDataType]) -> String {
+    if results.is_empty() {
         "()".to_owned()
-    } else if returns.len() == 1 {
-        returns[0].to_string()
+    } else if results.len() == 1 {
+        results[0].to_string()
     } else {
         format!(
             "({})",
-            returns
+            results
                 .iter()
                 .map(|item| item.to_string())
                 .collect::<Vec<String>>()
@@ -696,41 +699,46 @@ pub fn print_to_string(node: &ModuleNode) -> String {
 
 #[cfg(test)]
 mod tests {
-    use anc_isa::DataSectionType;
+    use anc_isa::{DataSectionType, MemoryDataType, OperandDataType};
     use pretty_assertions::assert_eq;
 
     use crate::{
         ast::{
-            ArgumentValue, BlockNode, BreakNode, DataNode, DataSection, DataTypeValuePair, DataValue, DeclareDataType, ExpressionNode, ExternalDataNode, ExternalFunctionNode, ExternalNode, FixedDeclareDataType, FunctionDataType, FunctionNode, IfNode, ImportDataNode, ImportDataType, ImportFunctionNode, ImportNode, InstructionNode, LiteralNumber, LocalVariable, ModuleNode, NamedArgument, NamedParameter, UseNode, WhenNode
+            ArgumentValue, BlockNode, BreakNode, DataNode, DataSection, DataTypeValuePair,
+            DataValue, DeclareDataType, ExpressionNode, ExternalDataNode, ExternalFunctionNode,
+            ExternalNode, FixedDeclareDataType, FunctionNode, IfNode, ImportDataNode,
+            ImportFunctionNode, ImportNode, InstructionNode, LiteralNumber, LocalVariable,
+            ModuleNode, NamedArgument, NamedParameter, WhenNode,
         },
         printer::{
-            print_external_data_node, print_external_function_node, print_function_node, print_import_data_node, print_import_function_node, print_use_node, DEFAULT_INDENT_CHARS
+            print_external_data_node, print_external_function_node, print_function_node,
+            print_import_data_node, print_import_function_node, DEFAULT_INDENT_CHARS,
         },
     };
 
     use super::{print_data_node, print_to_string};
 
-    #[test]
-    fn test_print_use_node() {
-        let print = |node: &UseNode| {
-            let mut buf: Vec<u8> = vec![];
-            print_use_node(&mut buf, node).unwrap();
-            String::from_utf8(buf).unwrap()
-        };
-
-        let node0 = UseNode {
-            full_name: "foo::bar".to_owned(),
-            alias_name: None,
-        };
-
-        assert_eq!(print(&node0), "use foo::bar");
-
-        let node1 = UseNode {
-            full_name: "foo::bar::Baz".to_owned(),
-            alias_name: Some("Bar".to_owned()),
-        };
-        assert_eq!(print(&node1), "use foo::bar::Baz as Bar");
-    }
+    // #[test]
+    // fn test_print_use_node() {
+    //     let print = |node: &UseNode| {
+    //         let mut buf: Vec<u8> = vec![];
+    //         print_use_node(&mut buf, node).unwrap();
+    //         String::from_utf8(buf).unwrap()
+    //     };
+    //
+    //     let node0 = UseNode {
+    //         full_name: "foo::bar".to_owned(),
+    //         alias_name: None,
+    //     };
+    //
+    //     assert_eq!(print(&node0), "use foo::bar");
+    //
+    //     let node1 = UseNode {
+    //         full_name: "foo::bar::Baz".to_owned(),
+    //         alias_name: Some("Bar".to_owned()),
+    //     };
+    //     assert_eq!(print(&node1), "use foo::bar::Baz as Bar");
+    // }
 
     #[test]
     fn test_print_import_function_node() {
@@ -743,7 +751,7 @@ mod tests {
         let f0 = ImportFunctionNode {
             full_name: "foo::bar".to_owned(),
             params: vec![],
-            returns: vec![],
+            results: vec![],
             alias_name: None,
         };
 
@@ -751,8 +759,8 @@ mod tests {
 
         let f1 = ImportFunctionNode {
             full_name: "foo::bar".to_owned(),
-            params: vec![FunctionDataType::I32, FunctionDataType::I32],
-            returns: vec![FunctionDataType::I64, FunctionDataType::I64],
+            params: vec![OperandDataType::I32, OperandDataType::I32],
+            results: vec![OperandDataType::I64, OperandDataType::I64],
             alias_name: Some("baz".to_owned()),
         };
 
@@ -773,7 +781,7 @@ mod tests {
         let d0 = ImportDataNode {
             data_section_type: DataSectionType::ReadWrite,
             full_name: "foo::count".to_owned(),
-            data_type: ImportDataType::I32,
+            data_type: MemoryDataType::I32,
             alias_name: None,
         };
 
@@ -782,7 +790,7 @@ mod tests {
         let d1 = ImportDataNode {
             data_section_type: DataSectionType::Uninit,
             full_name: "foo::got".to_owned(),
-            data_type: ImportDataType::Bytes,
+            data_type: MemoryDataType::Bytes,
             alias_name: Some("global_offset_table".to_owned()),
         };
 
@@ -803,7 +811,7 @@ mod tests {
         let f0 = ExternalFunctionNode {
             full_name: "libfoo::bar".to_owned(),
             params: vec![],
-            return_: None,
+            result: None,
             alias_name: None,
         };
 
@@ -811,8 +819,8 @@ mod tests {
 
         let f1 = ExternalFunctionNode {
             full_name: "libfoo::bar".to_owned(),
-            params: vec![FunctionDataType::I32, FunctionDataType::I32],
-            return_: Some(FunctionDataType::I64),
+            params: vec![OperandDataType::I32, OperandDataType::I32],
+            result: Some(OperandDataType::I64),
             alias_name: Some("baz".to_owned()),
         };
 
@@ -832,7 +840,7 @@ mod tests {
 
         let d0 = ExternalDataNode {
             full_name: "libfoo::count".to_owned(),
-            data_type: ImportDataType::I32,
+            data_type: MemoryDataType::I32,
             alias_name: None,
         };
 
@@ -840,7 +848,7 @@ mod tests {
 
         let d1 = ExternalDataNode {
             full_name: "libfoo::got".to_owned(),
-            data_type: ImportDataType::Bytes,
+            data_type: MemoryDataType::Bytes,
             alias_name: Some("global_offset_table".to_owned()),
         };
 
@@ -979,7 +987,7 @@ data bar:byte[align=4] = [
             export: false,
             name: "foo".to_owned(),
             params: vec![],
-            returns: vec![],
+            results: vec![],
             locals: vec![],
             body: Box::new(ExpressionNode::Instruction(InstructionNode {
                 name: "local_load_i64".to_owned(),
@@ -1004,21 +1012,21 @@ fn foo() -> ()
     local_load_i64(left, rindex=1_i16, offset=4_i16)"
         );
 
-        // test params, returns
+        // test params, results
         let node1 = FunctionNode {
             export: true,
             name: "add".to_owned(),
             params: vec![
                 NamedParameter {
                     name: "left".to_owned(),
-                    data_type: FunctionDataType::I32,
+                    data_type: OperandDataType::I32,
                 },
                 NamedParameter {
                     name: "right".to_owned(),
-                    data_type: FunctionDataType::I32,
+                    data_type: OperandDataType::I32,
                 },
             ],
-            returns: vec![FunctionDataType::I32],
+            results: vec![OperandDataType::I32],
             locals: vec![],
             body: Box::new(ExpressionNode::Instruction(InstructionNode {
                 name: "add_i32".to_owned(),
@@ -1063,12 +1071,12 @@ pub fn add(left:i32, right:i32) -> i32
             local_load_i32(right)))"
         );
 
-        // test returns multiple values and local variables
+        // test multiple results and local variables
         let node2 = FunctionNode {
             export: false,
             name: "hello".to_owned(),
             params: vec![],
-            returns: vec![FunctionDataType::I32, FunctionDataType::I64],
+            results: vec![OperandDataType::I32, OperandDataType::I64],
             locals: vec![
                 LocalVariable {
                     name: "foo".to_owned(),
@@ -1111,7 +1119,7 @@ fn hello() -> (i32, i64)
             export: false,
             name: "foo".to_owned(),
             params: vec![],
-            returns: vec![],
+            results: vec![],
             locals: vec![],
             body: Box::new(ExpressionNode::Group(vec![
                 ExpressionNode::Instruction(InstructionNode {
@@ -1191,7 +1199,7 @@ fn foo() -> ()
             export: false,
             name: "foo".to_owned(),
             params: vec![],
-            returns: vec![],
+            results: vec![],
             locals: vec![],
             body: Box::new(ExpressionNode::Group(vec![
                 ExpressionNode::Instruction(InstructionNode {
@@ -1232,7 +1240,7 @@ fn foo() -> ()
             export: false,
             name: "foo".to_owned(),
             params: vec![],
-            returns: vec![],
+            results: vec![],
             locals: vec![],
             body: Box::new(ExpressionNode::When(WhenNode {
                 testing: Box::new(ExpressionNode::Instruction(InstructionNode {
@@ -1263,7 +1271,7 @@ fn foo() -> ()
             export: false,
             name: "foo".to_owned(),
             params: vec![],
-            returns: vec![],
+            results: vec![],
             locals: vec![],
             body: Box::new(ExpressionNode::When(WhenNode {
                 testing: Box::new(ExpressionNode::Instruction(InstructionNode {
@@ -1311,7 +1319,7 @@ fn foo() -> ()
             export: false,
             name: "foo".to_owned(),
             params: vec![],
-            returns: vec![],
+            results: vec![],
             locals: vec![],
             body: Box::new(ExpressionNode::When(WhenNode {
                 testing: Box::new(ExpressionNode::Instruction(InstructionNode {
@@ -1356,7 +1364,7 @@ fn foo() -> ()
             export: false,
             name: "foo".to_owned(),
             params: vec![],
-            returns: vec![],
+            results: vec![],
             locals: vec![],
             body: Box::new(ExpressionNode::When(WhenNode {
                 testing: Box::new(ExpressionNode::Instruction(InstructionNode {
@@ -1417,11 +1425,11 @@ fn foo() -> ()
             export: false,
             name: "foo".to_owned(),
             params: vec![],
-            returns: vec![],
+            results: vec![],
             locals: vec![],
             body: Box::new(ExpressionNode::If(IfNode {
                 params: vec![],
-                returns: vec![],
+                results: vec![],
                 testing: Box::new(ExpressionNode::Instruction(InstructionNode {
                     name: "eqz_i32".to_owned(),
                     positional_args: vec![ArgumentValue::Expression(Box::new(
@@ -1486,17 +1494,20 @@ fn foo() -> ()
             export: false,
             name: "foo".to_owned(),
             params: vec![],
-            returns: vec![],
+            results: vec![],
             locals: vec![],
             body: Box::new(ExpressionNode::If(IfNode {
-                params: vec![NamedParameter {
-                    name: "left".to_owned(),
-                    data_type: FunctionDataType::I32,
-                },NamedParameter {
-                    name: "right".to_owned(),
-                    data_type: FunctionDataType::I32,
-                }],
-                returns: vec![FunctionDataType::I32],
+                params: vec![
+                    NamedParameter {
+                        name: "left".to_owned(),
+                        data_type: OperandDataType::I32,
+                    },
+                    NamedParameter {
+                        name: "right".to_owned(),
+                        data_type: OperandDataType::I32,
+                    },
+                ],
+                results: vec![OperandDataType::I32],
                 testing: Box::new(ExpressionNode::Instruction(InstructionNode {
                     name: "imm_i32".to_owned(),
                     positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(11))],
@@ -1530,11 +1541,11 @@ fn foo() -> ()
             export: false,
             name: "foo".to_owned(),
             params: vec![],
-            returns: vec![],
+            results: vec![],
             locals: vec![],
             body: Box::new(ExpressionNode::If(IfNode {
                 params: vec![],
-                returns: vec![FunctionDataType::I32, FunctionDataType::I64],
+                results: vec![OperandDataType::I32, OperandDataType::I64],
                 testing: Box::new(ExpressionNode::Instruction(InstructionNode {
                     name: "imm_i32".to_owned(),
                     positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(11))],
@@ -1576,11 +1587,11 @@ fn foo() -> ()
             export: false,
             name: "foo".to_owned(),
             params: vec![],
-            returns: vec![],
+            results: vec![],
             locals: vec![],
             body: Box::new(ExpressionNode::Block(BlockNode {
                 params: vec![],
-                returns: vec![],
+                results: vec![],
                 locals: vec![],
                 body: Box::new(ExpressionNode::Instruction(InstructionNode {
                     name: "local_store_i32".to_owned(),
@@ -1610,25 +1621,25 @@ fn foo() -> ()
             imm_i32(11))"
         );
 
-        // test 'block' with params, returns and local variablers
+        // test 'block' with params, results and local variablers
         let node1 = FunctionNode {
             export: false,
             name: "foo".to_owned(),
             params: vec![],
-            returns: vec![],
+            results: vec![],
             locals: vec![],
             body: Box::new(ExpressionNode::Block(BlockNode {
                 params: vec![
                     NamedParameter {
                         name: "left".to_owned(),
-                        data_type: FunctionDataType::I32,
+                        data_type: OperandDataType::I32,
                     },
                     NamedParameter {
                         name: "right".to_owned(),
-                        data_type: FunctionDataType::I32,
+                        data_type: OperandDataType::I32,
                     },
                 ],
-                returns: vec![FunctionDataType::I32],
+                results: vec![OperandDataType::I32],
                 locals: vec![
                     LocalVariable {
                         name: "abc".to_owned(),
@@ -1661,11 +1672,11 @@ fn foo() -> ()
             export: false,
             name: "foo".to_owned(),
             params: vec![],
-            returns: vec![],
+            results: vec![],
             locals: vec![],
             body: Box::new(ExpressionNode::Block(BlockNode {
                 params: vec![],
-                returns: vec![],
+                results: vec![],
                 locals: vec![LocalVariable {
                     name: "temp".to_owned(),
                     data_type: FixedDeclareDataType::I32,
@@ -1726,11 +1737,11 @@ fn foo() -> ()
             export: false,
             name: "foo".to_owned(),
             params: vec![],
-            returns: vec![],
+            results: vec![],
             locals: vec![],
             body: Box::new(ExpressionNode::For(BlockNode {
                 params: vec![],
-                returns: vec![],
+                results: vec![],
                 locals: vec![],
                 body: Box::new(ExpressionNode::Instruction(InstructionNode {
                     name: "nop".to_owned(),
@@ -1761,7 +1772,7 @@ fn foo() -> ()
             export: false,
             name: "foo".to_owned(),
             params: vec![],
-            returns: vec![],
+            results: vec![],
             locals: vec![],
             body: Box::new(ExpressionNode::Group(vec![
                 ExpressionNode::Break(BreakNode::Break(vec![
@@ -1841,7 +1852,7 @@ fn foo() -> ()
             export: false,
             name: "foo".to_owned(),
             params: vec![],
-            returns: vec![],
+            results: vec![],
             locals: vec![],
             body: Box::new(ExpressionNode::Group(vec![
                 ExpressionNode::Recur(BreakNode::Break(vec![
@@ -1920,41 +1931,41 @@ fn foo() -> ()
     #[test]
     fn test_print_module_node() {
         let node = ModuleNode {
-            name_path: "foo".to_owned(),
-            uses: vec![
-                UseNode {
-                    full_name: "foo::bar".to_owned(),
-                    alias_name: None,
-                },
-                UseNode {
-                    full_name: "foo::bar::baz".to_owned(),
-                    alias_name: Some("Baz".to_owned()),
-                },
-            ],
+            // full_name: "foo".to_owned(),
+            // uses: vec![
+            //     UseNode {
+            //         full_name: "foo::bar".to_owned(),
+            //         alias_name: None,
+            //     },
+            //     UseNode {
+            //         full_name: "foo::bar::baz".to_owned(),
+            //         alias_name: Some("Baz".to_owned()),
+            //     },
+            // ],
             imports: vec![
                 ImportNode::Function(ImportFunctionNode {
                     full_name: "std::abc".to_owned(),
-                    params: vec![FunctionDataType::I32, FunctionDataType::I64],
-                    returns: vec![FunctionDataType::I64],
+                    params: vec![OperandDataType::I32, OperandDataType::I64],
+                    results: vec![OperandDataType::I64],
                     alias_name: None,
                 }),
                 ImportNode::Data(ImportDataNode {
                     data_section_type: DataSectionType::ReadOnly,
                     full_name: "std::def".to_owned(),
-                    data_type: ImportDataType::I32,
+                    data_type: MemoryDataType::I32,
                     alias_name: Some("xyz".to_owned()),
                 }),
             ],
             externals: vec![
                 ExternalNode::Function(ExternalFunctionNode {
                     full_name: "liba::abc".to_owned(),
-                    params: vec![FunctionDataType::I32, FunctionDataType::I64],
-                    return_: Some(FunctionDataType::I64),
+                    params: vec![OperandDataType::I32, OperandDataType::I64],
+                    result: Some(OperandDataType::I64),
                     alias_name: None,
                 }),
                 ExternalNode::Data(ExternalDataNode {
                     full_name: "libb::def".to_owned(),
-                    data_type: ImportDataType::I32,
+                    data_type: MemoryDataType::I32,
                     alias_name: Some("xyz".to_owned()),
                 }),
             ],
@@ -1988,14 +1999,14 @@ fn foo() -> ()
                     params: vec![
                         NamedParameter {
                             name: "left".to_owned(),
-                            data_type: FunctionDataType::I32,
+                            data_type: OperandDataType::I32,
                         },
                         NamedParameter {
                             name: "right".to_owned(),
-                            data_type: FunctionDataType::I32,
+                            data_type: OperandDataType::I32,
                         },
                     ],
-                    returns: vec![FunctionDataType::I32],
+                    results: vec![OperandDataType::I32],
                     locals: vec![],
                     body: Box::new(ExpressionNode::Instruction(InstructionNode {
                         name: "nop".to_owned(),
@@ -2007,7 +2018,7 @@ fn foo() -> ()
                     export: true,
                     name: "entry".to_owned(),
                     params: vec![],
-                    returns: vec![FunctionDataType::I32],
+                    results: vec![OperandDataType::I32],
                     locals: vec![LocalVariable {
                         name: "temp".to_owned(),
                         data_type: FixedDeclareDataType::I32,
@@ -2024,9 +2035,6 @@ fn foo() -> ()
         assert_eq!(
             print_to_string(&node),
             "\
-use foo::bar
-use foo::bar::baz as Baz
-
 import fn std::abc(i32, i64) -> i64
 import readonly data std::def:i32 as xyz
 

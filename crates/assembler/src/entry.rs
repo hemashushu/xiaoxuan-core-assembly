@@ -4,17 +4,36 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-#[derive(Debug)]
-pub struct CommonEntry {
-    pub name: String,
-    pub runtime_version: EffectiveVersion,
-    pub import_read_only_data_count: usize,
-    pub import_read_write_data_count: usize,
-    pub import_uninit_data_count: usize,
-    pub import_function_count: usize,
-    pub constructor_function_public_index: Option<u32>,
-    pub destructor_function_public_index: Option<u32>,
+use anc_image::{
+    entry::{
+        DataNamePathEntry, ExternalFunctionEntry, ExternalLibraryEntry, FunctionEntry,
+        FunctionNamePathEntry, ImportDataEntry, ImportFunctionEntry, ImportModuleEntry,
+        InitedDataEntry, LocalVariableListEntry, TypeEntry, UninitDataEntry,
+    },
+    module_image::ImageType,
+};
 
+#[derive(Debug)]
+pub struct ImageCommonEntry {
+    /*
+    Note that this is the name of module/package,
+    it CANNOT be the sub-module name even if the current image is
+    the object file of a sub-module.
+    it CANNOT be a name path either.
+    */
+    pub name: String,
+
+    pub image_type: ImageType,
+
+    // pub import_read_only_data_count: usize,
+    // pub import_read_write_data_count: usize,
+    // pub import_uninit_data_count: usize,
+    // pub import_data_count: usize,
+    // pub import_function_count: usize,
+
+    //    // pub runtime_version: EffectiveVersion,
+    //    // pub constructor_function_public_index: Option<u32>,
+    //    // pub destructor_function_public_index: Option<u32>,
     pub read_only_data_entries: Vec<InitedDataEntry>,
     pub read_write_data_entries: Vec<InitedDataEntry>,
     pub uninit_data_entries: Vec<UninitDataEntry>,
@@ -23,6 +42,7 @@ pub struct CommonEntry {
     pub local_list_entries: Vec<LocalVariableListEntry>,
     pub function_entries: Vec<FunctionEntry>,
 
+    // the dependencies
     pub external_library_entries: Vec<ExternalLibraryEntry>,
     pub external_function_entries: Vec<ExternalFunctionEntry>,
 
@@ -35,15 +55,14 @@ pub struct CommonEntry {
     pub import_function_entries: Vec<ImportFunctionEntry>,
     pub import_data_entries: Vec<ImportDataEntry>,
 
-    // the name entries only contain the internal functions,
-    // and the value of 'index' is the 'function public index'.
-    pub function_name_entries: Vec<FunctionNameEntry>,
+    // the name path entries only contain the internal functions.
+    pub function_name_path_entries: Vec<FunctionNamePathEntry>,
 
-    // the name entries only contain the internal data items,
-    // and the value of 'index' is the 'data public index'.
-    pub data_name_entries: Vec<DataNameEntry>,
+    // the name path entries only contain the internal data items.
+    pub data_name_path_entries: Vec<DataNamePathEntry>,
 }
 
+/*
 // only application type module contains `Index` sections.
 #[derive(Debug)]
 pub struct IndexEntry {
@@ -61,3 +80,58 @@ pub struct IndexEntry {
     pub unified_external_library_entries: Vec<UnifiedExternalLibraryEntry>,
     pub unified_external_function_entries: Vec<UnifiedExternalFunctionEntry>,
 }
+ */
+
+// #[derive(Debug, PartialEq)]
+// pub struct CanonicalModuleNode {
+//     pub name: String,
+//
+//     pub imports: Vec<ImportNode>,
+//     pub externals: Vec<ExternalNode>,
+//
+//     pub datas: Vec<CanonicalDataNode>,
+//     pub functions: Vec<CanonicalFunctionNode>,
+// }
+//
+// #[derive(Debug, PartialEq)]
+// pub struct CanonicalFunctionNode {
+//     // the full name path
+//     //
+//     // e.g.
+//     // the id of function 'add' in main module 'myapp' is 'myapp::add'
+//     // the id of function 'add' in submodule 'myapp:utils' is 'myapp::utils::add'
+//     pub fullname: String,
+//
+//     // the relative name path
+//     //
+//     // e.g.
+//     // the name path of function 'add' in main module 'myapp' is 'add'
+//     // the name path of function 'add' in submodule 'myapp:utils' is 'utils::add'
+//     pub name_path: String,
+//
+//     pub export: bool,
+//     pub params: Vec<NamedParameter>,
+//     pub returns: Vec<OperandDataType>,
+//     pub locals: Vec<LocalVariable>,
+//     pub body: Box<ExpressionNode>,
+// }
+//
+// #[derive(Debug, PartialEq)]
+// pub struct CanonicalDataNode {
+//     // the full name path
+//     //
+//     // e.g.
+//     // the id of data 'buf' in main module 'myapp' is 'myapp::buf'
+//     // the id of data 'buf' in submodule 'myapp:utils' is 'myapp::utils::buf'
+//     pub fullname: String,
+//
+//     // the relative name path
+//     //
+//     // e.g.
+//     // the name path of data 'buf' in main module 'myapp' is 'buf'
+//     // the name path of data 'buf' in submodule 'myapp:utils' is 'utils::buf'
+//     pub name_path: String,
+//
+//     pub export: bool,
+//     pub data_section: DataSection,
+// }

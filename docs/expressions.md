@@ -53,12 +53,12 @@ Where:
 
 ### Condition with branch
 
-`if params -> returns tesing consequence alternative`
+`if params -> results tesing consequence alternative`
 
 Where:
 
 - `consequence` and `alternative` they are both an expression.
-- `returns` indicates the type of the return value of `if` expression. It can be:
+- `results` indicates the type of the return value of `if` expression. It can be:
   - `()` means no return value.
   - `data_type` indicates that only one value is returned.
   - `(data_type0, data_type1, ...)` returns multiple values.
@@ -66,23 +66,23 @@ Where:
 Note that:
 
 - `if` expression has no list of local variables.
-- If the expression has no return value, the `-> returns` can be omitted.
-- If the expression has no params but has return values, the format is `() -> returns`.
-- If the expression has no params and no return value, the entire `params -> returns` can be omitted.
+- If the expression has no return value, the `-> results` can be omitted.
+- If the expression has no params but has return values, the format is `() -> results`.
+- If the expression has no params and no return value, the entire `params -> results` can be omitted.
 
 ### Block
 
-`block params -> returns [locals] body`
+`block params -> results [locals] body`
 
 Where:
 
 - `params` is a list of parameters, e.g.`(left:i32, right:i32)`, or `()` if the expression has no parameteres, note that this part cannot be omitted.
-- `returns` is a list of the types of return values, as in `if` expressions, and if there is no return value, the entire `-> ()` can be omitted.
+- `results` is a list of the types of return values, as in `if` expressions, and if there is no return value, the entire `-> ()` can be omitted.
 - `body` is an expression, usually it is a `group` expression.
 
 Variants:
 
-- `for (params) -> returns [locals] body` a recurable block
+- `for (params) -> results [locals] body` a recurable block
 
 ### Break
 

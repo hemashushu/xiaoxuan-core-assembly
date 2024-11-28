@@ -1,20 +1,15 @@
 # Overview
 
-XiaoXuan Core Assembly Language (Anasm)
+XiaoXuan Core Assembly Language (Ancasm)
 
 ## Code
 
 ```rust
-// using functions from other shared modules
-use std::memory::copy
-use digest::sha2::init
+// imports functions and data from other sub-modules or shared modules
+import fn std::memory::copy(i64, i64)
+import readonly data digest::sha2::message:byte[]
 
-// using functions and datas from other namespace of the current module
-use module::sub_module::some_func
-use self::sub_module::some_func
-use parent::sub_sub_module::some_data as other_data
-
-// declear the functions and datas from external libraries
+// import functions and data from external libraries
 external fn libfoo::add(i32, i32) -> i32 as i32_add
 external data libfoo::PI:f32 as CONST_PI
 
@@ -46,40 +41,26 @@ pub fn entry() -> i32 {
 content of the file `module.ason`:
 
 ```json5
-// @type: anc
 {
     name: "hello"
     version: "1.0.0"
     runtime_version: "1.0"
-    entry: "entry"
-    modules: [
-        "std": module::Runtime
-        "digest": module::Share({
-            repository: Option::Some("internal")
-            version: "1.0"
-            // Values can be passed to the "properties" of module "digest"
-            // via the "values" field.
-            //
-            // e.g.
-            //
-            // values: {
-            //    "enable_sha2": value::bool(true)
-            //    "enable_md5": value::bool(false)
-            //    "enable_foo": value::calc("{enable_xyz}")
-            // }
-            //
-            // Where `{enable_xyz}` is an property or constant
-            // declared by the current configuration file.
-
-        })
-    ]
-    libraries: [
-        "libfoo": library::Remote({
-            url: "https://github.com/..."
-            revision: "v1.0.1"
-            path: "/lib/libfoo.so.1"
-        })
-    ]
+    constants: {
+        // Declares constants and their values for used
+        // by the current configuration file.
+        //
+        // e.g.
+        //
+        // "foo": const::number(123)
+        // "bar": const::bool(true)
+        // "logger_version": const::string("1.1")
+        //
+        // Note that the name of a constant cannot duplicate
+        // the name of property.
+        //
+        // Strings can interoperate with constants using
+        // the placeholder `{name}`
+    }
     properties: {
         // Declares properties and there default values for
         // use by the current program (module).
@@ -90,19 +71,35 @@ content of the file `module.ason`:
         //
         // "enable_abc": prop::default::bool(true)
         // "enable_def": prop::default::bool(false)
-        // "enable_xyz": prop::eval("{enable_abc} && {enable_def}")
+        // "enable_logger": prop::eval("{enable_abc} && {enable_def}")
     }
-    constants: {
-        // Declares constants and their values for used
-        // by the current configuration file.
-        //
-        // e.g.
-        //
-        // "foo": const::number(123)
-        // "bar": const::string("abc")
-        //
-        // Note that the name of a constant cannot duplicate
-        // the name of property.
-    }
+    modules: [
+        "std": module::Runtime
+        "digest": module::Share({
+            repository: Option::Some("internal")
+            version: "1.0"
+            // Pass values to the "properties" of module "digest"
+            values: {
+               "enable_sha2": value::bool(true)
+               "enable_md5": value::bool(false)
+
+               /* Where `{enable_xyz}` is the name of a property or constant
+                  declared in the current configuration file.
+               */
+               "enable_foo": value::eval("{enable_xyz}")
+            }
+        })
+        "logger": module::Share({
+            version: "{logger_version}"
+            condition: Option::Some(cond::is_true("PROFILE_DEVEL"))
+        })
+    ]
+    libraries: [
+        "libfoo": library::Remote({
+            url: "https://github.com/..."
+            revision: "v1.0.1"
+            path: "/lib/libfoo.so.1"
+        })
+    ]
 }
 ```

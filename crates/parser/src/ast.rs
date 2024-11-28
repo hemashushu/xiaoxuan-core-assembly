@@ -6,26 +6,23 @@
 
 use std::fmt::Display;
 
-use anc_isa::DataSectionType;
+use anc_isa::{DataSectionType, MemoryDataType, OperandDataType};
 
 #[derive(Debug, PartialEq)]
 pub struct ModuleNode {
-    // the relative path of sub-module.
-    //
-    // it is a path relative to the current module, it equivalents to the 'namespace'.
+    // the full name of sub-module
     //
     // e.g.
-    // | full name               | name path      |
-    // |-------------------------|----------------|
-    // | "network"               | ""             |
-    // | "network::http"         | "http"         |
-    // | "network::http::client" | "http::client" |
+    // | full name               | name path             |
+    // |-------------------------|-----------------------|
+    // | "network"               | "/lib.ancasm"         |
+    // | "network::http"         | "/http.ancasm"        |
+    // | "network::http::client" | "/http/client.ancasm" |
     //
-    // the root sub-module, such as 'app.anc' and 'lib.anc' has
+    // the root module, such as 'app.anc' and 'lib.anc' has
     // the empty ("") name path.
-    pub name_path: String,
-
-    pub uses: Vec<UseNode>,
+    // pub full_name: String,
+    // pub uses: Vec<UseNode>,
     pub imports: Vec<ImportNode>,
     pub externals: Vec<ExternalNode>,
     pub datas: Vec<DataNode>,
@@ -76,12 +73,12 @@ pub struct ModuleNode {
 //     pub name: String, // the library link name
 // }
 
-#[derive(Debug, PartialEq)]
-pub struct UseNode {
-    // e.g. "network::http", "network::http::status_code"
-    pub full_name: String,
-    pub alias_name: Option<String>,
-}
+// #[derive(Debug, PartialEq)]
+// pub struct UseNode {
+//     // e.g. "network::http", "network::http::status_code"
+//     pub full_name: String,
+//     pub alias_name: Option<String>,
+// }
 
 #[derive(Debug, PartialEq)]
 pub enum ImportNode {
@@ -91,40 +88,31 @@ pub enum ImportNode {
 
 #[derive(Debug, PartialEq)]
 pub struct ImportFunctionNode {
-    // pub library: String,
-    // pub name: String,
+    /// about the "full_name" and "name_path"
+    /// -------------------------------------
+    /// - "full_name" = "module_name::name_path"
+    /// - "name_path" = "namespace::identifier"
+    /// - "namespace" = "sub_module_name"{0,N}
     pub full_name: String,
-    pub params: Vec<FunctionDataType>,
-    pub returns: Vec<FunctionDataType>,
+    pub params: Vec<OperandDataType>,
+    pub results: Vec<OperandDataType>,
     pub alias_name: Option<String>,
 }
 
-#[derive(Debug, PartialEq)]
-pub enum FunctionDataType {
-    I64,
-    I32,
-    F64,
-    F32,
-}
+// #[derive(Debug, PartialEq)]
+// pub enum OperandDataType {
+//     I64,
+//     I32,
+//     F64,
+//     F32,
+// }
 
 #[derive(Debug, PartialEq)]
 pub struct ImportDataNode {
     pub data_section_type: DataSectionType,
     pub full_name: String,
-    pub data_type: ImportDataType,
+    pub data_type: MemoryDataType,
     pub alias_name: Option<String>,
-}
-
-#[derive(Debug, PartialEq)]
-pub enum ImportDataType {
-    I64,
-    I32,
-    F64,
-    F32,
-
-    // i.e. `byte[]`, which means that
-    // the target data can be arbitrary.
-    Bytes,
 }
 
 #[derive(Debug, PartialEq)]
@@ -135,18 +123,16 @@ pub enum ExternalNode {
 
 #[derive(Debug, PartialEq)]
 pub struct ExternalFunctionNode {
-    // pub library: String,
-    // pub name: String,
     pub full_name: String,
-    pub params: Vec<FunctionDataType>,
-    pub return_: Option<FunctionDataType>,
+    pub params: Vec<OperandDataType>,
+    pub result: Option<OperandDataType>,
     pub alias_name: Option<String>,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct ExternalDataNode {
     pub full_name: String,
-    pub data_type: ImportDataType,
+    pub data_type: MemoryDataType,
     pub alias_name: Option<String>,
 }
 
@@ -170,6 +156,10 @@ pub struct ExternalDataNode {
 
 #[derive(Debug, PartialEq)]
 pub struct DataNode {
+    // Used to indicate the visibility of this item when this
+    // module is used as a shared module.
+    // Note that in the case of static linking, the item is always
+    // visible to other modules, regardless of the value of this property.
     pub export: bool,
     pub name: String,
     pub data_section: DataSection,
@@ -219,10 +209,14 @@ pub enum DataValue {
 
 #[derive(Debug, PartialEq)]
 pub struct FunctionNode {
+    // Used to indicate the visibility of this item when this
+    // module is used as a shared module.
+    // Note that in the case of static linking, the item is always
+    // visible to other modules, regardless of the value of this property.
     pub export: bool,
     pub name: String,
     pub params: Vec<NamedParameter>,
-    pub returns: Vec<FunctionDataType>,
+    pub results: Vec<OperandDataType>,
     pub locals: Vec<LocalVariable>,
     pub body: Box<ExpressionNode>,
 }
@@ -230,7 +224,7 @@ pub struct FunctionNode {
 #[derive(Debug, PartialEq)]
 pub struct NamedParameter {
     pub name: String,
-    pub data_type: FunctionDataType,
+    pub data_type: OperandDataType,
 }
 
 #[derive(Debug, PartialEq)]
@@ -394,7 +388,7 @@ pub struct WhenNode {
 #[derive(Debug, PartialEq)]
 pub struct IfNode {
     pub params: Vec<NamedParameter>,
-    pub returns: Vec<FunctionDataType>,
+    pub results: Vec<OperandDataType>,
     pub testing: Box<ExpressionNode>,
     pub consequence: Box<ExpressionNode>,
     pub alternative: Box<ExpressionNode>,
@@ -403,7 +397,7 @@ pub struct IfNode {
 #[derive(Debug, PartialEq)]
 pub struct BlockNode {
     pub params: Vec<NamedParameter>,
-    pub returns: Vec<FunctionDataType>,
+    pub results: Vec<OperandDataType>,
     pub locals: Vec<LocalVariable>,
     pub body: Box<ExpressionNode>,
 }
@@ -441,6 +435,7 @@ pub enum ArgumentValue {
     //
     // - The name of function or data.
     // - A relative name path, e.g. "sub_module::some_func".
+    // - A relative name path starts with identifier imported by `use` statements.
     // - A full name, e.g. "module_name::sub_module::some_data".
     Identifier(String),
 
@@ -754,29 +749,6 @@ pub enum LiteralNumber {
 //     // currently the MIN value is 1.
 //     pub align: u16,
 // }
-
-impl Display for FunctionDataType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            FunctionDataType::I64 => f.write_str("i64"),
-            FunctionDataType::I32 => f.write_str("i32"),
-            FunctionDataType::F64 => f.write_str("f64"),
-            FunctionDataType::F32 => f.write_str("f32"),
-        }
-    }
-}
-
-impl Display for ImportDataType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ImportDataType::I64 => f.write_str("i64"),
-            ImportDataType::I32 => f.write_str("i32"),
-            ImportDataType::F64 => f.write_str("f64"),
-            ImportDataType::F32 => f.write_str("f32"),
-            ImportDataType::Bytes => f.write_str("byte[]"),
-        }
-    }
-}
 
 impl Display for DeclareDataType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
