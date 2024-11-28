@@ -6,7 +6,6 @@
 
 use crate::error::Error;
 
-
 //                 /-- selection start
 //                 |                 /-- selection length
 //                 v                 v

@@ -16,35 +16,14 @@ use anc_image::{
 #[derive(Debug)]
 pub struct ImageCommonEntry {
     /*
-    Note that this is the name of module/package,
-    it CANNOT be the sub-module name even if the current image is
-    the object file of a sub-module.
-    it CANNOT be a name path either.
-    */
+     * Note that this is the name of module/package,
+     * it CANNOT be the sub-module name even if the current image is
+     * the object file of a sub-module.
+     * it CANNOT be a name path either.
+     */
     pub name: String,
 
     pub image_type: ImageType,
-
-    // pub import_read_only_data_count: usize,
-    // pub import_read_write_data_count: usize,
-    // pub import_uninit_data_count: usize,
-    // pub import_data_count: usize,
-    // pub import_function_count: usize,
-
-    //    // pub runtime_version: EffectiveVersion,
-    //    // pub constructor_function_public_index: Option<u32>,
-    //    // pub destructor_function_public_index: Option<u32>,
-    pub read_only_data_entries: Vec<InitedDataEntry>,
-    pub read_write_data_entries: Vec<InitedDataEntry>,
-    pub uninit_data_entries: Vec<UninitDataEntry>,
-
-    pub type_entries: Vec<TypeEntry>,
-    pub local_list_entries: Vec<LocalVariableListEntry>,
-    pub function_entries: Vec<FunctionEntry>,
-
-    // the dependencies
-    pub external_library_entries: Vec<ExternalLibraryEntry>,
-    pub external_function_entries: Vec<ExternalFunctionEntry>,
 
     // the dependencies
     pub import_module_entries: Vec<ImportModuleEntry>,
@@ -55,11 +34,23 @@ pub struct ImageCommonEntry {
     pub import_function_entries: Vec<ImportFunctionEntry>,
     pub import_data_entries: Vec<ImportDataEntry>,
 
+    pub type_entries: Vec<TypeEntry>,
+    pub local_variable_list_entries: Vec<LocalVariableListEntry>,
+    pub function_entries: Vec<FunctionEntry>,
+
+    pub read_only_data_entries: Vec<InitedDataEntry>,
+    pub read_write_data_entries: Vec<InitedDataEntry>,
+    pub uninit_data_entries: Vec<UninitDataEntry>,
+
     // the name path entries only contain the internal functions.
     pub function_name_path_entries: Vec<FunctionNamePathEntry>,
 
     // the name path entries only contain the internal data items.
     pub data_name_path_entries: Vec<DataNamePathEntry>,
+
+    // the dependencies
+    pub external_library_entries: Vec<ExternalLibraryEntry>,
+    pub external_function_entries: Vec<ExternalFunctionEntry>,
 }
 
 /*

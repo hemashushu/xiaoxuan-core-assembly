@@ -7,8 +7,8 @@
 use anc_isa::{DataSectionType, OperandDataType};
 
 use crate::ast::{
-    ArgumentValue, BlockNode, BreakNode, DataNode, DataSection, DataValue, ExpressionNode,
-    ExternalDataNode, ExternalFunctionNode, ExternalNode, FunctionNode, IfNode, ImportDataNode,
+    ArgumentValue, BreakNode, DataNode, DataSection, DataValue, ExpressionNode, ExternalDataNode,
+    ExternalFunctionNode, ExternalNode, ForNode, FunctionNode, IfNode, ImportDataNode,
     ImportFunctionNode, ImportNode, InstructionNode, LiteralNumber, LocalVariable, ModuleNode,
     NamedParameter, WhenNode,
 };
@@ -251,11 +251,8 @@ fn format_expression(node: &ExpressionNode, indent_chars: &str, indent_level: us
             format_expression_when(when_node, indent_chars, indent_level)
         }
         ExpressionNode::If(if_node) => format_expression_if(if_node, indent_chars, indent_level),
-        ExpressionNode::Block(block_node) => {
-            format_expression_block(block_node, false, indent_chars, indent_level)
-        }
         ExpressionNode::For(for_node) => {
-            format_expression_block(for_node, true, indent_chars, indent_level)
+            format_expression_for(for_node, indent_chars, indent_level)
         }
         ExpressionNode::Break(break_node) => {
             format_expression_break(break_node, false, indent_chars, indent_level)
@@ -408,14 +405,9 @@ fn format_expression_if(node: &IfNode, indent_chars: &str, indent_level: usize) 
     )
 }
 
-fn format_expression_block(
-    node: &BlockNode,
-    is_for: bool,
-    indent_chars: &str,
-    indent_level: usize,
-) -> String {
+fn format_expression_for(node: &ForNode, indent_chars: &str, indent_level: usize) -> String {
     // ```
-    // block (...) -> (...)
+    // for (...) -> (...)
     //     [locals]
     //     expression
     // ```
@@ -424,8 +416,7 @@ fn format_expression_block(
 
     if node.locals.is_empty() {
         format!(
-            "{} {} -> {}\n{}{}",
-            /* title */ if is_for { "for" } else { "block" },
+            "for {} -> {}\n{}{}",
             /* params */ format_params(&node.params),
             /* results */ format_results(&node.results),
             indent,
@@ -433,8 +424,7 @@ fn format_expression_block(
         )
     } else {
         format!(
-            "{} {} -> {}\n{}{}\n{}{}",
-            /* title */ if is_for { "for" } else { "block" },
+            "for {} -> {}\n{}{}\n{}{}",
             /* params */ format_params(&node.params),
             /* results */ format_results(&node.results),
             indent,
@@ -704,9 +694,9 @@ mod tests {
 
     use crate::{
         ast::{
-            ArgumentValue, BlockNode, BreakNode, DataNode, DataSection, DataTypeValuePair,
-            DataValue, DeclareDataType, ExpressionNode, ExternalDataNode, ExternalFunctionNode,
-            ExternalNode, FixedDeclareDataType, FunctionNode, IfNode, ImportDataNode,
+            ArgumentValue, BreakNode, DataNode, DataSection, DataTypeValuePair, DataValue,
+            DeclareDataType, ExpressionNode, ExternalDataNode, ExternalFunctionNode, ExternalNode,
+            FixedDeclareDataType, ForNode, FunctionNode, IfNode, ImportDataNode,
             ImportFunctionNode, ImportNode, InstructionNode, LiteralNumber, LocalVariable,
             ModuleNode, NamedArgument, NamedParameter, WhenNode,
         },
@@ -1576,7 +1566,7 @@ fn foo() -> ()
     }
 
     #[test]
-    fn test_print_expression_block() {
+    fn test_print_expression_for() {
         let print = |node: &FunctionNode| {
             let mut buf: Vec<u8> = vec![];
             print_function_node(&mut buf, node, DEFAULT_INDENT_CHARS).unwrap();
@@ -1589,7 +1579,7 @@ fn foo() -> ()
             params: vec![],
             results: vec![],
             locals: vec![],
-            body: Box::new(ExpressionNode::Block(BlockNode {
+            body: Box::new(ExpressionNode::For(ForNode {
                 params: vec![],
                 results: vec![],
                 locals: vec![],
@@ -1616,7 +1606,7 @@ fn foo() -> ()
             print(&node0),
             "\
 fn foo() -> ()
-    block () -> ()
+    for () -> ()
         local_store_i32(out,
             imm_i32(11))"
         );
@@ -1628,7 +1618,7 @@ fn foo() -> ()
             params: vec![],
             results: vec![],
             locals: vec![],
-            body: Box::new(ExpressionNode::Block(BlockNode {
+            body: Box::new(ExpressionNode::For(ForNode {
                 params: vec![
                     NamedParameter {
                         name: "left".to_owned(),
@@ -1662,7 +1652,7 @@ fn foo() -> ()
             print(&node1),
             "\
 fn foo() -> ()
-    block (left:i32, right:i32) -> i32
+    for (left:i32, right:i32) -> i32
         [abc:i32, def:byte[32]]
         nop()"
         );
@@ -1674,7 +1664,7 @@ fn foo() -> ()
             params: vec![],
             results: vec![],
             locals: vec![],
-            body: Box::new(ExpressionNode::Block(BlockNode {
+            body: Box::new(ExpressionNode::For(ForNode {
                 params: vec![],
                 results: vec![],
                 locals: vec![LocalVariable {
@@ -1722,7 +1712,7 @@ fn foo() -> ()
             print(&node2),
             "\
 fn foo() -> ()
-    block () -> ()
+    for () -> ()
         [temp:i32]
         {
             local_store_i32(abc,
@@ -1730,33 +1720,6 @@ fn foo() -> ()
             local_store_i32(def,
                 imm_i32(31))
         }"
-        );
-
-        // test 'for'
-        let node3 = FunctionNode {
-            export: false,
-            name: "foo".to_owned(),
-            params: vec![],
-            results: vec![],
-            locals: vec![],
-            body: Box::new(ExpressionNode::For(BlockNode {
-                params: vec![],
-                results: vec![],
-                locals: vec![],
-                body: Box::new(ExpressionNode::Instruction(InstructionNode {
-                    name: "nop".to_owned(),
-                    positional_args: vec![],
-                    named_args: vec![],
-                })),
-            })),
-        };
-
-        assert_eq!(
-            print(&node3),
-            "\
-fn foo() -> ()
-    for () -> ()
-        nop()"
         );
     }
 

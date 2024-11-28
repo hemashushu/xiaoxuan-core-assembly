@@ -382,10 +382,12 @@ impl<'a> Lexer<'a> {
             Token::FullName(name_string)
         } else {
             match name_string.as_str() {
-                "use" | "as" | "import" | "external" | "fn" | "data" | "pub" | "readonly" | "uninit"
-                | "align" | "block" | "for" | "when" | "if" | "break" | "break_if" | "break_fn"
-                | "recur" | "recur_if" | "recur_fn" => Token::Keyword(name_string),
-                "i64" | "i32" | "i16" | "i8" | "f64" | "f32" | "byte" => Token::DataTypeName(name_string),
+                "import" | "as" | "external" | "fn" | "data" | "pub" | "readonly" | "uninit"
+                | "align" | "for" | "when" | "if" | "break" | "break_if" | "break_fn" | "recur"
+                | "recur_if" | "recur_fn" => Token::Keyword(name_string),
+                "i64" | "i32" | "i16" | "i8" | "f64" | "f32" | "byte" => {
+                    Token::DataTypeName(name_string)
+                }
                 _ => Token::Name(name_string),
             }
         };
@@ -1960,8 +1962,9 @@ mod tests {
     #[test]
     fn test_lex_punctuations() {
         assert_eq!(
-            lex_from_str_without_location(",:=->+-{}[]()").unwrap(),
+            lex_from_str_without_location("\n,:=->+-{}[]()").unwrap(),
             vec![
+                Token::NewLine,
                 Token::Comma,
                 Token::Colon,
                 Token::Equal,
@@ -2067,7 +2070,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lex_namepath() {
+    fn test_lex_full_name() {
         assert_eq!(
             lex_from_str("foo::bar a::bc::def a:b").unwrap(),
             vec![
@@ -2103,24 +2106,43 @@ mod tests {
     #[test]
     fn test_lex_keywords() {
         assert_eq!(
-            lex_from_str_without_location("use as external fn data pub readonly uninit").unwrap(),
+            lex_from_str_without_location(
+                "import as external fn data \
+pub readonly uninit align \
+for when if break break_if break_fn recur recur_if recur_fn"
+            )
+            .unwrap(),
             vec![
-                Token::new_keyword("use"),
+                Token::new_keyword("import"),
                 Token::new_keyword("as"),
                 Token::new_keyword("external"),
                 Token::new_keyword("fn"),
                 Token::new_keyword("data"),
+                //
                 Token::new_keyword("pub"),
                 Token::new_keyword("readonly"),
                 Token::new_keyword("uninit"),
+                Token::new_keyword("align"),
+                //
+                Token::new_keyword("for"),
+                Token::new_keyword("when"),
+                Token::new_keyword("if"),
+                Token::new_keyword("break"),
+                Token::new_keyword("break_if"),
+                Token::new_keyword("break_fn"),
+                Token::new_keyword("recur"),
+                Token::new_keyword("recur_if"),
+                Token::new_keyword("recur_fn"),
             ]
         );
 
         assert_eq!(
-            lex_from_str_without_location("i64 i32 f64 f32 byte").unwrap(),
+            lex_from_str_without_location("i64 i32 i16 i8 f64 f32 byte").unwrap(),
             vec![
                 Token::new_datatype_name("i64"),
                 Token::new_datatype_name("i32"),
+                Token::new_datatype_name("i16"),
+                Token::new_datatype_name("i8"),
                 Token::new_datatype_name("f64"),
                 Token::new_datatype_name("f32"),
                 Token::new_datatype_name("byte"),
@@ -2157,14 +2179,14 @@ mod tests {
 
     #[test]
     fn test_lex_multiline_location() {
-        // "[\n  use\n    data\n]"
+        // "[\n  for\n    data\n]"
         //  01 234567 890123456 7   // index
         //  00 111111 222222222 3   // line
         //  01 012345 012345678 0   // column
         //  11   3  1     4   1 1   // length
 
         assert_eq!(
-            lex_from_str("[\n  use\n    data\n]").unwrap(),
+            lex_from_str("[\n  for\n    data\n]").unwrap(),
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::LeftBracket,
@@ -2177,7 +2199,7 @@ mod tests {
                     1
                 ),
                 TokenWithRange::from_position_and_length(
-                    Token::new_keyword("use"),
+                    Token::new_keyword("for"),
                     &Location::new_position(0, 4, 1, 2),
                     3
                 ),

@@ -70,19 +70,15 @@ Note that:
 - If the expression has no params but has return values, the format is `() -> results`.
 - If the expression has no params and no return value, the entire `params -> results` can be omitted.
 
-### Block
+### For
 
-`block params -> results [locals] body`
+`for params -> results [locals] body`
 
 Where:
 
 - `params` is a list of parameters, e.g.`(left:i32, right:i32)`, or `()` if the expression has no parameteres, note that this part cannot be omitted.
 - `results` is a list of the types of return values, as in `if` expressions, and if there is no return value, the entire `-> ()` can be omitted.
 - `body` is an expression, usually it is a `group` expression.
-
-Variants:
-
-- `for (params) -> results [locals] body` a recurable block
 
 ### Break
 

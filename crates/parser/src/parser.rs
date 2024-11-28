@@ -8,7 +8,7 @@ use anc_isa::{DataSectionType, MemoryDataType, OperandDataType};
 
 use crate::{
     ast::{
-        ArgumentValue, BlockNode, BreakNode, DataNode, DataSection, DataTypeValuePair, DataValue,
+        ArgumentValue, ForNode, BreakNode, DataNode, DataSection, DataTypeValuePair, DataValue,
         DeclareDataType, ExpressionNode, ExternalDataNode, ExternalFunctionNode, ExternalNode,
         FixedDeclareDataType, FunctionNode, IfNode, ImportDataNode, ImportFunctionNode, ImportNode,
         InstructionNode, LiteralNumber, LocalVariable, ModuleNode, NamedArgument, NamedParameter,
@@ -1339,15 +1339,10 @@ impl<'a> Parser<'a> {
                     let if_node = self.parse_if_expression()?;
                     ExpressionNode::If(if_node)
                 }
-                Token::Keyword(keyword) if keyword == "block" => {
-                    // "block" expression
-                    let block_node = self.parse_block_expression()?;
-                    ExpressionNode::Block(block_node)
-                }
                 Token::Keyword(keyword) if keyword == "for" => {
                     // "for" expression
-                    let block_node = self.parse_block_expression()?;
-                    ExpressionNode::For(block_node)
+                    let for_node = self.parse_for_expression()?;
+                    ExpressionNode::For(for_node)
                 }
                 Token::Keyword(keyword)
                     if (keyword == "break" || keyword == "break_if" || keyword == "break_fn") =>
@@ -1570,12 +1565,12 @@ impl<'a> Parser<'a> {
         Ok(args)
     }
 
-    fn parse_block_expression(&mut self) -> Result<BlockNode, Error> {
-        // block params -> results [locals] body ?  //
+    fn parse_for_expression(&mut self) -> Result<ForNode, Error> {
+        // for params -> results [locals] body ?  //
         // ^                                     ^__// to here
         // |----------------------------------------// current token, validated
 
-        self.next_token(); // consume 'block' or 'for'
+        self.next_token(); // consume 'for'
         self.consume_new_line_if_exist();
 
         let (params, results) = if self.expect_token(0, &Token::LeftParen) {
@@ -1609,7 +1604,7 @@ impl<'a> Parser<'a> {
 
         self.consume_new_line_if_exist();
 
-        let node = BlockNode {
+        let node = ForNode {
             params,
             results,
             locals,
@@ -2442,18 +2437,18 @@ fn foo() -> ()
     }
 
     #[test]
-    fn test_parse_expression_block() {
+    fn test_parse_expression_for() {
         assert_eq!(
             format(
                 "\
 fn foo()
-    block (num:i32)
+    for (num:i32)
         imm_i32(11)
         "
             ),
             "\
 fn foo() -> ()
-    block (num:i32) -> ()
+    for (num:i32) -> ()
         imm_i32(11)
 "
         );
@@ -2463,13 +2458,13 @@ fn foo() -> ()
             format(
                 "\
 fn foo()
-    block (left:i32, right:i32)->i32
+    for (left:i32, right:i32)->i32
         imm_i32(11)
         "
             ),
             "\
 fn foo() -> ()
-    block (left:i32, right:i32) -> i32
+    for (left:i32, right:i32) -> i32
         imm_i32(11)
 "
         );
@@ -2479,13 +2474,13 @@ fn foo() -> ()
             format(
                 "\
 fn foo()
-    block ()->i32
+    for ()->i32
         imm_i32(11)
         "
             ),
             "\
 fn foo() -> ()
-    block () -> i32
+    for () -> i32
         imm_i32(11)
 "
         );
@@ -2495,12 +2490,12 @@ fn foo() -> ()
             format(
                 "\
 fn foo()
-    block imm_i32(11)
+    for imm_i32(11)
         "
             ),
             "\
 fn foo() -> ()
-    block () -> ()
+    for () -> ()
         imm_i32(11)
 "
         );
@@ -2510,7 +2505,7 @@ fn foo() -> ()
             format(
                 "\
 fn foo()
-block
+for
 (
 left
 :
@@ -2529,7 +2524,7 @@ imm_i32
             ),
             "\
 fn foo() -> ()
-    block (left:i32, right:i32) -> i32
+    for (left:i32, right:i32) -> i32
         imm_i32(11)
 "
         );
@@ -2541,7 +2536,7 @@ fn foo() -> ()
             format(
                 "\
 fn foo()
-    block {
+    for {
         break(imm_i32(11), imm_i32(13))
         break_if imm_i32(15) (imm_i32(17), imm_i32(23))
         break_fn(imm_i32(29))
@@ -2549,7 +2544,7 @@ fn foo()
             ),
             "\
 fn foo() -> ()
-    block () -> ()
+    for () -> ()
         {
             break(
                 imm_i32(11)
@@ -2573,7 +2568,7 @@ fn foo() -> ()
             format(
                 "\
 fn foo()
-block
+for
 break_if
 imm_i32
 (
@@ -2593,7 +2588,7 @@ imm_i32
             ),
             "\
 fn foo() -> ()
-    block () -> ()
+    for () -> ()
         break_if
             imm_i32(15)
             (
@@ -2610,7 +2605,7 @@ fn foo() -> ()
             format(
                 "\
 fn foo()
-    block {
+    for {
         recur(imm_i32(11), imm_i32(13))
         recur_if imm_i32(15) (imm_i32(17), imm_i32(23))
         recur_fn(imm_i32(29))
@@ -2618,7 +2613,7 @@ fn foo()
             ),
             "\
 fn foo() -> ()
-    block () -> ()
+    for () -> ()
         {
             recur(
                 imm_i32(11)
@@ -2642,7 +2637,7 @@ fn foo() -> ()
             format(
                 "\
 fn foo()
-block
+for
 recur_if
 imm_i32
 (
@@ -2662,7 +2657,7 @@ imm_i32
             ),
             "\
 fn foo() -> ()
-    block () -> ()
+    for () -> ()
         recur_if
             imm_i32(15)
             (
