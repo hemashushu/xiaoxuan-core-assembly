@@ -288,3 +288,4 @@ impl Display for FixedDeclareDataType {
         }
     }
 }
+

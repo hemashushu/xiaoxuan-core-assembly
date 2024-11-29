@@ -6,7 +6,6 @@
 
 - [Instructions](#instructions)
   - [Base](#base)
-  - [Immediately Numbers](#immediately-numbers)
   - [Local Loading/Storing](#local-loadingstoring)
   - [Local Loading/Storing Extension](#local-loadingstoring-extension)
   - [Data Loading/Storing](#data-loadingstoring)
@@ -72,7 +71,7 @@ Instruction expressions have an almost one-to-one correspondence with the instru
 nop()  ->  ()
 ```
 
-### Immediately Numbers
+Immediately numbers
 
 ```rust
 imm_i32(literal_i32) -> i32

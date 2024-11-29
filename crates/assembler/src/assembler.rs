@@ -18,8 +18,9 @@ use anc_isa::{
     OperandDataType,
 };
 use anc_parser_asm::ast::{
-    DataNode, DataSection, ExpressionNode, ExternalNode, FixedDeclareDataType, FunctionNode,
-    ImportNode, InstructionNode, LocalVariable, ModuleNode, NamedParameter,
+    DataNode, DataSection, DataTypeValuePair, DataValue, DeclareDataType, ExpressionNode,
+    ExternalNode, FixedDeclareDataType, FunctionNode, ImportNode, InstructionNode, LocalVariable,
+    ModuleNode, NamedParameter,
 };
 
 use crate::{entry::ImageCommonEntry, AssembleError};
@@ -1901,60 +1902,79 @@ struct AssembleResultForDataNodes {
     uninit_data_entries: Vec<UninitDataEntry>,
 }
 
+fn conver_data_type_value_pair_to_inited_data_entry(
+    data_type_value_pair: &DataTypeValuePair,
+) -> Result<InitedDataEntry, AssembleError> {
+    let entry = match data_type_value_pair.data_type {
+        DeclareDataType::I64 => {
+            InitedDataEntry::from_i64(read_data_value_as_i64(&data_type_value_pair.value)?)
+        }
+        DeclareDataType::I32 => {
+            InitedDataEntry::from_i32(read_data_value_as_i32(&data_type_value_pair.value)?)
+        }
+        DeclareDataType::F64 => {
+            InitedDataEntry::from_f64(read_data_value_as_f64(&data_type_value_pair.value)?)
+        }
+        DeclareDataType::F32 => {
+            InitedDataEntry::from_f32(read_data_value_as_f32(&data_type_value_pair.value)?)
+        }
+        DeclareDataType::Bytes(opt_align) => InitedDataEntry::from_bytes(
+            read_data_value_as_bytes(&data_type_value_pair.value)?,
+            opt_align.unwrap_or(1) as u16,
+        ),
+        DeclareDataType::FixedBytes(length, opt_align) => {
+            let mut bytes = read_data_value_as_bytes(&data_type_value_pair.value)?;
+            bytes.resize(length, 0);
+            InitedDataEntry::from_bytes(bytes, opt_align.unwrap_or(1) as u16)
+        }
+    };
+    Ok(entry)
+}
+
+fn convert_fixed_declare_data_type_to_uninit_data_entry(
+    fixed_declare_data_type: &FixedDeclareDataType,
+) -> UninitDataEntry {
+    match fixed_declare_data_type {
+        FixedDeclareDataType::I64 => UninitDataEntry::from_i64(),
+        FixedDeclareDataType::I32 => UninitDataEntry::from_i32(),
+        FixedDeclareDataType::F64 => UninitDataEntry::from_f64(),
+        FixedDeclareDataType::F32 => UninitDataEntry::from_f32(),
+        FixedDeclareDataType::FixedBytes(length, opt_align) => {
+            UninitDataEntry::from_bytes(*length as u32, opt_align.unwrap_or(1) as u16)
+        }
+    }
+}
+
 fn assemble_data_nodes(
     data_nodes: &[DataNode],
-    // read_write_data_nodes: &[CanonicalDataNode],
-    // uninit_data_nodes: &[CanonicalDataNode],
 ) -> Result<AssembleResultForDataNodes, AssembleError> {
-    //     let read_only_data_entries = read_only_data_nodes
-    //         .iter()
-    //         .map(|node| match &node.data_kind {
-    //             DataDetailNode::ReadOnly(src) => InitedDataEntry {
-    //                 memory_data_type: src.memory_data_type,
-    //                 data: src.value.clone(),
-    //                 length: src.length,
-    //                 align: src.align,
-    //             },
-    //             _ => unreachable!(),
-    //         })
-    //         .collect::<Vec<_>>();
-    //
-    //     let read_write_data_entries = read_write_data_nodes
-    //         .iter()
-    //         .map(|node| match &node.data_kind {
-    //             DataDetailNode::ReadWrite(src) => InitedDataEntry {
-    //                 memory_data_type: src.memory_data_type,
-    //                 data: src.value.clone(),
-    //                 length: src.length,
-    //                 align: src.align,
-    //             },
-    //             _ => unreachable!(),
-    //         })
-    //         .collect::<Vec<_>>();
-    //
-    //     let uninit_data_entries = uninit_data_nodes
-    //         .iter()
-    //         .map(|node| match &node.data_kind {
-    //             DataDetailNode::Uninit(src) => UninitDataEntry {
-    //                 memory_data_type: src.memory_data_type,
-    //                 length: src.length,
-    //                 align: src.align,
-    //             },
-    //             _ => unreachable!(),
-    //         })
-    //         .collect::<Vec<_>>();
+    let mut read_only_data_entries: Vec<InitedDataEntry> = vec![];
+    let mut read_write_data_entries: Vec<InitedDataEntry> = vec![];
+    let mut uninit_data_entries: Vec<UninitDataEntry> = vec![];
+
+    for data_node in data_nodes {
+        match &data_node.data_section {
+            DataSection::ReadOnly(data_type_value_pair) => {
+                read_only_data_entries.push(conver_data_type_value_pair_to_inited_data_entry(
+                    data_type_value_pair,
+                )?);
+            }
+            DataSection::ReadWrite(data_type_value_pair) => {
+                read_write_data_entries.push(conver_data_type_value_pair_to_inited_data_entry(
+                    data_type_value_pair,
+                )?);
+            }
+            DataSection::Uninit(fixed_declare_data_type) => uninit_data_entries.push(
+                convert_fixed_declare_data_type_to_uninit_data_entry(fixed_declare_data_type),
+            ),
+        }
+    }
 
     Ok(AssembleResultForDataNodes {
-        read_only_data_entries: vec![],
-        read_write_data_entries: vec![],
-        uninit_data_entries: vec![],
+        read_only_data_entries,
+        read_write_data_entries,
+        uninit_data_entries,
     })
-
-    // Ok(AssembleResultForDataNodes{
-    //     read_only_data_entries,
-    //     read_write_data_entries,
-    //     uninit_data_entries,
-    // })
 }
 
 struct AssembleResultForDependencies {
@@ -2164,6 +2184,93 @@ fn assemble_external_nodes(
     })
 }
 
+fn read_data_value_as_i32(data_value: &DataValue) -> Result<u32, AssembleError> {
+    match data_value {
+        DataValue::I8(v) => Ok(*v as u32),
+        DataValue::I16(v) => Ok(*v as u32),
+        DataValue::I64(v) => Ok(*v as u32),
+        DataValue::I32(v) => Ok(*v),
+        DataValue::F64(v) => Err(AssembleError {
+            message: format!("Can not convert f64 \"{}\" into i32", v),
+        }),
+        DataValue::F32(v) => Err(AssembleError {
+            message: format!("Can not convert f32 \"{}\" into i32", v),
+        }),
+        DataValue::String(_) => Err(AssembleError::new("Can not convert string into i32.")),
+        DataValue::ByteData(_) => Err(AssembleError::new("Can not convert byte data into i32.")),
+        DataValue::List(_) => Err(AssembleError::new("Can not convert list data into i32.")),
+    }
+}
+
+fn read_data_value_as_i64(data_value: &DataValue) -> Result<u64, AssembleError> {
+    match data_value {
+        DataValue::I8(v) => Ok(*v as u64),
+        DataValue::I16(v) => Ok(*v as u64),
+        DataValue::I64(v) => Ok(*v),
+        DataValue::I32(v) => Ok(*v as u64),
+        DataValue::F64(v) => Err(AssembleError {
+            message: format!("Can not convert f64 \"{}\" into i64", v),
+        }),
+        DataValue::F32(v) => Err(AssembleError {
+            message: format!("Can not convert f32 \"{}\" into i64", v),
+        }),
+        DataValue::String(_) => Err(AssembleError::new("Can not convert string into i64.")),
+        DataValue::ByteData(_) => Err(AssembleError::new("Can not convert byte data into i64.")),
+        DataValue::List(_) => Err(AssembleError::new("Can not convert list data into i64.")),
+    }
+}
+
+fn read_data_value_as_f32(data_value: &DataValue) -> Result<f32, AssembleError> {
+    match data_value {
+        DataValue::I8(v) => Ok(*v as f32),
+        DataValue::I16(v) => Ok(*v as f32),
+        DataValue::I64(v) => Ok(*v as f32),
+        DataValue::I32(v) => Ok(*v as f32),
+        DataValue::F64(v) => Ok(*v as f32),
+        DataValue::F32(v) => Ok(*v),
+        DataValue::String(_) => Err(AssembleError::new("Can not convert string into f32.")),
+        DataValue::ByteData(_) => Err(AssembleError::new("Can not convert byte data into f32.")),
+        DataValue::List(_) => Err(AssembleError::new("Can not convert list data into f32.")),
+    }
+}
+
+fn read_data_value_as_f64(data_value: &DataValue) -> Result<f64, AssembleError> {
+    match data_value {
+        DataValue::I8(v) => Ok(*v as f64),
+        DataValue::I16(v) => Ok(*v as f64),
+        DataValue::I64(v) => Ok(*v as f64),
+        DataValue::I32(v) => Ok(*v as f64),
+        DataValue::F64(v) => Ok(*v),
+        DataValue::F32(v) => Ok(*v as f64),
+        DataValue::String(_) => Err(AssembleError::new("Can not convert string into f64.")),
+        DataValue::ByteData(_) => Err(AssembleError::new("Can not convert byte data into f64.")),
+        DataValue::List(_) => Err(AssembleError::new("Can not convert list data into f64.")),
+    }
+}
+
+fn read_data_value_as_bytes(data_value: &DataValue) -> Result<Vec<u8>, AssembleError> {
+    let bytes = match data_value {
+        DataValue::I8(v) => v.to_le_bytes().to_vec(),
+        DataValue::I16(v) => v.to_le_bytes().to_vec(),
+        DataValue::I64(v) => v.to_le_bytes().to_vec(),
+        DataValue::I32(v) => v.to_le_bytes().to_vec(),
+        DataValue::F64(v) => v.to_le_bytes().to_vec(),
+        DataValue::F32(v) => v.to_le_bytes().to_vec(),
+        DataValue::String(v) => v.as_bytes().to_vec(),
+        DataValue::ByteData(v) => v.to_owned(),
+        DataValue::List(v) => {
+            let mut bytes: Vec<u8> = vec![];
+            for item in v {
+                let mut b = read_data_value_as_bytes(item)?;
+                bytes.append(&mut b);
+            }
+            bytes
+        }
+    };
+
+    Ok(bytes)
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -2191,7 +2298,22 @@ mod tests {
     }
 
     #[test]
-    fn test_assemble_module() {
+    fn test_assemble_import() {
+        // todo
+    }
+
+    #[test]
+    fn test_assemble_external() {
+        // todo
+    }
+
+    #[test]
+    fn test_assemble_data() {
+        // todo
+    }
+
+    #[test]
+    fn test_assemble_function() {
         let entry = assemble(
             r#"
         fn add(left:i32, right:i32) -> i32 nop()
@@ -2199,333 +2321,92 @@ mod tests {
         );
 
         println!("{:#?}", entry);
+
+        // todo
     }
 
-    //     #[test]
-    //     fn test_assemble() {
-    //         let submodule_sources = &[
-    //             r#"
-    //         (module $myapp
-    //             (runtime_version "1.0")
-    //             (constructor $init)
-    //             (destructor $exit)
-    //             (depend
-    //                 (module $math share "math" "1.0")
-    //                 (library $libc system "libc.so.6")
-    //             )
-    //             (data $SUCCESS (read_only i64 0))
-    //             (data $FAILURE (read_only i64 1))
-    //             (function $entry
-    //                 (result i64)
-    //                 (code
-    //                     (call $package::utils::add
-    //                         (extcall $package::utils::getuid)
-    //                         (data.load32_i32 $package::utils::seed)
-    //                     )
-    //                     (data.load64_i64 $SUCCESS)
-    //                 )
-    //             )
-    //             (function $init
-    //                 (code
-    //                     (data.store32 $package::utils::buf (i32.imm 0))
-    //                 )
-    //             )
-    //             (function $exit
-    //                 (code
-    //                     nop
-    //                 )
-    //             )
-    //         )
-    //         "#,
-    //             r#"
-    //         (module $myapp::utils
-    //             (import $math
-    //                 (function $wrap_add "wrap::add"
-    //                     (params i32 i32)
-    //                     (result i32)
-    //                 )
-    //                 (data $seed "seed" read_only i32)
-    //             )
-    //             (external $libc
-    //                 (function $getuid "getuid" (result i32))
-    //             )
-    //             (data $buf (read_write bytes h"11131719" 2))
-    //             (function export $add
-    //                 (param $left i32) (param $right i32)
-    //                 (result i64)
-    //                 (code
-    //                     (call $wrap_add
-    //                         (local.load32_i32 $left)
-    //                         (local.load32_i32 $right)
-    //                     )
-    //                 )
-    //             )
-    //         )
-    //         "#,
-    //         ];
-    //
-    //         let submodule_nodes = submodule_sources
-    //             .iter()
-    //             .map(|source| {
-    //                 let mut chars = source.chars();
-    //                 let mut char_iter = PeekableIterator::new(&mut chars, 3);
-    //                 let all_tokens = lex(&mut char_iter).unwrap();
-    //                 let effective_tokens = filter(&all_tokens);
-    //                 let mut token_iter = effective_tokens.into_iter();
-    //                 let mut peekable_token_iter = PeekableIterator::new(&mut token_iter, 2);
-    //                 parse(&mut peekable_token_iter, None).unwrap()
-    //             })
-    //             .collect::<Vec<_>>();
-    //
-    //         let merged_module_node =
-    //             merge_and_canonicalize_submodule_nodes(&submodule_nodes, None, None).unwrap();
-    //         let (module_entry, _) = assemble_merged_module_node(&merged_module_node).unwrap();
-    //
-    //         assert_eq!(module_entry.name, "myapp");
-    //         assert_eq!(module_entry.runtime_version, EffectiveVersion::new(1, 0));
-    //
-    //         assert_eq!(module_entry.import_function_count, 1);
-    //         assert_eq!(module_entry.import_read_only_data_count, 1);
-    //         assert_eq!(module_entry.import_read_write_data_count, 0);
-    //         assert_eq!(module_entry.import_uninit_data_count, 0);
-    //
-    //         assert_eq!(module_entry.constructor_function_public_index, Some(2));
-    //         assert_eq!(module_entry.destructor_function_public_index, Some(3));
-    //
-    //         // check import entries
-    //
-    //         assert_eq!(
-    //             module_entry.import_module_entries,
-    //             vec![ImportModuleEntry {
-    //                 name: "math".to_owned(),
-    //                 module_share_type: ModuleShareType::Share,
-    //                 // version_major: 1,
-    //                 // version_minor: 0
-    //                 module_version: EffectiveVersion::new(1, 0)
-    //             }]
-    //         );
-    //
-    //         assert_eq!(
-    //             module_entry.import_function_entries,
-    //             vec![ImportFunctionEntry {
-    //                 name_path: "wrap::add".to_owned(),
-    //                 import_module_index: 0,
-    //                 type_index: 0
-    //             }]
-    //         );
-    //
-    //         assert_eq!(
-    //             module_entry.import_data_entries,
-    //             vec![ImportDataEntry {
-    //                 name_path: "seed".to_owned(),
-    //                 import_module_index: 0,
-    //                 data_section_type: DataSectionType::ReadOnly,
-    //                 memory_data_type: MemoryDataType::I32
-    //             }]
-    //         );
-    //
-    //         // check external entries
-    //
-    //         assert_eq!(
-    //             module_entry.external_library_entries,
-    //             vec![ExternalLibraryEntry {
-    //                 name: "libc.so.6".to_owned(),
-    //                 external_library_type: ExternalLibraryType::System
-    //             }]
-    //         );
-    //
-    //         assert_eq!(
-    //             module_entry.external_function_entries,
-    //             vec![ExternalFunctionEntry {
-    //                 name: "getuid".to_owned(),
-    //                 external_library_index: 0,
-    //                 type_index: 1
-    //             }]
-    //         );
-    //
-    //         // check function entries
-    //         assert_eq!(module_entry.function_entries.len(), 4);
-    //
-    //         let function_entry0 = &module_entry.function_entries[0];
-    //         assert_eq!(function_entry0.type_index, 2);
-    //         assert_eq!(function_entry0.local_list_index, 0);
-    //         assert_eq!(
-    //             format_bytecode_as_text(&function_entry0.code),
-    //             "\
-    // 0x0000  04 0b 00 00  00 00 00 00    extcall           idx:0
-    // 0x0008  02 03 00 00  00 00 00 00    data.load32_i32   off:0x00  idx:0
-    // 0x0010  00 0b 00 00  04 00 00 00    call              idx:4
-    // 0x0018  00 03 00 00  01 00 00 00    data.load64_i64   off:0x00  idx:1
-    // 0x0020  00 0a                       end"
-    //         );
-    //
-    //         let function_entry1 = &module_entry.function_entries[1];
-    //         assert_eq!(function_entry1.type_index, 3);
-    //         assert_eq!(function_entry1.local_list_index, 0);
-    //         assert_eq!(
-    //             format_bytecode_as_text(&function_entry1.code),
-    //             "\
-    // 0x0000  80 01 00 00  00 00 00 00    i32.imm           0x00000000
-    // 0x0008  09 03 00 00  03 00 00 00    data.store32      off:0x00  idx:3
-    // 0x0010  00 0a                       end"
-    //         );
-    //
-    //         let function_entry2 = &module_entry.function_entries[2];
-    //         assert_eq!(function_entry2.type_index, 3);
-    //         assert_eq!(function_entry2.local_list_index, 0);
-    //         assert_eq!(
-    //             format_bytecode_as_text(&function_entry2.code),
-    //             "\
-    // 0x0000  00 01                       nop
-    // 0x0002  00 0a                       end"
-    //         );
-    //
-    //         let function_entry3 = &module_entry.function_entries[3];
-    //         assert_eq!(function_entry3.type_index, 4);
-    //         assert_eq!(function_entry3.local_list_index, 1);
-    //         assert_eq!(
-    //             format_bytecode_as_text(&function_entry3.code),
-    //             "\
-    // 0x0000  02 02 00 00  00 00 00 00    local.load32_i32  rev:0   off:0x00  idx:0
-    // 0x0008  02 02 00 00  00 00 01 00    local.load32_i32  rev:0   off:0x00  idx:1
-    // 0x0010  00 0b 00 00  00 00 00 00    call              idx:0
-    // 0x0018  00 0a                       end"
-    //         );
-    //
-    //         // check data entries
-    //
-    //         assert_eq!(
-    //             module_entry.read_only_data_entries,
-    //             vec![
-    //                 InitedDataEntry {
-    //                     memory_data_type: MemoryDataType::I64,
-    //                     data: 0u64.to_le_bytes().to_vec(),
-    //                     length: 8,
-    //                     align: 8
-    //                 },
-    //                 InitedDataEntry {
-    //                     memory_data_type: MemoryDataType::I64,
-    //                     data: 1u64.to_le_bytes().to_vec(),
-    //                     length: 8,
-    //                     align: 8
-    //                 },
-    //             ]
-    //         );
-    //
-    //         assert_eq!(
-    //             module_entry.read_write_data_entries,
-    //             vec![InitedDataEntry {
-    //                 memory_data_type: MemoryDataType::Bytes,
-    //                 data: vec![0x11u8, 0x13, 0x17, 0x19],
-    //                 length: 4,
-    //                 align: 2
-    //             },]
-    //         );
-    //
-    //         assert_eq!(module_entry.uninit_data_entries.len(), 0);
-    //
-    //         // check type entries
-    //
-    //         assert_eq!(
-    //             module_entry.type_entries,
-    //             vec![
-    //                 TypeEntry {
-    //                     params: vec![DataType::I32, DataType::I32],
-    //                     results: vec![DataType::I32]
-    //                 },
-    //                 TypeEntry {
-    //                     params: vec![],
-    //                     results: vec![DataType::I32]
-    //                 },
-    //                 TypeEntry {
-    //                     params: vec![],
-    //                     results: vec![DataType::I64]
-    //                 },
-    //                 TypeEntry {
-    //                     params: vec![],
-    //                     results: vec![]
-    //                 },
-    //                 TypeEntry {
-    //                     params: vec![DataType::I32, DataType::I32],
-    //                     results: vec![DataType::I64]
-    //                 },
-    //             ]
-    //         );
-    //
-    //         // check local list entries
-    //
-    //         assert_eq!(
-    //             module_entry.local_list_entries,
-    //             vec![
-    //                 LocalListEntry {
-    //                     local_variable_entries: vec![]
-    //                 },
-    //                 LocalListEntry {
-    //                     local_variable_entries: vec![
-    //                         LocalVariableEntry {
-    //                             memory_data_type: MemoryDataType::I32,
-    //                             length: 4,
-    //                             align: 4
-    //                         },
-    //                         LocalVariableEntry {
-    //                             memory_data_type: MemoryDataType::I32,
-    //                             length: 4,
-    //                             align: 4
-    //                         }
-    //                     ]
-    //                 }
-    //             ]
-    //         );
-    //
-    //         // check function names
-    //
-    //         assert_eq!(
-    //             module_entry.function_name_entries,
-    //             vec![
-    //                 FunctionNameEntry {
-    //                     name_path: "entry".to_owned(),
-    //                     function_public_index: 1,
-    //                     export: false
-    //                 },
-    //                 FunctionNameEntry {
-    //                     name_path: "init".to_owned(),
-    //                     function_public_index: 2,
-    //                     export: false
-    //                 },
-    //                 FunctionNameEntry {
-    //                     name_path: "exit".to_owned(),
-    //                     function_public_index: 3,
-    //                     export: false
-    //                 },
-    //                 FunctionNameEntry {
-    //                     name_path: "utils::add".to_owned(),
-    //                     function_public_index: 4,
-    //                     export: true
-    //                 },
-    //             ]
-    //         );
-    //
-    //         // check data names
-    //
-    //         assert_eq!(
-    //             module_entry.data_name_entries,
-    //             vec![
-    //                 DataNameEntry {
-    //                     name_path: "SUCCESS".to_owned(),
-    //                     data_public_index: 1,
-    //                     export: false
-    //                 },
-    //                 DataNameEntry {
-    //                     name_path: "FAILURE".to_owned(),
-    //                     data_public_index: 2,
-    //                     export: false
-    //                 },
-    //                 DataNameEntry {
-    //                     name_path: "utils::buf".to_owned(),
-    //                     data_public_index: 3,
-    //                     export: false
-    //                 }
-    //             ]
-    //         )
-    //     }
+    #[test]
+    fn test_assemble_expression_group() {
+        // todo
+    }
+
+    #[test]
+    fn test_assemble_expression_when() {
+        // todo
+    }
+
+    #[test]
+    fn test_assemble_expression_if() {
+        // todo
+    }
+
+    #[test]
+    fn test_assemble_expression_for() {
+        // todo
+    }
+
+    #[test]
+    fn test_assemble_expression_break_fn() {
+        // todo
+    }
+
+    #[test]
+    fn test_assemble_expression_recur_fn() {
+        // todo
+    }
+
+    #[test]
+    fn test_assemble_instruction_base() {
+        // todo
+    }
+
+    #[test]
+    fn test_assemble_instruction_local_load_store() {
+        // todo
+    }
+
+    #[test]
+    fn test_assemble_instruction_data_load_store() {
+        // todo
+    }
+
+    #[test]
+    fn test_assemble_instruction_heap_load_store() {
+        // todo
+    }
+
+    #[test]
+    fn test_assemble_instruction_conversion() {
+        // todo
+    }
+
+    #[test]
+    fn test_assemble_instruction_comparison() {
+        // todo
+    }
+
+    #[test]
+    fn test_assemble_instruction_arithmetic() {
+        // todo
+    }
+
+    #[test]
+    fn test_assemble_instruction_bitwise() {
+        // todo
+    }
+
+    #[test]
+    fn test_assemble_instruction_math() {
+        // todo
+    }
+
+    #[test]
+    fn test_assemble_instruction_calling() {
+        // todo
+    }
+
+    #[test]
+    fn test_assemble_instruction_host() {
+        // todo
+    }
 }

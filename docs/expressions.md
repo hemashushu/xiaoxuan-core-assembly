@@ -6,9 +6,9 @@
 
 - [Groups](#groups)
 - [Control Flow Expressions](#control-flow-expressions)
-  - [Condition without branch](#condition-without-branch)
-  - [Condition with branch](#condition-with-branch)
-  - [Block](#block)
+  - [When](#when)
+  - [If](#if)
+  - [For](#for)
   - [Break](#break)
   - [Recur](#recur)
 
@@ -40,7 +40,9 @@ For example:
 
 ## Control Flow Expressions
 
-### Condition without branch
+### When
+
+Condition without branch.
 
 `when testing [locals] consequence`
 
@@ -51,7 +53,9 @@ Where:
 
 `when` expressions have no return value.
 
-### Condition with branch
+### If
+
+Condition with alternative branch.
 
 `if params -> results tesing consequence alternative`
 
@@ -105,3 +109,4 @@ Variants:
   Recur only when the `testing` expression returns true.
 - `recur_fn (value0, value1, ...)`
   Recur to the current function.
+

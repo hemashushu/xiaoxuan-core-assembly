@@ -5,6 +5,9 @@
 <!-- code_chunk_output -->
 
 - [The `import` Statements](#the-import-statements)
+  - [Multi-Source File Modules](#multi-source-file-modules)
+  - [Importing Public Functions and Data](#importing-public-functions-and-data)
+  - [Importing Functions and Data within the Same Module](#importing-functions-and-data-within-the-same-module)
 - [The `external` Statements](#the-external-statements)
 - [The `data` Statements](#the-data-statements)
 - [The `fn` Statements](#the-fn-statements)
@@ -69,6 +72,63 @@ Where:
 - `full_name` = `module_name::name_path`
 - `name_path` = `namespace::identifier`
 - `namespace` = `sub_module_name::`{0,}
+
+### Multi-Source File Modules
+
+XiaoXuan Core modules (including "applications" and "shared" modules) can consist of either a single file or multiple files located in the same folder (commonly referred to as a "project folder"). Single-file modules can only serve as script applications and cannot be shared modules. Therefore, shared modules and more complex applications are composed of multiple source files.
+
+In a module composed of multiple source files, each source file is a "submodule". For example, in a module named "hello_world", if there are two files, "one.ancasm" and "two.ancasm", inside the "src" folder (note: XiaoXuan Core requires that project source files must be placed inside the "src" folder), then the submodule names of these two files are "one" and "two" respectively.
+
+If there is a subfolder inside the "src" folder, and there are source files in that subfolder, then the name of that subfolder will also be part of the submodule name.
+
+The correspondence between file names and module names is shown in the following table:
+
+| File                   | Submodule name | Full submodule name     |
+|------------------------|----------------|-------------------------|
+| ./src/one.ancasm       | one            | hello_world::one        |
+| ./src/two.ancasm       | two            | hello_world::two        |
+| ./src/utils/foo.ancasm | utils::foo     | hello_world::utils::foo |
+| ./src/utils/codegen/bar.ancasm | utils::codegen::bar | hello_world::utils::codegen::bar |
+| ./src/lib.ancasm       | -              | hello_world             |
+
+### Importing Public Functions and Data
+
+When importing public functions and data located within a submodule, the name of the submodule must be added. For example, if there is a function "do_this()" in the submodule "foo", the import statement would be:
+
+`import fn hello_world::one::do_this()`
+
+Note that in the table above, the submodule name for the file "lib.ancasm" is empty (i.e., ""), because this file is the top-level file of the module. When importing public functions and data that reside in the main file, it is not necessary to add the submodule name. For example, if there is a function "do_that()" in "lib.ancasm", the import statement would be:
+
+`import fn hello_world::do_that()`
+
+For applications, there is also a file "src/app.ancasm", which is also the top-level file of the module, so the submodule name is also empty.
+
+| File             | Submodule name | Full submodule name |
+|------------------|----------------|---------------------|
+| ./src/app.ancasm | -              | -                   |
+
+It's worth nothing that the source files for "multiple executable units" in the "app" folder, as well as the unit test source files in the "test" folder, although they are also normal submodules, cannot be imported by other modules.
+
+| File              | Submodule name | Full submodule name |
+|-------------------|----------------|---------------------|
+| ./app/cmd1.ancasm | cmd1           | hello_world::cmd1   |
+| ./app/cmd2.ancasm | cmd2           | hello_world::cmd2   |
+| ./test/one.ancasm | one            | hello_world::one    |
+| ./test/utils/foo.ancasm | utils::foo | hello_world::utils::foo |
+
+Source files in the "test" folder are generated only during unit testing and are not included in the binary image of the module for distribution. Therefore, never import unit test functions and data.
+
+> Note: Unlike XiaoXuan Core, all executable units in XiaoXuan Native are independent, so like top-level files, they do not have submodule names.
+
+### Importing Functions and Data within the Same Module
+
+If you want to import functions and data located in other submodules within the same module, you must use the special name "module" instead of the actual name of the current module, e.g.:
+
+- `import fn module::hello_world::do_this()`
+- `import fn module::hello_world::one::do_that()`
+- `import readonly data module::hello_world::two::message:byte[]`
+
+> Note: Do not use the actual name of the current module in this case, otherwise the assembler will assume that you are importing an external module.
 
 ## The `external` Statements
 
