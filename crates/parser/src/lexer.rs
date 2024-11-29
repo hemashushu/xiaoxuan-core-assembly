@@ -8,7 +8,7 @@ pub const LEXER_PEEK_CHAR_MAX_COUNT: usize = 3;
 
 use crate::{
     charposition::{CharWithPosition, CharsWithPositionIter},
-    error::Error,
+    error::ParserError,
     location::Location,
     peekableiter::PeekableIter,
     token::{NumberToken, NumberType},
@@ -16,7 +16,7 @@ use crate::{
 
 use super::token::{Comment, Token, TokenWithRange};
 
-pub fn lex_from_str(s: &str) -> Result<Vec<TokenWithRange>, Error> {
+pub fn lex_from_str(s: &str) -> Result<Vec<TokenWithRange>, ParserError> {
     let mut chars = s.chars();
     let mut char_position_iter = CharsWithPositionIter::new(0, &mut chars);
     let mut peekable_char_position_iter =
@@ -83,7 +83,7 @@ impl<'a> Lexer<'a> {
 }
 
 impl<'a> Lexer<'a> {
-    fn lex(&mut self) -> Result<Vec<TokenWithRange>, Error> {
+    fn lex(&mut self) -> Result<Vec<TokenWithRange>, ParserError> {
         let mut token_with_ranges = vec![];
 
         while let Some(current_char) = self.peek_char(0) {
@@ -273,7 +273,7 @@ impl<'a> Lexer<'a> {
                     token_with_ranges.push(self.lex_identifier()?);
                 }
                 current_char => {
-                    return Err(Error::MessageWithLocation(
+                    return Err(ParserError::MessageWithLocation(
                         format!("Unexpected char '{}'.", current_char),
                         *self.peek_position(0).unwrap(),
                     ));
@@ -298,7 +298,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn lex_identifier(&mut self) -> Result<TokenWithRange, Error> {
+    fn lex_identifier(&mut self) -> Result<TokenWithRange, ParserError> {
         // key_nameT  //
         // ^       ^__// to here
         // |__________// current char, validated
@@ -365,7 +365,7 @@ impl<'a> Lexer<'a> {
                     break;
                 }
                 _ => {
-                    return Err(Error::MessageWithLocation(
+                    return Err(ParserError::MessageWithLocation(
                         format!("Invalid char '{}' for identifier.", current_char),
                         *self.peek_position(0).unwrap(),
                     ));
@@ -395,7 +395,7 @@ impl<'a> Lexer<'a> {
         Ok(TokenWithRange::new(token, name_range))
     }
 
-    fn lex_number(&mut self) -> Result<TokenWithRange, Error> {
+    fn lex_number(&mut self) -> Result<TokenWithRange, ParserError> {
         // 123456T  //
         // ^     ^__// to here
         // |________// current char, validated
@@ -414,7 +414,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn lex_number_decimal(&mut self) -> Result<TokenWithRange, Error> {
+    fn lex_number_decimal(&mut self) -> Result<TokenWithRange, ParserError> {
         // 123456T  //
         // ^     ^__// to here
         // |________// current char, validated
@@ -483,7 +483,7 @@ impl<'a> Lexer<'a> {
                     break;
                 }
                 _ => {
-                    return Err(Error::MessageWithLocation(
+                    return Err(ParserError::MessageWithLocation(
                         format!("Invalid char '{}' for decimal number.", current_char),
                         *self.peek_position(0).unwrap(),
                     ));
@@ -493,14 +493,14 @@ impl<'a> Lexer<'a> {
 
         // check syntax
         if num_string.ends_with('.') {
-            return Err(Error::MessageWithLocation(
+            return Err(ParserError::MessageWithLocation(
                 "Decimal number can not ends with \".\".".to_owned(),
                 self.last_position,
             ));
         }
 
         if num_string.ends_with('e') {
-            return Err(Error::MessageWithLocation(
+            return Err(ParserError::MessageWithLocation(
                 "Decimal number can not ends with \"e\".".to_owned(),
                 self.last_position,
             ));
@@ -516,7 +516,7 @@ impl<'a> Lexer<'a> {
             match nt {
                 NumberType::I8 => {
                     let v = num_string.parse::<u8>().map_err(|_| {
-                        Error::MessageWithLocation(
+                        ParserError::MessageWithLocation(
                             format!("Can not convert \"{}\" to i8 integer number.", num_string),
                             num_range,
                         )
@@ -526,7 +526,7 @@ impl<'a> Lexer<'a> {
                 }
                 NumberType::I16 => {
                     let v = num_string.parse::<u16>().map_err(|_| {
-                        Error::MessageWithLocation(
+                        ParserError::MessageWithLocation(
                             format!("Can not convert \"{}\" to i16 integer number.", num_string),
                             num_range,
                         )
@@ -536,7 +536,7 @@ impl<'a> Lexer<'a> {
                 }
                 NumberType::I32 => {
                     let v = num_string.parse::<u32>().map_err(|_| {
-                        Error::MessageWithLocation(
+                        ParserError::MessageWithLocation(
                             format!("Can not convert \"{}\" to i32 integer number.", num_string),
                             num_range,
                         )
@@ -546,7 +546,7 @@ impl<'a> Lexer<'a> {
                 }
                 NumberType::I64 => {
                     let v = num_string.parse::<u64>().map_err(|_| {
-                        Error::MessageWithLocation(
+                        ParserError::MessageWithLocation(
                             format!("Can not convert \"{}\" to i64 integer number.", num_string),
                             num_range,
                         )
@@ -556,7 +556,7 @@ impl<'a> Lexer<'a> {
                 }
                 NumberType::F32 => {
                     let v = num_string.parse::<f32>().map_err(|_| {
-                        Error::MessageWithLocation(
+                        ParserError::MessageWithLocation(
                             format!(
                                 "Can not convert \"{}\" to f32 floating-point number.",
                                 num_string
@@ -567,7 +567,7 @@ impl<'a> Lexer<'a> {
 
                     // overflow when parsing from string
                     if v.is_infinite() {
-                        return Err(Error::MessageWithLocation(
+                        return Err(ParserError::MessageWithLocation(
                             format!("F32 floating point number \"{}\" is overflow.", num_string),
                             num_range,
                         ));
@@ -577,7 +577,7 @@ impl<'a> Lexer<'a> {
                 }
                 NumberType::F64 => {
                     let v = num_string.parse::<f64>().map_err(|_| {
-                        Error::MessageWithLocation(
+                        ParserError::MessageWithLocation(
                             format!(
                                 "Can not convert \"{}\" to f64 floating-point number.",
                                 num_string
@@ -588,7 +588,7 @@ impl<'a> Lexer<'a> {
 
                     // overflow when parsing from string
                     if v.is_infinite() {
-                        return Err(Error::MessageWithLocation(
+                        return Err(ParserError::MessageWithLocation(
                             format!("F64 floating point number \"{}\" is overflow.", num_string),
                             num_range,
                         ));
@@ -601,7 +601,7 @@ impl<'a> Lexer<'a> {
             // the default floating-point number type is f64
 
             let v = num_string.parse::<f64>().map_err(|_| {
-                Error::MessageWithLocation(
+                ParserError::MessageWithLocation(
                     format!(
                         "Can not convert \"{}\" to f64 floating-point number.",
                         num_string
@@ -612,7 +612,7 @@ impl<'a> Lexer<'a> {
 
             // overflow when parsing from string
             if v.is_infinite() {
-                return Err(Error::MessageWithLocation(
+                return Err(ParserError::MessageWithLocation(
                     format!("F64 floating point number \"{}\" is overflow.", num_string),
                     num_range,
                 ));
@@ -623,7 +623,7 @@ impl<'a> Lexer<'a> {
             // the default integer number type is i32
 
             let v = num_string.parse::<u32>().map_err(|_| {
-                Error::MessageWithLocation(
+                ParserError::MessageWithLocation(
                     format!("Can not convert \"{}\" to i32 integer number.", num_string,),
                     num_range,
                 )
@@ -635,7 +635,7 @@ impl<'a> Lexer<'a> {
         Ok(TokenWithRange::new(Token::Number(num_token), num_range))
     }
 
-    fn lex_number_type_suffix(&mut self) -> Result<NumberType, Error> {
+    fn lex_number_type_suffix(&mut self) -> Result<NumberType, ParserError> {
         // iddT  //
         // ^^ ^__// to here
         // ||____// d = 0..9, validated
@@ -673,12 +673,12 @@ impl<'a> Lexer<'a> {
         );
 
         let nt = NumberType::from_str(&type_name)
-            .map_err(|msg| Error::MessageWithLocation(msg, type_range))?;
+            .map_err(|msg| ParserError::MessageWithLocation(msg, type_range))?;
 
         Ok(nt)
     }
 
-    fn lex_number_hex(&mut self) -> Result<TokenWithRange, Error> {
+    fn lex_number_hex(&mut self) -> Result<TokenWithRange, ParserError> {
         // 0xaabbT  //
         // ^^    ^__// to here
         // ||_______// validated
@@ -764,7 +764,7 @@ impl<'a> Lexer<'a> {
                     break;
                 }
                 _ => {
-                    return Err(Error::MessageWithLocation(
+                    return Err(ParserError::MessageWithLocation(
                         format!("Invalid char '{}' for hexadecimal number.", current_char),
                         *self.peek_position(0).unwrap(),
                     ));
@@ -778,14 +778,14 @@ impl<'a> Lexer<'a> {
         );
 
         if num_string.is_empty() {
-            return Err(Error::MessageWithLocation(
+            return Err(ParserError::MessageWithLocation(
                 "Empty hexadecimal number".to_owned(),
                 num_range,
             ));
         }
 
         if found_point && !found_p {
-            return Err(Error::MessageWithLocation(
+            return Err(ParserError::MessageWithLocation(
                 format!(
                     "Hexadecimal floating point number \"{}\" is missing the exponent.",
                     num_string
@@ -807,7 +807,7 @@ impl<'a> Lexer<'a> {
                         to_f64 = true;
                     }
                     _ => {
-                        return Err(Error::MessageWithLocation(format!(
+                        return Err(ParserError::MessageWithLocation(format!(
                                 "Invalid type \"{}\" for hexadecimal floating-point numbers, only type \"f32\" and \"f64\" are allowed.",
                                 nt
                             ),
@@ -822,7 +822,7 @@ impl<'a> Lexer<'a> {
             if to_f64 {
                 let v = hexfloat2::parse::<f64>(&num_string).map_err(|_| {
                     // there is no detail message provided by `hexfloat2::parse`.
-                    Error::MessageWithLocation(
+                    ParserError::MessageWithLocation(
                         format!(
                             "Can not convert \"{}\" to f64 floating-point number.",
                             num_string
@@ -835,7 +835,7 @@ impl<'a> Lexer<'a> {
             } else {
                 let v = hexfloat2::parse::<f32>(&num_string).map_err(|_| {
                     // there is no detail message provided by `hexfloat2::parse`.
-                    Error::MessageWithLocation(
+                    ParserError::MessageWithLocation(
                         format!(
                             "Can not convert \"{}\" to f32 floating-point number.",
                             num_string
@@ -850,7 +850,7 @@ impl<'a> Lexer<'a> {
             match nt {
                 NumberType::I8 => {
                     let v = u8::from_str_radix(&num_string, 16).map_err(|_| {
-                        Error::MessageWithLocation(
+                        ParserError::MessageWithLocation(
                             format!("Can not convert \"{}\" to i8 integer number.", num_string),
                             num_range,
                         )
@@ -860,7 +860,7 @@ impl<'a> Lexer<'a> {
                 }
                 NumberType::I16 => {
                     let v = u16::from_str_radix(&num_string, 16).map_err(|_| {
-                        Error::MessageWithLocation(
+                        ParserError::MessageWithLocation(
                             format!("Can not convert \"{}\" to i16 integer number.", num_string),
                             num_range,
                         )
@@ -870,7 +870,7 @@ impl<'a> Lexer<'a> {
                 }
                 NumberType::I32 => {
                     let v = u32::from_str_radix(&num_string, 16).map_err(|_| {
-                        Error::MessageWithLocation(
+                        ParserError::MessageWithLocation(
                             format!("Can not convert \"{}\" to i32 integer number.", num_string),
                             num_range,
                         )
@@ -880,7 +880,7 @@ impl<'a> Lexer<'a> {
                 }
                 NumberType::I64 => {
                     let v = u64::from_str_radix(&num_string, 16).map_err(|_| {
-                        Error::MessageWithLocation(
+                        ParserError::MessageWithLocation(
                             format!("Can not convert \"{}\" to i64 integer number.", num_string),
                             num_range,
                         )
@@ -898,7 +898,7 @@ impl<'a> Lexer<'a> {
             // default
             // convert to i32
             let v = u32::from_str_radix(&num_string, 16).map_err(|_| {
-                Error::MessageWithLocation(
+                ParserError::MessageWithLocation(
                     format!("Can not convert \"{}\" to i32 integer number.", num_string),
                     num_range,
                 )
@@ -910,7 +910,7 @@ impl<'a> Lexer<'a> {
         Ok(TokenWithRange::new(Token::Number(num_token), num_range))
     }
 
-    fn lex_number_binary(&mut self) -> Result<TokenWithRange, Error> {
+    fn lex_number_binary(&mut self) -> Result<TokenWithRange, ParserError> {
         // 0b1010T  //
         // ^^    ^__// to here
         // ||_______// validated
@@ -949,7 +949,7 @@ impl<'a> Lexer<'a> {
                     break;
                 }
                 _ => {
-                    return Err(Error::MessageWithLocation(
+                    return Err(ParserError::MessageWithLocation(
                         format!("Invalid char '{}' for binary number.", current_char),
                         *self.peek_position(0).unwrap(),
                     ));
@@ -963,7 +963,7 @@ impl<'a> Lexer<'a> {
         );
 
         if num_string.is_empty() {
-            return Err(Error::MessageWithLocation(
+            return Err(ParserError::MessageWithLocation(
                 "Empty binary number.".to_owned(),
                 num_range,
             ));
@@ -973,7 +973,7 @@ impl<'a> Lexer<'a> {
             match nt {
                 NumberType::I8 => {
                     let v = u8::from_str_radix(&num_string, 2).map_err(|_| {
-                        Error::MessageWithLocation(
+                        ParserError::MessageWithLocation(
                             format!("Can not convert \"{}\" to i8 integer number.", num_string,),
                             num_range,
                         )
@@ -983,7 +983,7 @@ impl<'a> Lexer<'a> {
                 }
                 NumberType::I16 => {
                     let v = u16::from_str_radix(&num_string, 2).map_err(|_| {
-                        Error::MessageWithLocation(
+                        ParserError::MessageWithLocation(
                             format!("Can not convert \"{}\" to i16 integer number.", num_string,),
                             num_range,
                         )
@@ -993,7 +993,7 @@ impl<'a> Lexer<'a> {
                 }
                 NumberType::I32 => {
                     let v = u32::from_str_radix(&num_string, 2).map_err(|_| {
-                        Error::MessageWithLocation(
+                        ParserError::MessageWithLocation(
                             format!("Can not convert \"{}\" to i32 integer number.", num_string),
                             num_range,
                         )
@@ -1003,7 +1003,7 @@ impl<'a> Lexer<'a> {
                 }
                 NumberType::I64 => {
                     let v = u64::from_str_radix(&num_string, 2).map_err(|_| {
-                        Error::MessageWithLocation(
+                        ParserError::MessageWithLocation(
                             format!("Can not convert \"{}\" to i64 integer number.", num_string),
                             num_range,
                         )
@@ -1020,7 +1020,7 @@ impl<'a> Lexer<'a> {
             // convert to i32
 
             let v = u32::from_str_radix(&num_string, 2).map_err(|_| {
-                Error::MessageWithLocation(
+                ParserError::MessageWithLocation(
                     format!("Can not convert \"{}\" to i32 integer number.", num_string),
                     num_range,
                 )
@@ -1155,7 +1155,7 @@ impl<'a> Lexer<'a> {
     //         Ok(TokenWithRange::new(Token::Char(character), character_range))
     //     }
 
-    fn unescape_unicode(&mut self) -> Result<char, Error> {
+    fn unescape_unicode(&mut self) -> Result<char, ParserError> {
         // \u{6587}?  //
         //   ^     ^__// to here
         //   |________// current char, validated
@@ -1172,7 +1172,7 @@ impl<'a> Lexer<'a> {
                     '}' => break,
                     '0'..='9' | 'a'..='f' | 'A'..='F' => codepoint_string.push(previous_char),
                     _ => {
-                        return Err(Error::MessageWithLocation(
+                        return Err(ParserError::MessageWithLocation(
                             format!(
                                 "Invalid character '{}' for unicode escape sequence.",
                                 previous_char
@@ -1183,7 +1183,7 @@ impl<'a> Lexer<'a> {
                 },
                 None => {
                     // EOF
-                    return Err(Error::UnexpectedEndOfDocument(
+                    return Err(ParserError::UnexpectedEndOfDocument(
                         "Incomplete unicode escape sequence.".to_owned(),
                     ));
                 }
@@ -1200,14 +1200,14 @@ impl<'a> Lexer<'a> {
         );
 
         if codepoint_string.len() > 6 {
-            return Err(Error::MessageWithLocation(
+            return Err(ParserError::MessageWithLocation(
                 "Unicode point code exceeds six digits.".to_owned(),
                 codepoint_range,
             ));
         }
 
         if codepoint_string.is_empty() {
-            return Err(Error::MessageWithLocation(
+            return Err(ParserError::MessageWithLocation(
                 "Empty unicode code point.".to_owned(),
                 codepoint_range,
             ));
@@ -1223,14 +1223,14 @@ impl<'a> Lexer<'a> {
             // https://doc.rust-lang.org/std/primitive.char.html
             Ok(c)
         } else {
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 "Invalid unicode code point.".to_owned(),
                 codepoint_range,
             ))
         }
     }
 
-    fn lex_string(&mut self) -> Result<TokenWithRange, Error> {
+    fn lex_string(&mut self) -> Result<TokenWithRange, ParserError> {
         // "abc"?  //
         // ^    ^__// to here
         // |_______// current char, validated
@@ -1283,7 +1283,7 @@ impl<'a> Lexer<'a> {
                                                 let ch = self.unescape_unicode()?;
                                                 final_string.push(ch);
                                             } else {
-                                                return Err(Error::MessageWithLocation(
+                                                return Err(ParserError::MessageWithLocation(
                                                     "Missing the brace for unicode escape sequence.".to_owned(),
                                                     self.last_position.move_position_forward()
                                                 ));
@@ -1300,7 +1300,7 @@ impl<'a> Lexer<'a> {
                                             self.consume_all_leading_whitespaces()?;
                                         }
                                         _ => {
-                                            return Err(Error::MessageWithLocation(
+                                            return Err(ParserError::MessageWithLocation(
                                                 format!(
                                                     "Unsupported escape char '{}'.",
                                                     previous_char
@@ -1315,7 +1315,7 @@ impl<'a> Lexer<'a> {
                                 }
                                 None => {
                                     // `\` + EOF
-                                    return Err(Error::UnexpectedEndOfDocument(
+                                    return Err(ParserError::UnexpectedEndOfDocument(
                                         "Incomplete character escape sequence.".to_owned(),
                                     ));
                                 }
@@ -1333,7 +1333,7 @@ impl<'a> Lexer<'a> {
                 }
                 None => {
                     // `"...EOF`
-                    return Err(Error::UnexpectedEndOfDocument(
+                    return Err(ParserError::UnexpectedEndOfDocument(
                         "Incomplete string.".to_owned(),
                     ));
                 }
@@ -1351,7 +1351,7 @@ impl<'a> Lexer<'a> {
         ))
     }
 
-    fn consume_all_leading_whitespaces(&mut self) -> Result<(), Error> {
+    fn consume_all_leading_whitespaces(&mut self) -> Result<(), ParserError> {
         // \nssssS  //
         //   ^   ^__// to here ('s' = whitespace, 'S' = not whitespace)
         //   |______// current char, UNVALIDATED
@@ -1370,7 +1370,7 @@ impl<'a> Lexer<'a> {
                 }
                 None => {
                     // EOF
-                    return Err(Error::UnexpectedEndOfDocument(
+                    return Err(ParserError::UnexpectedEndOfDocument(
                         "Incomplete string.".to_owned(),
                     ));
                 }
@@ -1380,7 +1380,7 @@ impl<'a> Lexer<'a> {
         Ok(())
     }
 
-    fn lex_raw_string(&mut self) -> Result<TokenWithRange, Error> {
+    fn lex_raw_string(&mut self) -> Result<TokenWithRange, ParserError> {
         // r"abc"?  //
         // ^^    ^__// to here
         // ||_______// validated
@@ -1409,7 +1409,7 @@ impl<'a> Lexer<'a> {
                 }
                 None => {
                     // `r"...EOF`
-                    return Err(Error::UnexpectedEndOfDocument(
+                    return Err(ParserError::UnexpectedEndOfDocument(
                         "Incomplete string.".to_owned(),
                     ));
                 }
@@ -1427,7 +1427,7 @@ impl<'a> Lexer<'a> {
         ))
     }
 
-    fn lex_raw_string_with_hash_symbol(&mut self) -> Result<TokenWithRange, Error> {
+    fn lex_raw_string_with_hash_symbol(&mut self) -> Result<TokenWithRange, ParserError> {
         // r#"abc"#?  //
         // ^^^     ^__// to here
         // |||________// validated
@@ -1461,7 +1461,7 @@ impl<'a> Lexer<'a> {
                 }
                 None => {
                     // `r#"...EOF`
-                    return Err(Error::UnexpectedEndOfDocument(
+                    return Err(ParserError::UnexpectedEndOfDocument(
                         "Incomplete string.".to_owned(),
                     ));
                 }
@@ -1479,7 +1479,7 @@ impl<'a> Lexer<'a> {
         ))
     }
 
-    fn lex_auto_trimmed_string(&mut self) -> Result<TokenWithRange, Error> {
+    fn lex_auto_trimmed_string(&mut self) -> Result<TokenWithRange, ParserError> {
         // """\n                    //
         // ^^^  auto-trimmed string //
         // |||  ...\n               //
@@ -1505,7 +1505,7 @@ impl<'a> Lexer<'a> {
             self.next_char(); // consume '\r'
             self.next_char(); // consume '\n'
         } else {
-            return Err(Error::MessageWithLocation(
+            return Err(ParserError::MessageWithLocation(
                 "The content of auto-trimmed string should start on a new line.".to_owned(),
                 self.last_position.move_position_forward(),
             ));
@@ -1550,7 +1550,7 @@ impl<'a> Lexer<'a> {
                 }
                 None => {
                     // `"""\n...EOF`
-                    return Err(Error::UnexpectedEndOfDocument(
+                    return Err(ParserError::UnexpectedEndOfDocument(
                         "Incomplete string.".to_owned(),
                     ));
                 }
@@ -1621,13 +1621,13 @@ impl<'a> Lexer<'a> {
         Ok(TokenWithRange::new(Token::String(content), range))
     }
 
-    fn lex_byte_data_hexadecimal(&mut self) -> Result<TokenWithRange, Error> {
+    fn lex_byte_data_hexadecimal(&mut self) -> Result<TokenWithRange, ParserError> {
         // h"00 11 aa bb"?  //
         // ^^            ^__// to here
         // ||_______________// validated
         // |________________// current char, validated
 
-        let consume_zero_or_more_whitespaces = |iter: &mut Lexer| -> Result<usize, Error> {
+        let consume_zero_or_more_whitespaces = |iter: &mut Lexer| -> Result<usize, ParserError> {
             // exit when encounting non-whitespaces or EOF
             let mut amount: usize = 0;
 
@@ -1639,7 +1639,7 @@ impl<'a> Lexer<'a> {
             Ok(amount)
         };
 
-        let consume_one_or_more_whitespaces = |iter: &mut Lexer| -> Result<usize, Error> {
+        let consume_one_or_more_whitespaces = |iter: &mut Lexer| -> Result<usize, ParserError> {
             let mut amount: usize = 0;
 
             loop {
@@ -1655,7 +1655,7 @@ impl<'a> Lexer<'a> {
                                 if amount > 0 {
                                     break;
                                 } else {
-                                    return Err(Error::MessageWithLocation(
+                                    return Err(ParserError::MessageWithLocation(
                                             "Expect a whitespace between the hexadecimal byte data digits."
                                                 .to_owned(),
                                             iter.last_position.move_position_forward()
@@ -1666,7 +1666,7 @@ impl<'a> Lexer<'a> {
                     }
                     None => {
                         // h"...EOF
-                        return Err(Error::UnexpectedEndOfDocument(
+                        return Err(ParserError::UnexpectedEndOfDocument(
                             "Incomplete hexadecimal byte data.".to_owned(),
                         ));
                     }
@@ -1698,7 +1698,7 @@ impl<'a> Lexer<'a> {
                             *c = previous_char;
                         }
                         _ => {
-                            return Err(Error::MessageWithLocation(
+                            return Err(ParserError::MessageWithLocation(
                                 format!(
                                     "Invalid digit '{}' for hexadecimal byte data.",
                                     previous_char
@@ -1708,7 +1708,7 @@ impl<'a> Lexer<'a> {
                         }
                     },
                     None => {
-                        return Err(Error::UnexpectedEndOfDocument(
+                        return Err(ParserError::UnexpectedEndOfDocument(
                             "Incomplete hexadecimal byte data.".to_owned(),
                         ))
                     }
@@ -1737,7 +1737,7 @@ impl<'a> Lexer<'a> {
         Ok(TokenWithRange::new(Token::HexByteData(bytes), bytes_range))
     }
 
-    fn lex_line_comment(&mut self) -> Result<TokenWithRange, Error> {
+    fn lex_line_comment(&mut self) -> Result<TokenWithRange, ParserError> {
         // xx...[\r]\n?  //
         // ^^         ^__// to here ('?' = any char or EOF)
         // ||____________// validated
@@ -1782,7 +1782,7 @@ impl<'a> Lexer<'a> {
         ))
     }
 
-    fn lex_block_comment(&mut self) -> Result<TokenWithRange, Error> {
+    fn lex_block_comment(&mut self) -> Result<TokenWithRange, ParserError> {
         // /*...*/?  //
         // ^^     ^__// to here
         // ||________// validated
@@ -1836,7 +1836,7 @@ impl<'a> Lexer<'a> {
                         "Incomplete block comment.".to_owned()
                     };
 
-                    return Err(Error::UnexpectedEndOfDocument(msg));
+                    return Err(ParserError::UnexpectedEndOfDocument(msg));
                 }
             }
         }
@@ -1858,7 +1858,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use crate::{
-        error::Error,
+        error::ParserError,
         location::Location,
         token::{Comment, NumberToken, Token, TokenWithRange},
     };
@@ -1887,7 +1887,7 @@ mod tests {
         }
     }
 
-    fn lex_from_str_without_location(s: &str) -> Result<Vec<Token>, Error> {
+    fn lex_from_str_without_location(s: &str) -> Result<Vec<Token>, ParserError> {
         let tokens = lex_from_str(s)?
             .into_iter()
             .map(|e| e.token)
@@ -2056,7 +2056,7 @@ mod tests {
         // err: invalid char
         assert!(matches!(
             lex_from_str_without_location("abc&xyz"),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -2299,7 +2299,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: invalid char for decimal number
         assert!(matches!(
             lex_from_str_without_location("12x34"),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -2314,7 +2314,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: integer number overflow
         assert!(matches!(
             lex_from_str_without_location("4_294_967_296"),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -2363,7 +2363,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: incomplete floating point number since ends with '.'
         assert!(matches!(
             lex_from_str_without_location("123."),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -2378,7 +2378,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: incomplete floating point number since ends with 'e'
         assert!(matches!(
             lex_from_str_without_location("123e"),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -2393,7 +2393,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: multiple '.' (point)
         assert!(matches!(
             lex_from_str_without_location("1.23.456"),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -2408,7 +2408,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: multiple 'e' (exponent)
         assert!(matches!(
             lex_from_str_without_location("1e23e456"),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -2423,7 +2423,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: unsupports start with dot
         assert!(matches!(
             lex_from_str_without_location(".123"),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -2491,7 +2491,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
             // err: unsigned overflow
             assert!(matches!(
                 lex_from_str_without_location("256_i8"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -2519,7 +2519,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
             // err: unsigned overflow
             assert!(matches!(
                 lex_from_str_without_location("65536_i16"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -2547,7 +2547,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
             // err: unsigned overflow
             assert!(matches!(
                 lex_from_str_without_location("4_294_967_296_i32"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -2577,7 +2577,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
             // err: unsigned overflow
             assert!(matches!(
                 lex_from_str_without_location("18_446_744_073_709_551_616_i64"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -2605,7 +2605,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
             // err: overflow
             assert!(matches!(
                 lex_from_str_without_location("3.4e39_f32"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -2635,7 +2635,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
             // err: overflow
             assert!(matches!(
                 lex_from_str_without_location("1.8e309_f64"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -2687,7 +2687,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: invalid char for hex number
         assert!(matches!(
             lex_from_str_without_location("0x1234xyz"),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -2702,7 +2702,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: hex number overflow
         assert!(matches!(
             lex_from_str_without_location("0x1_0000_0000"),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -2717,7 +2717,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: empty hex number
         assert!(matches!(
             lex_from_str_without_location("0x"),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -2785,7 +2785,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
             // err: unsigned overflow
             assert!(matches!(
                 lex_from_str_without_location("0x1_ff_i8"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -2813,7 +2813,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
             // err: unsigned overflow
             assert!(matches!(
                 lex_from_str_without_location("0x1_ffff_i16"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -2841,7 +2841,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
             // err: unsigned overflow
             assert!(matches!(
                 lex_from_str_without_location("0x1_ffff_ffff_i32"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -2871,7 +2871,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
             // err: unsigned overflow
             assert!(matches!(
                 lex_from_str_without_location("0x1_ffff_ffff_ffff_ffff_i64"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -2940,7 +2940,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: missing the exponent
         assert!(matches!(
             lex_from_str_without_location("0x1.23"),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -2955,7 +2955,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: multiple '.' (point)
         assert!(matches!(
             lex_from_str_without_location("0x1.2.3"),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -2970,7 +2970,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: multiple 'p' (exponent)
         assert!(matches!(
             lex_from_str_without_location("0x1.2p3p4"),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -2985,7 +2985,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: incorrect type (invalid dot '.' after 'p')
         assert!(matches!(
             lex_from_str_without_location("0x1.23p4.5"),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -3000,7 +3000,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: incorrect type (invalid char 'i' after 'p')
         assert!(matches!(
             lex_from_str_without_location("0x1.23p4_i32"),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -3051,7 +3051,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: does not support binary floating point
         assert!(matches!(
             lex_from_str_without_location("0b11.10"),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -3066,7 +3066,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: binary number overflow
         assert!(matches!(
             lex_from_str_without_location("0b1_0000_0000_0000_0000_0000_0000_0000_0000"),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -3081,7 +3081,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: invalid char for binary number
         assert!(matches!(
             lex_from_str_without_location("0b101xyz"),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -3096,7 +3096,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: empty binary number
         assert!(matches!(
             lex_from_str_without_location("0b"),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -3164,7 +3164,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
             // err: unsigned overflow
             assert!(matches!(
                 lex_from_str_without_location("0b1_1111_1111_i8"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -3192,7 +3192,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
             // err: unsigned overflow
             assert!(matches!(
                 lex_from_str_without_location("0b1_1111_1111_1111_1111_i16"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -3222,7 +3222,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
             // err: unsigned overflow
             assert!(matches!(
                 lex_from_str_without_location("0b1_1111_1111_1111_1111__1111_1111_1111_1111_i32"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -3250,7 +3250,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
             // err: unsigned overflow
             assert!(matches!(
                 lex_from_str_without_location("0b1_1111_1111_1111_1111__1111_1111_1111_1111__1111_1111_1111_1111__1111_1111_1111_1111_i64"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -3266,7 +3266,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: does not support binary floating pointer number (invalid char 'f' for binary number)
         assert!(matches!(
             lex_from_str_without_location("0b11_f32"),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -3678,25 +3678,25 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: incomplete string, missing the closed quote
         assert!(matches!(
             lex_from_str_without_location("\"abc"),
-            Err(Error::UnexpectedEndOfDocument(_))
+            Err(ParserError::UnexpectedEndOfDocument(_))
         ));
 
         // err: incomplete string, missing the closed quote, ends with \n
         assert!(matches!(
             lex_from_str_without_location("\"abc\n"),
-            Err(Error::UnexpectedEndOfDocument(_))
+            Err(ParserError::UnexpectedEndOfDocument(_))
         ));
 
         // err: incomplete string, missing the closed quote, ends with whitespaces/other chars
         assert!(matches!(
             lex_from_str_without_location("\"abc\n   "),
-            Err(Error::UnexpectedEndOfDocument(_))
+            Err(ParserError::UnexpectedEndOfDocument(_))
         ));
 
         // err: unsupported escape char \v
         assert!(matches!(
             lex_from_str_without_location(r#""abc\vxyz""#),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -3711,7 +3711,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: unsupported hex escape "\x.."
         assert!(matches!(
             lex_from_str_without_location(r#""abc\x33xyz""#),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -3728,7 +3728,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // 012345678    // index
         assert!(matches!(
             lex_from_str_without_location(r#""abc\u{}xyz""#),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -3745,7 +3745,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // 0123456789023456789    // index
         assert!(matches!(
             lex_from_str_without_location(r#""abc\u{1000111}xyz""#),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -3762,7 +3762,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // 012345678901234567
         assert!(matches!(
             lex_from_str_without_location(r#""abc\u{123456}xyz""#),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -3777,7 +3777,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: invalid char in the unicode escape sequence
         assert!(matches!(
             lex_from_str_without_location(r#""abc\u{12mn}xyz""#),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -3792,7 +3792,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: missing the right brace for unicode escape sequence
         assert!(matches!(
             lex_from_str_without_location(r#""abc\u{1234""#),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -3807,13 +3807,13 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: incomplete unicode escape sequence, encounter EOF
         assert!(matches!(
             lex_from_str_without_location(r#""abc\u{1234"#),
-            Err(Error::UnexpectedEndOfDocument(_))
+            Err(ParserError::UnexpectedEndOfDocument(_))
         ));
 
         // err: missing left brace for unicode escape sequence
         assert!(matches!(
             lex_from_str_without_location(r#""abc\u1234}xyz""#),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -3859,13 +3859,13 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: incomplete string, missing the closed quote, ends with \n
         assert!(matches!(
             lex_from_str_without_location("\"abc\n    \n\n    \n"),
-            Err(Error::UnexpectedEndOfDocument(_))
+            Err(ParserError::UnexpectedEndOfDocument(_))
         ));
 
         // err: incomplete string, missing the closed quote, whitespaces/other chars
         assert!(matches!(
             lex_from_str_without_location("\"abc\n    \n\n    \n   "),
-            Err(Error::UnexpectedEndOfDocument(_))
+            Err(ParserError::UnexpectedEndOfDocument(_))
         ));
     }
 
@@ -3904,13 +3904,13 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: incomplete string, missing the right quote, ends with \n
         assert!(matches!(
             lex_from_str_without_location("\"abc\\\n"),
-            Err(Error::UnexpectedEndOfDocument(_))
+            Err(ParserError::UnexpectedEndOfDocument(_))
         ));
 
         // err: incomplete string, missing the right quote, ends with whitespaces/other chars
         assert!(matches!(
             lex_from_str_without_location("\"abc\\\n    "),
-            Err(Error::UnexpectedEndOfDocument(_))
+            Err(ParserError::UnexpectedEndOfDocument(_))
         ));
     }
 
@@ -3947,19 +3947,19 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: incomplete string, missing the right quote
         assert!(matches!(
             lex_from_str_without_location("r\"abc    "),
-            Err(Error::UnexpectedEndOfDocument(_))
+            Err(ParserError::UnexpectedEndOfDocument(_))
         ));
 
         // err: incomplete string, missing the right quote, ends with \n
         assert!(matches!(
             lex_from_str_without_location("r\"abc\n"),
-            Err(Error::UnexpectedEndOfDocument(_))
+            Err(ParserError::UnexpectedEndOfDocument(_))
         ));
 
         // err: incomplete string, missing the right quote, ends with whitespaces/other chars
         assert!(matches!(
             lex_from_str_without_location("r\"abc\n   "),
-            Err(Error::UnexpectedEndOfDocument(_))
+            Err(ParserError::UnexpectedEndOfDocument(_))
         ));
     }
 
@@ -3995,19 +3995,19 @@ for when if break break_if break_fn recur recur_if recur_fn"
         // err: incomplete string, missing the closed hash
         assert!(matches!(
             lex_from_str_without_location("r#\"abc    \""),
-            Err(Error::UnexpectedEndOfDocument(_))
+            Err(ParserError::UnexpectedEndOfDocument(_))
         ));
 
         // err: incomplete string, missing the closed quote, ends with \n
         assert!(matches!(
             lex_from_str_without_location("r#\"abc\n"),
-            Err(Error::UnexpectedEndOfDocument(_))
+            Err(ParserError::UnexpectedEndOfDocument(_))
         ));
 
         // err: incomplete string, missing the closed quote, ends with whitespace/other chars
         assert!(matches!(
             lex_from_str_without_location("r#\"abc\nxyz"),
-            Err(Error::UnexpectedEndOfDocument(_))
+            Err(ParserError::UnexpectedEndOfDocument(_))
         ));
     }
 
@@ -4157,7 +4157,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
 """
 "#
             ),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -4177,7 +4177,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
 hello"""
 "#
             ),
-            Err(Error::UnexpectedEndOfDocument(_))
+            Err(ParserError::UnexpectedEndOfDocument(_))
         ));
 
         // err: missing the ending marker
@@ -4188,7 +4188,7 @@ hello"""
 hello
 world"#
             ),
-            Err(Error::UnexpectedEndOfDocument(_))
+            Err(ParserError::UnexpectedEndOfDocument(_))
         ));
 
         // err: missing the ending marker, ends with \n
@@ -4199,7 +4199,7 @@ world"#
 hello
 "#
             ),
-            Err(Error::UnexpectedEndOfDocument(_))
+            Err(ParserError::UnexpectedEndOfDocument(_))
         ));
     }
 
@@ -4287,7 +4287,7 @@ hello
         // err: not enough digits
         assert!(matches!(
             lex_from_str_without_location("h\"11 1\""),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -4302,7 +4302,7 @@ hello
         // err: too much digits | no whitespace between two bytes
         assert!(matches!(
             lex_from_str_without_location("h\"11 1317\""),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -4317,7 +4317,7 @@ hello
         // err: invalid char for byte string
         assert!(matches!(
             lex_from_str_without_location("h\"11 1x\""),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -4332,7 +4332,7 @@ hello
         // err: invalid separator
         assert!(matches!(
             lex_from_str_without_location("h\"11-13\""),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -4347,19 +4347,19 @@ hello
         // err: missing the close quote
         assert!(matches!(
             lex_from_str_without_location("h\"11 13"),
-            Err(Error::UnexpectedEndOfDocument(_))
+            Err(ParserError::UnexpectedEndOfDocument(_))
         ));
 
         // err: missing the close quote, ends with \n
         assert!(matches!(
             lex_from_str_without_location("h\"11 13\n"),
-            Err(Error::UnexpectedEndOfDocument(_))
+            Err(ParserError::UnexpectedEndOfDocument(_))
         ));
 
         // err: missing the close quote, ends with whitespaces/other chars
         assert!(matches!(
             lex_from_str_without_location("h\"11 13\n    "),
-            Err(Error::UnexpectedEndOfDocument(_))
+            Err(ParserError::UnexpectedEndOfDocument(_))
         ));
     }
 
@@ -4536,25 +4536,25 @@ hello
         // err: incomplete, missing "*/"
         assert!(matches!(
             lex_from_str_without_location("7 /* 11"),
-            Err(Error::UnexpectedEndOfDocument(_))
+            Err(ParserError::UnexpectedEndOfDocument(_))
         ));
 
         // err: incomplete, missing "*/", ends with \n
         assert!(matches!(
             lex_from_str_without_location("7 /* 11\n"),
-            Err(Error::UnexpectedEndOfDocument(_))
+            Err(ParserError::UnexpectedEndOfDocument(_))
         ));
 
         // err: incomplete, unpaired, missing "*/"
         assert!(matches!(
             lex_from_str_without_location("a /* b /* c */"),
-            Err(Error::UnexpectedEndOfDocument(_))
+            Err(ParserError::UnexpectedEndOfDocument(_))
         ));
 
         // err: incomplete, unpaired, missing "*/", ends with \n
         assert!(matches!(
             lex_from_str_without_location("a /* b /* c */\n"),
-            Err(Error::UnexpectedEndOfDocument(_))
+            Err(ParserError::UnexpectedEndOfDocument(_))
         ));
     }
 }

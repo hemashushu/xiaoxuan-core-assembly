@@ -63,6 +63,12 @@ local_store_i64(
 
 Instruction expressions have an almost one-to-one correspondence with the instructions of the VM. However, some parameters will be converted by the assembler. For example, the identifier in the instruction expression `local_load_i64` will be automatically converted to the `index` and `rev-index` of the local varialbe. Additionally, all VM control flow instructions are replaced by the [control flow expressions](./expressions/#control-flow-expressions).
 
+3. Numeric Type Conversion
+
+TODO
+
+auto convert to the required type of parameter, rules ...
+
 ## Instructions
 
 ### Base

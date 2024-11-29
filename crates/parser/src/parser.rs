@@ -14,7 +14,7 @@ use crate::{
         InstructionNode, LiteralNumber, LocalVariable, ModuleNode, NamedArgument, NamedParameter,
         WhenNode,
     },
-    error::Error,
+    error::ParserError,
     lexer::lex_from_str,
     location::Location,
     normalizer::{clean, normalize},
@@ -159,114 +159,114 @@ impl<'a> Parser<'a> {
         &mut self,
         expected_token: &Token,
         token_description: &str,
-    ) -> Result<(), Error> {
+    ) -> Result<(), ParserError> {
         match self.next_token() {
             Some(token) => {
                 if &token == expected_token {
                     Ok(())
                 } else {
-                    Err(Error::MessageWithLocation(
+                    Err(ParserError::MessageWithLocation(
                         format!("Expect token: {}.", token_description),
                         self.last_range.get_position_by_range_start(),
                     ))
                 }
             }
-            None => Err(Error::UnexpectedEndOfDocument(format!(
+            None => Err(ParserError::UnexpectedEndOfDocument(format!(
                 "Expect token: {}.",
                 token_description
             ))),
         }
     }
 
-    fn consume_full_name(&mut self) -> Result<String, Error> {
+    fn consume_full_name(&mut self) -> Result<String, ParserError> {
         match self.next_token() {
             Some(Token::FullName(s)) => Ok(s),
-            Some(_) => Err(Error::MessageWithLocation(
+            Some(_) => Err(ParserError::MessageWithLocation(
                 "Expect a name path.".to_owned(),
                 self.last_range.get_position_by_range_start(),
             )),
-            None => Err(Error::UnexpectedEndOfDocument(
+            None => Err(ParserError::UnexpectedEndOfDocument(
                 "Expect a name path.".to_owned(),
             )),
         }
     }
 
-    fn consume_name(&mut self) -> Result<String, Error> {
+    fn consume_name(&mut self) -> Result<String, ParserError> {
         match self.next_token() {
             Some(Token::Name(s)) => Ok(s),
-            Some(_) => Err(Error::MessageWithLocation(
+            Some(_) => Err(ParserError::MessageWithLocation(
                 "Expect a name.".to_owned(),
                 self.last_range.get_position_by_range_start(),
             )),
-            None => Err(Error::UnexpectedEndOfDocument("Expect a name.".to_owned())),
+            None => Err(ParserError::UnexpectedEndOfDocument("Expect a name.".to_owned())),
         }
     }
 
-    fn consume_keyword(&mut self, keyword: &str) -> Result<String, Error> {
+    fn consume_keyword(&mut self, keyword: &str) -> Result<String, ParserError> {
         match self.next_token() {
             Some(Token::Keyword(s)) if s == keyword => Ok(s),
-            Some(_) => Err(Error::MessageWithLocation(
+            Some(_) => Err(ParserError::MessageWithLocation(
                 format!("Expect keyword \"{}\".", keyword),
                 self.last_range.get_position_by_range_start(),
             )),
-            None => Err(Error::UnexpectedEndOfDocument(format!(
+            None => Err(ParserError::UnexpectedEndOfDocument(format!(
                 "Expect keyword \"{}\".",
                 keyword
             ))),
         }
     }
 
-    fn consume_number_i32(&mut self) -> Result<u32, Error> {
+    fn consume_number_i32(&mut self) -> Result<u32, ParserError> {
         match self.next_token() {
             Some(Token::Number(NumberToken::I32(n))) => Ok(n),
-            Some(_) => Err(Error::MessageWithLocation(
+            Some(_) => Err(ParserError::MessageWithLocation(
                 "Expect an i32 number.".to_owned(),
                 self.last_range.get_position_by_range_start(),
             )),
-            None => Err(Error::UnexpectedEndOfDocument(
+            None => Err(ParserError::UnexpectedEndOfDocument(
                 "Expect an i32 number.".to_owned(),
             )),
         }
     }
 
     // '('
-    fn consume_left_paren(&mut self) -> Result<(), Error> {
+    fn consume_left_paren(&mut self) -> Result<(), ParserError> {
         self.consume_token(&Token::LeftParen, "left parenthese")
     }
 
     // ')'
-    fn consume_right_paren(&mut self) -> Result<(), Error> {
+    fn consume_right_paren(&mut self) -> Result<(), ParserError> {
         self.consume_token(&Token::RightParen, "right parenthese")
     }
 
     // '['
-    fn consume_left_bracket(&mut self) -> Result<(), Error> {
+    fn consume_left_bracket(&mut self) -> Result<(), ParserError> {
         self.consume_token(&Token::LeftBracket, "left bracket")
     }
 
     // ']'
-    fn consume_right_bracket(&mut self) -> Result<(), Error> {
+    fn consume_right_bracket(&mut self) -> Result<(), ParserError> {
         self.consume_token(&Token::RightBracket, "right bracket")
     }
 
     // '}'
-    fn consume_right_brace(&mut self) -> Result<(), Error> {
+    fn consume_right_brace(&mut self) -> Result<(), ParserError> {
         self.consume_token(&Token::RightBrace, "right brace")
     }
 
     // '='
-    fn consume_equal(&mut self) -> Result<(), Error> {
+    fn consume_equal(&mut self) -> Result<(), ParserError> {
         self.consume_token(&Token::Equal, "equal sign")
     }
 
     // ':'
-    fn consume_colon(&mut self) -> Result<(), Error> {
+    fn consume_colon(&mut self) -> Result<(), ParserError> {
         self.consume_token(&Token::Colon, "colon sign")
     }
 }
 
 impl<'a> Parser<'a> {
-    pub fn parse_module_node(&mut self) -> Result<ModuleNode, Error> {
+    pub fn parse_module_node(&mut self) -> Result<ModuleNode, ParserError> {
         // let mut uses: Vec<UseNode> = vec![];
         let mut imports: Vec<ImportNode> = vec![];
         let mut externals: Vec<ExternalNode> = vec![];
@@ -338,20 +338,20 @@ impl<'a> Parser<'a> {
                                 datas.push(self.parse_data_node(true, data_section_type)?);
                             }
                             _ => {
-                                return Err(Error::MessageWithLocation(
+                                return Err(ParserError::MessageWithLocation(
                                     "Expect a data or a function.".to_owned(),
                                     self.peek_range(0).unwrap().get_position_by_range_start(),
                                 ));
                             }
                         }
                     } else {
-                        return Err(Error::UnexpectedEndOfDocument(
+                        return Err(ParserError::UnexpectedEndOfDocument(
                             "Expect a data or a function.".to_owned(),
                         ));
                     }
                 }
                 _ => {
-                    return Err(Error::MessageWithLocation(
+                    return Err(ParserError::MessageWithLocation(
                         "Unexpected token.".to_owned(),
                         self.peek_range(0).unwrap().get_position_by_range_start(),
                     ));
@@ -404,7 +404,7 @@ impl<'a> Parser<'a> {
     //     Ok(node)
     // }
 
-    fn parse_import_node(&mut self) -> Result<ImportNode, Error> {
+    fn parse_import_node(&mut self) -> Result<ImportNode, ParserError> {
         // import {fn|data} ... ?  //
         // ^                      ^__// to here
         // |-------------------------// current token, validated
@@ -437,20 +437,20 @@ impl<'a> Parser<'a> {
                     Ok(ImportNode::Data(data_node))
                 }
                 _ => {
-                    return Err(Error::MessageWithLocation(
+                    return Err(ParserError::MessageWithLocation(
                         "Expect import \"fn\" or \"data\".".to_owned(),
                         self.peek_range(0).unwrap().get_position_by_range_start(),
                     ));
                 }
             }
         } else {
-            Err(Error::UnexpectedEndOfDocument(
+            Err(ParserError::UnexpectedEndOfDocument(
                 "Expect import \"fn\" or \"data\".".to_owned(),
             ))
         }
     }
 
-    fn parse_import_function_node(&mut self) -> Result<ImportFunctionNode, Error> {
+    fn parse_import_function_node(&mut self) -> Result<ImportFunctionNode, ParserError> {
         // fn name_path ()->() [as ...] ?  //
         // ^                            ^__// to here
         // |-------------------------------// current token, validated
@@ -503,7 +503,7 @@ impl<'a> Parser<'a> {
         Ok(node)
     }
 
-    fn continue_parse_function_signature_params(&mut self) -> Result<Vec<OperandDataType>, Error> {
+    fn continue_parse_function_signature_params(&mut self) -> Result<Vec<OperandDataType>, ParserError> {
         // (type, type, ...) ?  //
         // ^                 ^__// to here
         // |--------------------// current token, NOT validated
@@ -534,7 +534,7 @@ impl<'a> Parser<'a> {
     fn parse_import_data_node(
         &mut self,
         data_section_type: DataSectionType,
-    ) -> Result<ImportDataNode, Error> {
+    ) -> Result<ImportDataNode, ParserError> {
         // data name_path:data_type [as ...] ?  //
         // ^                                 ^__// to here
         // |------------------------------------// current token, NOT validated
@@ -576,7 +576,7 @@ impl<'a> Parser<'a> {
         Ok(node)
     }
 
-    fn parse_external_node(&mut self) -> Result<ExternalNode, Error> {
+    fn parse_external_node(&mut self) -> Result<ExternalNode, ParserError> {
         // external {fn|data} ... ?  //
         // ^                      ^__// to here
         // |-------------------------// current token, validated
@@ -597,20 +597,20 @@ impl<'a> Parser<'a> {
                     Ok(ExternalNode::Data(data_node))
                 }
                 _ => {
-                    return Err(Error::MessageWithLocation(
+                    return Err(ParserError::MessageWithLocation(
                         "Expect external \"fn\" or \"data\".".to_owned(),
                         self.peek_range(0).unwrap().get_position_by_range_start(),
                     ))
                 }
             }
         } else {
-            Err(Error::UnexpectedEndOfDocument(
+            Err(ParserError::UnexpectedEndOfDocument(
                 "Expect external \"fn\" or \"data\".".to_owned(),
             ))
         }
     }
 
-    fn parse_external_function_node(&mut self) -> Result<ExternalFunctionNode, Error> {
+    fn parse_external_function_node(&mut self) -> Result<ExternalFunctionNode, ParserError> {
         // fn name_path ()->() [as ...] ?  //
         // ^                            ^__// to here
         // |-------------------------------// current token, validated
@@ -688,7 +688,7 @@ impl<'a> Parser<'a> {
         Ok(node)
     }
 
-    fn continue_parse_function_data_type(&mut self) -> Result<OperandDataType, Error> {
+    fn continue_parse_function_data_type(&mut self) -> Result<OperandDataType, ParserError> {
         // i32 ?  //
         // ^   ^__// to here
         // |------// current token, DataTypeName, validated
@@ -721,7 +721,7 @@ impl<'a> Parser<'a> {
                         OperandDataType::F32
                     }
                     _ => {
-                        return Err(Error::MessageWithLocation(
+                        return Err(ParserError::MessageWithLocation(
                             "Unsupported data type for function parameters.".to_owned(),
                             self.peek_range(0).unwrap().get_position_by_range_start(),
                         ));
@@ -729,7 +729,7 @@ impl<'a> Parser<'a> {
                 }
             }
             _ => {
-                return Err(Error::MessageWithLocation(
+                return Err(ParserError::MessageWithLocation(
                     "Expect a data type".to_owned(),
                     self.peek_range(0).unwrap().get_position_by_range_start(),
                 ));
@@ -739,7 +739,7 @@ impl<'a> Parser<'a> {
         Ok(data_type)
     }
 
-    fn parse_external_data_node(&mut self) -> Result<ExternalDataNode, Error> {
+    fn parse_external_data_node(&mut self) -> Result<ExternalDataNode, ParserError> {
         // data name_path:data_type [as ...] ?  //
         // ^                                 ^__// to here
         // |------------------------------------// current token, validated
@@ -779,7 +779,7 @@ impl<'a> Parser<'a> {
         Ok(node)
     }
 
-    fn continue_parse_external_data_type(&mut self) -> Result<MemoryDataType, Error> {
+    fn continue_parse_external_data_type(&mut self) -> Result<MemoryDataType, ParserError> {
         // i32 ?  //
         // ^   ^__// to here
         // |------// current token, validated
@@ -823,7 +823,7 @@ impl<'a> Parser<'a> {
                         MemoryDataType::Bytes
                     }
                     _ => {
-                        return Err(Error::MessageWithLocation(
+                        return Err(ParserError::MessageWithLocation(
                             "Unsupported data type for external data.".to_owned(),
                             self.peek_range(0).unwrap().get_position_by_range_start(),
                         ));
@@ -831,7 +831,7 @@ impl<'a> Parser<'a> {
                 }
             }
             _ => {
-                return Err(Error::MessageWithLocation(
+                return Err(ParserError::MessageWithLocation(
                     "Expect a data type".to_owned(),
                     self.peek_range(0).unwrap().get_position_by_range_start(),
                 ));
@@ -845,7 +845,7 @@ impl<'a> Parser<'a> {
         &mut self,
         export: bool,
         data_section_type: DataSectionType,
-    ) -> Result<DataNode, Error> {
+    ) -> Result<DataNode, ParserError> {
         // data name:type = value ?  //
         // ^                      ^__// to here
         // |-------------------------// current token, NOT validated
@@ -898,7 +898,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn continue_parse_declare_data_type(&mut self) -> Result<DeclareDataType, Error> {
+    fn continue_parse_declare_data_type(&mut self) -> Result<DeclareDataType, ParserError> {
         // i32 ?  //
         // ^   ^__// to here
         // |------// current token, validated
@@ -984,7 +984,7 @@ impl<'a> Parser<'a> {
                         }
                     }
                     _ => {
-                        return Err(Error::MessageWithLocation(
+                        return Err(ParserError::MessageWithLocation(
                             "Unsupported data type for data.".to_owned(),
                             self.peek_range(0).unwrap().get_position_by_range_start(),
                         ));
@@ -992,7 +992,7 @@ impl<'a> Parser<'a> {
                 }
             }
             _ => {
-                return Err(Error::MessageWithLocation(
+                return Err(ParserError::MessageWithLocation(
                     "Expect a data type".to_owned(),
                     self.peek_range(0).unwrap().get_position_by_range_start(),
                 ));
@@ -1002,7 +1002,7 @@ impl<'a> Parser<'a> {
         Ok(data_type)
     }
 
-    fn continue_parse_fixed_declare_data_type(&mut self) -> Result<FixedDeclareDataType, Error> {
+    fn continue_parse_fixed_declare_data_type(&mut self) -> Result<FixedDeclareDataType, ParserError> {
         // i32 ?  //
         // ^   ^__// to here
         // |------// current token, validated
@@ -1065,7 +1065,7 @@ impl<'a> Parser<'a> {
                         FixedDeclareDataType::FixedBytes(length, align)
                     }
                     _ => {
-                        return Err(Error::MessageWithLocation(
+                        return Err(ParserError::MessageWithLocation(
                             "Unsupported data type for data.".to_owned(),
                             self.peek_range(0).unwrap().get_position_by_range_start(),
                         ));
@@ -1073,7 +1073,7 @@ impl<'a> Parser<'a> {
                 }
             }
             _ => {
-                return Err(Error::MessageWithLocation(
+                return Err(ParserError::MessageWithLocation(
                     "Expect a data type".to_owned(),
                     self.peek_range(0).unwrap().get_position_by_range_start(),
                 ));
@@ -1083,7 +1083,7 @@ impl<'a> Parser<'a> {
         Ok(data_type)
     }
 
-    fn continue_parse_data_value(&mut self) -> Result<DataValue, Error> {
+    fn continue_parse_data_value(&mut self) -> Result<DataValue, ParserError> {
         // 123 ?  //
         // ^   ^__// to here
         // |------// current token, validated
@@ -1144,7 +1144,7 @@ impl<'a> Parser<'a> {
                     DataValue::List(values)
                 }
                 _ => {
-                    return Err(Error::MessageWithLocation(
+                    return Err(ParserError::MessageWithLocation(
                         "Expect a data value.".to_owned(),
                         self.peek_range(0).unwrap().get_position_by_range_start(),
                     ))
@@ -1153,13 +1153,13 @@ impl<'a> Parser<'a> {
 
             Ok(value)
         } else {
-            Err(Error::UnexpectedEndOfDocument(
+            Err(ParserError::UnexpectedEndOfDocument(
                 "Expect a data value.".to_owned(),
             ))
         }
     }
 
-    fn parse_function_node(&mut self, export: bool) -> Result<FunctionNode, Error> {
+    fn parse_function_node(&mut self, export: bool) -> Result<FunctionNode, ParserError> {
         // fn (...) [-> ...] [...] exp ?  //
         // ^                           ^__// to here
         // |------------------------------// current token, validated
@@ -1207,7 +1207,7 @@ impl<'a> Parser<'a> {
         Ok(node)
     }
 
-    fn continue_parse_function_params(&mut self) -> Result<Vec<NamedParameter>, Error> {
+    fn continue_parse_function_params(&mut self) -> Result<Vec<NamedParameter>, ParserError> {
         // (name:type, name:type, ...) ?  //
         // ^                           ^__// to here
         // |------------------------------// current token, NOT validated
@@ -1242,7 +1242,7 @@ impl<'a> Parser<'a> {
         Ok(params)
     }
 
-    fn continue_parse_function_results(&mut self) -> Result<Vec<OperandDataType>, Error> {
+    fn continue_parse_function_results(&mut self) -> Result<Vec<OperandDataType>, ParserError> {
         // (type, type, ...) ?  //
         // ^                 ^__// to here
         // |------- ------------// current token, NOT validated
@@ -1279,7 +1279,7 @@ impl<'a> Parser<'a> {
         Ok(results)
     }
 
-    fn continue_parse_function_local_variables(&mut self) -> Result<Vec<LocalVariable>, Error> {
+    fn continue_parse_function_local_variables(&mut self) -> Result<Vec<LocalVariable>, ParserError> {
         // [name:type, name:type, ...] ?  //
         // ^                           ^__// to here
         // |------------------------------// current token, validated
@@ -1317,7 +1317,7 @@ impl<'a> Parser<'a> {
         Ok(local_variables)
     }
 
-    fn parse_expression_node(&mut self) -> Result<ExpressionNode, Error> {
+    fn parse_expression_node(&mut self) -> Result<ExpressionNode, ParserError> {
         // expression ?  //
         // ^          ^__// to here
         // |-------------// current token, NOT validated
@@ -1370,7 +1370,7 @@ impl<'a> Parser<'a> {
                     ExpressionNode::Instruction(instruction_node)
                 }
                 _ => {
-                    return Err(Error::MessageWithLocation(
+                    return Err(ParserError::MessageWithLocation(
                         "Expect an expression.".to_owned(),
                         self.peek_range(0).unwrap().get_position_by_range_start(),
                     ));
@@ -1379,13 +1379,13 @@ impl<'a> Parser<'a> {
 
             Ok(node)
         } else {
-            Err(Error::UnexpectedEndOfDocument(
+            Err(ParserError::UnexpectedEndOfDocument(
                 "Expect an expression.".to_owned(),
             ))
         }
     }
 
-    fn parse_instruction_expression(&mut self) -> Result<InstructionNode, Error> {
+    fn parse_instruction_expression(&mut self) -> Result<InstructionNode, ParserError> {
         // name (arg, ...) ?  //
         // ^    ^          ^__// to here
         // |    |
@@ -1407,7 +1407,7 @@ impl<'a> Parser<'a> {
 
     fn continue_parse_calling_arguments(
         &mut self,
-    ) -> Result<(Vec<ArgumentValue>, Vec<NamedArgument>), Error> {
+    ) -> Result<(Vec<ArgumentValue>, Vec<NamedArgument>), ParserError> {
         // (arg, ..., name=value, ...) ?  //
         // ^                           ^__// to here
         // |------------------------------// current token, validated
@@ -1451,7 +1451,7 @@ impl<'a> Parser<'a> {
         Ok((positional_args, named_args))
     }
 
-    fn continue_parse_argument_value(&mut self) -> Result<ArgumentValue, Error> {
+    fn continue_parse_argument_value(&mut self) -> Result<ArgumentValue, ParserError> {
         // 123 ?  //
         // ^   ^__// to here
         // |------// current token, NOT validated
@@ -1500,13 +1500,13 @@ impl<'a> Parser<'a> {
 
             Ok(value)
         } else {
-            Err(Error::UnexpectedEndOfDocument(
+            Err(ParserError::UnexpectedEndOfDocument(
                 "Expect a value for argument.".to_owned(),
             ))
         }
     }
 
-    fn parse_break_expression(&mut self, keyword: &str) -> Result<BreakNode, Error> {
+    fn parse_break_expression(&mut self, keyword: &str) -> Result<BreakNode, ParserError> {
         // break (value0, value1, ...) ?  //
         // ^                           ^__// to here
         // |------------------------------// current token, validated
@@ -1536,7 +1536,7 @@ impl<'a> Parser<'a> {
         Ok(node)
     }
 
-    fn continue_parse_break_arguments(&mut self) -> Result<Vec<ExpressionNode>, Error> {
+    fn continue_parse_break_arguments(&mut self) -> Result<Vec<ExpressionNode>, ParserError> {
         // (arg, ...) ?  //
         // ^          ^__// to here
         // |-------------// current token, NOT validated
@@ -1565,7 +1565,7 @@ impl<'a> Parser<'a> {
         Ok(args)
     }
 
-    fn parse_for_expression(&mut self) -> Result<ForNode, Error> {
+    fn parse_for_expression(&mut self) -> Result<ForNode, ParserError> {
         // for params -> results [locals] body ?  //
         // ^                                     ^__// to here
         // |----------------------------------------// current token, validated
@@ -1614,7 +1614,7 @@ impl<'a> Parser<'a> {
         Ok(node)
     }
 
-    fn parse_if_expression(&mut self) -> Result<IfNode, Error> {
+    fn parse_if_expression(&mut self) -> Result<IfNode, ParserError> {
         // if params -> results tesing consequence alternative ?  //
         // ^                                                   ^__// to here
         // |------------------------------------------------------// current token, validated
@@ -1660,7 +1660,7 @@ impl<'a> Parser<'a> {
         Ok(node)
     }
 
-    fn parse_when_expression(&mut self) -> Result<WhenNode, Error> {
+    fn parse_when_expression(&mut self) -> Result<WhenNode, ParserError> {
         // when testing [locals] consequence ?  //
         // ^                                 ^__// to here
         // |------------------------------------// current token, validated
@@ -1688,7 +1688,7 @@ impl<'a> Parser<'a> {
         Ok(node)
     }
 
-    fn parse_group_expression(&mut self) -> Result<Vec<ExpressionNode>, Error> {
+    fn parse_group_expression(&mut self) -> Result<Vec<ExpressionNode>, ParserError> {
         // {expression ...} ?  //
         // ^                ^__// to here
         // |-------------------// current token, validated
@@ -1720,7 +1720,7 @@ impl<'a> Parser<'a> {
     }
 }
 
-pub fn parse_from_str(source_code: &str) -> Result<ModuleNode, Error> {
+pub fn parse_from_str(source_code: &str) -> Result<ModuleNode, ParserError> {
     let tokens = lex_from_str(source_code)?;
     let clean_tokens = clean(tokens);
     let normalized_tokens = normalize(clean_tokens)?;

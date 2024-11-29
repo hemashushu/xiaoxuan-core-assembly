@@ -7,7 +7,7 @@
 use std::ops::Neg;
 
 use crate::{
-    error::Error,
+    error::ParserError,
     location::Location,
     peekableiter::PeekableIter,
     token::{NumberToken, Token, TokenWithRange},
@@ -31,7 +31,7 @@ pub fn clean(tokens: Vec<TokenWithRange>) -> Vec<TokenWithRange> {
     clean_tokens
 }
 
-pub fn normalize(tokens: Vec<TokenWithRange>) -> Result<Vec<TokenWithRange>, Error> {
+pub fn normalize(tokens: Vec<TokenWithRange>) -> Result<Vec<TokenWithRange>, ParserError> {
     // combine multiple continuous newlines into one newline.
     // rules:
     //   + blanks => blank
@@ -150,14 +150,14 @@ pub fn normalize(tokens: Vec<TokenWithRange>) -> Result<Vec<TokenWithRange>, Err
                         range: current_range,
                     }) => {
                         // combines two token ranges.
-                        return Err(Error::MessageWithLocation(
+                        return Err(ParserError::MessageWithLocation(
                             "The plus sign can only be applied to numbers.".to_owned(),
                             Location::from_range_pair(&start_range, current_range),
                         ));
                     }
                     None => {
                         // "...+EOF"
-                        return Err(Error::UnexpectedEndOfDocument(
+                        return Err(ParserError::UnexpectedEndOfDocument(
                             "Missing the number that follow the plus sign.".to_owned(),
                         ));
                     }
@@ -202,7 +202,7 @@ pub fn normalize(tokens: Vec<TokenWithRange>) -> Result<Vec<TokenWithRange>, Err
 
                                 let parse_result =
                                     format!("-{}", v).parse::<i8>().map_err(|_| {
-                                        Error::MessageWithLocation(
+                                        ParserError::MessageWithLocation(
                                             format!("Can not convert \"{}\" to negative i8", v),
                                             combined_range,
                                         )
@@ -224,7 +224,7 @@ pub fn normalize(tokens: Vec<TokenWithRange>) -> Result<Vec<TokenWithRange>, Err
 
                                 let parse_result =
                                     format!("-{}", v).parse::<i16>().map_err(|_| {
-                                        Error::MessageWithLocation(
+                                        ParserError::MessageWithLocation(
                                             format!("Can not convert \"{}\" to negative i16.", v),
                                             combined_range,
                                         )
@@ -246,7 +246,7 @@ pub fn normalize(tokens: Vec<TokenWithRange>) -> Result<Vec<TokenWithRange>, Err
 
                                 let parse_result =
                                     format!("-{}", v).parse::<i32>().map_err(|_| {
-                                        Error::MessageWithLocation(
+                                        ParserError::MessageWithLocation(
                                             format!("Can not convert \"{}\" to negative i32.", v),
                                             combined_range,
                                         )
@@ -268,7 +268,7 @@ pub fn normalize(tokens: Vec<TokenWithRange>) -> Result<Vec<TokenWithRange>, Err
 
                                 let parse_result =
                                     format!("-{}", v).parse::<i64>().map_err(|_| {
-                                        Error::MessageWithLocation(
+                                        ParserError::MessageWithLocation(
                                             format!("Can not convert \"{}\" to negative i64.", v),
                                             combined_range,
                                         )
@@ -291,14 +291,14 @@ pub fn normalize(tokens: Vec<TokenWithRange>) -> Result<Vec<TokenWithRange>, Err
                         range: current_range,
                     }) => {
                         // combines two token ranges.
-                        return Err(Error::MessageWithLocation(
+                        return Err(ParserError::MessageWithLocation(
                             "The minus sign can only be applied to numbers.".to_owned(),
                             Location::from_range_pair(&start_range, current_range),
                         ));
                     }
                     None => {
                         // "...-EOF"
-                        return Err(Error::UnexpectedEndOfDocument(
+                        return Err(ParserError::UnexpectedEndOfDocument(
                             "Missing the number that follow the minus sign.".to_owned(),
                         ));
                     }
@@ -335,7 +335,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use crate::{
-        error::Error,
+        error::ParserError,
         lexer::lex_from_str,
         location::Location,
         token::{NumberToken, Token, TokenWithRange},
@@ -343,13 +343,13 @@ mod tests {
 
     use super::{clean, normalize};
 
-    fn clean_and_lex_from_str(s: &str) -> Result<Vec<TokenWithRange>, Error> {
+    fn clean_and_lex_from_str(s: &str) -> Result<Vec<TokenWithRange>, ParserError> {
         let tokens = lex_from_str(s)?;
         let clean_tokens = clean(tokens);
         Ok(clean_tokens)
     }
 
-    fn clean_and_lex_from_str_without_location(s: &str) -> Result<Vec<Token>, Error> {
+    fn clean_and_lex_from_str_without_location(s: &str) -> Result<Vec<Token>, ParserError> {
         let tokens = clean_and_lex_from_str(s)?
             .into_iter()
             .map(|e| e.token)
@@ -357,13 +357,13 @@ mod tests {
         Ok(tokens)
     }
 
-    fn normalize_and_lex_from_str(s: &str) -> Result<Vec<TokenWithRange>, Error> {
+    fn normalize_and_lex_from_str(s: &str) -> Result<Vec<TokenWithRange>, ParserError> {
         let tokens = lex_from_str(s)?;
         let clean_tokens = clean(tokens);
         normalize(clean_tokens)
     }
 
-    fn normalize_and_lex_from_str_without_location(s: &str) -> Result<Vec<Token>, Error> {
+    fn normalize_and_lex_from_str_without_location(s: &str) -> Result<Vec<Token>, ParserError> {
         let tokens = normalize_and_lex_from_str(s)?
             .into_iter()
             .map(|e| e.token)
@@ -655,7 +655,7 @@ mod tests {
             // err: negative overflow
             assert!(matches!(
                 normalize_and_lex_from_str_without_location("-2_147_483_649"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -698,7 +698,7 @@ mod tests {
             // err: negative overflow
             assert!(matches!(
                 normalize_and_lex_from_str_without_location("-129_i8"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -756,7 +756,7 @@ mod tests {
             // err: negative overflow
             assert!(matches!(
                 normalize_and_lex_from_str_without_location("-32769_i16"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -814,7 +814,7 @@ mod tests {
             // err: negative overflow
             assert!(matches!(
                 normalize_and_lex_from_str_without_location("-2_147_483_649_i32"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -878,7 +878,7 @@ mod tests {
             // err: negative overflow
             assert!(matches!(
                 normalize_and_lex_from_str_without_location("-9_223_372_036_854_775_809_i64"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -952,19 +952,19 @@ mod tests {
         // +EOF
         assert!(matches!(
             normalize_and_lex_from_str_without_location("abc,+"),
-            Err(Error::UnexpectedEndOfDocument(_,))
+            Err(ParserError::UnexpectedEndOfDocument(_,))
         ));
 
         // -EOF
         assert!(matches!(
             normalize_and_lex_from_str_without_location("xyz,-"),
-            Err(Error::UnexpectedEndOfDocument(_,))
+            Err(ParserError::UnexpectedEndOfDocument(_,))
         ));
 
         // err: plus sign is added to non-numbers
         assert!(matches!(
             normalize_and_lex_from_str_without_location("+true"),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -979,7 +979,7 @@ mod tests {
         // err: minus sign is added to non-numbers
         assert!(matches!(
             normalize_and_lex_from_str_without_location("-true"),
-            Err(Error::MessageWithLocation(
+            Err(ParserError::MessageWithLocation(
                 _,
                 Location {
                     unit: 0,
@@ -1333,7 +1333,7 @@ mod tests {
             // err: negative overflow
             assert!(matches!(
                 normalize_and_lex_from_str_without_location("-0x8000_0001"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -1376,7 +1376,7 @@ mod tests {
             // err: negative overflow
             assert!(matches!(
                 normalize_and_lex_from_str_without_location("-0x81_i8"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -1434,7 +1434,7 @@ mod tests {
             // err: negative overflow
             assert!(matches!(
                 normalize_and_lex_from_str_without_location("-0x8001_i16"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -1492,7 +1492,7 @@ mod tests {
             // err: negative overflow
             assert!(matches!(
                 normalize_and_lex_from_str_without_location("-0x8000_0001_i32"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -1554,7 +1554,7 @@ mod tests {
             // err: negative overflow
             assert!(matches!(
                 normalize_and_lex_from_str_without_location("-0x8000_0000_0000_0001_i64"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -1701,7 +1701,7 @@ mod tests {
                 normalize_and_lex_from_str_without_location(
                     "-0b1000_0000_0000_0000__0000_0000_0000_0001"
                 ),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -1744,7 +1744,7 @@ mod tests {
             // err: negative overflow
             assert!(matches!(
                 normalize_and_lex_from_str_without_location("-0b1000_0001_i8"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -1802,7 +1802,7 @@ mod tests {
             // err: negative overflow
             assert!(matches!(
                 normalize_and_lex_from_str_without_location("-0b1000_0000_0000_0001_i16"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -1868,7 +1868,7 @@ mod tests {
                 normalize_and_lex_from_str_without_location(
                     "-0b1000_0000_0000_0000__0000_0000_0000_0001_i32"
                 ),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,
@@ -1926,7 +1926,7 @@ mod tests {
             // err: negative overflow
             assert!(matches!(
                 normalize_and_lex_from_str_without_location("-0b1000_0000_0000_0000__0000_0000_0000_0000__0000_0000_0000_0000__0000_0000_0000_0001_i64"),
-                Err(Error::MessageWithLocation(
+                Err(ParserError::MessageWithLocation(
                     _,
                     Location {
                         unit: 0,

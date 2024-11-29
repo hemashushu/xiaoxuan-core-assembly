@@ -7,9 +7,20 @@
 - [Data Types](#data-types)
 - [Literals](#literals)
   - [Numbers](#numbers)
+    - [Decimal and floating-point numbers](#decimal-and-floating-point-numbers)
+    - [Hexdecimal](#hexdecimal)
+    - [Hex floating-point](#hex-floating-point)
+    - [Binary](#binary)
+    - [Explict data type](#explict-data-type)
   - [Strings](#strings)
-  - [Byte Arrays](#byte-arrays)
+    - [Escape chars](#escape-chars)
+    - [Multiline strings](#multiline-strings)
+    - [Long strings](#long-strings)
+    - [Raw strings](#raw-strings)
+    - [Auto-trimmed strings](#auto-trimmed-strings)
+  - [Hex byte data](#hex-byte-data)
   - [List](#list)
+    - [Nested list](#nested-list)
 
 <!-- /code_chunk_output -->
 
@@ -40,18 +51,51 @@ Literals are used for initialization values of `data`, where number literals are
 
 TODO
 
-- `i8`
-- `i16`
-- `i32`
-- `i64`
-- `f32`
-- `f64`
+#### Decimal and floating-point numbers
+
+TODO
+
+#### Hexdecimal
+
+TODO
+
+#### Hex floating-point
+
+TODO
+
+#### Binary
+
+TODO
+
+#### Explict data type
+
+TODO
 
 ### Strings
 
 TODO
 
-### Byte Arrays
+#### Escape chars
+
+TODO
+
+#### Multiline strings
+
+TODO
+
+#### Long strings
+
+TODO
+
+#### Raw strings
+
+TODO
+
+#### Auto-trimmed strings
+
+TODO
+
+### Hex byte data
 
 TODO
 
@@ -60,6 +104,8 @@ TODO
 TODO
 
 [value0, value1, ...]
+
+#### Nested list
 
 ```json
 [

@@ -18,9 +18,9 @@ use anc_isa::{
     OperandDataType,
 };
 use anc_parser_asm::ast::{
-    DataNode, DataSection, DataTypeValuePair, DataValue, DeclareDataType, ExpressionNode,
-    ExternalNode, FixedDeclareDataType, FunctionNode, ImportNode, InstructionNode, LocalVariable,
-    ModuleNode, NamedParameter,
+    ArgumentValue, DataNode, DataSection, DataTypeValuePair, DataValue, DeclareDataType,
+    ExpressionNode, ExternalNode, FixedDeclareDataType, FunctionNode, ImportNode, InstructionNode,
+    LiteralNumber, LocalVariable, ModuleNode, NamedParameter,
 };
 
 use crate::{entry::ImageCommonEntry, AssembleError};
@@ -250,26 +250,16 @@ fn assemble_data_name_entries(
     // 1. internal read-only data
     // 2. internal read-write data
     // 3. internal uninit data
-    let mut data_name_path_entries = vec![];
-
+    let mut read_only_name_paths: Vec<DataNamePathEntry> = vec![];
     let mut read_only_data_ids: Vec<String> = vec![];
+
+    let mut read_write_name_paths: Vec<DataNamePathEntry> = vec![];
     let mut read_write_data_ids: Vec<String> = vec![];
+
+    let mut uninit_name_paths: Vec<DataNamePathEntry> = vec![];
     let mut uninit_data_ids: Vec<String> = vec![];
 
     for data_node in data_nodes {
-        let id = data_node.name.to_owned();
-        match data_node.data_section {
-            DataSection::ReadOnly(_) => {
-                read_only_data_ids.push(id);
-            }
-            DataSection::ReadWrite(_) => {
-                read_write_data_ids.push(id);
-            }
-            DataSection::Uninit(_) => {
-                uninit_data_ids.push(id);
-            }
-        }
-
         let name_path = if module_name_path.is_empty() {
             data_node.name.to_owned()
         } else {
@@ -277,8 +267,28 @@ fn assemble_data_name_entries(
         };
 
         let data_name_path_entry = DataNamePathEntry::new(name_path, data_node.export);
-        data_name_path_entries.push(data_name_path_entry);
+        let id = data_node.name.to_owned();
+
+        match data_node.data_section {
+            DataSection::ReadOnly(_) => {
+                read_only_name_paths.push(data_name_path_entry);
+                read_only_data_ids.push(id);
+            }
+            DataSection::ReadWrite(_) => {
+                read_write_name_paths.push(data_name_path_entry);
+                read_write_data_ids.push(id);
+            }
+            DataSection::Uninit(_) => {
+                uninit_name_paths.push(data_name_path_entry);
+                uninit_data_ids.push(id);
+            }
+        }
     }
+
+    let mut data_name_path_entries = vec![];
+    data_name_path_entries.append(&mut read_only_name_paths);
+    data_name_path_entries.append(&mut read_write_name_paths);
+    data_name_path_entries.append(&mut uninit_name_paths);
 
     AssembleResultForDataNameEntry {
         data_name_path_entries,
@@ -650,15 +660,35 @@ fn emit_expression(
     control_flow_stack: &mut ControlFlowStack,
     bytecode_writer: &mut BytecodeWriter,
 ) -> Result<(), AssembleError> {
-    // match expression_node {
-    //     ExpressionNode::Group(vec) => todo!(),
-    //     ExpressionNode::Instruction(instruction_node) => todo!(),
-    //     ExpressionNode::When(when_node) => todo!(),
-    //     ExpressionNode::If(if_node) => todo!(),
-    //     ExpressionNode::For(for_node) => todo!(),
-    //     ExpressionNode::Break(break_node) => todo!(),
-    //     ExpressionNode::Recur(break_node) => todo!(),
-    // }
+    match expression_node {
+        ExpressionNode::Group(items) => {
+            for item in items {
+                emit_expression(
+                    function_name,
+                    item,
+                    identifier_public_index_lookup_table,
+                    type_entries,
+                    local_variable_list_entries,
+                    control_flow_stack,
+                    bytecode_writer,
+                )?;
+            }
+        }
+        ExpressionNode::Instruction(instruction_node) => emit_instruction(
+            function_name,
+            instruction_node,
+            identifier_public_index_lookup_table,
+            type_entries,
+            local_variable_list_entries,
+            control_flow_stack,
+            bytecode_writer,
+        )?,
+        ExpressionNode::When(when_node) => todo!(),
+        ExpressionNode::If(if_node) => todo!(),
+        ExpressionNode::For(for_node) => todo!(),
+        ExpressionNode::Break(break_node) => todo!(),
+        ExpressionNode::Recur(break_node) => todo!(),
+    }
 
     Ok(())
 }
@@ -672,6 +702,50 @@ fn emit_instruction(
     control_flow_stack: &mut ControlFlowStack,
     bytecode_writer: &mut BytecodeWriter,
 ) -> Result<(), AssembleError> {
+    let inst_name = &instruction_node.name;
+    let args = &instruction_node.positional_args;
+    let named_args = &instruction_node.named_args;
+
+    match inst_name.as_str() {
+        "nop" => {
+            bytecode_writer.write_opcode(Opcode::nop);
+        }
+        "imm_i32" => {
+            bytecode_writer.write_opcode_i32(
+                Opcode::imm_i32,
+                read_argument_value_as_i32(inst_name, &args[0])?,
+            );
+        }
+        "imm_i64" => {
+            bytecode_writer.write_opcode_i64(
+                Opcode::imm_i64,
+                read_argument_value_as_i64(inst_name, &args[0])?,
+            );
+        }
+        "imm_f32" => {
+            bytecode_writer.write_opcode_f32(
+                Opcode::imm_f32,
+                read_argument_value_as_f32(inst_name, &args[0])?,
+            );
+        }
+        "imm_f64" => {
+            bytecode_writer.write_opcode_f64(
+                Opcode::imm_f64,
+                read_argument_value_as_f64(inst_name, &args[0])?,
+            );
+        }
+        "end" => {
+            bytecode_writer.write_opcode(Opcode::end);
+        }
+        _ => {
+            return Err(AssembleError {
+                message: format!("Unknown instruction \"{}\".", inst_name),
+            })
+        }
+    }
+
+    Ok(())
+
     //     match instruction {
     //         Instruction::NoParams { opcode, operands } => assemble_instruction_kind_no_params(
     //             opcode,
@@ -1565,7 +1639,6 @@ fn emit_instruction(
     //         }
     //     }
     //
-    Ok(())
 }
 
 // fn assemble_instruction_kind_no_params(
@@ -1902,49 +1975,6 @@ struct AssembleResultForDataNodes {
     uninit_data_entries: Vec<UninitDataEntry>,
 }
 
-fn conver_data_type_value_pair_to_inited_data_entry(
-    data_type_value_pair: &DataTypeValuePair,
-) -> Result<InitedDataEntry, AssembleError> {
-    let entry = match data_type_value_pair.data_type {
-        DeclareDataType::I64 => {
-            InitedDataEntry::from_i64(read_data_value_as_i64(&data_type_value_pair.value)?)
-        }
-        DeclareDataType::I32 => {
-            InitedDataEntry::from_i32(read_data_value_as_i32(&data_type_value_pair.value)?)
-        }
-        DeclareDataType::F64 => {
-            InitedDataEntry::from_f64(read_data_value_as_f64(&data_type_value_pair.value)?)
-        }
-        DeclareDataType::F32 => {
-            InitedDataEntry::from_f32(read_data_value_as_f32(&data_type_value_pair.value)?)
-        }
-        DeclareDataType::Bytes(opt_align) => InitedDataEntry::from_bytes(
-            read_data_value_as_bytes(&data_type_value_pair.value)?,
-            opt_align.unwrap_or(1) as u16,
-        ),
-        DeclareDataType::FixedBytes(length, opt_align) => {
-            let mut bytes = read_data_value_as_bytes(&data_type_value_pair.value)?;
-            bytes.resize(length, 0);
-            InitedDataEntry::from_bytes(bytes, opt_align.unwrap_or(1) as u16)
-        }
-    };
-    Ok(entry)
-}
-
-fn convert_fixed_declare_data_type_to_uninit_data_entry(
-    fixed_declare_data_type: &FixedDeclareDataType,
-) -> UninitDataEntry {
-    match fixed_declare_data_type {
-        FixedDeclareDataType::I64 => UninitDataEntry::from_i64(),
-        FixedDeclareDataType::I32 => UninitDataEntry::from_i32(),
-        FixedDeclareDataType::F64 => UninitDataEntry::from_f64(),
-        FixedDeclareDataType::F32 => UninitDataEntry::from_f32(),
-        FixedDeclareDataType::FixedBytes(length, opt_align) => {
-            UninitDataEntry::from_bytes(*length as u32, opt_align.unwrap_or(1) as u16)
-        }
-    }
-}
-
 fn assemble_data_nodes(
     data_nodes: &[DataNode],
 ) -> Result<AssembleResultForDataNodes, AssembleError> {
@@ -2022,9 +2052,13 @@ fn assemble_import_nodes(
     let mut import_function_entries: Vec<ImportFunctionEntry> = vec![];
     let mut import_function_ids: Vec<String> = vec![];
 
-    let mut import_data_entries: Vec<ImportDataEntry> = vec![];
+    let mut import_read_only_data_entries: Vec<ImportDataEntry> = vec![];
     let mut import_read_only_data_ids: Vec<String> = vec![];
+
+    let mut import_read_write_data_entries: Vec<ImportDataEntry> = vec![];
     let mut import_read_write_data_ids: Vec<String> = vec![];
+
+    let mut import_uninit_data_entries: Vec<ImportDataEntry> = vec![];
     let mut import_uninit_data_ids: Vec<String> = vec![];
 
     let get_module_index_by_name = |module_ids: &[String], name: &str| -> usize {
@@ -2074,20 +2108,7 @@ fn assemble_import_nodes(
                     data_name.to_owned()
                 };
 
-                // add data id
-                match import_data_node.data_section_type {
-                    DataSectionType::ReadOnly => {
-                        import_read_only_data_ids.push(identifier);
-                    }
-                    DataSectionType::ReadWrite => {
-                        import_read_write_data_ids.push(identifier);
-                    }
-                    DataSectionType::Uninit => {
-                        import_uninit_data_ids.push(identifier);
-                    }
-                };
-
-                // add import data entry
+                // import data entry
                 let import_data_entry = ImportDataEntry::new(
                     name_path.to_owned(),
                     import_module_index,
@@ -2095,10 +2116,29 @@ fn assemble_import_nodes(
                     import_data_node.data_type,
                 );
 
-                import_data_entries.push(import_data_entry);
+                // add data id
+                match import_data_node.data_section_type {
+                    DataSectionType::ReadOnly => {
+                        import_read_only_data_entries.push(import_data_entry);
+                        import_read_only_data_ids.push(identifier);
+                    }
+                    DataSectionType::ReadWrite => {
+                        import_read_write_data_entries.push(import_data_entry);
+                        import_read_write_data_ids.push(identifier);
+                    }
+                    DataSectionType::Uninit => {
+                        import_uninit_data_entries.push(import_data_entry);
+                        import_uninit_data_ids.push(identifier);
+                    }
+                };
             }
         }
     }
+
+    let mut import_data_entries: Vec<ImportDataEntry> = vec![];
+    import_data_entries.append(&mut import_read_only_data_entries);
+    import_data_entries.append(&mut import_read_write_data_entries);
+    import_data_entries.append(&mut import_uninit_data_entries);
 
     let result = AssembleResultForImportNodes {
         import_function_entries,
@@ -2271,9 +2311,189 @@ fn read_data_value_as_bytes(data_value: &DataValue) -> Result<Vec<u8>, AssembleE
     Ok(bytes)
 }
 
+fn read_argument_value_as_i16(inst_name: &str, v: &ArgumentValue) -> Result<u16, AssembleError> {
+    match v {
+        ArgumentValue::Identifier(_) => Err(AssembleError{
+            message: format!("Expect an i16 value for parameter of instruction \"{}\", but it is actually an identifier.", inst_name)
+        }),
+        ArgumentValue::LiteralNumber(literal_number) => match literal_number {
+            LiteralNumber::I8(v) => Ok(*v as u16),
+            LiteralNumber::I16(v) => Ok(*v),
+            LiteralNumber::I32(v) => Ok(*v as u16),
+            LiteralNumber::I64(v) => Ok(*v as u16),
+            LiteralNumber::F32(_) | LiteralNumber::F64(_)  => Err(AssembleError{
+                message: format!("Expect an i16 value for parameter of instruction \"{}\", but it is actually a floating-point number.", inst_name)
+            }),
+        },
+        ArgumentValue::Expression(_) => Err(AssembleError{
+            message: format!("Expect an i16 value for parameter of instruction \"{}\", but it is actually an expression.", inst_name)
+        }),
+    }
+}
+
+fn read_argument_value_as_i32(inst_name: &str, v: &ArgumentValue) -> Result<u32, AssembleError> {
+    match v {
+        ArgumentValue::Identifier(_) => Err(AssembleError{
+            message: format!("Expect an i32 value for parameter of instruction \"{}\", but it is actually an identifier.", inst_name)
+        }),
+        ArgumentValue::LiteralNumber(literal_number) => match literal_number {
+            LiteralNumber::I8(v) => Ok(*v as u32),
+            LiteralNumber::I16(v) => Ok(*v as u32),
+            LiteralNumber::I32(v) => Ok(*v),
+            LiteralNumber::I64(v) => Ok(*v as u32),
+            LiteralNumber::F32(_) | LiteralNumber::F64(_)  => Err(AssembleError{
+                message: format!("Expect an i32 value for parameter of instruction \"{}\", but it is actually a floating-point number.", inst_name)
+            }),
+        },
+        ArgumentValue::Expression(_) => Err(AssembleError{
+            message: format!("Expect an i32 value for parameter of instruction \"{}\", but it is actually an expression.", inst_name)
+        }),
+    }
+}
+
+fn read_argument_value_as_i64(inst_name: &str, v: &ArgumentValue) -> Result<u64, AssembleError> {
+    match v {
+        ArgumentValue::Identifier(_) => Err(AssembleError{
+            message: format!("Expect an i64 value for parameter of instruction \"{}\", but it is actually an identifier.", inst_name)
+        }),
+        ArgumentValue::LiteralNumber(literal_number) => match literal_number {
+            LiteralNumber::I8(v) => Ok(*v as u64),
+            LiteralNumber::I16(v) => Ok(*v as u64),
+            LiteralNumber::I32(v) => Ok(*v as u64),
+            LiteralNumber::I64(v) => Ok(*v),
+            LiteralNumber::F32(_) | LiteralNumber::F64(_)  => Err(AssembleError{
+                message: format!("Expect an i64 value for parameter of instruction \"{}\", but it is actually a floating-point number.", inst_name)
+            }),
+        },
+        ArgumentValue::Expression(_) => Err(AssembleError{
+            message: format!("Expect an i64 value for parameter of instruction \"{}\", but it is actually an expression.", inst_name)
+        }),
+    }
+}
+
+fn read_argument_value_as_f32(inst_name: &str, v: &ArgumentValue) -> Result<f32, AssembleError> {
+    match v {
+        ArgumentValue::Identifier(_) => Err(AssembleError{
+            message: format!("Expect an f32 value for parameter of instruction \"{}\", but it is actually an identifier.", inst_name)
+        }),
+        ArgumentValue::LiteralNumber(literal_number) => match literal_number {
+            LiteralNumber::I8(v) => Ok(*v as f32),
+            LiteralNumber::I16(v) => Ok(*v as f32),
+            LiteralNumber::I32(v) => Ok(*v as f32),
+            LiteralNumber::I64(v) => Ok(*v as f32),
+            LiteralNumber::F32(v)  => Ok(*v),
+            LiteralNumber::F64(v)  => Ok(*v as f32),
+        },
+        ArgumentValue::Expression(_) => Err(AssembleError{
+            message: format!("Expect an f32 value for parameter of instruction \"{}\", but it is actually an expression.", inst_name)
+        }),
+    }
+}
+
+fn read_argument_value_as_f64(inst_name: &str, v: &ArgumentValue) -> Result<f64, AssembleError> {
+    match v {
+        ArgumentValue::Identifier(_) => Err(AssembleError{
+            message: format!("Expect an f64 value for parameter of instruction \"{}\", but it is actually an identifier.", inst_name)
+        }),
+        ArgumentValue::LiteralNumber(literal_number) => match literal_number {
+            LiteralNumber::I8(v) => Ok(*v as f64),
+            LiteralNumber::I16(v) => Ok(*v as f64),
+            LiteralNumber::I32(v) => Ok(*v as f64),
+            LiteralNumber::I64(v) => Ok(*v as f64),
+            LiteralNumber::F32(v)  => Ok(*v as f64),
+            LiteralNumber::F64(v)  => Ok(*v),
+        },
+        ArgumentValue::Expression(_) => Err(AssembleError{
+            message: format!("Expect an f64 value for parameter of instruction \"{}\", but it is actually an expression.", inst_name)
+        }),
+    }
+}
+
+fn read_argument_value_as_expression<'a>(
+    inst_name: &str,
+    v: &'a ArgumentValue,
+) -> Result<&'a ExpressionNode, AssembleError> {
+    match v {
+        ArgumentValue::Identifier(_) => Err(AssembleError{
+            message: format!("Expect an expression for parameter of instruction \"{}\", but it is actually an identifier.", inst_name)
+        }),
+        ArgumentValue::LiteralNumber(_) => Err(AssembleError{
+            message: format!("Expect an expression for parameter of instruction \"{}\", but it is actually a number literal.", inst_name)
+        }),
+
+        ArgumentValue::Expression(exp) => Ok(exp.as_ref()),
+    }
+}
+
+fn read_argument_value_as_identifer<'a>(
+    inst_name: &str,
+    v: &'a ArgumentValue,
+) -> Result<&'a String, AssembleError> {
+    match v {
+        ArgumentValue::Identifier(id) => Ok(id),
+        ArgumentValue::LiteralNumber(_) => Err(AssembleError{
+            message: format!("Expect an identifier for parameter of instruction \"{}\", but it is actually a number literal.", inst_name)
+        }),
+        ArgumentValue::Expression(_) => Err(AssembleError{
+            message: format!("Expect an identifier for parameter of instruction \"{}\", but it is actually an expression.", inst_name)
+        }),
+    }
+}
+
+fn conver_data_type_value_pair_to_inited_data_entry(
+    data_type_value_pair: &DataTypeValuePair,
+) -> Result<InitedDataEntry, AssembleError> {
+    let entry = match data_type_value_pair.data_type {
+        DeclareDataType::I64 => {
+            InitedDataEntry::from_i64(read_data_value_as_i64(&data_type_value_pair.value)?)
+        }
+        DeclareDataType::I32 => {
+            InitedDataEntry::from_i32(read_data_value_as_i32(&data_type_value_pair.value)?)
+        }
+        DeclareDataType::F64 => {
+            InitedDataEntry::from_f64(read_data_value_as_f64(&data_type_value_pair.value)?)
+        }
+        DeclareDataType::F32 => {
+            InitedDataEntry::from_f32(read_data_value_as_f32(&data_type_value_pair.value)?)
+        }
+        DeclareDataType::Bytes(opt_align) => InitedDataEntry::from_bytes(
+            read_data_value_as_bytes(&data_type_value_pair.value)?,
+            opt_align.unwrap_or(1) as u16,
+        ),
+        DeclareDataType::FixedBytes(length, opt_align) => {
+            let mut bytes = read_data_value_as_bytes(&data_type_value_pair.value)?;
+            bytes.resize(length, 0);
+            InitedDataEntry::from_bytes(bytes, opt_align.unwrap_or(1) as u16)
+        }
+    };
+    Ok(entry)
+}
+
+fn convert_fixed_declare_data_type_to_uninit_data_entry(
+    fixed_declare_data_type: &FixedDeclareDataType,
+) -> UninitDataEntry {
+    match fixed_declare_data_type {
+        FixedDeclareDataType::I64 => UninitDataEntry::from_i64(),
+        FixedDeclareDataType::I32 => UninitDataEntry::from_i32(),
+        FixedDeclareDataType::F64 => UninitDataEntry::from_f64(),
+        FixedDeclareDataType::F32 => UninitDataEntry::from_f32(),
+        FixedDeclareDataType::FixedBytes(length, opt_align) => {
+            UninitDataEntry::from_bytes(*length as u32, opt_align.unwrap_or(1) as u16)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
+    use anc_image::{
+        bytecode_reader::format_bytecode_as_text,
+        entry::{
+            DataNamePathEntry, FunctionEntry, FunctionNamePathEntry, InitedDataEntry,
+            LocalVariableEntry, LocalVariableListEntry, TypeEntry, UninitDataEntry,
+        },
+    };
+    use anc_isa::{MemoryDataType, OperandDataType};
     use anc_parser_asm::parser::parse_from_str;
     use pretty_assertions::assert_eq;
 
@@ -2285,7 +2505,13 @@ mod tests {
         let import_module_entries = vec![create_virtual_dependency_module()];
         let external_library_entries = vec![];
 
-        let module_node = parse_from_str(source).unwrap();
+        let module_node = match parse_from_str(source) {
+            Ok(node) => node,
+            Err(parser_error) => {
+                panic!("{}", parser_error.with_source(source));
+            }
+        };
+
         let image_common_entry = assemble_module_node(
             &module_node,
             "hello_module",
@@ -2295,6 +2521,11 @@ mod tests {
         .unwrap();
 
         image_common_entry
+    }
+
+    fn codegen(source: &str) -> String {
+        let entry = assemble(source);
+        format_bytecode_as_text(&entry.function_entries[0].code)
     }
 
     #[test]
@@ -2309,25 +2540,226 @@ mod tests {
 
     #[test]
     fn test_assemble_data() {
-        // todo
+        let entry = assemble(
+            r#"
+data foo:i32 = 42
+uninit data bar:i64
+pub readonly data msg:byte[] = "Hello world!"
+pub data buf:byte[16] = h"11 13 17 19"
+pub data obj:byte[align=8] = [
+    "foo", 0_i8,
+    [0x23_i32, 0x29_i32],
+    [0x31_i16, 0x37_i16],
+    0xff_i64
+]"#,
+        );
+
+        // read-only data entries
+        assert_eq!(entry.read_only_data_entries.len(), 1);
+
+        assert_eq!(
+            &entry.read_only_data_entries[0],
+            &InitedDataEntry {
+                memory_data_type: MemoryDataType::Bytes,
+                data: vec![72, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 33,],
+                length: 12,
+                align: 1,
+            }
+        );
+
+        // read-write data entries
+        assert_eq!(entry.read_write_data_entries.len(), 3);
+
+        assert_eq!(
+            &entry.read_write_data_entries[0],
+            &InitedDataEntry {
+                memory_data_type: MemoryDataType::I32,
+                data: vec![42, 0, 0, 0],
+                length: 4,
+                align: 4
+            }
+        );
+
+        assert_eq!(
+            &entry.read_write_data_entries[1],
+            &InitedDataEntry {
+                memory_data_type: MemoryDataType::Bytes,
+                data: vec![17, 19, 23, 25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,],
+                length: 16,
+                align: 1
+            }
+        );
+
+        assert_eq!(
+            &entry.read_write_data_entries[2],
+            &InitedDataEntry {
+                memory_data_type: MemoryDataType::Bytes,
+                data: vec![
+                    102, 111, 111, 0, 35, 0, 0, 0, 41, 0, 0, 0, 49, 0, 55, 0, 255, 0, 0, 0, 0, 0,
+                    0, 0,
+                ],
+                length: 24,
+                align: 8
+            }
+        );
+
+        // uninit data entries
+        assert_eq!(entry.uninit_data_entries.len(), 1);
+
+        assert_eq!(
+            &entry.uninit_data_entries[0],
+            &UninitDataEntry {
+                memory_data_type: MemoryDataType::I64,
+                length: 8,
+                align: 8
+            }
+        );
+
+        // data name path
+        assert_eq!(
+            &entry.data_name_path_entries,
+            &[
+                DataNamePathEntry::new("msg".to_owned(), true),
+                DataNamePathEntry::new("foo".to_owned(), false),
+                DataNamePathEntry::new("buf".to_owned(), true),
+                DataNamePathEntry::new("obj".to_owned(), true),
+                DataNamePathEntry::new("bar".to_owned(), false),
+            ]
+        );
     }
 
     #[test]
     fn test_assemble_function() {
         let entry = assemble(
             r#"
-        fn add(left:i32, right:i32) -> i32 nop()
-        "#,
+            fn add(left:i32, right:i32) -> i32
+                nop()
+            fn fib(num:i32) -> i32
+                [count:i32, sum:i32]
+                nop()
+            pub fn inc(num:i32) -> i32
+                [temp:i32]
+                nop()
+            "#,
         );
 
-        println!("{:#?}", entry);
+        // type entries
+        assert_eq!(entry.type_entries.len(), 3);
 
-        // todo
+        assert_eq!(
+            &entry.type_entries[0],
+            &TypeEntry {
+                params: vec![],
+                results: vec![]
+            }
+        );
+
+        assert_eq!(
+            &entry.type_entries[1],
+            &TypeEntry {
+                params: vec![OperandDataType::I32, OperandDataType::I32],
+                results: vec![OperandDataType::I32]
+            }
+        );
+
+        assert_eq!(
+            &entry.type_entries[2],
+            &TypeEntry {
+                params: vec![OperandDataType::I32],
+                results: vec![OperandDataType::I32]
+            }
+        );
+
+        // local variable list entries
+        assert_eq!(entry.local_variable_list_entries.len(), 3);
+
+        assert_eq!(
+            &entry.local_variable_list_entries[0],
+            &LocalVariableListEntry::new(vec![])
+        );
+
+        assert_eq!(
+            &entry.local_variable_list_entries[1],
+            &LocalVariableListEntry::new(vec![
+                LocalVariableEntry::from_i32(),
+                LocalVariableEntry::from_i32(),
+            ])
+        );
+
+        assert_eq!(
+            &entry.local_variable_list_entries[2],
+            &LocalVariableListEntry::new(vec![
+                LocalVariableEntry::from_i32(),
+                LocalVariableEntry::from_i32(),
+                LocalVariableEntry::from_i32(),
+            ])
+        );
+
+        // function entries
+        assert_eq!(entry.function_entries.len(), 3);
+
+        assert_eq!(
+            &entry.function_entries[0],
+            &FunctionEntry {
+                type_index: 1,
+                local_list_index: 1,
+                code: vec![0, 1, 192, 3]
+            }
+        );
+
+        assert_eq!(
+            &entry.function_entries[1],
+            &FunctionEntry {
+                type_index: 2,
+                local_list_index: 2,
+                code: vec![0, 1, 192, 3]
+            }
+        );
+
+        assert_eq!(
+            &entry.function_entries[2],
+            &FunctionEntry {
+                type_index: 2,
+                local_list_index: 1,
+                code: vec![0, 1, 192, 3]
+            }
+        );
+
+        // function name paths
+        assert_eq!(
+            &entry.function_name_path_entries,
+            &vec![
+                FunctionNamePathEntry::new("add".to_owned(), false),
+                FunctionNamePathEntry::new("fib".to_owned(), false),
+                FunctionNamePathEntry::new("inc".to_owned(), true),
+            ]
+        );
     }
 
     #[test]
     fn test_assemble_expression_group() {
-        // todo
+        assert_eq!(
+            codegen(
+                r#"
+        fn foo() {
+            imm_i32(0x11)
+            imm_i64(0x13)
+            imm_f32(3.142)
+            imm_f64(2.718)
+            nop()
+        }
+        "#
+            ),
+            "\
+0x0000  40 01 00 00  11 00 00 00    imm_i32           0x00000011
+0x0008  41 01 00 00  13 00 00 00    imm_i64           low:0x00000013  high:0x00000000
+        00 00 00 00
+0x0014  42 01 00 00  87 16 49 40    imm_f32           0x40491687
+0x001c  43 01 00 00  58 39 b4 c8    imm_f64           low:0xc8b43958  high:0x4005be76
+        76 be 05 40
+0x0028  00 01                       nop
+0x002a  c0 03                       end"
+        );
     }
 
     #[test]

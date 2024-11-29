@@ -26,6 +26,9 @@ project_folder
  |
  |-- doc
  |   |-- README.md      // documentations
+ |
+ |-- build              // the building assets
+
 ```
 
 ### Code Example
@@ -42,10 +45,16 @@ external fn libfoo::add(i32, i32) -> i32 as i32_add
 external data libfoo::PI:f32 as CONST_PI
 
 // define data
-data foo:i32 = 0x11
+data foo:i32 = 42
 uninit data bar:i64
-pub readonly data baz:i32 = 0x13
-pub data buf:byte[32] = b"01 02 03 04 ..."
+pub readonly data msg:byte[] = "Hello world!"
+pub data buf:byte[16] = h"11 13 17 19"
+pub data obj:byte[align=8] = [
+    "foo", 0_i8,
+    [0x23_i32, 0x29_i32],
+    [0x31_i16, 0x37_i16],
+    0xff_i64
+]
 
 // define function "add"
 fn add(left:i32, right:i32) -> i32 {

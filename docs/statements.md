@@ -164,19 +164,50 @@ Note that in the case of static linking, the item is always visible to other mod
 Example of `data` statement:
 
 ```rust
-data foo:i32 = 0x11
-pub readonly data bar:i32 = 0x13
-pub uninit data baz:i64
+data foo:i32 = 42
+uninit data bar:i64
+pub readonly data msg:byte[] = "Hello world!"
+pub data buf:byte[16] = h"11 13 17 19"
 ```
+
+### Data Values
 
 The possible value of data are:
 
 - Numbers: includes decimal, hexadecimal, binary, float-point, hex float-point.
 - Strings: normal string, multiline string, long string, raw string, raw string with hash symbol, auto-trimmed string.
-- Hex byte data.
-- List. The element of list can be numbers, strings, hex byte data and list.
+- Hex byte data string.
+- List: the element of list can be numbers, strings, hex byte data string, and list.
 
-TODO:: list examples
+List example:
+
+```rust
+pub data lst:byte[] = [0x11, 0x13, 0x17, 0x19]
+
+// The content of lst is:
+//
+// 0x11, 0, 0, 0,
+// 0x13, 0, 0, 0,
+// 0x17, 0, 0, 0,
+// 0x19, 0, 0, 0,
+//
+// the number `0x11` in memory is `0x11, 0, 0, 0` since
+// the default type of number is `i32`.
+
+pub data obj:byte[align=8] = [
+    "foo", 0_i8,
+    [0x23_i32, 0x29_i32],
+    [0x31_i16, 0x37_i16],
+    0xff_i64
+]
+
+// The content of obj is:
+//
+// 0x66, 0x6f, 0x6f, 0,
+// 0x23, 0, 0, 0, 0x29, 0, 0, 0,
+// 0x31, 0, 0x37, 0
+// 0xff, 0, 0, 0, 0, 0, 0, 0
+```
 
 There are two ways to declare the length of a byte array:
 
@@ -185,8 +216,8 @@ There are two ways to declare the length of a byte array:
 
 ```rust
 pub data foo1:byte[32] = h"11 13 17 19" // length is 32
-pub data foo1:byte[32] = [0x11_i32, 0x13_i32, 0x17_i32, 0x19_i32] // length is 32
-pub data foo2:byte[] = [0x11_i32, 0x13_i32, 0x17_i32, 0x19_i32] // length is 4
+pub data foo1:byte[32] = [0x11_i8, 0x13_i8, 0x17_i8, 0x19_i8] // length is 32
+pub data foo2:byte[] = [0x11_i8, 0x13_i8, 0x17_i8, 0x19_i8] // length is 4
 pub data foo3:byte[] = "Hello, World!" // length is 13
 pub data foo4:byte[] = "Hello, World!\0" // length is 13+1
 pub data foo5:byte[] = ["Hello, World!", 0_i8] // length is 13+1
@@ -196,6 +227,10 @@ The `byte` type can also be specified alignment, e.g.:
 
 - `byte[1024, align=8]`
 - `byte[align=4]`
+
+### Numeric Type Auto Conversion
+
+TODO:: auto convert to the declared type, rules ...
 
 ## The `fn` Statements
 

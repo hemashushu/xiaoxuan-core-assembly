@@ -9,7 +9,7 @@ use std::fmt::{self, Display};
 use crate::location::Location;
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Error {
+pub enum ParserError {
     Message(String),
     UnexpectedEndOfDocument(String),
 
@@ -19,15 +19,15 @@ pub enum Error {
     MessageWithLocation(String, Location),
 }
 
-impl Display for Error {
+impl Display for ParserError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::Message(msg) => f.write_str(msg),
-            Error::UnexpectedEndOfDocument(detail) => {
+            ParserError::Message(msg) => f.write_str(msg),
+            ParserError::UnexpectedEndOfDocument(detail) => {
                 writeln!(f, "Unexpected to reach the end of document.")?;
                 write!(f, "{}", detail)
             }
-            Error::MessageWithLocation(detail, location) => {
+            ParserError::MessageWithLocation(detail, location) => {
                 writeln!(
                     f,
                     "Error at line: {}, column: {}",
@@ -40,4 +40,4 @@ impl Display for Error {
     }
 }
 
-impl std::error::Error for Error {}
+impl std::error::Error for ParserError {}
