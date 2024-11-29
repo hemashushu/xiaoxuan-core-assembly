@@ -1,4 +1,4 @@
-# The Statements
+# Statements
 
 <!-- @import "[TOC]" {cmd="toc" depthFrom=2 depthTo=4 orderedList=false} -->
 
@@ -14,8 +14,6 @@
 - [Line Break Rules](#line-break-rules)
 
 <!-- /code_chunk_output -->
-
-A module consists of statements.
 
 <!--
 

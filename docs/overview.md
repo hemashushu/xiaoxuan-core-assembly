@@ -1,11 +1,39 @@
 # Overview
 
-XiaoXuan Core Assembly Language (Ancasm)
+## XiaoXuan Core Module
 
-## Code
+### Module Structure
+
+```text
+project_folder
+ |-- module.anc.ason    // module(package/project) configuration
+ |-- README.md
+ |-- LICENSE.md etc.
+ |-- src
+ |   |-- lib.ancasm     // top-level submodule
+ |   |-- foo.ancasm     // submodule
+ |   |-- subfolder
+ |   |   |-- bar.ancasm // another submodule
+ |   |-- app.ancasm     // the default executable unit
+ |
+ |-- app
+ |   |-- cmd1.ancasm    // sub-executable unit
+ |   |-- cmd2.ancasm    // sub-executable unit
+ |
+ |-- test               // unit test source files
+ |   |-- test1.ancasm
+ |   |-- test2.ancasm
+ |
+ |-- doc
+ |   |-- README.md      // documentations
+```
+
+### Code Example
+
+Code of file `./src/lib.ancasm`:
 
 ```rust
-// imports functions and data from other sub-modules or shared modules
+// imports functions and data from other submodules or shared modules
 import fn std::memory::copy(i64, i64)
 import readonly data digest::sha2::message:byte[]
 
@@ -13,11 +41,13 @@ import readonly data digest::sha2::message:byte[]
 external fn libfoo::add(i32, i32) -> i32 as i32_add
 external data libfoo::PI:f32 as CONST_PI
 
+// define data
 data foo:i32 = 0x11
-pub data bar:byte[32] = b"01 02 03 04 ..."
+uninit data bar:i64
 pub readonly data baz:i32 = 0x13
-pub uninit buz:i64
+pub data buf:byte[32] = b"01 02 03 04 ..."
 
+// define function "add"
 fn add(left:i32, right:i32) -> i32 {
     add_i32(
         local_load_i32_s(left)
@@ -25,20 +55,24 @@ fn add(left:i32, right:i32) -> i32 {
     )
 }
 
+// define function "inc"
 pub fn inc(num:i32) -> i32 {
-    add_imm_i32(
+    // call function "add"
+    add(
         local_load_i32_s(num)
+        imm_i32(1)
     )
 }
 
+// the default entry function
 pub fn entry() -> i32 {
-    imm_i32(42)
+    imm_i32(0)
 }
 ```
 
-## Configuration
+### Configuration Example
 
-content of the file `module.ason`:
+Content of file `./module.anc.ason`:
 
 ```json5
 {
@@ -103,3 +137,11 @@ content of the file `module.ason`:
     ]
 }
 ```
+
+## XiaoXuan Core Assembly Language (Ancasm)
+
+- [Data types and literals](./datatypes.md)
+- [Statements](./statements.md)
+- [Expressions](./expressions.md)
+- [Instruction](./instructions.md)
+
