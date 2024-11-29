@@ -3,6 +3,24 @@
 version = 3
 
 [[package]]
+name = "anc-assembler"
+version = "0.1.1"
+dependencies = [
+ "anc-image",
+ "anc-isa",
+ "anc-parser-asm",
+ "pretty_assertions",
+]
+
+[[package]]
+name = "anc-image"
+version = "0.1.1"
+dependencies = [
+ "anc-isa",
+ "ason",
+]
+
+[[package]]
 name = "anc-isa"
 version = "0.1.1"
 dependencies = [
