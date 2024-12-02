@@ -169,8 +169,14 @@ mod tests {
         let source2 = "012345678_b12345678_c12345678_d12345678_e123456789"; // 50 chars
         let msg = "abcde";
 
-        assert_eq!(ParserError::Message(msg.to_owned()).with_source(source1), msg);
-        assert_eq!(ParserError::Message(msg.to_owned()).with_source(source2), msg);
+        assert_eq!(
+            ParserError::Message(msg.to_owned()).with_source(source1),
+            msg
+        );
+        assert_eq!(
+            ParserError::Message(msg.to_owned()).with_source(source2),
+            msg
+        );
     }
 
     #[test]

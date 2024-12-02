@@ -8,7 +8,7 @@
 - [Control Flow Expressions](#control-flow-expressions)
   - [When](#when)
   - [If](#if)
-  - [For](#for)
+  - [Block](#block)
   - [Break](#break)
   - [Recur](#recur)
 
@@ -74,9 +74,21 @@ Note that:
 - If the expression has no params but has return values, the format is `() -> results`.
 - If the expression has no params and no return value, the entire `params -> results` can be omitted.
 
-### For
+<!--
+### Branch
 
-`for params -> results [locals] body`
+```json
+branch {
+    case testing consequence
+    case testing consequence
+    default consequence
+}
+```
+-->
+
+### Block
+
+`block params -> results [locals] body`
 
 Where:
 

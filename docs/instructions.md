@@ -107,7 +107,7 @@ local_store_f64(identifier, value:f64, offset=literal_i16)  ->  ()
 local_store_f32(identifier, value:f32, offset=literal_i16)  ->  ()
 ```
 
-The `identifier` argument is the name of local variables.
+The `identifier` argument is the name of local variables or function parameters.
 
 ### Local Loading/Storing Extension
 

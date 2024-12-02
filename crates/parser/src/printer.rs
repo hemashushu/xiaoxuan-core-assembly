@@ -7,11 +7,12 @@
 use anc_isa::{DataSectionType, OperandDataType};
 
 use crate::ast::{
-    ArgumentValue, BreakNode, DataNode, DataSection, DataValue, ExpressionNode, ExternalDataNode,
-    ExternalFunctionNode, ExternalNode, ForNode, FunctionNode, IfNode, ImportDataNode,
+    ArgumentValue, BlockNode, BreakNode, DataNode, DataSection, DataValue, ExpressionNode,
+    ExternalDataNode, ExternalFunctionNode, ExternalNode, FunctionNode, IfNode, ImportDataNode,
     ImportFunctionNode, ImportNode, InstructionNode, LiteralNumber, LocalVariable, ModuleNode,
     NamedParameter, WhenNode,
 };
+
 use std::io::{Error, Write};
 
 pub const DEFAULT_INDENT_CHARS: &str = "    ";
@@ -21,6 +22,15 @@ fn print_function_node(
     node: &FunctionNode,
     indent_chars: &str,
 ) -> Result<(), Error> {
+    // ```
+    // fn name(params) -> results
+    //     body
+    //
+    // fn name(params) -> results
+    //     [locals]
+    //     body
+    // ```
+
     if node.export {
         write!(writer, "pub ")?;
     }
@@ -181,27 +191,11 @@ fn print_external_data_node(writer: &mut dyn Write, node: &ExternalDataNode) -> 
     Ok(())
 }
 
-// fn print_use_node(writer: &mut dyn Write, node: &UseNode) -> Result<(), Error> {
-//     write!(writer, "use {}", node.full_name)?;
-//     if let Some(alias) = &node.alias_name {
-//         write!(writer, " as {}", alias)?;
-//     }
-//     Ok(())
-// }
-
 fn print_module_node(
     writer: &mut dyn Write,
     node: &ModuleNode,
     indent_chars: &str,
 ) -> Result<(), Error> {
-    // if !node.uses.is_empty() {
-    //     for item in &node.uses {
-    //         print_use_node(writer, item)?;
-    //         writeln!(writer)?;
-    //     }
-    //     writeln!(writer)?;
-    // }
-
     if !node.imports.is_empty() {
         for item in &node.imports {
             print_import_node(writer, item)?;
@@ -251,8 +245,11 @@ fn format_expression(node: &ExpressionNode, indent_chars: &str, indent_level: us
             format_expression_when(when_node, indent_chars, indent_level)
         }
         ExpressionNode::If(if_node) => format_expression_if(if_node, indent_chars, indent_level),
-        ExpressionNode::For(for_node) => {
-            format_expression_for(for_node, indent_chars, indent_level)
+        // ExpressionNode::Branch(branch_node) => {
+        //     format_expression_branch(branch_node, indent_chars, indent_level)
+        // }
+        ExpressionNode::Block(block_node) => {
+            format_expression_block(block_node, indent_chars, indent_level)
         }
         ExpressionNode::Break(break_node) => {
             format_expression_break(break_node, false, indent_chars, indent_level)
@@ -405,9 +402,72 @@ fn format_expression_if(node: &IfNode, indent_chars: &str, indent_level: usize) 
     )
 }
 
-fn format_expression_for(node: &ForNode, indent_chars: &str, indent_level: usize) -> String {
+// fn format_expression_branch(node: &BranchNode, indent_chars: &str, indent_level: usize) -> String {
+//     // ```
+//     // branch (...) -> (...)
+//     //     [locals]
+//     //     {
+//     //     case
+//     //          testing
+//     //          consequence
+//     //     case
+//     //          testing
+//     //          consequence
+//     //     default
+//     //          consequence
+//     //     }
+//     //```
+//     let indent = indent_chars.repeat(indent_level + 1);
+//     let indent2 = indent_chars.repeat(indent_level + 2);
+//
+//     let cases = node
+//         .cases
+//         .iter()
+//         .map(|item| {
+//             format!(
+//                 "{}case\n{}{}\n{}{}",
+//                 indent,
+//                 indent2,
+//                 format_expression(&item.testing, indent_chars, indent_level + 2),
+//                 indent2,
+//                 format_expression(&item.consequence, indent_chars, indent_level + 2)
+//             )
+//         })
+//         .collect::<Vec<String>>()
+//         .join("\n");
+//
+//     if node.locals.is_empty() {
+//         format!(
+//             "branch {} -> {}\n{}{{\n{}\n{}default\n{}{}\n{}}}",
+//             format_params(&node.params),
+//             format_results(&node.results),
+//             indent,
+//             cases,
+//             indent,
+//             indent2,
+//             format_expression(&node.default, indent_chars, indent_level + 2),
+//             indent
+//         )
+//     } else {
+//         format!(
+//             "branch {} -> {}\n{}{}\n{}{{\n{}\n{}default\n{}{}\n{}}}",
+//             format_params(&node.params),
+//             format_results(&node.results),
+//             indent,
+//             format_local_variables(&node.locals),
+//             indent,
+//             cases,
+//             indent,
+//             indent2,
+//             format_expression(&node.default, indent_chars, indent_level + 2),
+//             indent
+//         )
+//     }
+// }
+
+fn format_expression_block(node: &BlockNode, indent_chars: &str, indent_level: usize) -> String {
     // ```
-    // for (...) -> (...)
+    // block (...) -> (...)
     //     [locals]
     //     expression
     // ```
@@ -416,7 +476,7 @@ fn format_expression_for(node: &ForNode, indent_chars: &str, indent_level: usize
 
     if node.locals.is_empty() {
         format!(
-            "for {} -> {}\n{}{}",
+            "block {} -> {}\n{}{}",
             /* params */ format_params(&node.params),
             /* results */ format_results(&node.results),
             indent,
@@ -424,7 +484,7 @@ fn format_expression_for(node: &ForNode, indent_chars: &str, indent_level: usize
         )
     } else {
         format!(
-            "for {} -> {}\n{}{}\n{}{}",
+            "block {} -> {}\n{}{}\n{}{}",
             /* params */ format_params(&node.params),
             /* results */ format_results(&node.results),
             indent,
@@ -694,9 +754,9 @@ mod tests {
 
     use crate::{
         ast::{
-            ArgumentValue, BreakNode, DataNode, DataSection, DataTypeValuePair, DataValue,
-            DeclareDataType, ExpressionNode, ExternalDataNode, ExternalFunctionNode, ExternalNode,
-            FixedDeclareDataType, ForNode, FunctionNode, IfNode, ImportDataNode,
+            ArgumentValue, BlockNode, BreakNode, DataNode, DataSection, DataTypeValuePair,
+            DataValue, DeclareDataType, ExpressionNode, ExternalDataNode, ExternalFunctionNode,
+            ExternalNode, FixedDeclareDataType, FunctionNode, IfNode, ImportDataNode,
             ImportFunctionNode, ImportNode, InstructionNode, LiteralNumber, LocalVariable,
             ModuleNode, NamedArgument, NamedParameter, WhenNode,
         },
@@ -1565,8 +1625,161 @@ fn foo() -> ()
         );
     }
 
+    // #[test]
+    // fn test_print_expression_branch() {
+    //     let print = |node: &FunctionNode| {
+    //         let mut buf: Vec<u8> = vec![];
+    //         print_function_node(&mut buf, node, DEFAULT_INDENT_CHARS).unwrap();
+    //         String::from_utf8(buf).unwrap()
+    //     };
+    //
+    //     let node0 = FunctionNode {
+    //         export: true,
+    //         name: "foo".to_owned(),
+    //         params: vec![],
+    //         results: vec![],
+    //         locals: vec![],
+    //         body: Box::new(ExpressionNode::Branch(BranchNode {
+    //             params: vec![
+    //                 NamedParameter {
+    //                     name: "left".to_owned(),
+    //                     data_type: OperandDataType::I32,
+    //                 },
+    //                 NamedParameter {
+    //                     name: "right".to_owned(),
+    //                     data_type: OperandDataType::I32,
+    //                 },
+    //             ],
+    //             results: vec![OperandDataType::I32],
+    //             locals: vec![
+    //                 LocalVariable {
+    //                     name: "temp".to_owned(),
+    //                     data_type: FixedDeclareDataType::I32,
+    //                 },
+    //                 LocalVariable {
+    //                     name: "count".to_owned(),
+    //                     data_type: FixedDeclareDataType::I32,
+    //                 },
+    //             ],
+    //             cases: vec![
+    //                 CaseNode {
+    //                     testing: Box::new(ExpressionNode::Instruction(InstructionNode {
+    //                         name: "imm_i32".to_owned(),
+    //                         positional_args: vec![ArgumentValue::LiteralNumber(
+    //                             LiteralNumber::I32(11),
+    //                         )],
+    //                         named_args: vec![],
+    //                     })),
+    //
+    //                     consequence: Box::new(ExpressionNode::Instruction(InstructionNode {
+    //                         name: "imm_i32".to_owned(),
+    //                         positional_args: vec![ArgumentValue::LiteralNumber(
+    //                             LiteralNumber::I32(13),
+    //                         )],
+    //                         named_args: vec![],
+    //                     })),
+    //                 },
+    //                 CaseNode {
+    //                     testing: Box::new(ExpressionNode::Instruction(InstructionNode {
+    //                         name: "imm_i32".to_owned(),
+    //                         positional_args: vec![ArgumentValue::LiteralNumber(
+    //                             LiteralNumber::I32(17),
+    //                         )],
+    //                         named_args: vec![],
+    //                     })),
+    //
+    //                     consequence: Box::new(ExpressionNode::Instruction(InstructionNode {
+    //                         name: "imm_i32".to_owned(),
+    //                         positional_args: vec![ArgumentValue::LiteralNumber(
+    //                             LiteralNumber::I32(19),
+    //                         )],
+    //                         named_args: vec![],
+    //                     })),
+    //                 },
+    //             ],
+    //             default: Box::new(ExpressionNode::Instruction(InstructionNode {
+    //                 name: "imm_i32".to_owned(),
+    //                 positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(42))],
+    //                 named_args: vec![],
+    //             })),
+    //         })),
+    //     };
+    //
+    //     assert_eq!(
+    //         print(&node0),
+    //         "\
+    // pub fn foo() -> ()
+    // branch (left:i32, right:i32) -> i32
+    //     [temp:i32, count:i32]
+    //     {
+    //     case
+    //         imm_i32(11)
+    //         imm_i32(13)
+    //     case
+    //         imm_i32(17)
+    //         imm_i32(19)
+    //     default
+    //         imm_i32(42)
+    //     }"
+    //     );
+    //
+    //     // test no locals
+    //     let node0 = FunctionNode {
+    //         export: true,
+    //         name: "foo".to_owned(),
+    //         params: vec![],
+    //         results: vec![],
+    //         locals: vec![],
+    //         body: Box::new(ExpressionNode::Branch(BranchNode {
+    //             params: vec![
+    //             ],
+    //             results: vec![],
+    //             locals: vec![
+    //             ],
+    //             cases: vec![
+    //                 CaseNode {
+    //                     testing: Box::new(ExpressionNode::Instruction(InstructionNode {
+    //                         name: "imm_i32".to_owned(),
+    //                         positional_args: vec![ArgumentValue::LiteralNumber(
+    //                             LiteralNumber::I32(11),
+    //                         )],
+    //                         named_args: vec![],
+    //                     })),
+    //
+    //                     consequence: Box::new(ExpressionNode::Instruction(InstructionNode {
+    //                         name: "imm_i32".to_owned(),
+    //                         positional_args: vec![ArgumentValue::LiteralNumber(
+    //                             LiteralNumber::I32(13),
+    //                         )],
+    //                         named_args: vec![],
+    //                     })),
+    //                 },
+    //             ],
+    //             default: Box::new(ExpressionNode::Instruction(InstructionNode {
+    //                 name: "imm_i32".to_owned(),
+    //                 positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(42))],
+    //                 named_args: vec![],
+    //             })),
+    //         })),
+    //     };
+    //
+    //     assert_eq!(
+    //         print(&node0),
+    //         "\
+    // pub fn foo() -> ()
+    // branch () -> ()
+    //     {
+    //     case
+    //         imm_i32(11)
+    //         imm_i32(13)
+    //     default
+    //         imm_i32(42)
+    //     }"
+    //     );
+    // }
+
     #[test]
-    fn test_print_expression_for() {
+    fn test_print_expression_block() {
         let print = |node: &FunctionNode| {
             let mut buf: Vec<u8> = vec![];
             print_function_node(&mut buf, node, DEFAULT_INDENT_CHARS).unwrap();
@@ -1579,7 +1792,7 @@ fn foo() -> ()
             params: vec![],
             results: vec![],
             locals: vec![],
-            body: Box::new(ExpressionNode::For(ForNode {
+            body: Box::new(ExpressionNode::Block(BlockNode {
                 params: vec![],
                 results: vec![],
                 locals: vec![],
@@ -1606,7 +1819,7 @@ fn foo() -> ()
             print(&node0),
             "\
 fn foo() -> ()
-    for () -> ()
+    block () -> ()
         local_store_i32(out,
             imm_i32(11))"
         );
@@ -1618,7 +1831,7 @@ fn foo() -> ()
             params: vec![],
             results: vec![],
             locals: vec![],
-            body: Box::new(ExpressionNode::For(ForNode {
+            body: Box::new(ExpressionNode::Block(BlockNode {
                 params: vec![
                     NamedParameter {
                         name: "left".to_owned(),
@@ -1652,7 +1865,7 @@ fn foo() -> ()
             print(&node1),
             "\
 fn foo() -> ()
-    for (left:i32, right:i32) -> i32
+    block (left:i32, right:i32) -> i32
         [abc:i32, def:byte[32]]
         nop()"
         );
@@ -1664,7 +1877,7 @@ fn foo() -> ()
             params: vec![],
             results: vec![],
             locals: vec![],
-            body: Box::new(ExpressionNode::For(ForNode {
+            body: Box::new(ExpressionNode::Block(BlockNode {
                 params: vec![],
                 results: vec![],
                 locals: vec![LocalVariable {
@@ -1712,7 +1925,7 @@ fn foo() -> ()
             print(&node2),
             "\
 fn foo() -> ()
-    for () -> ()
+    block () -> ()
         [temp:i32]
         {
             local_store_i32(abc,

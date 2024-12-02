@@ -18,12 +18,15 @@ use anc_isa::{
     OperandDataType,
 };
 use anc_parser_asm::ast::{
-    ArgumentValue, DataNode, DataSection, DataTypeValuePair, DataValue, DeclareDataType,
+    ArgumentValue, BreakNode, DataNode, DataSection, DataTypeValuePair, DataValue, DeclareDataType,
     ExpressionNode, ExternalNode, FixedDeclareDataType, FunctionNode, ImportNode, InstructionNode,
-    LiteralNumber, LocalVariable, ModuleNode, NamedParameter,
+    LiteralNumber, LocalVariable, ModuleNode, NamedArgument, NamedParameter,
 };
 
 use crate::{entry::ImageCommonEntry, AssembleError};
+
+// the value of the stub for the instruction parameter 'next_inst_offset'
+const INSTRUCTION_STUB_VALUE: u32 = 0;
 
 /// Get the "module name" and "name path" from a "full name",
 /// note that the "name path" may be empty if the "full name"
@@ -465,7 +468,7 @@ fn assemble_function_nodes(
     let mut function_entries = vec![];
 
     for function_node in function_nodes {
-        let type_index = find_or_create_function_type_index2(
+        let type_index = find_or_create_function_type_index(
             type_entries,
             &function_node.params,
             &function_node.results,
@@ -503,7 +506,7 @@ fn assemble_function_nodes(
 }
 
 /// function type = params + results
-fn find_or_create_function_type_index(
+fn find_or_create_import_function_type_index(
     type_entries: &mut Vec<TypeEntry>,
     params: &[OperandDataType],
     results: &[OperandDataType],
@@ -525,13 +528,13 @@ fn find_or_create_function_type_index(
 }
 
 /// function type = params + results
-fn find_or_create_function_type_index2(
+fn find_or_create_function_type_index(
     type_entries: &mut Vec<TypeEntry>,
     named_params: &[NamedParameter],
     results: &[OperandDataType],
 ) -> usize {
     let params: Vec<OperandDataType> = named_params.iter().map(|item| item.data_type).collect();
-    find_or_create_function_type_index(type_entries, &params, results)
+    find_or_create_import_function_type_index(type_entries, &params, results)
 }
 
 /// local variable list type = function params + local vars
@@ -638,7 +641,7 @@ fn assemble_function_code(
     bytecode_writer.write_opcode(Opcode::end);
 
     // pop flow stack
-    control_flow_stack.pop_layer_and_fill_stubs(&mut bytecode_writer, 0);
+    control_flow_stack.pop_layer(&mut bytecode_writer, 0);
 
     // check control flow stack
     if !control_flow_stack.control_flow_items.is_empty() {
@@ -683,11 +686,323 @@ fn emit_expression(
             control_flow_stack,
             bytecode_writer,
         )?,
-        ExpressionNode::When(when_node) => todo!(),
-        ExpressionNode::If(if_node) => todo!(),
-        ExpressionNode::For(for_node) => todo!(),
-        ExpressionNode::Break(break_node) => todo!(),
-        ExpressionNode::Recur(break_node) => todo!(),
+        ExpressionNode::When(when_node) => {
+            //  asm: `when testing [locals] consequence`
+            // code:  block_nez (param local_list_index:i32, next_inst_offset:i32)
+
+            // assemble 'testing'
+            emit_expression(
+                function_name,
+                &when_node.testing,
+                identifier_public_index_lookup_table,
+                type_entries,
+                local_variable_list_entries,
+                control_flow_stack,
+                bytecode_writer,
+            )?;
+
+            // local variable index and names
+            let local_variable_list_index = find_or_create_local_variable_list_index(
+                local_variable_list_entries,
+                &[],
+                &when_node.locals,
+            );
+
+            let local_variable_names =
+                build_local_variable_names_by_params_and_local_variables(&[], &when_node.locals);
+
+            // write inst 'block_nez'
+            let address_of_block_nez = bytecode_writer.write_opcode_i32_i32(
+                Opcode::block_nez,
+                local_variable_list_index as u32,
+                INSTRUCTION_STUB_VALUE,
+            );
+
+            // push flow stack
+            control_flow_stack.push_layer(
+                address_of_block_nez,
+                ControlFlowKind::BlockNez,
+                local_variable_names,
+            );
+
+            // assemble 'consequent'
+            emit_expression(
+                function_name,
+                &when_node.consequence,
+                identifier_public_index_lookup_table,
+                type_entries,
+                local_variable_list_entries,
+                control_flow_stack,
+                bytecode_writer,
+            )?;
+
+            // write inst 'end'
+            bytecode_writer.write_opcode(Opcode::end);
+            let address_next_to_end = bytecode_writer.get_addr();
+
+            // pop flow stck and fill stubs
+            control_flow_stack.pop_layer(bytecode_writer, address_next_to_end);
+        }
+        ExpressionNode::If(if_node) => {
+            //  asm: `if params -> results tesing consequence alternative`
+            // code: block_alt (param type_index:i32, next_inst_offset:i32)
+            // code: break_alt (param next_inst_offset:i32)
+
+            // assemble node 'test'
+            emit_expression(
+                function_name,
+                &if_node.testing,
+                identifier_public_index_lookup_table,
+                type_entries,
+                local_variable_list_entries,
+                control_flow_stack,
+                bytecode_writer,
+            )?;
+
+            // type index
+            let type_index =
+                find_or_create_function_type_index(type_entries, &if_node.params, &if_node.results);
+
+            // local variable list index
+            let local_variable_list_index = find_or_create_local_variable_list_index(
+                local_variable_list_entries,
+                &if_node.params,
+                &[],
+            );
+
+            // local variable names
+            let local_variable_names =
+                build_local_variable_names_by_params_and_local_variables(&if_node.params, &[]);
+
+            // write inst 'block_alt'
+            let address_of_block_alt = bytecode_writer.write_opcode_i32_i32(
+                Opcode::block_alt,
+                type_index as u32,
+                local_variable_list_index as u32,
+                // INSTRUCTION_STUB_VALUE, // stub for 'alt_inst_offset' // TODO::
+            );
+
+            // push flow stack
+            control_flow_stack.push_layer(
+                address_of_block_alt,
+                ControlFlowKind::BlockAlt,
+                local_variable_names,
+            );
+
+            // assemble node 'consequent'
+            emit_expression(
+                function_name,
+                &if_node.consequence,
+                identifier_public_index_lookup_table,
+                type_entries,
+                local_variable_list_entries,
+                control_flow_stack,
+                bytecode_writer,
+            )?;
+
+            // write inst 'break_alt'
+            let address_of_break_alt = bytecode_writer.write_opcode_i16_i32(
+                Opcode::break_alt,
+                0,                      // reversed_index
+                INSTRUCTION_STUB_VALUE, // next_inst_offset
+            );
+
+            // DEPRECATED
+            // // let addr_of_next_to_break = bytecode_writer.get_addr();
+            // // let alt_inst_offset = (addr_of_next_to_break - addr_of_block_alt) as u32;
+            // // // fill the stub of inst 'block_alt'
+            // // bytecode_writer.fill_block_alt_stub(addr_of_block_alt, alt_inst_offset);
+
+            // add break item
+            control_flow_stack.add_break(BreakType::BreakAlt, address_of_break_alt, 0);
+
+            // assemble node 'alternate'
+            emit_expression(
+                function_name,
+                &if_node.alternative,
+                identifier_public_index_lookup_table,
+                type_entries,
+                local_variable_list_entries,
+                control_flow_stack,
+                bytecode_writer,
+            )?;
+
+            // write inst 'end'
+            bytecode_writer.write_opcode(Opcode::end);
+            let address_next_to_end = bytecode_writer.get_addr();
+
+            // pop flow stack and fill stubs
+            control_flow_stack.pop_layer(bytecode_writer, address_next_to_end);
+        }
+        ExpressionNode::Block(block_node) => {
+            //  asm: `for params -> results [locals] body`
+            // code: block (param type_index:i32, local_list_index:i32)
+
+            // type index
+            let type_index = find_or_create_function_type_index(
+                type_entries,
+                &block_node.params,
+                &block_node.results,
+            );
+
+            // local variable index
+            let local_variable_list_index = find_or_create_local_variable_list_index(
+                local_variable_list_entries,
+                &block_node.params,
+                &block_node.locals,
+            );
+
+            // local variable names
+            let local_variable_names = build_local_variable_names_by_params_and_local_variables(
+                &block_node.params,
+                &block_node.locals,
+            );
+
+            // write inst 'block'
+            let address_of_block = bytecode_writer.write_opcode_i32_i32(
+                Opcode::block,
+                type_index as u32,
+                local_variable_list_index as u32,
+            );
+
+            // push flow stack
+            control_flow_stack.push_layer(
+                address_of_block,
+                ControlFlowKind::Block,
+                local_variable_names,
+            );
+
+            // assemble node 'body'
+            emit_expression(
+                function_name,
+                &block_node.body,
+                identifier_public_index_lookup_table,
+                type_entries,
+                local_variable_list_entries,
+                control_flow_stack,
+                bytecode_writer,
+            )?;
+
+            // write inst 'end'
+            bytecode_writer.write_opcode(Opcode::end);
+            let address_next_to_end = bytecode_writer.get_addr();
+
+            // pop flow stack and fill stubs
+            control_flow_stack.pop_layer(bytecode_writer, address_next_to_end);
+        }
+        ExpressionNode::Break(break_node) => {
+            // asm:
+            // `break (value0, value1, ...)`
+            // `break_if testing (value0, value1, ...)`
+            // `break_fn (value0, value1, ...)`
+            //
+            // code:
+            // break_ (param reversed_index:i16, next_inst_offset:i32)
+            // break_nez (param reversed_index:i16, next_inst_offset:i32)
+
+            let (reversed_index, next_inst_offset, expressions) = match break_node {
+                BreakNode::Break(expressions) => {
+                    let reversed_index =
+                        control_flow_stack.get_reversed_index_to_the_nearest_block();
+                    (reversed_index, INSTRUCTION_STUB_VALUE, expressions)
+                }
+                BreakNode::BreakIf(_, expressions) => {
+                    let reversed_index =
+                        control_flow_stack.get_reversed_index_to_the_nearest_block();
+                    (reversed_index, INSTRUCTION_STUB_VALUE, expressions)
+                }
+                BreakNode::BreakFn(expressions) => {
+                    let reversed_index = control_flow_stack.get_reversed_index_to_function();
+                    (reversed_index, 0, expressions)
+                }
+            };
+
+            for expression in expressions {
+                emit_expression(
+                    function_name,
+                    expression,
+                    identifier_public_index_lookup_table,
+                    type_entries,
+                    local_variable_list_entries,
+                    control_flow_stack,
+                    bytecode_writer,
+                )?;
+            }
+
+            if let BreakNode::BreakIf(testing, _) = break_node {
+                emit_expression(
+                    function_name,
+                    testing,
+                    identifier_public_index_lookup_table,
+                    type_entries,
+                    local_variable_list_entries,
+                    control_flow_stack,
+                    bytecode_writer,
+                )?;
+            }
+
+            // write inst 'break'
+            let address_of_break = bytecode_writer.write_opcode_i16_i32(
+                Opcode::break_,
+                reversed_index as u16,
+                next_inst_offset,
+            );
+
+            control_flow_stack.add_break(BreakType::Break, address_of_break, reversed_index);
+        }
+        ExpressionNode::Recur(break_node) => {
+            // asm:
+            // `recur (value0, value1, ...)`
+            // `recur_if testing (value0, value1, ...)`
+            // `recur_fn (value0, value1, ...)`
+            //
+            // code:
+            // recur (param reversed_index:i16, start_inst_offset:i32)
+            // recur_nez (param reversed_index:i16, start_inst_offset:i32)
+
+            let expressions = match break_node {
+                BreakNode::Break(expressions) => expressions,
+                BreakNode::BreakIf(_, expressions) => expressions,
+                BreakNode::BreakFn(expressions) => expressions,
+            };
+
+            for expression in expressions {
+                emit_expression(
+                    function_name,
+                    expression,
+                    identifier_public_index_lookup_table,
+                    type_entries,
+                    local_variable_list_entries,
+                    control_flow_stack,
+                    bytecode_writer,
+                )?;
+            }
+
+            if let BreakNode::BreakIf(testing, _) = break_node {
+                emit_expression(
+                    function_name,
+                    testing,
+                    identifier_public_index_lookup_table,
+                    type_entries,
+                    local_variable_list_entries,
+                    control_flow_stack,
+                    bytecode_writer,
+                )?;
+            }
+
+            let address_of_recur = bytecode_writer.get_addr();
+            let (reversed_index, start_inst_offset) =
+                control_flow_stack.get_recur_to_nearest_block(address_of_recur);
+
+            // write inst 'recur'
+            //
+            // note that there is no stub for the `recur` instruction.
+            bytecode_writer.write_opcode_i16_i32(
+                Opcode::recur,
+                reversed_index as u16,
+                start_inst_offset as u32,
+            );
+        }
     }
 
     Ok(())
@@ -708,963 +1023,594 @@ fn emit_instruction(
 
     match inst_name.as_str() {
         "nop" => {
-            bytecode_writer.write_opcode(Opcode::nop);
+            //  asm: nop()
+            // code: ()
+
+            let opcode = Opcode::from_name(inst_name);
+            bytecode_writer.write_opcode(opcode);
         }
         "imm_i32" => {
-            bytecode_writer.write_opcode_i32(
-                Opcode::imm_i32,
-                read_argument_value_as_i32(inst_name, &args[0])?,
-            );
+            // asm:
+            // imm_i32(literal_i32)
+            // imm_i64(literal_i64)
+            // imm_f32(literal_f32)
+            // imm_f64(literal_f64)
+            //
+            // code:
+            // imm_i32(param immediate_number:i32)
+            // imm_i64(param number_low:i32, number_high:i32)
+            // imm_f32(param number:i32)
+            // imm_f64(param number_low:i32, number_high:i32)
+
+            let num = read_argument_value_as_i32(inst_name, &args[0])?;
+            bytecode_writer.write_opcode_i32(Opcode::imm_i32, num);
         }
         "imm_i64" => {
-            bytecode_writer.write_opcode_i64(
-                Opcode::imm_i64,
-                read_argument_value_as_i64(inst_name, &args[0])?,
-            );
+            let num = read_argument_value_as_i64(inst_name, &args[0])?;
+            bytecode_writer.write_opcode_i64(Opcode::imm_i64,num);
         }
         "imm_f32" => {
-            bytecode_writer.write_opcode_f32(
-                Opcode::imm_f32,
-                read_argument_value_as_f32(inst_name, &args[0])?,
-            );
+            let num = read_argument_value_as_f32(inst_name, &args[0])?;
+            bytecode_writer.write_opcode_f32(Opcode::imm_f32,num);
         }
         "imm_f64" => {
-            bytecode_writer.write_opcode_f64(
-                Opcode::imm_f64,
-                read_argument_value_as_f64(inst_name, &args[0])?,
+            let num = read_argument_value_as_f64(inst_name, &args[0])?;
+            bytecode_writer.write_opcode_f64(Opcode::imm_f64, num);
+        }
+        "local_load_i64" | "local_load_i32_s" | "local_load_i32_u" | "local_load_i16_s"
+        | "local_load_i16_u" | "local_load_i8_s" | "local_load_i8_u" | "local_load_f32"
+        | "local_load_f64" | /* host */ "host_addr_local" => {
+            //  asm: (identifier, offset=literal_i16)
+            // code: (param reversed_index:i16 offset_bytes:i16 local_variable_index:i16)
+
+            let identifier = read_argument_value_as_identifer(inst_name, &args[0])?;
+            let (reversed_index, local_variable_index) = control_flow_stack
+                .get_local_variable_reversed_index_and_variable_index_by_name(identifier)?;
+            let offset = match get_named_argument_value(named_args, "offset") {
+                Some(v) => read_argument_value_as_i16(inst_name, v)?,
+                None => 0,
+            };
+            let opcode = Opcode::from_name(inst_name);
+
+            bytecode_writer.write_opcode_i16_i16_i16(
+                opcode,
+                reversed_index as u16,
+                offset,
+                local_variable_index as u16,
             );
         }
-        "end" => {
-            bytecode_writer.write_opcode(Opcode::end);
+        "local_store_i64" | "local_store_i32" | "local_store_i16" | "local_store_i8"
+        | "local_store_f64" | "local_store_f32" => {
+            //  asm: (identifier, value:i64, offset=literal_i16)
+            // code: (param reversed_index:i16 offset_bytes:i16 local_variable_index:i16) (operand value:i64)
+
+            let identifier = read_argument_value_as_identifer(inst_name, &args[0])?;
+            let (reversed_index, local_variable_index) = control_flow_stack
+                .get_local_variable_reversed_index_and_variable_index_by_name(identifier)?;
+            let offset = match get_named_argument_value(named_args, "offset") {
+                Some(v) => read_argument_value_as_i16(inst_name, v)?,
+                None => 0,
+            };
+            let opcode = Opcode::from_name(inst_name);
+
+            let value_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
+            emit_expression(
+                function_name,
+                value_expression_node,
+                identifier_public_index_lookup_table,
+                type_entries,
+                local_variable_list_entries,
+                control_flow_stack,
+                bytecode_writer,
+            )?;
+
+            bytecode_writer.write_opcode_i16_i16_i16(
+                opcode,
+                reversed_index as u16,
+                offset,
+                local_variable_index as u16,
+            );
+        }
+        "local_load_extend_i64"
+        | "local_load_extend_i32_s"
+        | "local_load_extend_i32_u"
+        | "local_load_extend_i16_s"
+        | "local_load_extend_i16_u"
+        | "local_load_extend_i8_s"
+        | "local_load_extend_i8_u"
+        | "local_load_extend_f64"
+        | "local_load_extend_f32" |
+        /* host */
+        "host_addr_local_extend"=> {
+            //  asm: (identifier, offset:i64)
+            // code: (param reversed_index:i16 local_variable_index:i32) (operand offset_bytes:i64)
+
+            let identifier = read_argument_value_as_identifer(inst_name, &args[0])?;
+            let (reversed_index, local_variable_index) = control_flow_stack
+                .get_local_variable_reversed_index_and_variable_index_by_name(identifier)?;
+            let opcode = Opcode::from_name(inst_name);
+
+            let offset_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
+            emit_expression(function_name, offset_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+
+            bytecode_writer.write_opcode_i16_i32(
+                opcode,
+                reversed_index as u16,
+                local_variable_index as u32,
+            );
+        }
+        "local_store_extend_i64"
+        | "local_store_extend_i32"
+        | "local_store_extend_i16"
+        | "local_store_extend_i8"
+        | "local_store_extend_f64"
+        | "local_store_extend_f32" => {
+            //  asm: (identifier, offset:i64, value:i64)
+            // code: (param reversed_index:i16 local_variable_index:i32) (operand offset_bytes:i64 value:i64)
+
+            let identifier = read_argument_value_as_identifer(inst_name, &args[0])?;
+            let (reversed_index, local_variable_index) = control_flow_stack
+                .get_local_variable_reversed_index_and_variable_index_by_name(identifier)?;
+            let opcode = Opcode::from_name(inst_name);
+
+            let offset_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
+            emit_expression(function_name, offset_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+
+            let value_expression_node = read_argument_value_as_expression(inst_name, &args[2])?;
+            emit_expression(function_name, value_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+
+            bytecode_writer.write_opcode_i16_i32(
+                opcode,
+                reversed_index as u16,
+                local_variable_index as u32,
+            );
+        }
+        "data_load_i64" | "data_load_i32_s" | "data_load_i32_u" | "data_load_i16_s"
+        | "data_load_i16_u" | "data_load_i8_s" | "data_load_i8_u" | "data_load_f32"
+        | "data_load_f64" |
+        /* host */
+        "host_addr_data"=> {
+            //  asm: (identifier, offset=literal_i16)
+            // code: (param offset_bytes:i16 data_public_index:i32)
+
+            let identifier = read_argument_value_as_identifer(inst_name, &args[0])?;
+            let data_public_index = identifier_public_index_lookup_table.get_data_public_index(identifier)?;
+
+            let offset = match get_named_argument_value(named_args, "offset") {
+                Some(v) => read_argument_value_as_i16(inst_name, v)?,
+                None => 0,
+            };
+            let opcode = Opcode::from_name(inst_name);
+
+            bytecode_writer.write_opcode_i16_i32(
+                opcode,
+                offset,
+                data_public_index as u32,
+            );
+
+        }
+        "data_store_i64" | "data_store_i32" | "data_store_i16" | "data_store_i8"
+        | "data_store_f64" | "data_store_f32" => {
+            //  asm: (identifier, value:i64, offset=literal_i16)
+            // code: (param offset_bytes:i16 data_public_index:i32) (operand value:i64)
+
+            let identifier = read_argument_value_as_identifer(inst_name, &args[0])?;
+            let data_public_index = identifier_public_index_lookup_table.get_data_public_index(identifier)?;
+
+            let offset = match get_named_argument_value(named_args, "offset") {
+                Some(v) => read_argument_value_as_i16(inst_name, v)?,
+                None => 0,
+            };
+            let opcode = Opcode::from_name(inst_name);
+
+            let value_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
+            emit_expression(function_name, value_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+
+            bytecode_writer.write_opcode_i16_i32(
+                opcode,
+                offset,
+                data_public_index as u32,
+            );
+        }
+        "data_load_extend_i64" |
+        "data_load_extend_i32_s" |
+        "data_load_extend_i32_u" |
+        "data_load_extend_i16_s" |
+        "data_load_extend_i16_u" |
+        "data_load_extend_i8_s" |
+        "data_load_extend_i8_u" |
+        "data_load_extend_f32" |
+        "data_load_extend_f64" |
+        /* host */
+        "host_addr_data_extend" => {
+            //  asm: (identifier, offset:i64)
+            // code: (param data_public_index:i32) (operand offset_bytes:i64)
+
+            let identifier = read_argument_value_as_identifer(inst_name, &args[0])?;
+            let data_public_index = identifier_public_index_lookup_table.get_data_public_index(identifier)?;
+
+            let opcode = Opcode::from_name(inst_name);
+
+            let offset_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
+            emit_expression(function_name, offset_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+
+            bytecode_writer.write_opcode_i32(
+                opcode,
+                data_public_index as u32,
+            );
+        }
+        "data_store_extend_i64" |
+        "data_store_extend_i32" |
+        "data_store_extend_i16" |
+        "data_store_extend_i8" |
+        "data_store_extend_f64" |
+        "data_store_extend_f32" => {
+            //  asm: (identifier, offset:i64, value:i64)
+            // code: (param data_public_index:i32) (operand offset_bytes:i64 value:i64)
+
+            let identifier = read_argument_value_as_identifer(inst_name, &args[0])?;
+            let data_public_index = identifier_public_index_lookup_table.get_data_public_index(identifier)?;
+
+            let opcode = Opcode::from_name(inst_name);
+
+            let offset_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
+            emit_expression(function_name, offset_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+            let value_expression_node = read_argument_value_as_expression(inst_name, &args[2])?;
+            emit_expression(function_name, value_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+
+            bytecode_writer.write_opcode_i32(
+                opcode,
+                data_public_index as u32,
+            );
+        }
+        "heap_load_i64" |
+        "heap_load_i32_s" |
+        "heap_load_i32_u" |
+        "heap_load_i16_s" |
+        "heap_load_i16_u" |
+        "heap_load_i8_s" |
+        "heap_load_i8_u" |
+        "heap_load_f32" |
+        "heap_load_f64" => {
+            //  asm: (addr:i64, offset=literal_i16)
+            // code: (param offset_bytes:i16) (operand heap_addr:i64)
+            let offset = match get_named_argument_value(named_args, "offset") {
+                Some(v) => read_argument_value_as_i16(inst_name, v)?,
+                None => 0,
+            };
+            let opcode = Opcode::from_name(inst_name);
+
+            let addr_expression_node = read_argument_value_as_expression(inst_name, &args[0])?;
+            emit_expression(function_name, addr_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+
+            bytecode_writer.write_opcode_i16(
+                opcode,
+                offset,
+            );
+        }
+        "heap_store_i64" |
+        "heap_store_i32" |
+        "heap_store_i16" |
+        "heap_store_i8" |
+        "heap_store_f64" |
+        "heap_store_f32" => {
+            //  asm: (addr:i64, value:i64, offset=literal_i16)
+            // code: (param offset_bytes:i16) (operand heap_addr:i64 value:i64)
+            let offset = match get_named_argument_value(named_args, "offset") {
+                Some(v) => read_argument_value_as_i16(inst_name, v)?,
+                None => 0,
+            };
+            let opcode = Opcode::from_name(inst_name);
+
+            let addr_expression_node = read_argument_value_as_expression(inst_name, &args[0])?;
+            emit_expression(function_name, addr_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+
+            let value_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
+            emit_expression(function_name, value_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+
+            bytecode_writer.write_opcode_i16(
+                opcode,
+                offset,
+            );
+        }
+        "heap_fill" | "heap_copy" |
+        /* host */
+        "host_copy_heap_to_memory" | "host_copy_memory_to_heap" | "host_memory_copy" => {
+            // asm:
+            // heap_fill(addr:i64, value:i8, count:i64)
+            // heap_copy(dst_addr:i64, src_addr:i64, count:i64)
+            // host_copy_heap_to_memory(dst_pointer:i64, src_addr:i64, count:i64)
+            // host_copy_memory_to_heap(dst_addr:i64, src_pointer:i64, count:i64)
+            //
+            // code:
+            // heap_fill() (operand addr:i64 value:i8 count:i64)
+            // heap_copy() (operand dst_addr:i64 src_addr:i64 count:i64)
+            // host_copy_heap_to_memory() (operand dst_pointer:i64 src_addr:i64 count:i64)
+            // host_copy_memory_to_heap() (operand dst_addr:i64 src_pointer:i64 count:i64)
+            let one_expression_node = read_argument_value_as_expression(inst_name, &args[0])?;
+            emit_expression(function_name, one_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+
+            let two_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
+            emit_expression(function_name, two_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+
+            let three_expression_node = read_argument_value_as_expression(inst_name, &args[2])?;
+            emit_expression(function_name, three_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+
+            let opcode = Opcode::from_name(inst_name);
+            bytecode_writer.write_opcode(opcode);
+
+        }
+        "heap_capacity" => {
+            //  asm: heap_capacity()
+            // code: heap_capacity()
+            bytecode_writer.write_opcode(Opcode::heap_capacity);
+        }
+        "heap_resize" => {
+            //  asm: heap_resize(pages:i64)
+            // code: heap_resize() (operand pages:i64)
+            let pages_expression_node = read_argument_value_as_expression(inst_name, &args[0])?;
+            emit_expression(function_name, pages_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+
+            bytecode_writer.write_opcode(Opcode::heap_resize);
+        }
+        /* unary operations */
+        "truncate_i64_to_i32" |
+        "extend_i32_s_to_i64" |
+        "extend_i32_u_to_i64" |
+        "demote_f64_to_f32" |
+        "promote_f32_to_f64" |
+        "convert_f32_to_i32_s" |
+        "convert_f32_to_i32_u" |
+        "convert_f64_to_i32_s" |
+        "convert_f64_to_i32_u" |
+        "convert_f32_to_i64_s" |
+        "convert_f32_to_i64_u" |
+        "convert_f64_to_i64_s" |
+        "convert_f64_to_i64_u" |
+        "convert_i32_s_to_f32" |
+        "convert_i32_u_to_f32" |
+        "convert_i64_s_to_f32" |
+        "convert_i64_u_to_f32" |
+        "convert_i32_s_to_f64" |
+        "convert_i32_u_to_f64" |
+        "convert_i64_s_to_f64" |
+        "convert_i64_u_to_f64" |
+        "eqz_i32" |
+        "nez_i32" |
+        "eqz_i64" |
+        "nez_i64" |
+        "not" |
+        "count_leading_zeros_i32" |
+        "count_leading_ones_i32" |
+        "count_trailing_zeros_i32" |
+        "count_ones_i32" |
+        "count_leading_zeros_i64" |
+        "count_leading_ones_i64" |
+        "count_trailing_zeros_i64" |
+        "count_ones_i64" |
+        "abs_i32" |
+        "neg_i32" |
+        "abs_i64" |
+        "neg_i64" |
+        "abs_f32" |
+        "neg_f32" |
+        "sqrt_f32" |
+        "ceil_f32" |
+        "floor_f32" |
+        "round_half_away_from_zero_f32" |
+        "round_half_to_even_f32" |
+        "trunc_f32" |
+        "fract_f32" |
+        "cbrt_f32" |
+        "exp_f32" |
+        "exp2_f32" |
+        "ln_f32" |
+        "log2_f32" |
+        "log10_f32" |
+        "sin_f32" |
+        "cos_f32" |
+        "tan_f32" |
+        "asin_f32" |
+        "acos_f32" |
+        "atan_f32" |
+        "abs_f64" |
+        "neg_f64" |
+        "sqrt_f64" |
+        "ceil_f64" |
+        "floor_f64" |
+        "round_half_away_from_zero_f64" |
+        "round_half_to_even_f64" |
+        "trunc_f64" |
+        "fract_f64" |
+        "cbrt_f64" |
+        "exp_f64" |
+        "exp2_f64" |
+        "ln_f64" |
+        "log2_f64" |
+        "log10_f64" |
+        "sin_f64" |
+        "cos_f64" |
+        "tan_f64" |
+        "asin_f64" |
+        "acos_f64" |
+        "atan_f64" => {
+            //  asm: (num:*)
+            // code: () (operand num:*)
+            let num_expression_node = read_argument_value_as_expression(inst_name, &args[0])?;
+            emit_expression(function_name, num_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+
+            let opcode = Opcode::from_name(inst_name);
+            bytecode_writer.write_opcode(opcode);
+        }
+        /* binary operations */
+        "eq_i32" |
+        "ne_i32" |
+        "lt_i32_s" |
+        "lt_i32_u" |
+        "gt_i32_s" |
+        "gt_i32_u" |
+        "le_i32_s" |
+        "le_i32_u" |
+        "ge_i32_s" |
+        "ge_i32_u" |
+        "eq_i64" |
+        "ne_i64" |
+        "lt_i64_s" |
+        "lt_i64_u" |
+        "gt_i64_s" |
+        "gt_i64_u" |
+        "le_i64_s" |
+        "le_i64_u" |
+        "ge_i64_s" |
+        "ge_i64_u" |
+        "eq_f32" |
+        "ne_f32" |
+        "lt_f32" |
+        "gt_f32" |
+        "le_f32" |
+        "ge_f32" |
+        "eq_f64" |
+        "ne_f64" |
+        "lt_f64" |
+        "gt_f64" |
+        "le_f64" |
+        "ge_f64" |
+        "add_i32" |
+        "sub_i32" |
+        "mul_i32" |
+        "div_i32_s" |
+        "div_i32_u" |
+        "rem_i32_s" |
+        "rem_i32_u" |
+        "add_i64" |
+        "sub_i64" |
+        "mul_i64" |
+        "div_i64_s" |
+        "div_i64_u" |
+        "rem_i64_s" |
+        "rem_i64_u" |
+        "add_f32" |
+        "sub_f32" |
+        "mul_f32" |
+        "div_f32" |
+        "add_f64" |
+        "sub_f64" |
+        "mul_f64" |
+        "div_f64" |
+        "and" |
+        "or" |
+        "xor" |
+        "shift_left_i32" |
+        "shift_right_i32_s" |
+        "shift_right_i32_u" |
+        "rotate_left_i32" |
+        "rotate_right_i32" |
+        "shift_left_i64" |
+        "shift_right_i64_s" |
+        "shift_right_i64_u" |
+        "rotate_left_i64" |
+        "rotate_right_i64" |
+        "copysign_f32" |
+        "min_f32" |
+        "max_f32" |
+        "pow_f32" |
+        "log_f32" |
+        "copysign_f64" |
+        "min_f64" |
+        "max_f64" |
+        "pow_f64" |
+        "log_f64" => {
+            //  asm: (left:*, right:*)
+            // code: () (operand left:* right:*)
+            let left_expression_node = read_argument_value_as_expression(inst_name, &args[0])?;
+            emit_expression(function_name, left_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+
+            let right_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
+            emit_expression(function_name, right_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+
+            let opcode = Opcode::from_name(inst_name);
+            bytecode_writer.write_opcode(opcode);
+
+        }
+        "add_imm_i32" |
+        "sub_imm_i32" |
+        "add_imm_i64" |
+        "sub_imm_i64" => {
+            //  asm: (imm:literal_i16, number:*)
+            // code: (param imm:i16) (operand number:*)
+            let imm = read_argument_value_as_i16(inst_name, &args[0])?;
+            let num_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
+            emit_expression(function_name, num_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+
+            let opcode = Opcode::from_name(inst_name);
+            bytecode_writer.write_opcode_i16(opcode, imm);
+        }
+        "call" | "extcall" => {
+            // asm: (identifier, value0, value1, ...)
+            // code: call(param function_public_index:i32) (operand args...)
+            // code: extcall(param external_function_index:i32) (operand args...)
+            let identifier = read_argument_value_as_identifer(inst_name, &args[0])?;
+            let public_index = if inst_name == "call" {
+                identifier_public_index_lookup_table.get_function_public_index(identifier)?
+            }else {
+                identifier_public_index_lookup_table.get_external_function_index(identifier)?
+            };
+            let opcode = Opcode::from_name(inst_name);
+
+            for arg in &args[1..] {
+                let arg_expression_node = read_argument_value_as_expression(inst_name, arg)?;
+                emit_expression(function_name, arg_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+            }
+
+            bytecode_writer.write_opcode_i32(opcode, public_index as u32);
+        }
+        "envcall" | "syscall" => {
+            // asm: (env_call_number:liter_i32, value0, value1, ...)
+            // code: envcall(param envcall_num:i32) (operand args...)
+            // code: syscall() (operand args..., syscall_num:i32, params_count: i32)
+            let num = read_argument_value_as_i32(inst_name, &args[0])?;
+            let opcode = Opcode::from_name(inst_name);
+
+            for arg in &args[1..] {
+                let arg_expression_node = read_argument_value_as_expression(inst_name, arg)?;
+                emit_expression(function_name, arg_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+            }
+
+            bytecode_writer.write_opcode_i32(opcode, num);
+        }
+        "dyncall" => {
+            // asm: (fn_pub_index:i32, value0, value1, ...)
+            // code: () (operand function_public_index:i32, args...)
+            for arg in args {
+                let arg_expression_node = read_argument_value_as_expression(inst_name, arg)?;
+                emit_expression(function_name, arg_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+            }
+
+            bytecode_writer.write_opcode(Opcode::dyncall);
+        }
+        "pub_index_function" | "host_addr_function"=> {
+            // asm: (identifier)
+            // code: (param function_public_index:i32)
+            let identifier = read_argument_value_as_identifer(inst_name, &args[0])?;
+            let function_public_index =identifier_public_index_lookup_table.get_function_public_index(identifier)?;
+            let opcode = Opcode::from_name(inst_name);
+            bytecode_writer.write_opcode_i32(opcode, function_public_index as u32);
+        }
+        "panic" => {
+            // asm: panic(code:literal_i32)
+            // code: panic(param reason_code:u32)
+            let num = read_argument_value_as_i32(inst_name, &args[0])?;
+            bytecode_writer.write_opcode_i32(Opcode::panic, num);
         }
         _ => {
             return Err(AssembleError {
-                message: format!("Unknown instruction \"{}\".", inst_name),
+                message: format!("Encounters unknown instruction \"{}\" in the function \"{}\".", inst_name, function_name),
             })
         }
     }
 
     Ok(())
-
-    //     match instruction {
-    //         Instruction::NoParams { opcode, operands } => assemble_instruction_kind_no_params(
-    //             opcode,
-    //             operands,
-    //             identifier_public_index_lookup_table,
-    //             type_entries,
-    //             local_list_entries,
-    //             control_flow_stack,
-    //             bytecode_writer,
-    //         )?,
-    //         Instruction::ImmI32(value) => {
-    //             bytecode_writer.write_opcode_i32(Opcode::i32_imm, *value);
-    //         }
-    //         Instruction::ImmI64(value) => {
-    //             bytecode_writer.write_opcode_pesudo_i64(Opcode::i64_imm, *value);
-    //         }
-    //         Instruction::ImmF32(value) => {
-    //             bytecode_writer.write_opcode_pesudo_f32(Opcode::f32_imm, *value);
-    //         }
-    //         Instruction::ImmF64(value) => {
-    //             bytecode_writer.write_opcode_pesudo_f64(Opcode::f64_imm, *value);
-    //         }
-    //         Instruction::LocalLoad {
-    //             opcode,
-    //             name,
-    //             offset,
-    //         } => {
-    //             let (reversed_index, variable_index) =
-    //                 control_flow_stack.get_local_variable_reversed_index_and_variable_index(name)?;
-    //
-    //             // bytecode: (param reversed_index:i16 offset_bytes:i16 local_variable_index:i16)
-    //             bytecode_writer.write_opcode_i16_i16_i16(
-    //                 *opcode,
-    //                 reversed_index as u16,
-    //                 *offset,
-    //                 variable_index as u16,
-    //             );
-    //         }
-    //         Instruction::LocalStore {
-    //             opcode,
-    //             name,
-    //             offset,
-    //             value,
-    //         } => {
-    //             assemble_instruction(
-    //                 value,
-    //                 identifier_public_index_lookup_table,
-    //                 type_entries,
-    //                 local_list_entries,
-    //                 control_flow_stack,
-    //                 bytecode_writer,
-    //             )?;
-    //
-    //             let (reversed_index, variable_index) =
-    //                 control_flow_stack.get_local_variable_reversed_index_and_variable_index(name)?;
-    //
-    //             // bytecode: (param reversed_index:i16 offset_bytes:i16 local_variable_index:i16)
-    //             bytecode_writer.write_opcode_i16_i16_i16(
-    //                 *opcode,
-    //                 reversed_index as u16,
-    //                 *offset,
-    //                 variable_index as u16,
-    //             );
-    //         }
-    //         Instruction::LocalLongLoad {
-    //             opcode,
-    //             name,
-    //             offset,
-    //         } => {
-    //             assemble_instruction(
-    //                 offset,
-    //                 identifier_public_index_lookup_table,
-    //                 type_entries,
-    //                 local_list_entries,
-    //                 control_flow_stack,
-    //                 bytecode_writer,
-    //             )?;
-    //
-    //             let (reversed_index, variable_index) =
-    //                 control_flow_stack.get_local_variable_reversed_index_and_variable_index(name)?;
-    //
-    //             // bytecode: (param reversed_index:i16 local_variable_index:i32)
-    //             bytecode_writer.write_opcode_i16_i32(
-    //                 *opcode,
-    //                 reversed_index as u16,
-    //                 variable_index as u32,
-    //             );
-    //         }
-    //         Instruction::LocalLongStore {
-    //             opcode,
-    //             name,
-    //             offset,
-    //             value,
-    //         } => {
-    //             // assemble 'offset' first, then 'value'
-    //             assemble_instruction(
-    //                 offset,
-    //                 identifier_public_index_lookup_table,
-    //                 type_entries,
-    //                 local_list_entries,
-    //                 control_flow_stack,
-    //                 bytecode_writer,
-    //             )?;
-    //
-    //             assemble_instruction(
-    //                 value,
-    //                 identifier_public_index_lookup_table,
-    //                 type_entries,
-    //                 local_list_entries,
-    //                 control_flow_stack,
-    //                 bytecode_writer,
-    //             )?;
-    //
-    //             let (reversed_index, variable_index) =
-    //                 control_flow_stack.get_local_variable_reversed_index_and_variable_index(name)?;
-    //
-    //             // bytecode: (param reversed_index:i16 local_variable_index:i32)
-    //             bytecode_writer.write_opcode_i16_i32(
-    //                 *opcode,
-    //                 reversed_index as u16,
-    //                 variable_index as u32,
-    //             );
-    //         }
-    //         Instruction::DataLoad {
-    //             opcode,
-    //             id: name,
-    //             offset,
-    //         } => {
-    //             let data_public_index = identifier_public_index_lookup_table.get_data_public_index(name)?;
-    //
-    //             // bytecode: (param offset_bytes:i16 data_public_index:i32)
-    //             bytecode_writer.write_opcode_i16_i32(*opcode, *offset, data_public_index as u32);
-    //         }
-    //         Instruction::DataStore {
-    //             opcode,
-    //             id: name,
-    //             offset,
-    //             value,
-    //         } => {
-    //             assemble_instruction(
-    //                 value,
-    //                 identifier_public_index_lookup_table,
-    //                 type_entries,
-    //                 local_list_entries,
-    //                 control_flow_stack,
-    //                 bytecode_writer,
-    //             )?;
-    //
-    //             let data_public_index = identifier_public_index_lookup_table.get_data_public_index(name)?;
-    //
-    //             // bytecode: (param offset_bytes:i16 data_public_index:i32)
-    //             bytecode_writer.write_opcode_i16_i32(*opcode, *offset, data_public_index as u32);
-    //         }
-    //         Instruction::DataLongLoad {
-    //             opcode,
-    //             id: name,
-    //             offset,
-    //         } => {
-    //             assemble_instruction(
-    //                 offset,
-    //                 identifier_public_index_lookup_table,
-    //                 type_entries,
-    //                 local_list_entries,
-    //                 control_flow_stack,
-    //                 bytecode_writer,
-    //             )?;
-    //
-    //             let data_public_index = identifier_public_index_lookup_table.get_data_public_index(name)?;
-    //
-    //             // bytecode: (param data_public_index:i32)
-    //             bytecode_writer.write_opcode_i32(*opcode, data_public_index as u32);
-    //         }
-    //         Instruction::DataLongStore {
-    //             opcode,
-    //             id: name,
-    //             offset,
-    //             value,
-    //         } => {
-    //             assemble_instruction(
-    //                 offset,
-    //                 identifier_public_index_lookup_table,
-    //                 type_entries,
-    //                 local_list_entries,
-    //                 control_flow_stack,
-    //                 bytecode_writer,
-    //             )?;
-    //
-    //             assemble_instruction(
-    //                 value,
-    //                 identifier_public_index_lookup_table,
-    //                 type_entries,
-    //                 local_list_entries,
-    //                 control_flow_stack,
-    //                 bytecode_writer,
-    //             )?;
-    //
-    //             let data_public_index = identifier_public_index_lookup_table.get_data_public_index(name)?;
-    //
-    //             // bytecode: (param data_public_index:i32)
-    //             bytecode_writer.write_opcode_i32(*opcode, data_public_index as u32);
-    //         }
-    //         Instruction::HeapLoad {
-    //             opcode,
-    //             offset,
-    //             addr,
-    //         } => {
-    //             assemble_instruction(
-    //                 addr,
-    //                 identifier_public_index_lookup_table,
-    //                 type_entries,
-    //                 local_list_entries,
-    //                 control_flow_stack,
-    //                 bytecode_writer,
-    //             )?;
-    //
-    //             // bytecode: (param offset_bytes:i16)
-    //             bytecode_writer.write_opcode_i16(*opcode, *offset);
-    //         }
-    //         Instruction::HeapStore {
-    //             opcode,
-    //             offset,
-    //             addr,
-    //             value,
-    //         } => {
-    //             assemble_instruction(
-    //                 addr,
-    //                 identifier_public_index_lookup_table,
-    //                 type_entries,
-    //                 local_list_entries,
-    //                 control_flow_stack,
-    //                 bytecode_writer,
-    //             )?;
-    //
-    //             assemble_instruction(
-    //                 value,
-    //                 identifier_public_index_lookup_table,
-    //                 type_entries,
-    //                 local_list_entries,
-    //                 control_flow_stack,
-    //                 bytecode_writer,
-    //             )?;
-    //
-    //             // bytecode: (param offset_bytes:i16)
-    //             bytecode_writer.write_opcode_i16(*opcode, *offset);
-    //         }
-    //         Instruction::UnaryOp {
-    //             opcode,
-    //             source: number,
-    //         } => {
-    //             assemble_instruction(
-    //                 number,
-    //                 identifier_public_index_lookup_table,
-    //                 type_entries,
-    //                 local_list_entries,
-    //                 control_flow_stack,
-    //                 bytecode_writer,
-    //             )?;
-    //
-    //             bytecode_writer.write_opcode(*opcode);
-    //         }
-    //         Instruction::UnaryOpWithImmI16 {
-    //             opcode,
-    //             imm: amount,
-    //             source: number,
-    //         } => {
-    //             assemble_instruction(
-    //                 number,
-    //                 identifier_public_index_lookup_table,
-    //                 type_entries,
-    //                 local_list_entries,
-    //                 control_flow_stack,
-    //                 bytecode_writer,
-    //             )?;
-    //
-    //             bytecode_writer.write_opcode_i16(*opcode, *amount);
-    //         }
-    //         Instruction::BinaryOp {
-    //             opcode,
-    //             left,
-    //             right,
-    //         } => {
-    //             // assemble 'left' first, then 'right'
-    //             assemble_instruction(
-    //                 left,
-    //                 identifier_public_index_lookup_table,
-    //                 type_entries,
-    //                 local_list_entries,
-    //                 control_flow_stack,
-    //                 bytecode_writer,
-    //             )?;
-    //
-    //             assemble_instruction(
-    //                 right,
-    //                 identifier_public_index_lookup_table,
-    //                 type_entries,
-    //                 local_list_entries,
-    //                 control_flow_stack,
-    //                 bytecode_writer,
-    //             )?;
-    //
-    //             bytecode_writer.write_opcode(*opcode);
-    //         }
-    //         Instruction::When {
-    //             // locals,
-    //             test,
-    //             consequent,
-    //         } => {
-    //             // | structure         | assembly          | instruction(s)     |
-    //             // |-------------------|-------------------|--------------------|
-    //             // |                   |                   | ..a..              |
-    //             // | if ..a.. {        | (when (a)         | block_nez -\       |
-    //             // |    ..b..          |       (b)         |   ..b..    |       |
-    //             // | }                 | )                 | end        |       |
-    //             // |                   |                   | ...    <---/       |
-    //             // |-------------------|-------------------|--------------------|
-    //
-    //             // bytecode:
-    //             // - block_nez (param local_list_index:i32, next_inst_offset:i32)
-    //
-    //             // assemble node 'test'
-    //             assemble_instruction(
-    //                 test,
-    //                 identifier_public_index_lookup_table,
-    //                 type_entries,
-    //                 local_list_entries,
-    //                 control_flow_stack,
-    //                 bytecode_writer,
-    //             )?;
-    //
-    //             // local index and names
-    //             let local_list_index =
-    //                 find_or_create_local_variable_list_index(local_list_entries, &[], &[]);
-    //
-    //             // write inst 'block_nez'
-    //             let addr_of_block_nez = bytecode_writer.write_opcode_i32_i32(
-    //                 Opcode::block_nez,
-    //                 local_list_index as u32,
-    //                 0, // stub for 'next_inst_offset'
-    //             );
-    //
-    //             // push flow stack
-    //             control_flow_stack.push(addr_of_block_nez, ControlFlowKind::BlockNez, vec![]);
-    //
-    //             // assemble node 'consequent'
-    //             assemble_instruction(
-    //                 consequent,
-    //                 identifier_public_index_lookup_table,
-    //                 type_entries,
-    //                 local_list_entries,
-    //                 control_flow_stack,
-    //                 bytecode_writer,
-    //             )?;
-    //
-    //             // write inst 'end'
-    //             bytecode_writer.write_opcode(Opcode::end);
-    //             let addr_of_next_to_end = bytecode_writer.get_addr();
-    //
-    //             // pop flow stck and fill stubs
-    //             control_flow_stack.pop_and_fill_stubs(bytecode_writer, addr_of_next_to_end);
-    //         }
-    //         Instruction::If {
-    //             results,
-    //             // locals,
-    //             test,
-    //             consequent,
-    //             alternate,
-    //         } => {
-    //             // | structure         | assembly          | instruction(s)     |
-    //             // |-------------------|-------------------|--------------------|
-    //             // |                   |                   | ..a..              |
-    //             // | if ..a.. {        | (if (a)           | block_alt ---\     |
-    //             // |    ..b..          |     (b)           |   ..b..      |     |
-    //             // | } else {          |     (c)           |   break 0  --|-\   |
-    //             // |    ..c..          | )                 |   ..c..  <---/ |   |
-    //             // | }                 |                   | end            |   |
-    //             // |                   |                   | ...      <-----/   |
-    //             // |-------------------|-------------------|--------------------|
-    //             // |                   |                   | ..a..              |
-    //             // | if ..a.. {        | (if (a)           | block_alt ---\     |
-    //             // |    ..b..          |     (b)           |   ..b..      |     |
-    //             // | } else if ..c.. { |     (if (c)       |   break 0 ---|---\ |
-    //             // |    ..d..          |         (d)       |   ..c..  <---/   | |
-    //             // | } else {          |         (e)       |   block_alt --\  | |
-    //             // |    ..e..          |     )             |     ..d..     |  | |
-    //             // | }                 | )                 |     break 0 --|-\| |
-    //             // |                   |                   |     ..e..  <--/ || |
-    //             // |                   |                   |   end           || |
-    //             // |                   |                   | end        <----/| |
-    //             // |                   |                   | ...        <-----/ |
-    //             // |                   |                   |                    |
-    //             // |                   | ----------------- | ------------------ |
-    //
-    //             // bytecode:
-    //             // - block_alt (param type_index:i32, local_list_index:i32, alt_inst_offset:i32)
-    //             // - break (param reversed_index:i16, next_inst_offset:i32)
-    //
-    //             // assemble node 'test'
-    //             assemble_instruction(
-    //                 test,
-    //                 identifier_public_index_lookup_table,
-    //                 type_entries,
-    //                 local_list_entries,
-    //                 control_flow_stack,
-    //                 bytecode_writer,
-    //             )?;
-    //
-    //             // type index
-    //             let type_index = find_or_create_function_type_index(type_entries, &[], results);
-    //
-    //             // local index
-    //             let local_list_index =
-    //                 find_or_create_local_variable_list_index(local_list_entries, &[], &[]);
-    //
-    //             // write inst 'block_alt'
-    //             let addr_of_block_alt = bytecode_writer.write_opcode_i32_i32_i32(
-    //                 Opcode::block_alt,
-    //                 type_index as u32,
-    //                 local_list_index as u32,
-    //                 0, // stub for 'alt_inst_offset'
-    //             );
-    //
-    //             // push flow stack
-    //             control_flow_stack.push(addr_of_block_alt, ControlFlowKind::BlockAlt, vec![]);
-    //
-    //             // assemble node 'consequent'
-    //             assemble_instruction(
-    //                 consequent,
-    //                 identifier_public_index_lookup_table,
-    //                 type_entries,
-    //                 local_list_entries,
-    //                 control_flow_stack,
-    //                 bytecode_writer,
-    //             )?;
-    //
-    //             // write inst 'break'
-    //             let addr_of_break = bytecode_writer.write_opcode_i16_i32(
-    //                 Opcode::break_,
-    //                 0, // reversed_index
-    //                 0, // next_inst_offset
-    //             );
-    //             let addr_of_next_to_break = bytecode_writer.get_addr();
-    //             let alt_inst_offset = (addr_of_next_to_break - addr_of_block_alt) as u32;
-    //
-    //             // fill the stub of inst 'block_alt'
-    //             bytecode_writer.fill_block_alt_stub(addr_of_block_alt, alt_inst_offset);
-    //
-    //             // add break item
-    //             control_flow_stack.add_break(addr_of_break, 0);
-    //
-    //             // assemble node 'alternate'
-    //             assemble_instruction(
-    //                 alternate,
-    //                 identifier_public_index_lookup_table,
-    //                 type_entries,
-    //                 local_list_entries,
-    //                 control_flow_stack,
-    //                 bytecode_writer,
-    //             )?;
-    //
-    //             // write inst 'end'
-    //             bytecode_writer.write_opcode(Opcode::end);
-    //             let addr_of_next_to_end = bytecode_writer.get_addr();
-    //
-    //             // pop flow stack and fill stubs
-    //             control_flow_stack.pop_and_fill_stubs(bytecode_writer, addr_of_next_to_end);
-    //         }
-    //         Instruction::Branch {
-    //             results,
-    //             // locals,
-    //             cases,
-    //             default,
-    //         } => {
-    //             // | structure         | assembly          | instruction(s)     |
-    //             // |-------------------|-------------------|--------------------|
-    //             // |                   |                   |                    |
-    //             // |                   | (branch           | block              |
-    //             // |                   |   (case (a) (b))  |   ..a..            |
-    //             // |                   |   (case (c) (d))  |   block_nez -\     |
-    //             // |                   |   (default (e))   |     ..b..    |     |
-    //             // |                   | )                 |     break 1 -|--\  |
-    //             // |                   |                   |   end        |  |  |
-    //             // |                   |                   |   ..c..  <---/  |  |
-    //             // |                   |                   |   block_nez -\  |  |
-    //             // |                   |                   |     ..d..    |  |  |
-    //             // |                   |                   |     break 1 -|--|  |
-    //             // |                   |                   |   end        |  |  |
-    //             // |                   |                   |   ..e..  <---/  |  |
-    //             // |                   |                   | end             |  |
-    //             // |                   |                   | ...        <----/  |
-    //             // |-------------------|-------------------|--------------------|
-    //
-    //             // bytecode:
-    //             // - block (param type_index:i32, local_list_index:i32)
-    //             // - block_nez (param local_list_index:i32, next_inst_offset:i32)
-    //             // - break (param reversed_index:i16, next_inst_offset:i32)
-    //
-    //             // type index
-    //             let type_index = find_or_create_function_type_index(type_entries, &[], results);
-    //
-    //             // local index and names
-    //             let local_list_index =
-    //                 find_or_create_local_variable_list_index(local_list_entries, &[], &[]);
-    //
-    //             // write inst 'block'
-    //             let addr_of_block = bytecode_writer.write_opcode_i32_i32(
-    //                 Opcode::block,
-    //                 type_index as u32,
-    //                 local_list_index as u32,
-    //             );
-    //
-    //             // push flow stack
-    //             control_flow_stack.push(addr_of_block, ControlFlowKind::Block, vec![]);
-    //
-    //             // write branches
-    //             for case in cases {
-    //                 // assemble node 'test'
-    //                 assemble_instruction(
-    //                     &case.test,
-    //                     identifier_public_index_lookup_table,
-    //                     type_entries,
-    //                     local_list_entries,
-    //                     control_flow_stack,
-    //                     bytecode_writer,
-    //                 )?;
-    //
-    //                 // local index and names
-    //                 let case_local_list_index =
-    //                     find_or_create_local_variable_list_index(local_list_entries, &[], &[]);
-    //
-    //                 // write inst 'block_nez'
-    //                 let addr_of_block_nez = bytecode_writer.write_opcode_i32_i32(
-    //                     Opcode::block_nez,
-    //                     case_local_list_index as u32,
-    //                     0, // stub for 'next_inst_offset'
-    //                 );
-    //
-    //                 // push flow stack
-    //                 control_flow_stack.push(addr_of_block_nez, ControlFlowKind::BlockNez, vec![]);
-    //
-    //                 // assemble node 'consequent'
-    //                 assemble_instruction(
-    //                     &case.consequent,
-    //                     identifier_public_index_lookup_table,
-    //                     type_entries,
-    //                     local_list_entries,
-    //                     control_flow_stack,
-    //                     bytecode_writer,
-    //                 )?;
-    //
-    //                 // write inst 'break 1'
-    //
-    //                 let addr_of_break = bytecode_writer.write_opcode_i16_i32(
-    //                     Opcode::break_,
-    //                     1,
-    //                     0, // stub for 'next_inst_offset'
-    //                 );
-    //
-    //                 // add 'break' item to control flow stack
-    //                 control_flow_stack.add_break(addr_of_break, 1);
-    //
-    //                 // write inst 'end'
-    //                 bytecode_writer.write_opcode(Opcode::end);
-    //                 let addr_of_next_to_end = bytecode_writer.get_addr();
-    //
-    //                 // pop flow stack and fill stubs
-    //                 control_flow_stack.pop_and_fill_stubs(bytecode_writer, addr_of_next_to_end);
-    //             }
-    //
-    //             // write node 'default'
-    //             if let Some(default_instruction) = default {
-    //                 // assemble node 'consequent'
-    //                 assemble_instruction(
-    //                     default_instruction,
-    //                     identifier_public_index_lookup_table,
-    //                     type_entries,
-    //                     local_list_entries,
-    //                     control_flow_stack,
-    //                     bytecode_writer,
-    //                 )?;
-    //             } else {
-    //                 // write the inst 'unreachable'
-    //                 bytecode_writer
-    //                     .write_opcode_i32(Opcode::unreachable, UNREACHABLE_CODE_NO_DEFAULT_ARM);
-    //             }
-    //
-    //             // write inst 'end'
-    //             bytecode_writer.write_opcode(Opcode::end);
-    //             let addr_of_next_to_end = bytecode_writer.get_addr();
-    //
-    //             // pop flow stack and fill stubs
-    //             control_flow_stack.pop_and_fill_stubs(bytecode_writer, addr_of_next_to_end);
-    //         }
-    //         Instruction::For {
-    //             params,
-    //             results,
-    //             locals,
-    //             code,
-    //         } => {
-    //             // | structure         | assembly          | instructions(s)    |
-    //             // |-------------------|-------------------|--------------------|
-    //             // | loop {            | (for (code        | block              |
-    //             // |    ...            |   ...             |   ...   <--\       |
-    //             // | }                 |   (recur ...)     |   recur 0 -/       |
-    //             // |                   | ))                | end                |
-    //             // |-------------------|-------------------|--------------------|
-    //             // |                   |                   |                    |
-    //             // |                   | (for (code        | block              |
-    //             // |                   |   (when (a)       |   ..a..    <---\   |
-    //             // |                   |     (code ...     |   block_nez    |   |
-    //             // |                   |       (recur ...) |     ...        |   |
-    //             // |                   |     )             |     recur 1 ---/   |
-    //             // |                   |   )               |   end              |
-    //             // |                   | ))                | end                |
-    //             // |                   |                   |                    |
-    //             // |                   |                   |                    |
-    //             // |-------------------|-------------------|--------------------|
-    //             // |                   |                   |                    |
-    //             // |                   | (for (code        | block              |
-    //             // |                   |   ...             |   ...      <---\   |
-    //             // |                   |   (when (a)       |   ..a..        |   |
-    //             // |                   |     (recur ...)   |   block_nez    |   |
-    //             // |                   |   )               |     recur 1 ---/   |
-    //             // |                   | ))                |   end              |
-    //             // |                   |                   | end                |
-    //             // |                   |                   |                    |
-    //             // |                   |                   |                    |
-    //             // |-------------------|-------------------|--------------------|
-    //
-    //             // bytecode:
-    //             // - block (param type_index:i32, local_list_index:i32)
-    //             // - recur (param reversed_index:i16, start_inst_offset:i32)
-    //
-    //             // type index
-    //             let type_index = find_existing_type_index_with_creating_when_not_found_by_param_nodes(
-    //                 type_entries,
-    //                 params,
-    //                 results,
-    //             );
-    //
-    //             // local index
-    //             let local_list_index =
-    //                 find_or_create_local_variable_list_index(local_list_entries, params, locals);
-    //
-    //             // local names
-    //             let local_names =
-    //                 build_local_variable_names_by_params_and_local_variables(params, locals);
-    //
-    //             // write inst 'block'
-    //             let addr_of_block = bytecode_writer.write_opcode_i32_i32(
-    //                 Opcode::block,
-    //                 type_index as u32,
-    //                 local_list_index as u32,
-    //             );
-    //
-    //             // push flow stack
-    //             control_flow_stack.push(addr_of_block, ControlFlowKind::Block, local_names);
-    //
-    //             // assemble node 'consequent'
-    //             assemble_instruction(
-    //                 code,
-    //                 identifier_public_index_lookup_table,
-    //                 type_entries,
-    //                 local_list_entries,
-    //                 control_flow_stack,
-    //                 bytecode_writer,
-    //             )?;
-    //
-    //             // write inst 'end'
-    //             bytecode_writer.write_opcode(Opcode::end);
-    //             let addr_of_next_to_end = bytecode_writer.get_addr();
-    //
-    //             // pop flow stack and fill stubs
-    //             control_flow_stack.pop_and_fill_stubs(bytecode_writer, addr_of_next_to_end);
-    //         }
-    //         Instruction::Do(instructions) => {
-    //             for instruction in instructions {
-    //                 assemble_instruction(
-    //                     instruction,
-    //                     identifier_public_index_lookup_table,
-    //                     type_entries,
-    //                     local_list_entries,
-    //                     control_flow_stack,
-    //                     bytecode_writer,
-    //                 )?;
-    //             }
-    //         }
-    //         Instruction::Break(instructions) => {
-    //             // note that the statement 'break' is not the same as the instruction 'break',
-    //             // the statement 'break' only break the nearest instruction 'block'.
-    //
-    //             for instruction in instructions {
-    //                 assemble_instruction(
-    //                     instruction,
-    //                     identifier_public_index_lookup_table,
-    //                     type_entries,
-    //                     local_list_entries,
-    //                     control_flow_stack,
-    //                     bytecode_writer,
-    //                 )?;
-    //             }
-    //
-    //             let reversed_index = control_flow_stack.get_reversed_index_to_for();
-    //
-    //             // write inst 'break'
-    //             let addr_of_break = bytecode_writer.write_opcode_i16_i32(
-    //                 Opcode::break_,
-    //                 reversed_index as u16,
-    //                 0, // stub for 'next_inst_offset'
-    //             );
-    //
-    //             control_flow_stack.add_break(addr_of_break, reversed_index);
-    //         }
-    //         Instruction::Recur(instructions) => {
-    //             // note that the statement 'recur' is not the same as the instruction 'recur',
-    //             // the statement 'recur' only recur to the nearest instruction 'block'.
-    //
-    //             for instruction in instructions {
-    //                 assemble_instruction(
-    //                     instruction,
-    //                     identifier_public_index_lookup_table,
-    //                     type_entries,
-    //                     local_list_entries,
-    //                     control_flow_stack,
-    //                     bytecode_writer,
-    //                 )?;
-    //             }
-    //
-    //             let reversed_index = control_flow_stack.get_reversed_index_to_for();
-    //
-    //             // write inst 'recur'
-    //             let addr_of_recur = bytecode_writer.write_opcode_i16_i32(
-    //                 Opcode::recur,
-    //                 reversed_index as u16,
-    //                 0, // stub for 'start_inst_offset'
-    //             );
-    //
-    //             let addr_of_block = control_flow_stack.get_block_addr(reversed_index);
-    //
-    //             // the length of inst 'block' is 12 bytes
-    //             let addr_of_next_to_block = addr_of_block + 12;
-    //             let start_inst_offset = (addr_of_recur - addr_of_next_to_block) as u32;
-    //             bytecode_writer.fill_recur_stub(addr_of_recur, start_inst_offset);
-    //         }
-    //         Instruction::Return(instructions) => {
-    //             // break to the function
-    //             for instruction in instructions {
-    //                 assemble_instruction(
-    //                     instruction,
-    //                     identifier_public_index_lookup_table,
-    //                     type_entries,
-    //                     local_list_entries,
-    //                     control_flow_stack,
-    //                     bytecode_writer,
-    //                 )?;
-    //             }
-    //
-    //             let reversed_index = control_flow_stack.get_reversed_index_to_function();
-    //
-    //             // write inst 'break'
-    //             bytecode_writer.write_opcode_i16_i32(
-    //                 Opcode::break_,
-    //                 reversed_index as u16,
-    //                 0, // 'next_inst_offset' is ignored when the target is the function
-    //             );
-    //         }
-    //         Instruction::FnRecur(instructions) => {
-    //             // recur to the function
-    //
-    //             for instruction in instructions {
-    //                 assemble_instruction(
-    //                     instruction,
-    //                     identifier_public_index_lookup_table,
-    //                     type_entries,
-    //                     local_list_entries,
-    //                     control_flow_stack,
-    //                     bytecode_writer,
-    //                 )?;
-    //             }
-    //
-    //             let reversed_index = control_flow_stack.get_reversed_index_to_function();
-    //
-    //             // write inst 'recur'
-    //             bytecode_writer.write_opcode_i16_i32(
-    //                 Opcode::recur,
-    //                 reversed_index as u16,
-    //                 0, // 'start_inst_offset' is ignored when the target is function
-    //             );
-    //         }
-    //         Instruction::Call { id, args } => {
-    //             for instruction in args {
-    //                 assemble_instruction(
-    //                     instruction,
-    //                     identifier_public_index_lookup_table,
-    //                     type_entries,
-    //                     local_list_entries,
-    //                     control_flow_stack,
-    //                     bytecode_writer,
-    //                 )?;
-    //             }
-    //
-    //             let function_public_index = identifier_public_index_lookup_table.get_function_public_index(id)?;
-    //             bytecode_writer.write_opcode_i32(Opcode::call, function_public_index as u32);
-    //         }
-    //         Instruction::DynCall {
-    //             public_index: num,
-    //             args,
-    //         } => {
-    //             for instruction in args {
-    //                 assemble_instruction(
-    //                     instruction,
-    //                     identifier_public_index_lookup_table,
-    //                     type_entries,
-    //                     local_list_entries,
-    //                     control_flow_stack,
-    //                     bytecode_writer,
-    //                 )?;
-    //             }
-    //
-    //             // assemble the function public index operand
-    //             assemble_instruction(
-    //                 num,
-    //                 identifier_public_index_lookup_table,
-    //                 type_entries,
-    //                 local_list_entries,
-    //                 control_flow_stack,
-    //                 bytecode_writer,
-    //             )?;
-    //
-    //             bytecode_writer.write_opcode(Opcode::dyncall);
-    //         }
-    //         Instruction::EnvCall { num, args } => {
-    //             for instruction in args {
-    //                 assemble_instruction(
-    //                     instruction,
-    //                     identifier_public_index_lookup_table,
-    //                     type_entries,
-    //                     local_list_entries,
-    //                     control_flow_stack,
-    //                     bytecode_writer,
-    //                 )?;
-    //             }
-    //
-    //             bytecode_writer.write_opcode_i32(Opcode::envcall, *num);
-    //         }
-    //         Instruction::SysCall { num, args } => {
-    //             for instruction in args {
-    //                 assemble_instruction(
-    //                     instruction,
-    //                     identifier_public_index_lookup_table,
-    //                     type_entries,
-    //                     local_list_entries,
-    //                     control_flow_stack,
-    //                     bytecode_writer,
-    //                 )?;
-    //             }
-    //
-    //             bytecode_writer.write_opcode_i32(Opcode::i32_imm, *num);
-    //             bytecode_writer.write_opcode_i32(Opcode::i32_imm, args.len() as u32);
-    //             bytecode_writer.write_opcode(Opcode::syscall);
-    //         }
-    //         Instruction::ExtCall { id, args } => {
-    //             for instruction in args {
-    //                 assemble_instruction(
-    //                     instruction,
-    //                     identifier_public_index_lookup_table,
-    //                     type_entries,
-    //                     local_list_entries,
-    //                     control_flow_stack,
-    //                     bytecode_writer,
-    //                 )?;
-    //             }
-    //
-    //             let external_function_idx = identifier_public_index_lookup_table.get_external_function_index(id)?;
-    //             bytecode_writer.write_opcode_i32(Opcode::extcall, external_function_idx as u32);
-    //         }
-    //         // macro
-    //         Instruction::MacroGetFunctionPublicIndex { id } => {
-    //             let function_public_index = identifier_public_index_lookup_table.get_function_public_index(id)?;
-    //             bytecode_writer.write_opcode_i32(Opcode::i32_imm, function_public_index as u32);
-    //         }
-    //         Instruction::Debug { code } => {
-    //             bytecode_writer.write_opcode_i32(Opcode::debug, *code);
-    //         }
-    //         Instruction::Unreachable { code } => {
-    //             bytecode_writer.write_opcode_i32(Opcode::unreachable, *code);
-    //         }
-    //         Instruction::HostAddrFunction { id } => {
-    //             let function_public_index = identifier_public_index_lookup_table.get_function_public_index(id)?;
-    //             bytecode_writer
-    //                 .write_opcode_i32(Opcode::host_addr_function, function_public_index as u32);
-    //         }
-    //     }
-    //
 }
-
-// fn assemble_instruction_kind_no_params(
-//     opcode: &Opcode,
-//     operands: &[Instruction],
-//     identifier_public_index_lookup_table: &IdentifierPublicIndexLookupTable,
-//     type_entries: &mut Vec<TypeEntry>,
-//     local_list_entries: &mut Vec<LocalListEntry>,
-//     control_flow_stack: &mut ControlFlowStack,
-//     bytecode_writer: &mut BytecodeWriter,
-// ) -> Result<(), AssembleError> {
-//     for instruction in operands {
-//         assemble_instruction(
-//             instruction,
-//             identifier_public_index_lookup_table,
-//             type_entries,
-//             local_list_entries,
-//             control_flow_stack,
-//             bytecode_writer,
-//         )?;
-//     }
-//
-//     bytecode_writer.write_opcode(*opcode);
-//
-//     Ok(())
-// }
 
 /**
  * XiaoXuan Core instruction set includes the following instructions
@@ -1686,26 +1632,21 @@ fn emit_instruction(
  * of these instructions. Then, when generating the "end" (and the "break_alt")
  * instruction, the `0` in the stub is replaced with the actual number.
  *
- * The structure "ControlFlowStack" is designed to implement the above purpose
- * and needs to call the corresponding methods:
- *
- * - todo
- * - todo
- * - todo
+ * The structure "ControlFlowStack" is designed to implement the above purpose.
  *
  * Note:
  *
  * 1. Generating the "recur*" instruction does not require
- * inserting stubs because the value of the parameter "start_inst_offset" can
- * be obtained immediately through the structure "ControlFlowStack".
+ *    inserting stubs because the value of the parameter "start_inst_offset" can
+ *    be obtained immediately through the structure "ControlFlowStack".
  *
  * 2. If the target layer of "break" is "function", no stub needs to be inserted,
- * and the "ControlFlowStack" is not needed because the "next_inst_offset" in
- * this case is directly ignored by the VM.
+ *    and the "ControlFlowStack" is not needed because the "next_inst_offset" in
+ *    this case is directly ignored by the VM.
  *
  * 3. If the target layer of "recur" is "function", no stub needs to be inserted,
- * and the "ControlFlowStack" is not needed because the "start_inst_offset" in
- * this case is directly ignored by the VM.
+ *    and the "ControlFlowStack" is not needed because the "start_inst_offset" in
+ *    this case is directly ignored by the VM.
  */
 struct ControlFlowStack {
     control_flow_items: Vec<ControlFlowItem>,
@@ -1730,12 +1671,12 @@ struct ControlFlowItem {
 #[derive(Debug, PartialEq)]
 enum ControlFlowKind {
     // to form the layer '0'.
-    // this layer is needed when calculate the layer index.
+    // this layer is necessary for calculating the layer index.
     //
     // NO stub.
     Function,
 
-    // for structure: 'for'
+    // for expression: 'block'
     //
     // bytecode:
     // block (opcode:i16 padding:i16 type_index:i32, local_list_index:i32)
@@ -1743,7 +1684,7 @@ enum ControlFlowKind {
     // NO stub.
     Block,
 
-    // for structure: 'when'
+    // for expression: 'when'
     //
     // bytecode:
     // block_nez (opcode:i16 padding:i16 local_list_index:i32 next_inst_offset:i32)
@@ -1751,7 +1692,7 @@ enum ControlFlowKind {
     // stub: next_inst_offset
     BlockNez,
 
-    // for structure: 'if'
+    // for expression: 'if'
     //
     // bytecode:
     // block_alt (opcode:i16 padding:i16 type_index:i32 next_inst_offset:i32)
@@ -1778,6 +1719,8 @@ struct BreakItem {
 enum BreakType {
     Break,
     BreakAlt,
+
+    #[allow(dead_code)]
     BreakNez,
 }
 
@@ -1808,11 +1751,15 @@ impl ControlFlowStack {
     /// call this function when encounting instruction 'break', 'break_alt', and 'break_nez'
     ///
     /// - 'break_alt' is equivalent to 'break 0, next_inst_offset'.
-    /// - when the target layer is "function", the `break` does not need stub.
+    /// - if the target layer is "function", the `break` does not need stub.
     ///
     /// the "break item" would be only inserted to corresponding layer.
     pub fn add_break(&mut self, break_type: BreakType, address: usize, reversed_index: usize) {
-        let control_flow_item = self.get_control_flow_item_by_reversed_index(reversed_index);
+        // get_control_flow_item_by_reversed_index
+        let control_flow_item = {
+            let idx = self.control_flow_items.len() - reversed_index - 1;
+            &mut self.control_flow_items[idx]
+        };
 
         if control_flow_item.control_flow_kind == ControlFlowKind::Function {
             // when the target layer is function, the instruction 'break' does not need stub,
@@ -1823,18 +1770,10 @@ impl ControlFlowStack {
                 address,
             });
         }
-
-        if break_type == BreakType::BreakAlt {
-            todo!()
-        }
     }
 
-    // /// call this function when leaving a function
-    // pub fn pop_function_layer(&mut self) -> ControlFlowItem {
-    //     self.control_flow_items.pop().unwrap()
-    // }
-
-    pub fn pop_layer_and_fill_stubs(
+    /// pops layer and fills all stubs
+    pub fn pop_layer(
         &mut self,
         bytecode_writer: &mut BytecodeWriter,
         address_next_to_instruction_end: usize,
@@ -1842,45 +1781,30 @@ impl ControlFlowStack {
         // pop flow stack
         let control_flow_item = self.control_flow_items.pop().unwrap();
 
-        // fill stubs of the instruction 'block_nez'.
-        //
-        // note that only the instruction 'block_nez' contains stub named 'next_inst_offset',
-        // although other 'block' instrcutions contain 'next_inst_offset', but
-        // they do not have stubs.
-        match control_flow_item.control_flow_kind {
-            ControlFlowKind::BlockNez => {
-                let addr_of_block = control_flow_item.address;
-                let next_inst_offset = (address_next_to_instruction_end - addr_of_block) as u32;
-                bytecode_writer.fill_block_nez_stub(addr_of_block, next_inst_offset);
-            }
-            _ => {
-                // only inst 'block_nez' need to stub 'next_inst_offset'.
-            }
+        // patch 'next_inst_offset' of the instruction 'block_nez'.
+        if control_flow_item.control_flow_kind == ControlFlowKind::BlockNez {
+            let addr_of_block_nez = control_flow_item.address;
+            let next_inst_offset = (address_next_to_instruction_end - addr_of_block_nez) as u32;
+            bytecode_writer.fill_block_nez_stub(addr_of_block_nez, next_inst_offset);
         }
 
-        // fill stubs of the instruction 'break'.
-        //
-        // instruction 'break' contains stub named 'next_inst_offset'.
+        // patch 'next_inst_offset' of the instructions 'break', 'break_alt', 'break_nez'.
         for break_item in &control_flow_item.break_items {
             let address_of_break = break_item.address;
             let next_inst_offset = (address_next_to_instruction_end - address_of_break) as u32;
             bytecode_writer.fill_break_stub(break_item.address, next_inst_offset);
+
+            if break_item.break_type == BreakType::BreakAlt {
+                // patch 'next_inst_offset' of the instruction 'block_alt'
+                const LENGTH_OF_INSTRUCTION_BREAK_ALT: usize = 8; // 8 bytes
+                let addr_of_block_alt = control_flow_item.address;
+                let address_next_to_instruction_break_alt =
+                    break_item.address + LENGTH_OF_INSTRUCTION_BREAK_ALT;
+                let next_inst_offset =
+                    (address_next_to_instruction_break_alt - addr_of_block_alt) as u32;
+                bytecode_writer.fill_block_alt_stub(addr_of_block_alt, next_inst_offset);
+            }
         }
-    }
-
-    fn get_control_flow_item_by_reversed_index(
-        &mut self,
-        reversed_index: usize,
-    ) -> &mut ControlFlowItem {
-        let idx = self.control_flow_items.len() - reversed_index - 1;
-        &mut self.control_flow_items[idx]
-    }
-
-    /// this function is used for getting the block address
-    /// when emit the 'recur*' instruction.
-    pub fn get_block_address(&self, reversed_index: usize) -> usize {
-        let idx = self.control_flow_items.len() - reversed_index - 1;
-        self.control_flow_items[idx].address
     }
 
     /// calculate the number of layers to the function
@@ -1889,7 +1813,7 @@ impl ControlFlowStack {
     }
 
     /// calculate the number of layers to the nearest 'block'
-    pub fn get_reversed_index_to_the_nearest_for(&self) -> usize {
+    pub fn get_reversed_index_to_the_nearest_block(&self) -> usize {
         let idx = self
             .control_flow_items
             .iter()
@@ -1898,7 +1822,25 @@ impl ControlFlowStack {
         self.control_flow_items.len() - idx - 1
     }
 
-    /// return (reversed_index, variable_index)
+    pub fn get_recur_to_nearest_block(
+        &self,
+        address_of_recur: usize,
+    ) -> (
+        /* reversed_index */ usize,
+        /* start_inst_offset */ usize,
+    ) {
+        let reversed_index = self.get_reversed_index_to_the_nearest_block();
+
+        // get_block_address(reversed_index);
+        let address_of_block = {
+            let idx = self.control_flow_items.len() - reversed_index - 1;
+            self.control_flow_items[idx].address
+        };
+        let start_inst_offset = address_of_recur - address_of_block;
+        (reversed_index, start_inst_offset)
+    }
+
+    /// Get the (reversed_index, variable_index) by variable name.
     ///
     /// all local variables, including the parameters of function
     /// should not have duplicate names in the scope. e.g.
@@ -2084,7 +2026,7 @@ fn assemble_import_nodes(
                 import_function_ids.push(identifier);
 
                 // get type index
-                let type_index = find_or_create_function_type_index(
+                let type_index = find_or_create_import_function_type_index(
                     type_entries,
                     &import_function_node.params,
                     &import_function_node.results,
@@ -2195,7 +2137,7 @@ fn assemble_external_nodes(
                 };
 
                 // get type index
-                let type_index = find_or_create_function_type_index(
+                let type_index = find_or_create_import_function_type_index(
                     type_entries,
                     &external_function_node.params,
                     &results,
@@ -2440,6 +2382,16 @@ fn read_argument_value_as_identifer<'a>(
     }
 }
 
+fn get_named_argument_value<'a>(
+    named_args: &'a [NamedArgument],
+    name: &str,
+) -> Option<&'a ArgumentValue> {
+    named_args
+        .iter()
+        .find(|item| item.name == name)
+        .map(|item| &item.value)
+}
+
 fn conver_data_type_value_pair_to_inited_data_entry(
     data_type_value_pair: &DataTypeValuePair,
 ) -> Result<InitedDataEntry, AssembleError> {
@@ -2512,15 +2464,13 @@ mod tests {
             }
         };
 
-        let image_common_entry = assemble_module_node(
+        assemble_module_node(
             &module_node,
             "hello_module",
             &import_module_entries,
             &external_library_entries,
         )
-        .unwrap();
-
-        image_common_entry
+        .unwrap()
     }
 
     fn codegen(source: &str) -> String {

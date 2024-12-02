@@ -167,7 +167,8 @@ pub enum ExpressionNode {
     Instruction(InstructionNode),
     When(WhenNode),
     If(IfNode),
-    For(ForNode),
+    // Branch(BranchNode),
+    Block(BlockNode),
     Break(BreakNode),
     Recur(BreakNode),
 }
@@ -179,6 +180,21 @@ pub struct WhenNode {
     pub consequence: Box<ExpressionNode>,
 }
 
+// #[derive(Debug, PartialEq)]
+// pub struct BranchNode {
+//     pub params: Vec<NamedParameter>,
+//     pub results: Vec<OperandDataType>,
+//     pub locals: Vec<LocalVariable>,
+//     pub cases: Vec<CaseNode>,
+//     pub default: Box<ExpressionNode>
+// }
+//
+// #[derive(Debug, PartialEq)]
+// pub struct CaseNode {
+//     pub testing: Box<ExpressionNode>,
+//     pub consequence: Box<ExpressionNode>,
+// }
+
 #[derive(Debug, PartialEq)]
 pub struct IfNode {
     pub params: Vec<NamedParameter>,
@@ -189,7 +205,7 @@ pub struct IfNode {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct ForNode {
+pub struct BlockNode {
     pub params: Vec<NamedParameter>,
     pub results: Vec<OperandDataType>,
     pub locals: Vec<LocalVariable>,
@@ -288,4 +304,3 @@ impl Display for FixedDeclareDataType {
         }
     }
 }
-

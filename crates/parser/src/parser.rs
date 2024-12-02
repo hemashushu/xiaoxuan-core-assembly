@@ -8,7 +8,7 @@ use anc_isa::{DataSectionType, MemoryDataType, OperandDataType};
 
 use crate::{
     ast::{
-        ArgumentValue, ForNode, BreakNode, DataNode, DataSection, DataTypeValuePair, DataValue,
+        ArgumentValue, BlockNode, BreakNode, DataNode, DataSection, DataTypeValuePair, DataValue,
         DeclareDataType, ExpressionNode, ExternalDataNode, ExternalFunctionNode, ExternalNode,
         FixedDeclareDataType, FunctionNode, IfNode, ImportDataNode, ImportFunctionNode, ImportNode,
         InstructionNode, LiteralNumber, LocalVariable, ModuleNode, NamedArgument, NamedParameter,
@@ -198,7 +198,9 @@ impl<'a> Parser<'a> {
                 "Expect a name.".to_owned(),
                 self.last_range.get_position_by_range_start(),
             )),
-            None => Err(ParserError::UnexpectedEndOfDocument("Expect a name.".to_owned())),
+            None => Err(ParserError::UnexpectedEndOfDocument(
+                "Expect a name.".to_owned(),
+            )),
         }
     }
 
@@ -503,7 +505,9 @@ impl<'a> Parser<'a> {
         Ok(node)
     }
 
-    fn continue_parse_function_signature_params(&mut self) -> Result<Vec<OperandDataType>, ParserError> {
+    fn continue_parse_function_signature_params(
+        &mut self,
+    ) -> Result<Vec<OperandDataType>, ParserError> {
         // (type, type, ...) ?  //
         // ^                 ^__// to here
         // |--------------------// current token, NOT validated
@@ -1002,7 +1006,9 @@ impl<'a> Parser<'a> {
         Ok(data_type)
     }
 
-    fn continue_parse_fixed_declare_data_type(&mut self) -> Result<FixedDeclareDataType, ParserError> {
+    fn continue_parse_fixed_declare_data_type(
+        &mut self,
+    ) -> Result<FixedDeclareDataType, ParserError> {
         // i32 ?  //
         // ^   ^__// to here
         // |------// current token, validated
@@ -1279,7 +1285,9 @@ impl<'a> Parser<'a> {
         Ok(results)
     }
 
-    fn continue_parse_function_local_variables(&mut self) -> Result<Vec<LocalVariable>, ParserError> {
+    fn continue_parse_function_local_variables(
+        &mut self,
+    ) -> Result<Vec<LocalVariable>, ParserError> {
         // [name:type, name:type, ...] ?  //
         // ^                           ^__// to here
         // |------------------------------// current token, validated
@@ -1339,10 +1347,15 @@ impl<'a> Parser<'a> {
                     let if_node = self.parse_if_expression()?;
                     ExpressionNode::If(if_node)
                 }
-                Token::Keyword(keyword) if keyword == "for" => {
-                    // "for" expression
-                    let for_node = self.parse_for_expression()?;
-                    ExpressionNode::For(for_node)
+                // Token::Keyword(keyword) if keyword == "branch" => {
+                //     // "branch" expression
+                //     let branch_node = self.parse_branch_expression()?;
+                //     ExpressionNode::Branch(branch_node)
+                // }
+                Token::Keyword(keyword) if keyword == "block" => {
+                    // "block" expression
+                    let for_node = self.parse_block_expression()?;
+                    ExpressionNode::Block(for_node)
                 }
                 Token::Keyword(keyword)
                     if (keyword == "break" || keyword == "break_if" || keyword == "break_fn") =>
@@ -1565,12 +1578,12 @@ impl<'a> Parser<'a> {
         Ok(args)
     }
 
-    fn parse_for_expression(&mut self) -> Result<ForNode, ParserError> {
-        // for params -> results [locals] body ?  //
+    fn parse_block_expression(&mut self) -> Result<BlockNode, ParserError> {
+        // block params -> results [locals] body ?  //
         // ^                                     ^__// to here
         // |----------------------------------------// current token, validated
 
-        self.next_token(); // consume 'for'
+        self.next_token(); // consume 'block'
         self.consume_new_line_if_exist();
 
         let (params, results) = if self.expect_token(0, &Token::LeftParen) {
@@ -1604,7 +1617,7 @@ impl<'a> Parser<'a> {
 
         self.consume_new_line_if_exist();
 
-        let node = ForNode {
+        let node = BlockNode {
             params,
             results,
             locals,
@@ -1688,6 +1701,23 @@ impl<'a> Parser<'a> {
         Ok(node)
     }
 
+    // fn parse_branch_expression(&mut self) -> Result<BranchNode, ParserError> {
+    //     // branch params -> results
+    //     // ^   [locals]
+    //     // |   {
+    //     // |   case
+    //     // |        testing
+    //     // |        consequence
+    //     // |   case
+    //     // |        testing
+    //     // |        consequence
+    //     // |   default
+    //     // |        consequence
+    //     // |   } ?  //
+    //     // |     ^__// to here
+    //     // |________// current token, validated
+    // }
+
     fn parse_group_expression(&mut self) -> Result<Vec<ExpressionNode>, ParserError> {
         // {expression ...} ?  //
         // ^                ^__// to here
@@ -1705,13 +1735,13 @@ impl<'a> Parser<'a> {
             let expression_node = self.parse_expression_node()?;
             expressions.push(expression_node);
 
-            let found_sep = self.consume_new_line_if_exist();
-            if !found_sep {
-                break;
-            }
+            // let found_sep = self.consume_new_line_if_exist();
+            // if !found_sep {
+            //     break;
+            // }
 
-            // // the separators which follows the expression are optional
-            // self.consume_new_line_if_exist();
+            // the separators which follows the expression are optional
+            self.consume_new_line_if_exist();
         }
 
         self.consume_right_brace()?; // consume '}'
@@ -1739,8 +1769,10 @@ mod tests {
     use super::parse_from_str;
 
     fn format(s: &str) -> String {
-        let module_node = parse_from_str(s).unwrap();
-        print_to_string(&module_node)
+        match parse_from_str(s) {
+            Ok(module_node) => print_to_string(&module_node),
+            Err(parser_error) => panic!("{}", parser_error.with_source(s)),
+        }
     }
 
     //     #[test]
@@ -2250,6 +2282,24 @@ fn foo() -> ()
     }
 "
         );
+
+        // test without line breaks
+        assert_eq!(
+            format(
+                "\
+fn foo() {
+    imm_i32(11) imm_i32(13) imm_i32(17)
+}"
+            ),
+            "\
+fn foo() -> ()
+    {
+        imm_i32(11)
+        imm_i32(13)
+        imm_i32(17)
+    }
+"
+        );
     }
 
     #[test]
@@ -2437,18 +2487,18 @@ fn foo() -> ()
     }
 
     #[test]
-    fn test_parse_expression_for() {
+    fn test_parse_expression_block() {
         assert_eq!(
             format(
                 "\
 fn foo()
-    for (num:i32)
+    block (num:i32)
         imm_i32(11)
         "
             ),
             "\
 fn foo() -> ()
-    for (num:i32) -> ()
+    block (num:i32) -> ()
         imm_i32(11)
 "
         );
@@ -2458,13 +2508,13 @@ fn foo() -> ()
             format(
                 "\
 fn foo()
-    for (left:i32, right:i32)->i32
+    block (left:i32, right:i32)->i32
         imm_i32(11)
         "
             ),
             "\
 fn foo() -> ()
-    for (left:i32, right:i32) -> i32
+    block (left:i32, right:i32) -> i32
         imm_i32(11)
 "
         );
@@ -2474,13 +2524,13 @@ fn foo() -> ()
             format(
                 "\
 fn foo()
-    for ()->i32
+    block ()->i32
         imm_i32(11)
         "
             ),
             "\
 fn foo() -> ()
-    for () -> i32
+    block () -> i32
         imm_i32(11)
 "
         );
@@ -2490,12 +2540,12 @@ fn foo() -> ()
             format(
                 "\
 fn foo()
-    for imm_i32(11)
+    block imm_i32(11)
         "
             ),
             "\
 fn foo() -> ()
-    for () -> ()
+    block () -> ()
         imm_i32(11)
 "
         );
@@ -2505,7 +2555,7 @@ fn foo() -> ()
             format(
                 "\
 fn foo()
-for
+block
 (
 left
 :
@@ -2524,7 +2574,7 @@ imm_i32
             ),
             "\
 fn foo() -> ()
-    for (left:i32, right:i32) -> i32
+    block (left:i32, right:i32) -> i32
         imm_i32(11)
 "
         );
@@ -2536,7 +2586,7 @@ fn foo() -> ()
             format(
                 "\
 fn foo()
-    for {
+    block {
         break(imm_i32(11), imm_i32(13))
         break_if imm_i32(15) (imm_i32(17), imm_i32(23))
         break_fn(imm_i32(29))
@@ -2544,7 +2594,7 @@ fn foo()
             ),
             "\
 fn foo() -> ()
-    for () -> ()
+    block () -> ()
         {
             break(
                 imm_i32(11)
@@ -2568,7 +2618,7 @@ fn foo() -> ()
             format(
                 "\
 fn foo()
-for
+block
 break_if
 imm_i32
 (
@@ -2588,7 +2638,7 @@ imm_i32
             ),
             "\
 fn foo() -> ()
-    for () -> ()
+    block () -> ()
         break_if
             imm_i32(15)
             (
@@ -2605,7 +2655,7 @@ fn foo() -> ()
             format(
                 "\
 fn foo()
-    for {
+    block {
         recur(imm_i32(11), imm_i32(13))
         recur_if imm_i32(15) (imm_i32(17), imm_i32(23))
         recur_fn(imm_i32(29))
@@ -2613,7 +2663,7 @@ fn foo()
             ),
             "\
 fn foo() -> ()
-    for () -> ()
+    block () -> ()
         {
             recur(
                 imm_i32(11)
@@ -2637,7 +2687,7 @@ fn foo() -> ()
             format(
                 "\
 fn foo()
-for
+block
 recur_if
 imm_i32
 (
@@ -2657,7 +2707,7 @@ imm_i32
             ),
             "\
 fn foo() -> ()
-    for () -> ()
+    block () -> ()
         recur_if
             imm_i32(15)
             (

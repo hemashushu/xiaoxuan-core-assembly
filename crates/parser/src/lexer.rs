@@ -383,8 +383,10 @@ impl<'a> Lexer<'a> {
         } else {
             match name_string.as_str() {
                 "import" | "as" | "external" | "fn" | "data" | "pub" | "readonly" | "uninit"
-                | "align" | "for" | "when" | "if" | "break" | "break_if" | "break_fn" | "recur"
-                | "recur_if" | "recur_fn" => Token::Keyword(name_string),
+                | "align" | "block" | "when" | "if" | /* "branch" | "case" | "default" | */ "break"
+                | "break_if" | "break_fn" | "recur" | "recur_if" | "recur_fn" => {
+                    Token::Keyword(name_string)
+                }
                 "i64" | "i32" | "i16" | "i8" | "f64" | "f32" | "byte" => {
                     Token::DataTypeName(name_string)
                 }
@@ -2109,7 +2111,8 @@ mod tests {
             lex_from_str_without_location(
                 "import as external fn data \
 pub readonly uninit align \
-for when if break break_if break_fn recur recur_if recur_fn"
+block when if \
+break break_if break_fn recur recur_if recur_fn"
             )
             .unwrap(),
             vec![
@@ -2124,9 +2127,14 @@ for when if break break_if break_fn recur recur_if recur_fn"
                 Token::new_keyword("uninit"),
                 Token::new_keyword("align"),
                 //
-                Token::new_keyword("for"),
+                Token::new_keyword("block"),
                 Token::new_keyword("when"),
                 Token::new_keyword("if"),
+                //
+                // Token::new_keyword("branch"),
+                // Token::new_keyword("case"),
+                // Token::new_keyword("default"),
+                //
                 Token::new_keyword("break"),
                 Token::new_keyword("break_if"),
                 Token::new_keyword("break_fn"),
@@ -2179,14 +2187,14 @@ for when if break break_if break_fn recur recur_if recur_fn"
 
     #[test]
     fn test_lex_multiline_location() {
-        // "[\n  for\n    data\n]"
+        // "[\n  pub\n    data\n]"
         //  01 234567 890123456 7   // index
         //  00 111111 222222222 3   // line
         //  01 012345 012345678 0   // column
         //  11   3  1     4   1 1   // length
 
         assert_eq!(
-            lex_from_str("[\n  for\n    data\n]").unwrap(),
+            lex_from_str("[\n  pub\n    data\n]").unwrap(),
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::LeftBracket,
@@ -2199,7 +2207,7 @@ for when if break break_if break_fn recur recur_if recur_fn"
                     1
                 ),
                 TokenWithRange::from_position_and_length(
-                    Token::new_keyword("for"),
+                    Token::new_keyword("pub"),
                     &Location::new_position(0, 4, 1, 2),
                     3
                 ),

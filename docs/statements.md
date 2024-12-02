@@ -300,9 +300,7 @@ imm_i32
 )
 ```
 
-Of course, to prevent programmers from taking advantage of this "highly flexible" syntax to write code that is very difficult to read (such as writing all code on the same line), Ancasm adds two restrictions to the syntax:
-
-1. Comma separation for function arguments.
+Of course, to prevent programmers from taking advantage of this "highly flexible" syntax to write code that is very difficult to read (such as writing all code on the same line), Ancasm adds a restriction to the syntax: comma separation is required for function arguments.
 
 When calling a function, arguments must be separated by commas (`,`). Similary, when defining a function, mutiple parameters and multiple return values must also be separated by commas. (It is worth mentioning that commas can be replaces with newlines, or commas and newlines can be mixed in this case.)
 
@@ -319,6 +317,7 @@ fn add(left:i32, right:i32)->i32 {
 
 In the above code, the comma between the parameters `left` and `right` cannot be omitted (although it can be replaced with a newline), and the two `local_load_i32s` instruction expressions need to be separated by a comma or newline.
 
+<!--
 2. Newline separation for parallel expressions.
 
 In expression group (i.e., expressions enclosed in a pair of curly braces, also known as a code block), multiple parallel expressions must be separated by newlines.
@@ -331,3 +330,4 @@ when nez(local_load_i32s(num)) {
 ```
 
 The "parallel expressions" refer to expressions at the same level in the same group. For example, the two `local_store_i32` instruction expressions in the above code are parallel. However, the instruction expressions `local_store_i32` and `imm_i32` are not parallel but nested, so `imm_i32` does not need to be written on a separate line.
+-->
