@@ -807,12 +807,6 @@ fn emit_expression(
                 INSTRUCTION_STUB_VALUE, // next_inst_offset
             );
 
-            // DEPRECATED
-            // // let addr_of_next_to_break = bytecode_writer.get_addr();
-            // // let alt_inst_offset = (addr_of_next_to_break - addr_of_block_alt) as u32;
-            // // // fill the stub of inst 'block_alt'
-            // // bytecode_writer.fill_block_alt_stub(addr_of_block_alt, alt_inst_offset);
-
             // add break item
             control_flow_stack.add_break(BreakType::BreakAlt, address_of_break_alt, 0);
 
@@ -900,20 +894,30 @@ fn emit_expression(
             // break_ (param reversed_index:i16, next_inst_offset:i32)
             // break_nez (param reversed_index:i16, next_inst_offset:i32)
 
-            let (reversed_index, next_inst_offset, expressions) = match break_node {
+            let (opcode, reversed_index, next_inst_offset, expressions) = match break_node {
                 BreakNode::Break(expressions) => {
                     let reversed_index =
                         control_flow_stack.get_reversed_index_to_the_nearest_block();
-                    (reversed_index, INSTRUCTION_STUB_VALUE, expressions)
+                    (
+                        Opcode::break_,
+                        reversed_index,
+                        INSTRUCTION_STUB_VALUE,
+                        expressions,
+                    )
                 }
                 BreakNode::BreakIf(_, expressions) => {
                     let reversed_index =
                         control_flow_stack.get_reversed_index_to_the_nearest_block();
-                    (reversed_index, INSTRUCTION_STUB_VALUE, expressions)
+                    (
+                        Opcode::break_nez,
+                        reversed_index,
+                        INSTRUCTION_STUB_VALUE,
+                        expressions,
+                    )
                 }
                 BreakNode::BreakFn(expressions) => {
                     let reversed_index = control_flow_stack.get_reversed_index_to_function();
-                    (reversed_index, 0, expressions)
+                    (Opcode::break_, reversed_index, 0, expressions)
                 }
             };
 
@@ -943,7 +947,7 @@ fn emit_expression(
 
             // write inst 'break'
             let address_of_break = bytecode_writer.write_opcode_i16_i32(
-                Opcode::break_,
+                opcode,
                 reversed_index as u16,
                 next_inst_offset,
             );
@@ -960,10 +964,10 @@ fn emit_expression(
             // recur (param reversed_index:i16, start_inst_offset:i32)
             // recur_nez (param reversed_index:i16, start_inst_offset:i32)
 
-            let expressions = match break_node {
-                BreakNode::Break(expressions) => expressions,
-                BreakNode::BreakIf(_, expressions) => expressions,
-                BreakNode::BreakFn(expressions) => expressions,
+            let (opcode, expressions) = match break_node {
+                BreakNode::Break(expressions) => (Opcode::recur, expressions),
+                BreakNode::BreakIf(_, expressions) => (Opcode::recur_nez, expressions),
+                BreakNode::BreakFn(expressions) => (Opcode::recur, expressions),
             };
 
             for expression in expressions {
@@ -992,8 +996,9 @@ fn emit_expression(
 
             // 'start_inst_offset' is the address of the next instruction after 'block'.
             // 'start_inst_offset' = 'address_of_recur' - 'address_of_block' - INSTRUCTION_LENGTH('block')
-
-            let address_of_recur = bytecode_writer.get_addr();
+            //
+            // NOTE that the 'recur' instruction requires 4-byte align
+            let address_of_recur = bytecode_writer.get_addr_with_align();
             let (reversed_index, start_inst_offset) =
                 control_flow_stack.get_recur_to_nearest_block(address_of_recur);
 
@@ -1001,7 +1006,7 @@ fn emit_expression(
             //
             // note that there is no stub for the `recur` instruction.
             bytecode_writer.write_opcode_i16_i32(
-                Opcode::recur,
+                opcode,
                 reversed_index as u16,
                 start_inst_offset as u32,
             );
@@ -2448,7 +2453,7 @@ mod tests {
             LocalVariableEntry, LocalVariableListEntry, TypeEntry, UninitDataEntry,
         },
     };
-    use anc_isa::{MemoryDataType, OperandDataType};
+    use anc_isa::OperandDataType;
     use anc_parser_asm::parser::parse_from_str;
     use pretty_assertions::assert_eq;
 
@@ -2827,17 +2832,249 @@ pub data obj:byte[align=8] = [
 
     #[test]
     fn test_assemble_expression_block() {
-        // todo
+        assert_fn(
+            r#"
+        fn foo()
+        {
+            block
+                imm_i32(0x11)   // inside the scope
+                imm_i32(0x13)   // outside the scope
+        }"#,
+            &["\
+0x0000  c1 03 00 00  00 00 00 00    block             type:0   local:0
+        00 00 00 00
+0x000c  40 01 00 00  11 00 00 00    imm_i32           0x00000011
+0x0014  c0 03                       end
+0x0016  00 01                       nop
+0x0018  40 01 00 00  13 00 00 00    imm_i32           0x00000013
+0x0020  c0 03                       end"],
+            &[TypeEntry::new(vec![], vec![])],
+            &[LocalVariableListEntry::new(vec![])],
+        );
+
+        // test block with group
+        assert_fn(
+            r#"
+        fn foo()
+        {
+            block {
+                // inside the scope
+                imm_i32(0x11)
+                imm_i32(0x13)
+            }
+            // outside the scope
+            imm_i32(0x17)
+        }"#,
+            &["\
+0x0000  c1 03 00 00  00 00 00 00    block             type:0   local:0
+        00 00 00 00
+0x000c  40 01 00 00  11 00 00 00    imm_i32           0x00000011
+0x0014  40 01 00 00  13 00 00 00    imm_i32           0x00000013
+0x001c  c0 03                       end
+0x001e  00 01                       nop
+0x0020  40 01 00 00  17 00 00 00    imm_i32           0x00000017
+0x0028  c0 03                       end"],
+            &[TypeEntry::new(vec![], vec![])],
+            &[LocalVariableListEntry::new(vec![])],
+        );
+
+        // test params and local variables
+        assert_fn(
+            r#"
+        fn foo(a1:i32)
+        {
+            imm_i32(0x11)
+            block(b1:i32) -> i32
+            [b2:i32, b3:i32]
+            {
+                imm_i32(0x13)
+                block(c1:i32, c2:i32) -> (i32,i32)
+                [c3:i32, c4:i32, c5:i32]
+                {
+                    imm_i32(0x17)
+                    local_load_i32_s(a1)
+                    local_load_i32_s(b1)
+                    local_load_i32_s(b2)
+                    local_load_i32_s(c1)
+                    local_load_i32_s(c2)
+                    local_load_i32_s(c3)
+                }
+            }
+        }"#,
+            &["\
+0x0000  40 01 00 00  11 00 00 00    imm_i32           0x00000011
+0x0008  c1 03 00 00  02 00 00 00    block             type:2   local:2
+        02 00 00 00
+0x0014  40 01 00 00  13 00 00 00    imm_i32           0x00000013
+0x001c  c1 03 00 00  03 00 00 00    block             type:3   local:3
+        03 00 00 00
+0x0028  40 01 00 00  17 00 00 00    imm_i32           0x00000017
+0x0030  81 01 02 00  00 00 00 00    local_load_i32_s  rev:2   off:0x00  idx:0
+0x0038  81 01 01 00  00 00 00 00    local_load_i32_s  rev:1   off:0x00  idx:0
+0x0040  81 01 01 00  00 00 01 00    local_load_i32_s  rev:1   off:0x00  idx:1
+0x0048  81 01 00 00  00 00 00 00    local_load_i32_s  rev:0   off:0x00  idx:0
+0x0050  81 01 00 00  00 00 01 00    local_load_i32_s  rev:0   off:0x00  idx:1
+0x0058  81 01 00 00  00 00 02 00    local_load_i32_s  rev:0   off:0x00  idx:2
+0x0060  c0 03                       end
+0x0062  c0 03                       end
+0x0064  c0 03                       end"],
+            &[
+                TypeEntry::new(vec![], vec![]),
+                TypeEntry::new(vec![OperandDataType::I32], vec![]),
+                TypeEntry::new(vec![OperandDataType::I32], vec![OperandDataType::I32]),
+                TypeEntry::new(
+                    vec![OperandDataType::I32, OperandDataType::I32],
+                    vec![OperandDataType::I32, OperandDataType::I32],
+                ),
+            ],
+            &[
+                LocalVariableListEntry::new(vec![]),
+                LocalVariableListEntry::new(vec![LocalVariableEntry::from_i32()]),
+                LocalVariableListEntry::new(vec![
+                    LocalVariableEntry::from_i32(),
+                    LocalVariableEntry::from_i32(),
+                    LocalVariableEntry::from_i32(),
+                ]),
+                LocalVariableListEntry::new(vec![
+                    LocalVariableEntry::from_i32(),
+                    LocalVariableEntry::from_i32(),
+                    LocalVariableEntry::from_i32(),
+                    LocalVariableEntry::from_i32(),
+                    LocalVariableEntry::from_i32(),
+                ]),
+            ],
+        );
+
+        // test type index and local list index
+        assert_fn(
+            r#"
+        fn foo(a1:i32, a2:i32) -> i32
+        [a3:i32]
+        {
+            block(b1:i32) -> i32
+            [b2:i32, b3:i32]
+            nop()
+
+            block(c1:i32, c2:i32) -> i32
+            [c3:i32]
+            nop()
+
+            block(d1:i32, d2:i32, d3:i32) -> i32
+            nop()
+        }"#,
+            &["\
+0x0000  c1 03 00 00  02 00 00 00    block             type:2   local:1
+        01 00 00 00
+0x000c  00 01                       nop
+0x000e  c0 03                       end
+0x0010  c1 03 00 00  01 00 00 00    block             type:1   local:1
+        01 00 00 00
+0x001c  00 01                       nop
+0x001e  c0 03                       end
+0x0020  c1 03 00 00  03 00 00 00    block             type:3   local:1
+        01 00 00 00
+0x002c  00 01                       nop
+0x002e  c0 03                       end
+0x0030  c0 03                       end"],
+            &[
+                TypeEntry::new(vec![], vec![]),
+                TypeEntry::new(
+                    vec![OperandDataType::I32, OperandDataType::I32],
+                    vec![OperandDataType::I32],
+                ),
+                TypeEntry::new(vec![OperandDataType::I32], vec![OperandDataType::I32]),
+                TypeEntry::new(
+                    vec![
+                        OperandDataType::I32,
+                        OperandDataType::I32,
+                        OperandDataType::I32,
+                    ],
+                    vec![OperandDataType::I32],
+                ),
+            ],
+            &[
+                LocalVariableListEntry::new(vec![]),
+                LocalVariableListEntry::new(vec![
+                    LocalVariableEntry::from_i32(),
+                    LocalVariableEntry::from_i32(),
+                    LocalVariableEntry::from_i32(),
+                ]),
+            ],
+        );
     }
 
     #[test]
-    fn test_assemble_expression_break_fn() {
-        // todo
+    fn test_assemble_expression_break() {
+        assert_eq!(
+            codegen(
+                r#"
+        fn foo() {
+            imm_i32(0x42)
+            block(a:i32) {
+                break (imm_i32(0x11))
+                break_if eqz_i32(local_load_i32_s(a)) (imm_i32(0x13), imm_i32(0x17))
+                break_fn (imm_i32(0x19), imm_i32(0x23), imm_i32(0x29))
+            }
+        }
+        "#
+            ),
+            "\
+0x0000  40 01 00 00  42 00 00 00    imm_i32           0x00000042
+0x0008  c1 03 00 00  01 00 00 00    block             type:1   local:1
+        01 00 00 00
+0x0014  40 01 00 00  11 00 00 00    imm_i32           0x00000011
+0x001c  c2 03 00 00  4e 00 00 00    break             rev:0   off:0x4e
+0x0024  40 01 00 00  13 00 00 00    imm_i32           0x00000013
+0x002c  40 01 00 00  17 00 00 00    imm_i32           0x00000017
+0x0034  81 01 00 00  00 00 00 00    local_load_i32_s  rev:0   off:0x00  idx:0
+0x003c  c0 02                       eqz_i32
+0x003e  00 01                       nop
+0x0040  c7 03 00 00  2a 00 00 00    break_nez         rev:0   off:0x2a
+0x0048  40 01 00 00  19 00 00 00    imm_i32           0x00000019
+0x0050  40 01 00 00  23 00 00 00    imm_i32           0x00000023
+0x0058  40 01 00 00  29 00 00 00    imm_i32           0x00000029
+0x0060  c2 03 01 00  00 00 00 00    break             rev:1   off:0x00
+0x0068  c0 03                       end
+0x006a  c0 03                       end"
+        );
     }
 
     #[test]
     fn test_assemble_expression_recur_fn() {
-        // todo
+        assert_eq!(
+            codegen(
+                r#"
+        fn foo() {
+            imm_i32(0x42)
+            block(a:i32) {
+                imm_i32(0x50)
+                recur (imm_i32(0x11))
+                recur_if eqz_i32(local_load_i32_s(a)) (imm_i32(0x13), imm_i32(0x17))
+                recur_fn (imm_i32(0x19), imm_i32(0x23), imm_i32(0x29))
+            }
+        }
+        "#
+            ),
+            "\
+0x0000  40 01 00 00  42 00 00 00    imm_i32           0x00000042
+0x0008  c1 03 00 00  01 00 00 00    block             type:1   local:1
+        01 00 00 00
+0x0014  40 01 00 00  50 00 00 00    imm_i32           0x00000050
+0x001c  40 01 00 00  11 00 00 00    imm_i32           0x00000011
+0x0024  c3 03 00 00  10 00 00 00    recur             rev:0   off:0x10
+0x002c  40 01 00 00  13 00 00 00    imm_i32           0x00000013
+0x0034  40 01 00 00  17 00 00 00    imm_i32           0x00000017
+0x003c  81 01 00 00  00 00 00 00    local_load_i32_s  rev:0   off:0x00  idx:0
+0x0044  c0 02                       eqz_i32
+0x0046  00 01                       nop
+0x0048  c8 03 00 00  34 00 00 00    recur_nez         rev:0   off:0x34
+0x0050  40 01 00 00  19 00 00 00    imm_i32           0x00000019
+0x0058  40 01 00 00  23 00 00 00    imm_i32           0x00000023
+0x0060  40 01 00 00  29 00 00 00    imm_i32           0x00000029
+0x0068  c3 03 00 00  54 00 00 00    recur             rev:0   off:0x54
+0x0070  c0 03                       end
+0x0072  c0 03                       end"
+        );
     }
 
     #[test]
@@ -2856,7 +3093,7 @@ pub data obj:byte[align=8] = [
     }
 
     #[test]
-    fn test_assemble_instruction_heap_load_store() {
+    fn test_assemble_instruction_memory_load_store() {
         // todo
     }
 
