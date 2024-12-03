@@ -7,15 +7,13 @@
 use std::fmt::Display;
 
 pub mod assembler;
-mod entry;
+pub mod entry;
+pub mod imggen;
 
-// pub mod assembler;
-// pub mod imagegenerator;
-// pub mod linker;
-// pub mod preprocessor;
-// pub mod utils;
-//
-// pub const UNREACHABLE_CODE_NO_DEFAULT_ARM: u32 = 0x100;
+// https://doc.rust-lang.org/reference/conditional-compilation.html#debug_assertions
+// https://doc.rust-lang.org/reference/conditional-compilation.html#test
+#[cfg(debug_assertions)]
+pub mod utils;
 
 #[derive(Debug)]
 pub struct AssembleError {

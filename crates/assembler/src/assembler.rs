@@ -62,7 +62,8 @@ fn get_library_name_and_identifier(full_name: &str) -> (&str, &str) {
     full_name.split_once("::").unwrap()
 }
 
-fn create_virtual_dependency_module() -> ImportModuleEntry {
+/// The virtual which named "module" must be the first of imported modules.
+pub fn create_virtual_dependency_module() -> ImportModuleEntry {
     ImportModuleEntry::new(
         "module".to_owned(),
         Box::new(ModuleDependency::Local(Box::new(DependencyLocal {
@@ -2483,7 +2484,7 @@ mod tests {
 
         assemble_module_node(
             &module_node,
-            "hello_module",
+            "mymodule",
             &import_module_entries,
             &external_library_entries,
         )

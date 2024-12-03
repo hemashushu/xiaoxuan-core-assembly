@@ -15,5 +15,5 @@ anc-image = { path = "../../../xiaoxuan-core-image" }
 [dev-dependencies]
 pretty_assertions = "1.4.0"
 # libc = "0.2"
-# anc-context = { path = "../../../xiaoxuan-core-vm/crates/context" }
-# anc-processor = { path = "../../../xiaoxuan-core-vm/crates/processor" }
+anc-processor = { path = "../../../xiaoxuan-core-vm/crates/processor" }
+anc-context = { path = "../../../xiaoxuan-core-vm/crates/context" }

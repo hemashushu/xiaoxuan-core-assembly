@@ -4,95 +4,65 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancvm_binary::module_image::{
-    data_index_section::DataIndexSection,
-    data_name_section::DataNameSection,
-    data_section::{ReadOnlyDataSection, ReadWriteDataSection, UninitDataSection},
-    // exit_function_list_section::ExitFunctionListSection,
-    external_function_index_section::ExternalFunctionIndexSection,
-    external_function_section::ExternalFunctionSection,
-    external_library_section::ExternalLibrarySection,
-    function_index_section::FunctionIndexSection,
-    function_name_section::FunctionNameSection,
-    function_section::FunctionSection,
-    import_data_section::ImportDataSection,
-    import_function_section::ImportFunctionSection,
-    local_variable_section::LocalVariableSection,
-    property_section::PropertySection,
-    // start_function_list_section::StartFunctionListSection,
-    type_section::TypeSection,
-    unified_external_function_section::UnifiedExternalFunctionSection,
-    unified_external_library_section::UnifiedExternalLibrarySection,
-    ModuleImage, SectionEntry, MODULE_NAME_BUFFER_LENGTH,
-};
-use ancvm_types::{
-    entry::{IndexEntry, ModuleEntry},
-    RUNTIME_MAJOR_VERSION, RUNTIME_MINOR_VERSION,
+use std::io::Write;
+
+use anc_image::{
+    common_sections::{
+        common_property_section::CommonPropertySection,
+        data_name_path_section::DataNamePathSection,
+        data_section::{ReadOnlyDataSection, ReadWriteDataSection, UninitDataSection},
+        external_function_section::ExternalFunctionSection,
+        external_library_section::ExternalLibrarySection,
+        function_name_path_section::FunctionNamePathSection,
+        function_section::FunctionSection,
+        import_data_section::ImportDataSection,
+        import_function_section::ImportFunctionSection,
+        local_variable_section::LocalVariableSection,
+        type_section::TypeSection,
+    },
+    module_image::{ImageType, ModuleImage, SectionEntry},
 };
 
-use crate::AssembleError;
+use crate::{entry::ImageCommonEntry, AssembleError};
 
-pub fn generate_module_image_binary(
-    module_entry: &ModuleEntry,
-    index_entry_opt: Option<&IndexEntry>,
-) -> Result<Vec<u8>, AssembleError> {
+pub fn generate_object_file(
+    image_common_entry: &ImageCommonEntry,
+    writer: &mut dyn Write,
+) -> Result<(), AssembleError> {
     // property section
-    let name = &module_entry.name;
-    let name_bytes = name.as_bytes();
-    let mut module_name_buffer = [0u8; MODULE_NAME_BUFFER_LENGTH];
-    unsafe {
-        std::ptr::copy(
-            name_bytes.as_ptr(),
-            module_name_buffer.as_mut_ptr(),
-            name_bytes.len(),
-        )
-    };
-
-    let constructor_function_public_index = module_entry
-        .constructor_function_public_index
-        .unwrap_or(u32::MAX);
-    let destructor_function_public_index = module_entry
-        .destructor_function_public_index
-        .unwrap_or(u32::MAX);
-    let entry_function_public_index =
-        index_entry_opt.map_or(u32::MAX, |idx_entry| idx_entry.entry_function_public_index);
-
-    let property_section = PropertySection {
-        entry_function_public_index,
-        constructor_function_public_index,
-        destructor_function_public_index,
-        runtime_major_version: RUNTIME_MAJOR_VERSION,
-        runtime_minor_version: RUNTIME_MINOR_VERSION,
-        module_name_length: name_bytes.len() as u32,
-        module_name_buffer,
-    };
+    let common_property_section = CommonPropertySection::new(
+        &image_common_entry.name,
+        image_common_entry.import_data_entries.len() as u32,
+        image_common_entry.import_function_entries.len() as u32,
+    );
 
     // type section
-    let (type_items, type_data) = TypeSection::convert_from_entries(&module_entry.type_entries);
+    let (type_items, types_data) =
+        TypeSection::convert_from_entries(&image_common_entry.type_entries);
     let type_section = TypeSection {
         items: &type_items,
-        types_data: &type_data,
+        types_data: &types_data,
     };
 
     // local variable section
     let (local_list_items, local_list_data) =
-        LocalVariableSection::convert_from_entries(&module_entry.local_list_entries);
+        LocalVariableSection::convert_from_entries(&image_common_entry.local_variable_list_entries);
     let local_variable_section = LocalVariableSection {
-        lists: &local_list_items,
+        list_items: &local_list_items,
         list_data: &local_list_data,
     };
 
     // function section
-    let (function_items, function_data) =
-        FunctionSection::convert_from_entries(&module_entry.function_entries);
+    let (function_items, function_codes_data) =
+        FunctionSection::convert_from_entries(&image_common_entry.function_entries);
     let function_section = FunctionSection {
         items: &function_items,
-        codes_data: &function_data,
+        codes_data: &function_codes_data,
     };
 
     // ro data section
     let (read_only_data_items, read_only_data) =
-        ReadOnlyDataSection::convert_from_entries(&module_entry.read_only_data_entries);
+        ReadOnlyDataSection::convert_from_entries(&image_common_entry.read_only_data_entries);
     let read_only_data_section = ReadOnlyDataSection {
         items: &read_only_data_items,
         datas_data: &read_only_data,
@@ -100,7 +70,7 @@ pub fn generate_module_image_binary(
 
     // rw data section
     let (read_write_data_items, read_write_data) =
-        ReadWriteDataSection::convert_from_entries(&module_entry.read_write_data_entries);
+        ReadWriteDataSection::convert_from_entries(&image_common_entry.read_write_data_entries);
     let read_write_data_section = ReadWriteDataSection {
         items: &read_write_data_items,
         datas_data: &read_write_data,
@@ -108,22 +78,24 @@ pub fn generate_module_image_binary(
 
     // uninitialized data section
     let uninit_data_items =
-        UninitDataSection::convert_from_entries(&module_entry.uninit_data_entries);
+        UninitDataSection::convert_from_entries(&image_common_entry.uninit_data_entries);
     let uninit_data_section = UninitDataSection {
         items: &uninit_data_items,
     };
 
     // external library section
     let (external_library_items, external_library_names_data) =
-        ExternalLibrarySection::convert_from_entries(&module_entry.external_library_entries);
+        ExternalLibrarySection::convert_from_entries(&image_common_entry.external_library_entries);
     let external_library_section = ExternalLibrarySection {
         items: &external_library_items,
-        names_data: &external_library_names_data,
+        items_data: &external_library_names_data,
     };
 
     // external function section
     let (external_function_items, external_function_names_data) =
-        ExternalFunctionSection::convert_from_entries(&module_entry.external_function_entries);
+        ExternalFunctionSection::convert_from_entries(
+            &image_common_entry.external_function_entries,
+        );
     let external_function_section = ExternalFunctionSection {
         items: &external_function_items,
         names_data: &external_function_names_data,
@@ -131,37 +103,38 @@ pub fn generate_module_image_binary(
 
     // import function section
     let (import_function_items, import_function_data) =
-        ImportFunctionSection::convert_from_entries(&module_entry.import_function_entries);
+        ImportFunctionSection::convert_from_entries(&image_common_entry.import_function_entries);
     let import_function_section = ImportFunctionSection {
         items: &import_function_items,
-        names_data: &import_function_data,
+        name_paths_data: &import_function_data,
     };
 
     // import data entries
     let (import_data_items, import_data) =
-        ImportDataSection::convert_from_entries(&module_entry.import_data_entries);
+        ImportDataSection::convert_from_entries(&image_common_entry.import_data_entries);
     let import_data_section = ImportDataSection {
         items: &import_data_items,
-        names_data: &import_data,
+        name_paths_data: &import_data,
     };
 
     // func name section
-    let (function_name_items, function_name_data) =
-        FunctionNameSection::convert_from_entries(&module_entry.function_name_entries);
-    let function_name_section = FunctionNameSection {
+    let (function_name_items, function_name_data) = FunctionNamePathSection::convert_from_entries(
+        &image_common_entry.function_name_path_entries,
+    );
+    let function_name_section = FunctionNamePathSection {
         items: &function_name_items,
-        names_data: &function_name_data,
+        name_paths_data: &function_name_data,
     };
 
     // data name section
     let (data_name_items, data_name_data) =
-        DataNameSection::convert_from_entries(&module_entry.data_name_entries);
-    let data_name_section = DataNameSection {
+        DataNamePathSection::convert_from_entries(&image_common_entry.data_name_path_entries);
+    let data_name_section = DataNamePathSection {
         items: &data_name_items,
-        names_data: &data_name_data,
+        name_paths_data: &data_name_data,
     };
 
-    let mut section_entries: Vec<&dyn SectionEntry> = vec![
+    let section_entries: Vec<&dyn SectionEntry> = vec![
         &type_section,
         &local_variable_section,
         &function_section,
@@ -174,209 +147,183 @@ pub fn generate_module_image_binary(
         &import_data_section,
         &function_name_section,
         &data_name_section,
-        &property_section,
+        &common_property_section,
     ];
 
-    if let Some(index_entry) = index_entry_opt {
-        // build application binary
+    // build object file binary
+    let (section_items, sections_data) = ModuleImage::convert_from_entries(&section_entries);
+    let module_image = ModuleImage {
+        image_type: ImageType::ObjectFile,
+        items: &section_items,
+        sections_data: &sections_data,
+    };
 
-        // func index
-        let (function_index_range_items, function_index_items) =
-            FunctionIndexSection::convert_from_entries(&index_entry.function_index_module_entries);
-        let function_index_section = FunctionIndexSection {
-            ranges: &function_index_range_items,
-            items: &function_index_items,
-        };
-
-        // data index
-        let (data_index_range_items, data_index_items) =
-            DataIndexSection::convert_from_entries(&index_entry.data_index_module_entries);
-        let data_index_section = DataIndexSection {
-            ranges: &data_index_range_items,
-            items: &data_index_items,
-        };
-
-        // unified external library
-        let (unified_external_library_items, unified_external_library_names_data) =
-            UnifiedExternalLibrarySection::convert_from_entries(
-                &index_entry.unified_external_library_entries,
-            );
-        let unified_external_library_section = UnifiedExternalLibrarySection {
-            items: &unified_external_library_items,
-            names_data: &unified_external_library_names_data,
-        };
-
-        // unified external function
-        let (unified_external_function_items, unified_external_function_names_data) =
-            UnifiedExternalFunctionSection::convert_from_entries(
-                &index_entry.unified_external_function_entries,
-            );
-        let unified_external_function_section = UnifiedExternalFunctionSection {
-            items: &unified_external_function_items,
-            names_data: &unified_external_function_names_data,
-        };
-
-        // external function index
-        let (external_function_ranges, external_function_items) =
-            ExternalFunctionIndexSection::convert_from_entries(
-                &index_entry.external_function_index_module_entries,
-            );
-        let external_function_index_section = ExternalFunctionIndexSection {
-            ranges: &external_function_ranges,
-            items: &external_function_items,
-        };
-
-//         let start_function_list_section = StartFunctionListSection {
-//             items: &index_entry.start_function_public_indices,
-//         };
-//
-//         let exit_function_list_section = ExitFunctionListSection {
-//             items: &index_entry.exit_function_public_indices,
-//         };
-
-        // let property_section = PropertySection {
-        //     entry_function_public_index: index_entry.entry_function_public_index,
-        //     constructor_function_public_index: index_entry
-        // };
-
-        let mut index_section_entries: Vec<&dyn SectionEntry> = vec![
-            &function_index_section,
-            &data_index_section,
-            &unified_external_library_section,
-            &unified_external_function_section,
-            &external_function_index_section,
-            // &start_function_list_section,
-            // &exit_function_list_section,
-        ];
-
-        section_entries.append(&mut index_section_entries);
-
-        // build ModuleImage instance
-        let (section_items, sections_data) = ModuleImage::convert_from_entries(&section_entries);
-        let module_image = ModuleImage {
-            items: &section_items,
-            sections_data: &sections_data,
-        };
-
-        // save
-        let mut image_binary: Vec<u8> = Vec::new();
-        module_image.save(&mut image_binary).unwrap();
-
-        Ok(image_binary)
-    } else {
-        // build share module binary
-
-        let (section_items, sections_data) = ModuleImage::convert_from_entries(&section_entries);
-        let module_image = ModuleImage {
-            items: &section_items,
-            sections_data: &sections_data,
-        };
-
-        // save
-        let mut image_binary: Vec<u8> = Vec::new();
-        module_image.save(&mut image_binary).unwrap();
-        Ok(image_binary)
-    }
+    // save
+    module_image.save(writer).unwrap();
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use ancvm_context::program_resource::ProgramResource;
-    use ancvm_processor::{
-        in_memory_program_resource::InMemoryProgramResource, interpreter::process_function,
+    use anc_isa::OperandDataType;
+    use pretty_assertions::assert_eq;
+
+    use anc_image::{
+        bytecode_reader::format_bytecode_as_text,
+        entry::{
+            ExternalLibraryEntry, ImportModuleEntry, LocalVariableEntry, LocalVariableListEntry,
+            TypeEntry,
+        },
+        module_image::ModuleImage,
     };
-    use ancvm_types::{
-        entry::{LocalListEntry, LocalVariableEntry, TypeEntry},
-        DataType, ForeignValue, MemoryDataType,
+    use anc_parser_asm::parser::parse_from_str;
+
+    use crate::{
+        assembler::{assemble_module_node, create_virtual_dependency_module},
+        imggen::generate_object_file,
     };
 
-    use crate::utils::helper_generate_module_image_binary_from_str;
+    fn generate(source: &str) -> Vec<u8> {
+        generate_with_import_and_external(source, vec![], vec![])
+    }
 
-    #[test]
-    fn test_binarygen_base() {
-        let module_binary = helper_generate_module_image_binary_from_str(
-            r#"
-        (module $app
-            (runtime_version "1.0")
-            (function $test
-                (param $a i32) (param $b i32)
-                (results i32)
-                (local $c i32)
-                (code
-                    (i32.add
-                        (local.load32_i32 $a)
-                        (local.load32_i32 $b)
-                    )
-                )
-            )
+    fn generate_with_import_and_external(
+        source: &str,
+        mut import_module_entries_excludes_virtual: Vec<ImportModuleEntry>,
+        external_library_entries: Vec<ExternalLibraryEntry>,
+    ) -> Vec<u8> {
+        let module_node = match parse_from_str(source) {
+            Ok(node) => node,
+            Err(parser_error) => {
+                panic!("{}", parser_error.with_source(source));
+            }
+        };
+
+        let mut import_module_entries = vec![create_virtual_dependency_module()];
+        import_module_entries.append(&mut import_module_entries_excludes_virtual);
+
+        let image_common_entry = assemble_module_node(
+            &module_node,
+            "mymodule",
+            &import_module_entries,
+            &external_library_entries,
         )
-        "#,
-        );
+        .unwrap();
 
-        let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-        let process_context0 = program_resource0.create_process_context().unwrap();
+        let mut buf: Vec<u8> = vec![];
+        generate_object_file(&image_common_entry, &mut buf).unwrap();
 
-        let function_entry = process_context0.module_images[0]
-            .get_function_section()
-            .get_function_entry(0);
-
-        assert_eq!(function_entry.type_index, 0);
-
-        let type_entry = process_context0.module_images[0]
-            .get_type_section()
-            .get_type_entry(function_entry.type_index);
-
-        assert_eq!(
-            type_entry,
-            TypeEntry {
-                params: vec![DataType::I32, DataType::I32],
-                results: vec![DataType::I32]
-            }
-        );
-
-        assert_eq!(function_entry.local_variable_list_index, 0);
-
-        let local_list_entry = process_context0.module_images[0]
-            .get_local_variable_section()
-            .get_local_list_entry(function_entry.local_variable_list_index);
-
-        assert_eq!(
-            local_list_entry,
-            LocalListEntry {
-                local_variable_entries: vec![
-                    LocalVariableEntry {
-                        memory_data_type: MemoryDataType::I32,
-                        length: 4,
-                        align: 4
-                    },
-                    LocalVariableEntry {
-                        memory_data_type: MemoryDataType::I32,
-                        length: 4,
-                        align: 4
-                    },
-                    LocalVariableEntry {
-                        memory_data_type: MemoryDataType::I32,
-                        length: 4,
-                        align: 4
-                    }
-                ]
-            }
-        );
-
-        let mut thread_context0 = process_context0.create_thread_context();
-
-        let result0 = process_function(
-            &mut thread_context0,
-            0,
-            0,
-            &[ForeignValue::U32(11), ForeignValue::U32(13)],
-        );
-
-        assert_eq!(result0.unwrap(), vec![ForeignValue::U32(24)]);
+        buf
     }
 
     #[test]
-    fn test_binarygen_other_sections_todo() {
-        // todo
+    fn test_image_generate_base() {
+        // todo: add 'data' statements
+
+        let image_binary = generate(
+            r#"
+pub fn foo () -> i32 {
+    call(add
+        imm_i32(0x11)
+        imm_i32(0x13)
+    )
+}
+
+fn add(left:i32, right:i32) -> i32 {
+    add_i32(
+        local_load_i32_s(left)
+        local_load_i32_s(right)
+    )
+}
+        "#,
+        );
+
+        let common_module_image = ModuleImage::load(&image_binary).unwrap();
+
+        // check types
+
+        let type_section = common_module_image.get_type_section();
+        assert_eq!(
+            type_section.get_type_entry(0),
+            TypeEntry::new(vec![], vec![])
+        );
+        assert_eq!(
+            type_section.get_type_entry(1),
+            TypeEntry::new(vec![], vec![OperandDataType::I32])
+        );
+        assert_eq!(
+            type_section.get_type_entry(2),
+            TypeEntry::new(
+                vec![OperandDataType::I32, OperandDataType::I32],
+                vec![OperandDataType::I32]
+            )
+        );
+
+        // check local variable list
+
+        let local_variable_section = common_module_image.get_local_variable_section();
+        assert_eq!(
+            local_variable_section.get_local_variable_list_entry(0),
+            LocalVariableListEntry::new(vec![])
+        );
+        assert_eq!(
+            local_variable_section.get_local_variable_list_entry(1),
+            LocalVariableListEntry::new(vec![
+                LocalVariableEntry::from_i32(),
+                LocalVariableEntry::from_i32()
+            ])
+        );
+
+        // todo: check data entries
+
+        // check functions
+
+        let function_section = common_module_image.get_function_section();
+
+        let function0 = function_section.get_function_entry(0);
+        assert_eq!(function0.type_index, 1);
+        assert_eq!(function0.local_variable_list_index, 0);
+        assert_eq!(
+            format_bytecode_as_text(&function0.code),
+            "\
+0x0000  40 01 00 00  11 00 00 00    imm_i32           0x00000011
+0x0008  40 01 00 00  13 00 00 00    imm_i32           0x00000013
+0x0010  00 04 00 00  01 00 00 00    call              idx:1
+0x0018  c0 03                       end"
+        );
+
+        let function1 = function_section.get_function_entry(1);
+        assert_eq!(function1.type_index, 2);
+        assert_eq!(function1.local_variable_list_index, 1);
+        assert_eq!(
+            format_bytecode_as_text(&function1.code),
+            "\
+0x0000  81 01 00 00  00 00 00 00    local_load_i32_s  rev:0   off:0x00  idx:0
+0x0008  81 01 00 00  00 00 01 00    local_load_i32_s  rev:0   off:0x00  idx:1
+0x0010  00 03                       add_i32
+0x0012  c0 03                       end"
+        );
+
+        // check function name path
+        let function_name_path_section = common_module_image
+            .get_optional_function_name_path_section()
+            .unwrap();
+
+        assert_eq!(
+            function_name_path_section.get_item_name_and_export(0),
+            ("foo", true)
+        );
+
+        assert_eq!(
+            function_name_path_section.get_item_name_and_export(1),
+            ("add", false)
+        );
+
+        // todo: check data name path
+    }
+
+    #[test]
+    fn test_image_generate_with_import_and_external() {
+        // TODO
     }
 }
