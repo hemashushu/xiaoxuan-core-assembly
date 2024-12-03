@@ -177,29 +177,29 @@ data_store_extend_f32(identifier, offset:i64, value:f32)  ->  ()
 ### Heap Loading/Storing
 
 ```rust
-heap_load_i64(  addr:i64, offset=literal_i16)  ->  i64
-heap_load_i32_s(addr:i64, offset=literal_i16)  ->  i32
-heap_load_i32_u(addr:i64, offset=literal_i16)  ->  i32
-heap_load_i16_s(addr:i64, offset=literal_i16)  ->  i16
-heap_load_i16_u(addr:i64, offset=literal_i16)  ->  i16
-heap_load_i8_s( addr:i64, offset=literal_i16)  ->  i8
-heap_load_i8_u( addr:i64, offset=literal_i16)  ->  i8
-heap_load_f32(  addr:i64, offset=literal_i16)  ->  f32
-heap_load_f64(  addr:i64, offset=literal_i16)  ->  f64
+memory_load_i64(  addr:i64, offset=literal_i16)  ->  i64
+memory_load_i32_s(addr:i64, offset=literal_i16)  ->  i32
+memory_load_i32_u(addr:i64, offset=literal_i16)  ->  i32
+memory_load_i16_s(addr:i64, offset=literal_i16)  ->  i16
+memory_load_i16_u(addr:i64, offset=literal_i16)  ->  i16
+memory_load_i8_s( addr:i64, offset=literal_i16)  ->  i8
+memory_load_i8_u( addr:i64, offset=literal_i16)  ->  i8
+memory_load_f32(  addr:i64, offset=literal_i16)  ->  f32
+memory_load_f64(  addr:i64, offset=literal_i16)  ->  f64
 
-heap_store_i64(addr:i64, value:i64, offset=literal_i16)  ->  ()
-heap_store_i32(addr:i64, value:i32, offset=literal_i16)  ->  ()
-heap_store_i16(addr:i64, value:i16, offset=literal_i16)  ->  ()
-heap_store_i8( addr:i64, value:i8,  offset=literal_i16)  ->  ()
-heap_store_f64(addr:i64, value:f64, offset=literal_i16)  ->  ()
-heap_store_f32(addr:i64, value:f32, offset=literal_i16)  ->  ()
+memory_store_i64(addr:i64, value:i64, offset=literal_i16)  ->  ()
+memory_store_i32(addr:i64, value:i32, offset=literal_i16)  ->  ()
+memory_store_i16(addr:i64, value:i16, offset=literal_i16)  ->  ()
+memory_store_i8( addr:i64, value:i8,  offset=literal_i16)  ->  ()
+memory_store_f64(addr:i64, value:f64, offset=literal_i16)  ->  ()
+memory_store_f32(addr:i64, value:f32, offset=literal_i16)  ->  ()
 ```
 
 ```rust
-heap_fill(addr:i64, value:i8, count:i64)  ->  ()
-heap_copy(dst_addr:i64, src_addr:i64, count:i64)  ->  ()
-heap_capacity()  ->  i64
-heap_resize(pages:i64)  ->  i64
+memory_fill(addr:i64, value:i8, count:i64)  ->  ()
+memory_copy(dst_addr:i64, src_addr:i64, count:i64)  ->  ()
+memory_capacity()  ->  i64
+memory_resize(pages:i64)  ->  i64
 ```
 
 ### Conversion
@@ -434,7 +434,7 @@ log_f64(left:f64 right:f64) -> f64
    system call
 - `dyncall(fn_pub_index:i32, value0, value1, ...)`
    dynamic call
-- `pub_index_function(identifier)`
+- `get_function(identifier)`
    get the public index of the specified function
 
 The `identifier` argument is the name of function, note that name path is not allowed.
@@ -503,8 +503,8 @@ host_addr_function(identifier) -> i64
 
 ```rust
 panic(code:literal_i32)  ->  (never return)
-host_addr_heap(addr:i64, offset=literal_i16) -> i64
-host_copy_heap_to_memory(dst_pointer:i64, src_addr:i64, count:i64) -> ()
-host_copy_memory_to_heap(dst_addr:i64, src_pointer:i64, count:i64) -> ()
-host_memory_copy(dst_pointer:i64, src_pointer:i64, count:i64) -> ()
+host_addr_memory(addr:i64, offset=literal_i16) -> i64
+host_copy_from_memory(dst_pointer:i64, src_addr:i64, count:i64) -> ()
+host_copy_to_memory(dst_addr:i64, src_pointer:i64, count:i64) -> ()
+host_external_memory_copy(dst_pointer:i64, src_pointer:i64, count:i64) -> ()
 ```

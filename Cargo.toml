@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/assembly",
     "crates/parser",
     "crates/assembler",
 ]

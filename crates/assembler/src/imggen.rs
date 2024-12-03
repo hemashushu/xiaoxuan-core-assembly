@@ -334,11 +334,11 @@ mod tests {
             }
         );
 
-        assert_eq!(function_entry.local_list_index, 0);
+        assert_eq!(function_entry.local_variable_list_index, 0);
 
         let local_list_entry = process_context0.module_images[0]
             .get_local_variable_section()
-            .get_local_list_entry(function_entry.local_list_index);
+            .get_local_list_entry(function_entry.local_variable_list_index);
 
         assert_eq!(
             local_list_entry,

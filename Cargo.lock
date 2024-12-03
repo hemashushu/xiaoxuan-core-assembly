@@ -6,9 +6,18 @@ version = 3
 name = "anc-assembler"
 version = "0.1.1"
 dependencies = [
+ "anc-assembly",
  "anc-image",
  "anc-isa",
  "anc-parser-asm",
+ "pretty_assertions",
+]
+
+[[package]]
+name = "anc-assembly"
+version = "0.1.1"
+dependencies = [
+ "anc-isa",
  "pretty_assertions",
 ]
 
@@ -31,6 +40,7 @@ dependencies = [
 name = "anc-parser-asm"
 version = "0.1.1"
 dependencies = [
+ "anc-assembly",
  "anc-isa",
  "ason",
  "hexfloat2",

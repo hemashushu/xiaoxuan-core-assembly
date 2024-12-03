@@ -44,12 +44,12 @@ For example:
 
 Condition without branch.
 
-`when testing [locals] consequence`
+`when [locals] testing consequence`
 
 Where:
 
-- `consequence` is an expression.
 - `[locals]` is a list of local variables, e.g. `[foo:i32, bar:byte[16], align(baz:byte[32], 4)]`
+- `consequence` is an expression.
 
 `when` expressions have no return value.
 

@@ -4,6 +4,11 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
+use anc_assembly::ast::{
+    ArgumentValue, BreakNode, DataNode, DataSection, DataTypeValuePair, DataValue, DeclareDataType,
+    ExpressionNode, ExternalNode, FixedDeclareDataType, FunctionNode, ImportNode, InstructionNode,
+    LiteralNumber, LocalVariable, ModuleNode, NamedArgument, NamedParameter,
+};
 use anc_image::{
     bytecode_writer::BytecodeWriter,
     entry::{
@@ -16,11 +21,6 @@ use anc_image::{
 use anc_isa::{
     opcode::Opcode, DataSectionType, DependencyLocal, MemoryDataType, ModuleDependency,
     OperandDataType,
-};
-use anc_parser_asm::ast::{
-    ArgumentValue, BreakNode, DataNode, DataSection, DataTypeValuePair, DataValue, DeclareDataType,
-    ExpressionNode, ExternalNode, FixedDeclareDataType, FunctionNode, ImportNode, InstructionNode,
-    LiteralNumber, LocalVariable, ModuleNode, NamedArgument, NamedParameter,
 };
 
 use crate::{entry::ImageCommonEntry, AssembleError};
@@ -497,7 +497,7 @@ fn assemble_function_nodes(
 
         function_entries.push(FunctionEntry {
             type_index,
-            local_list_index: local_variable_list_index,
+            local_variable_list_index,
             code,
         });
     }
@@ -688,7 +688,7 @@ fn emit_expression(
         )?,
         ExpressionNode::When(when_node) => {
             //  asm: `when testing [locals] consequence`
-            // code:  block_nez (param local_list_index:i32, next_inst_offset:i32)
+            // code:  block_nez (param local_variable_list_index:i32, next_inst_offset:i32)
 
             // assemble 'testing'
             emit_expression(
@@ -775,11 +775,11 @@ fn emit_expression(
                 build_local_variable_names_by_params_and_local_variables(&if_node.params, &[]);
 
             // write inst 'block_alt'
-            let address_of_block_alt = bytecode_writer.write_opcode_i32_i32(
+            let address_of_block_alt = bytecode_writer.write_opcode_i32_i32_i32(
                 Opcode::block_alt,
                 type_index as u32,
                 local_variable_list_index as u32,
-                // INSTRUCTION_STUB_VALUE, // stub for 'alt_inst_offset' // TODO::
+                INSTRUCTION_STUB_VALUE,
             );
 
             // push flow stack
@@ -836,7 +836,7 @@ fn emit_expression(
         }
         ExpressionNode::Block(block_node) => {
             //  asm: `for params -> results [locals] body`
-            // code: block (param type_index:i32, local_list_index:i32)
+            // code: block (param type_index:i32, local_variable_list_index:i32)
 
             // type index
             let type_index = find_or_create_function_type_index(
@@ -989,6 +989,9 @@ fn emit_expression(
                     bytecode_writer,
                 )?;
             }
+
+            // 'start_inst_offset' is the address of the next instruction after 'block'.
+            // 'start_inst_offset' = 'address_of_recur' - 'address_of_block' - INSTRUCTION_LENGTH('block')
 
             let address_of_recur = bytecode_writer.get_addr();
             let (reversed_index, start_inst_offset) =
@@ -1263,15 +1266,15 @@ fn emit_instruction(
                 data_public_index as u32,
             );
         }
-        "heap_load_i64" |
-        "heap_load_i32_s" |
-        "heap_load_i32_u" |
-        "heap_load_i16_s" |
-        "heap_load_i16_u" |
-        "heap_load_i8_s" |
-        "heap_load_i8_u" |
-        "heap_load_f32" |
-        "heap_load_f64" => {
+        "memory_load_i64" |
+        "memory_load_i32_s" |
+        "memory_load_i32_u" |
+        "memory_load_i16_s" |
+        "memory_load_i16_u" |
+        "memory_load_i8_s" |
+        "memory_load_i8_u" |
+        "memory_load_f32" |
+        "memory_load_f64" => {
             //  asm: (addr:i64, offset=literal_i16)
             // code: (param offset_bytes:i16) (operand heap_addr:i64)
             let offset = match get_named_argument_value(named_args, "offset") {
@@ -1288,12 +1291,12 @@ fn emit_instruction(
                 offset,
             );
         }
-        "heap_store_i64" |
-        "heap_store_i32" |
-        "heap_store_i16" |
-        "heap_store_i8" |
-        "heap_store_f64" |
-        "heap_store_f32" => {
+        "memory_store_i64" |
+        "memory_store_i32" |
+        "memory_store_i16" |
+        "memory_store_i8" |
+        "memory_store_f64" |
+        "memory_store_f32" => {
             //  asm: (addr:i64, value:i64, offset=literal_i16)
             // code: (param offset_bytes:i16) (operand heap_addr:i64 value:i64)
             let offset = match get_named_argument_value(named_args, "offset") {
@@ -1313,20 +1316,20 @@ fn emit_instruction(
                 offset,
             );
         }
-        "heap_fill" | "heap_copy" |
+        "memory_fill" | "memory_copy" |
         /* host */
-        "host_copy_heap_to_memory" | "host_copy_memory_to_heap" | "host_memory_copy" => {
+        "host_copy_from_memory" | "host_copy_to_memory" | "host_external_memory_copy" => {
             // asm:
-            // heap_fill(addr:i64, value:i8, count:i64)
-            // heap_copy(dst_addr:i64, src_addr:i64, count:i64)
-            // host_copy_heap_to_memory(dst_pointer:i64, src_addr:i64, count:i64)
-            // host_copy_memory_to_heap(dst_addr:i64, src_pointer:i64, count:i64)
+            // memory_fill(addr:i64, value:i8, count:i64)
+            // memory_copy(dst_addr:i64, src_addr:i64, count:i64)
+            // host_copy_from_memory(dst_pointer:i64, src_addr:i64, count:i64)
+            // host_copy_to_memory(dst_addr:i64, src_pointer:i64, count:i64)
             //
             // code:
-            // heap_fill() (operand addr:i64 value:i8 count:i64)
-            // heap_copy() (operand dst_addr:i64 src_addr:i64 count:i64)
-            // host_copy_heap_to_memory() (operand dst_pointer:i64 src_addr:i64 count:i64)
-            // host_copy_memory_to_heap() (operand dst_addr:i64 src_pointer:i64 count:i64)
+            // memory_fill() (operand addr:i64 value:i8 count:i64)
+            // memory_copy() (operand dst_addr:i64 src_addr:i64 count:i64)
+            // host_copy_from_memory() (operand dst_pointer:i64 src_addr:i64 count:i64)
+            // host_copy_to_memory() (operand dst_addr:i64 src_pointer:i64 count:i64)
             let one_expression_node = read_argument_value_as_expression(inst_name, &args[0])?;
             emit_expression(function_name, one_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
 
@@ -1340,18 +1343,18 @@ fn emit_instruction(
             bytecode_writer.write_opcode(opcode);
 
         }
-        "heap_capacity" => {
-            //  asm: heap_capacity()
-            // code: heap_capacity()
-            bytecode_writer.write_opcode(Opcode::heap_capacity);
+        "memory_capacity" => {
+            //  asm: memory_capacity()
+            // code: memory_capacity()
+            bytecode_writer.write_opcode(Opcode::memory_capacity);
         }
-        "heap_resize" => {
-            //  asm: heap_resize(pages:i64)
-            // code: heap_resize() (operand pages:i64)
+        "memory_resize" => {
+            //  asm: memory_resize(pages:i64)
+            // code: memory_resize() (operand pages:i64)
             let pages_expression_node = read_argument_value_as_expression(inst_name, &args[0])?;
             emit_expression(function_name, pages_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
 
-            bytecode_writer.write_opcode(Opcode::heap_resize);
+            bytecode_writer.write_opcode(Opcode::memory_resize);
         }
         /* unary operations */
         "truncate_i64_to_i32" |
@@ -1588,7 +1591,7 @@ fn emit_instruction(
 
             bytecode_writer.write_opcode(Opcode::dyncall);
         }
-        "pub_index_function" | "host_addr_function"=> {
+        "get_function" | "host_addr_function"=> {
             // asm: (identifier)
             // code: (param function_public_index:i32)
             let identifier = read_argument_value_as_identifer(inst_name, &args[0])?;
@@ -1617,7 +1620,7 @@ fn emit_instruction(
  * containing the "next_inst_offset" parameter:
  *
  * - block_alt (param type_index:i32, next_inst_offset:i32)
- * - block_nez (param local_list_index:i32, next_inst_offset:i32)
+ * - block_nez (param local_variable_list_index:i32, next_inst_offset:i32)
  * - break (param reversed_index:i16, next_inst_offset:i32)
  * - break_alt (param next_inst_offset:i32)
  * - break_nez (param reversed_index:i16, next_inst_offset:i32)
@@ -1679,7 +1682,7 @@ enum ControlFlowKind {
     // for expression: 'block'
     //
     // bytecode:
-    // block (opcode:i16 padding:i16 type_index:i32, local_list_index:i32)
+    // block (opcode:i16 padding:i16 type_index:i32, local_variable_list_index:i32)
     //
     // NO stub.
     Block,
@@ -1687,7 +1690,7 @@ enum ControlFlowKind {
     // for expression: 'when'
     //
     // bytecode:
-    // block_nez (opcode:i16 padding:i16 local_list_index:i32 next_inst_offset:i32)
+    // block_nez (opcode:i16 padding:i16 local_variable_list_index:i32 next_inst_offset:i32)
     //
     // stub: next_inst_offset
     BlockNez,
@@ -1773,25 +1776,21 @@ impl ControlFlowStack {
     }
 
     /// pops layer and fills all stubs
-    pub fn pop_layer(
-        &mut self,
-        bytecode_writer: &mut BytecodeWriter,
-        address_next_to_instruction_end: usize,
-    ) {
+    pub fn pop_layer(&mut self, bytecode_writer: &mut BytecodeWriter, address_next_to_end: usize) {
         // pop flow stack
         let control_flow_item = self.control_flow_items.pop().unwrap();
 
         // patch 'next_inst_offset' of the instruction 'block_nez'.
         if control_flow_item.control_flow_kind == ControlFlowKind::BlockNez {
             let addr_of_block_nez = control_flow_item.address;
-            let next_inst_offset = (address_next_to_instruction_end - addr_of_block_nez) as u32;
+            let next_inst_offset = (address_next_to_end - addr_of_block_nez) as u32;
             bytecode_writer.fill_block_nez_stub(addr_of_block_nez, next_inst_offset);
         }
 
         // patch 'next_inst_offset' of the instructions 'break', 'break_alt', 'break_nez'.
         for break_item in &control_flow_item.break_items {
             let address_of_break = break_item.address;
-            let next_inst_offset = (address_next_to_instruction_end - address_of_break) as u32;
+            let next_inst_offset = (address_next_to_end - address_of_break) as u32;
             bytecode_writer.fill_break_stub(break_item.address, next_inst_offset);
 
             if break_item.break_type == BreakType::BreakAlt {
@@ -1836,7 +1835,11 @@ impl ControlFlowStack {
             let idx = self.control_flow_items.len() - reversed_index - 1;
             self.control_flow_items[idx].address
         };
-        let start_inst_offset = address_of_recur - address_of_block;
+
+        // 'start_inst_offset' is the address of the next instruction after 'block'.
+        // 'start_inst_offset' = 'address_of_recur' - 'address_of_block' - INSTRUCTION_LENGTH('block')
+        const INSTRUCTION_BLOCK_LENGTH: usize = 12;
+        let start_inst_offset = address_of_recur - address_of_block - INSTRUCTION_BLOCK_LENGTH;
         (reversed_index, start_inst_offset)
     }
 
@@ -2478,6 +2481,28 @@ mod tests {
         format_bytecode_as_text(&entry.function_entries[0].code)
     }
 
+    fn assert_fn(
+        source: &str,
+        expected_byte_codes: &[&str],
+        type_entries: &[TypeEntry],
+        local_variable_list_entries: &[LocalVariableListEntry],
+    ) {
+        let entry = assemble(source);
+
+        for (idx, function_entry) in entry.function_entries.iter().enumerate() {
+            assert_eq!(
+                format_bytecode_as_text(&function_entry.code),
+                expected_byte_codes[idx]
+            );
+        }
+
+        assert_eq!(&entry.type_entries, type_entries);
+        assert_eq!(
+            &entry.local_variable_list_entries,
+            local_variable_list_entries
+        );
+    }
+
     #[test]
     fn test_assemble_import() {
         // todo
@@ -2506,15 +2531,12 @@ pub data obj:byte[align=8] = [
 
         // read-only data entries
         assert_eq!(entry.read_only_data_entries.len(), 1);
-
         assert_eq!(
             &entry.read_only_data_entries[0],
-            &InitedDataEntry {
-                memory_data_type: MemoryDataType::Bytes,
-                data: vec![72, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 33,],
-                length: 12,
-                align: 1,
-            }
+            &InitedDataEntry::from_bytes(
+                vec![72, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 33],
+                1
+            )
         );
 
         // read-write data entries
@@ -2522,48 +2544,31 @@ pub data obj:byte[align=8] = [
 
         assert_eq!(
             &entry.read_write_data_entries[0],
-            &InitedDataEntry {
-                memory_data_type: MemoryDataType::I32,
-                data: vec![42, 0, 0, 0],
-                length: 4,
-                align: 4
-            }
+            &InitedDataEntry::from_i32(42)
         );
 
         assert_eq!(
             &entry.read_write_data_entries[1],
-            &InitedDataEntry {
-                memory_data_type: MemoryDataType::Bytes,
-                data: vec![17, 19, 23, 25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,],
-                length: 16,
-                align: 1
-            }
+            &InitedDataEntry::from_bytes(
+                vec![17, 19, 23, 25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                1
+            )
         );
 
         assert_eq!(
             &entry.read_write_data_entries[2],
-            &InitedDataEntry {
-                memory_data_type: MemoryDataType::Bytes,
-                data: vec![
+            &InitedDataEntry::from_bytes(
+                vec![
                     102, 111, 111, 0, 35, 0, 0, 0, 41, 0, 0, 0, 49, 0, 55, 0, 255, 0, 0, 0, 0, 0,
                     0, 0,
                 ],
-                length: 24,
-                align: 8
-            }
+                8
+            )
         );
 
         // uninit data entries
         assert_eq!(entry.uninit_data_entries.len(), 1);
-
-        assert_eq!(
-            &entry.uninit_data_entries[0],
-            &UninitDataEntry {
-                memory_data_type: MemoryDataType::I64,
-                length: 8,
-                align: 8
-            }
-        );
+        assert_eq!(&entry.uninit_data_entries[0], &UninitDataEntry::from_i64());
 
         // data name path
         assert_eq!(
@@ -2596,28 +2601,19 @@ pub data obj:byte[align=8] = [
         // type entries
         assert_eq!(entry.type_entries.len(), 3);
 
-        assert_eq!(
-            &entry.type_entries[0],
-            &TypeEntry {
-                params: vec![],
-                results: vec![]
-            }
-        );
+        assert_eq!(&entry.type_entries[0], &TypeEntry::new(vec![], vec![]));
 
         assert_eq!(
             &entry.type_entries[1],
-            &TypeEntry {
-                params: vec![OperandDataType::I32, OperandDataType::I32],
-                results: vec![OperandDataType::I32]
-            }
+            &TypeEntry::new(
+                vec![OperandDataType::I32, OperandDataType::I32],
+                vec![OperandDataType::I32]
+            )
         );
 
         assert_eq!(
             &entry.type_entries[2],
-            &TypeEntry {
-                params: vec![OperandDataType::I32],
-                results: vec![OperandDataType::I32]
-            }
+            &TypeEntry::new(vec![OperandDataType::I32], vec![OperandDataType::I32])
         );
 
         // local variable list entries
@@ -2650,29 +2646,17 @@ pub data obj:byte[align=8] = [
 
         assert_eq!(
             &entry.function_entries[0],
-            &FunctionEntry {
-                type_index: 1,
-                local_list_index: 1,
-                code: vec![0, 1, 192, 3]
-            }
+            &FunctionEntry::new(1, 1, vec![0, 1, 192, 3])
         );
 
         assert_eq!(
             &entry.function_entries[1],
-            &FunctionEntry {
-                type_index: 2,
-                local_list_index: 2,
-                code: vec![0, 1, 192, 3]
-            }
+            &FunctionEntry::new(2, 2, vec![0, 1, 192, 3])
         );
 
         assert_eq!(
             &entry.function_entries[2],
-            &FunctionEntry {
-                type_index: 2,
-                local_list_index: 1,
-                code: vec![0, 1, 192, 3]
-            }
+            &FunctionEntry::new(2, 1, vec![0, 1, 192, 3])
         );
 
         // function name paths
@@ -2714,16 +2698,135 @@ pub data obj:byte[align=8] = [
 
     #[test]
     fn test_assemble_expression_when() {
-        // todo
+        assert_fn(
+            r#"
+        fn foo() {
+            when
+                imm_i32(0x11)   // testing
+                imm_i32(0x13)   // consequence
+        }"#,
+            &["\
+0x0000  40 01 00 00  11 00 00 00    imm_i32           0x00000011
+0x0008  c6 03 00 00  00 00 00 00    block_nez         local:0   off:0x16
+        16 00 00 00
+0x0014  40 01 00 00  13 00 00 00    imm_i32           0x00000013
+0x001c  c0 03                       end
+0x001e  c0 03                       end"],
+            &[TypeEntry::new(vec![], vec![])],
+            &[LocalVariableListEntry::new(vec![])],
+        );
+
+        // test local variables
+        assert_fn(
+            r#"
+        fn foo(num:i32)
+            [sum:i32]
+        {
+            when
+                [a:i32, b:i32]
+                eqz_i32(local_load_i32_s(num))
+                {
+                    local_store_i32(a, imm_i32(0x11))
+                    local_store_i32(b, imm_i32(0x13))
+                    local_store_i32(sum, local_load_i32_s(num))
+                }
+
+        }"#,
+            &["\
+0x0000  81 01 00 00  00 00 00 00    local_load_i32_s  rev:0   off:0x00  idx:0
+0x0008  c0 02                       eqz_i32
+0x000a  00 01                       nop
+0x000c  c6 03 00 00  01 00 00 00    block_nez         local:1   off:0x3e
+        3e 00 00 00
+0x0018  40 01 00 00  11 00 00 00    imm_i32           0x00000011
+0x0020  8a 01 00 00  00 00 00 00    local_store_i32   rev:0   off:0x00  idx:0
+0x0028  40 01 00 00  13 00 00 00    imm_i32           0x00000013
+0x0030  8a 01 00 00  00 00 01 00    local_store_i32   rev:0   off:0x00  idx:1
+0x0038  81 01 01 00  00 00 00 00    local_load_i32_s  rev:1   off:0x00  idx:0
+0x0040  8a 01 01 00  00 00 01 00    local_store_i32   rev:1   off:0x00  idx:1
+0x0048  c0 03                       end
+0x004a  c0 03                       end"],
+            &[
+                TypeEntry::new(vec![], vec![]),
+                TypeEntry::new(vec![OperandDataType::I32], vec![]),
+            ],
+            &[
+                LocalVariableListEntry::new(vec![]),
+                LocalVariableListEntry::new(vec![
+                    LocalVariableEntry::from_i32(),
+                    LocalVariableEntry::from_i32(),
+                ]),
+            ],
+        );
     }
 
     #[test]
     fn test_assemble_expression_if() {
-        // todo
+        assert_fn(
+            r#"
+        fn foo()
+        {
+            if
+                imm_i32(0x11)   // testing
+                imm_i32(0x13)   // consequence
+                imm_i32(0x17)   // alternative
+
+        }"#,
+            &["\
+0x0000  40 01 00 00  11 00 00 00    imm_i32           0x00000011
+0x0008  c4 03 00 00  00 00 00 00    block_alt         type:0   local:0   off:0x20
+        00 00 00 00  20 00 00 00
+0x0018  40 01 00 00  13 00 00 00    imm_i32           0x00000013
+0x0020  c5 03 00 00  12 00 00 00    break_alt         off:0x12
+0x0028  40 01 00 00  17 00 00 00    imm_i32           0x00000017
+0x0030  c0 03                       end
+0x0032  c0 03                       end"],
+            &[TypeEntry::new(vec![], vec![])],
+            &[LocalVariableListEntry::new(vec![])],
+        );
+
+        // test params
+        assert_fn(
+            r#"
+        fn foo(num:i32) -> i32
+        {
+            imm_i32(0x11)
+            if (arg:i32) -> i32
+                eqz_i32(local_load_i32_s(num))                          // testing
+                add_i32(local_load_i32_s(arg), imm_i32(0x13))           // consequence
+                mul_i32(local_load_i32_s(arg), local_load_i32_s(num))   // alternative
+
+        }"#,
+            &["\
+0x0000  40 01 00 00  11 00 00 00    imm_i32           0x00000011
+0x0008  81 01 00 00  00 00 00 00    local_load_i32_s  rev:0   off:0x00  idx:0
+0x0010  c0 02                       eqz_i32
+0x0012  00 01                       nop
+0x0014  c4 03 00 00  01 00 00 00    block_alt         type:1   local:1   off:0x2c
+        01 00 00 00  2c 00 00 00
+0x0024  81 01 00 00  00 00 00 00    local_load_i32_s  rev:0   off:0x00  idx:0
+0x002c  40 01 00 00  13 00 00 00    imm_i32           0x00000013
+0x0034  00 03                       add_i32
+0x0036  00 01                       nop
+0x0038  c5 03 00 00  1c 00 00 00    break_alt         off:0x1c
+0x0040  81 01 00 00  00 00 00 00    local_load_i32_s  rev:0   off:0x00  idx:0
+0x0048  81 01 01 00  00 00 00 00    local_load_i32_s  rev:1   off:0x00  idx:0
+0x0050  04 03                       mul_i32
+0x0052  c0 03                       end
+0x0054  c0 03                       end"],
+            &[
+                TypeEntry::new(vec![], vec![]),
+                TypeEntry::new(vec![OperandDataType::I32], vec![OperandDataType::I32]),
+            ],
+            &[
+                LocalVariableListEntry::new(vec![]),
+                LocalVariableListEntry::new(vec![LocalVariableEntry::from_i32()]),
+            ],
+        );
     }
 
     #[test]
-    fn test_assemble_expression_for() {
+    fn test_assemble_expression_block() {
         // todo
     }
 

@@ -351,8 +351,8 @@ fn format_expression_list(
 fn format_expression_when(node: &WhenNode, indent_chars: &str, indent_level: usize) -> String {
     // ```
     // when
-    //     testing
     //     [local variables]
+    //     testing
     //     consequence
     // ```
 
@@ -370,9 +370,9 @@ fn format_expression_when(node: &WhenNode, indent_chars: &str, indent_level: usi
         format!(
             "when\n{}{}\n{}{}\n{}{}",
             indent,
-            format_expression(&node.testing, indent_chars, indent_level + 1),
-            indent,
             format_local_variables(&node.locals),
+            indent,
+            format_expression(&node.testing, indent_chars, indent_level + 1),
             indent,
             format_expression(&node.consequence, indent_chars, indent_level + 1),
         )
@@ -752,18 +752,17 @@ mod tests {
     use anc_isa::{DataSectionType, MemoryDataType, OperandDataType};
     use pretty_assertions::assert_eq;
 
-    use crate::{
-        ast::{
-            ArgumentValue, BlockNode, BreakNode, DataNode, DataSection, DataTypeValuePair,
-            DataValue, DeclareDataType, ExpressionNode, ExternalDataNode, ExternalFunctionNode,
-            ExternalNode, FixedDeclareDataType, FunctionNode, IfNode, ImportDataNode,
-            ImportFunctionNode, ImportNode, InstructionNode, LiteralNumber, LocalVariable,
-            ModuleNode, NamedArgument, NamedParameter, WhenNode,
-        },
-        printer::{
-            print_external_data_node, print_external_function_node, print_function_node,
-            print_import_data_node, print_import_function_node, DEFAULT_INDENT_CHARS,
-        },
+    use crate::ast::{
+        ArgumentValue, BlockNode, BreakNode, DataNode, DataSection, DataTypeValuePair, DataValue,
+        DeclareDataType, ExpressionNode, ExternalDataNode, ExternalFunctionNode, ExternalNode,
+        FixedDeclareDataType, FunctionNode, IfNode, ImportDataNode, ImportFunctionNode, ImportNode,
+        InstructionNode, LiteralNumber, LocalVariable, ModuleNode, NamedArgument, NamedParameter,
+        WhenNode,
+    };
+
+    use crate::printer::{
+        print_external_data_node, print_external_function_node, print_function_node,
+        print_import_data_node, print_import_function_node, DEFAULT_INDENT_CHARS,
     };
 
     use super::{print_data_node, print_to_string};
@@ -1404,8 +1403,8 @@ fn foo() -> ()
             "\
 fn foo() -> ()
     when
-        imm_i32(1)
         [foo:i32, bar:byte[8], baz:byte[24, align=4]]
+        imm_i32(1)
         nop()"
         );
 

@@ -6,14 +6,15 @@
 
 use anc_isa::{DataSectionType, MemoryDataType, OperandDataType};
 
+use anc_assembly::ast::{
+    ArgumentValue, BlockNode, BreakNode, DataNode, DataSection, DataTypeValuePair, DataValue,
+    DeclareDataType, ExpressionNode, ExternalDataNode, ExternalFunctionNode, ExternalNode,
+    FixedDeclareDataType, FunctionNode, IfNode, ImportDataNode, ImportFunctionNode, ImportNode,
+    InstructionNode, LiteralNumber, LocalVariable, ModuleNode, NamedArgument, NamedParameter,
+    WhenNode,
+};
+
 use crate::{
-    ast::{
-        ArgumentValue, BlockNode, BreakNode, DataNode, DataSection, DataTypeValuePair, DataValue,
-        DeclareDataType, ExpressionNode, ExternalDataNode, ExternalFunctionNode, ExternalNode,
-        FixedDeclareDataType, FunctionNode, IfNode, ImportDataNode, ImportFunctionNode, ImportNode,
-        InstructionNode, LiteralNumber, LocalVariable, ModuleNode, NamedArgument, NamedParameter,
-        WhenNode,
-    },
     error::ParserError,
     lexer::lex_from_str,
     location::Location,
@@ -1674,14 +1675,11 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_when_expression(&mut self) -> Result<WhenNode, ParserError> {
-        // when testing [locals] consequence ?  //
+        // when [locals] testing consequence ?  //
         // ^                                 ^__// to here
         // |------------------------------------// current token, validated
 
         self.next_token(); // consume 'when'
-        self.consume_new_line_if_exist();
-
-        let testing = self.parse_expression_node()?;
         self.consume_new_line_if_exist();
 
         let locals = if self.expect_token(0, &Token::LeftBracket) {
@@ -1689,6 +1687,9 @@ impl<'a> Parser<'a> {
         } else {
             vec![]
         };
+        self.consume_new_line_if_exist();
+
+        let testing = self.parse_expression_node()?;
         self.consume_new_line_if_exist();
 
         let consequence = self.parse_expression_node()?;
@@ -1764,7 +1765,7 @@ pub fn parse_from_str(source_code: &str) -> Result<ModuleNode, ParserError> {
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use crate::printer::print_to_string;
+    use anc_assembly::printer::print_to_string;
 
     use super::parse_from_str;
 
@@ -2325,14 +2326,14 @@ fn foo() -> ()
             format(
                 "\
 fn foo()
-    when imm_i32(1) [left:i32,right:i32] nop()
+    when [left:i32,right:i32] imm_i32(1) nop()
 "
             ),
             "\
 fn foo() -> ()
     when
-        imm_i32(1)
         [left:i32, right:i32]
+        imm_i32(1)
         nop()
 "
         );
@@ -2343,10 +2344,6 @@ fn foo() -> ()
                 "\
 fn foo()
     when
-    imm_i32
-    (
-    1
-    )
     [
     left
     :
@@ -2355,6 +2352,10 @@ fn foo()
     :
     i32
     ]
+    imm_i32
+    (
+    1
+    )
     nop
     (
     )
@@ -2363,8 +2364,8 @@ fn foo()
             "\
 fn foo() -> ()
     when
-        imm_i32(1)
         [left:i32, right:i32]
+        imm_i32(1)
         nop()
 "
         );

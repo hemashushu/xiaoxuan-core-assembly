@@ -15,9 +15,7 @@ mod normalizer;
 mod peekableiter;
 mod token;
 
-pub mod ast;
 pub mod parser;
-pub mod printer;
 
 pub const NAME_PATH_SEPARATOR: &str = "::";
 
