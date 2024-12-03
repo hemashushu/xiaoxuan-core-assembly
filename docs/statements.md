@@ -228,9 +228,16 @@ The `byte` type can also be specified alignment, e.g.:
 - `byte[1024, align=8]`
 - `byte[align=4]`
 
-### Numeric Type Auto Conversion
+### Numeric Literal Type Automatic Conversion
 
-TODO:: auto convert to the declared type, rules ...
+literal_i8
+literal_i16
+literal_i32 (default int)
+literal_i64
+literal_f32
+literal_f64 (default fp)
+
+TODO::
 
 ## The `fn` Statements
 

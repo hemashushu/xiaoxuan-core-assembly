@@ -63,11 +63,16 @@ local_store_i64(
 
 Instruction expressions have an almost one-to-one correspondence with the instructions of the VM. However, some parameters will be converted by the assembler. For example, the identifier in the instruction expression `local_load_i64` will be automatically converted to the `index` and `rev-index` of the local varialbe. Additionally, all VM control flow instructions are replaced by the [control flow expressions](./expressions/#control-flow-expressions).
 
-3. Numeric Type Conversion
+3. Numeric Literal Type Automatic Conversion
+
+literal_i8
+literal_i16
+literal_i32 (default int)
+literal_i64
+literal_f32
+literal_f64 (default fp)
 
 TODO
-
-auto convert to the required type of parameter, rules ...
 
 ## Instructions
 
@@ -424,18 +429,18 @@ log_f64(left:f64 right:f64) -> f64
 
 ### Calling
 
-- `call(identifier, value0, value1, ...)`
+- `call(identifier, value0, value1, ...) -> (...)`
    call a function
-- `extcall(identifier, value0, value1, ...)`
+- `extcall(identifier, value0, value1, ...) -> void/i32/i64/f32/f64`
    call a external function
-- `envcall(env_call_number:liter_i32, value0, value1, ...)`
+- `envcall(env_call_number:liter_i32, value0, value1, ...) -> (...)`
    environment call
-- `syscall(sys_call_number:liter_i32, value0, value1, ...)`
+- `syscall(value0, value1, ..., syscall_num:i32, params_count: i32) -> (return_value:i64, error_no:i32)`
    system call
-- `dyncall(fn_pub_index:i32, value0, value1, ...)`
-   dynamic call
-- `get_function(identifier)`
+- `get_function(identifier) -> i32`
    get the public index of the specified function
+- `dyncall(fn_pub_index:i32, value0, value1, ...) -> (...)`
+   dynamic call
 
 The `identifier` argument is the name of function, note that name path is not allowed.
 

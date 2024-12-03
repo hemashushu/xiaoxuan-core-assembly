@@ -1572,10 +1572,9 @@ fn emit_instruction(
 
             bytecode_writer.write_opcode_i32(opcode, public_index as u32);
         }
-        "envcall" | "syscall" => {
+        "envcall" => {
             // asm: (env_call_number:liter_i32, value0, value1, ...)
             // code: envcall(param envcall_num:i32) (operand args...)
-            // code: syscall() (operand args..., syscall_num:i32, params_count: i32)
             let num = read_argument_value_as_i32(inst_name, &args[0])?;
             let opcode = Opcode::from_name(inst_name);
 
@@ -1586,9 +1585,10 @@ fn emit_instruction(
 
             bytecode_writer.write_opcode_i32(opcode, num);
         }
-        "dyncall" => {
+        "dyncall" | "syscall" => {
             // asm: (fn_pub_index:i32, value0, value1, ...)
-            // code: () (operand function_public_index:i32, args...)
+            // code: dyncall() (operand function_public_index:i32, args...)
+            // code: syscall() (operand args..., syscall_num:i32, params_count: i32)
             for arg in args {
                 let arg_expression_node = read_argument_value_as_expression(inst_name, arg)?;
                 emit_expression(function_name, arg_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
@@ -2449,11 +2449,12 @@ mod tests {
     use anc_image::{
         bytecode_reader::format_bytecode_as_text,
         entry::{
-            DataNamePathEntry, FunctionEntry, FunctionNamePathEntry, InitedDataEntry,
-            LocalVariableEntry, LocalVariableListEntry, TypeEntry, UninitDataEntry,
+            DataNamePathEntry, ExternalLibraryEntry, FunctionEntry, FunctionNamePathEntry,
+            ImportModuleEntry, InitedDataEntry, LocalVariableEntry, LocalVariableListEntry,
+            TypeEntry, UninitDataEntry,
         },
     };
-    use anc_isa::OperandDataType;
+    use anc_isa::{DependencyLocal, ExternalLibraryDependency, OperandDataType};
     use anc_parser_asm::parser::parse_from_str;
     use pretty_assertions::assert_eq;
 
@@ -2462,8 +2463,16 @@ mod tests {
     use super::{assemble_module_node, create_virtual_dependency_module};
 
     fn assemble(source: &str) -> ImageCommonEntry {
-        let import_module_entries = vec![create_virtual_dependency_module()];
-        let external_library_entries = vec![];
+        assemble_with_imports_and_externals(source, vec![], vec![])
+    }
+
+    fn assemble_with_imports_and_externals(
+        source: &str,
+        mut import_module_entries_excludes_virtual: Vec<ImportModuleEntry>,
+        external_library_entries: Vec<ExternalLibraryEntry>,
+    ) -> ImageCommonEntry {
+        let mut import_module_entries = vec![create_virtual_dependency_module()];
+        import_module_entries.append(&mut import_module_entries_excludes_virtual);
 
         let module_node = match parse_from_str(source) {
             Ok(node) => node,
@@ -2481,8 +2490,21 @@ mod tests {
         .unwrap()
     }
 
-    fn codegen(source: &str) -> String {
+    fn bytecode(source: &str) -> String {
         let entry = assemble(source);
+        format_bytecode_as_text(&entry.function_entries[0].code)
+    }
+
+    fn bytecode_with_import_and_external(
+        source: &str,
+        import_module_entries_excludes_virtual: Vec<ImportModuleEntry>,
+        external_library_entries: Vec<ExternalLibraryEntry>,
+    ) -> String {
+        let entry = assemble_with_imports_and_externals(
+            source,
+            import_module_entries_excludes_virtual,
+            external_library_entries,
+        );
         format_bytecode_as_text(&entry.function_entries[0].code)
     }
 
@@ -2509,17 +2531,17 @@ mod tests {
     }
 
     #[test]
-    fn test_assemble_import() {
+    fn test_assemble_import_statement() {
         // todo
     }
 
     #[test]
-    fn test_assemble_external() {
+    fn test_assemble_external_statement() {
         // todo
     }
 
     #[test]
-    fn test_assemble_data() {
+    fn test_assemble_data_statement() {
         let entry = assemble(
             r#"
 data foo:i32 = 42
@@ -2589,7 +2611,7 @@ pub data obj:byte[align=8] = [
     }
 
     #[test]
-    fn test_assemble_function() {
+    fn test_assemble_function_statement() {
         let entry = assemble(
             r#"
             fn add(left:i32, right:i32) -> i32
@@ -2678,7 +2700,7 @@ pub data obj:byte[align=8] = [
     #[test]
     fn test_assemble_expression_group() {
         assert_eq!(
-            codegen(
+            bytecode(
                 r#"
         fn foo() {
             imm_i32(0x11)
@@ -3006,7 +3028,7 @@ pub data obj:byte[align=8] = [
     #[test]
     fn test_assemble_expression_break() {
         assert_eq!(
-            codegen(
+            bytecode(
                 r#"
         fn foo() {
             imm_i32(0x42)
@@ -3042,7 +3064,7 @@ pub data obj:byte[align=8] = [
     #[test]
     fn test_assemble_expression_recur_fn() {
         assert_eq!(
-            codegen(
+            bytecode(
                 r#"
         fn foo() {
             imm_i32(0x42)
@@ -3079,12 +3101,171 @@ pub data obj:byte[align=8] = [
 
     #[test]
     fn test_assemble_instruction_base() {
-        // todo
+        assert_eq!(
+            bytecode(
+                r#"
+fn foo() {
+    nop()
+    imm_i32(0x11)
+    imm_i64(0x13)
+    imm_f32(3.142)
+    imm_f64(2.718)
+}
+        "#
+            ),
+            "\
+0x0000  00 01                       nop
+0x0002  00 01                       nop
+0x0004  40 01 00 00  11 00 00 00    imm_i32           0x00000011
+0x000c  41 01 00 00  13 00 00 00    imm_i64           low:0x00000013  high:0x00000000
+        00 00 00 00
+0x0018  42 01 00 00  87 16 49 40    imm_f32           0x40491687
+0x0020  43 01 00 00  58 39 b4 c8    imm_f64           low:0xc8b43958  high:0x4005be76
+        76 be 05 40
+0x002c  c0 03                       end"
+        );
     }
 
     #[test]
     fn test_assemble_instruction_local_load_store() {
-        // todo
+        assert_eq!(
+            bytecode(
+                r#"
+fn foo(left:i32, right:i32) {
+    local_load_i64(left, offset=4)
+    local_load_i32_s(left, offset=2)
+    local_load_i32_u(left, offset=0)
+    local_load_i16_s(right)
+    local_load_i16_u(right)
+    local_load_i8_s(right)
+    local_load_i8_u(right)
+    local_load_f32(left)
+    local_load_f64(right)
+}
+        "#
+            ),
+            "\
+0x0000  80 01 00 00  04 00 00 00    local_load_64     rev:0   off:0x04  idx:0
+0x0008  81 01 00 00  02 00 00 00    local_load_i32_s  rev:0   off:0x02  idx:0
+0x0010  82 01 00 00  00 00 00 00    local_load_i32_u  rev:0   off:0x00  idx:0
+0x0018  83 01 00 00  00 00 01 00    local_load_i16_s  rev:0   off:0x00  idx:1
+0x0020  84 01 00 00  00 00 01 00    local_load_i16_u  rev:0   off:0x00  idx:1
+0x0028  85 01 00 00  00 00 01 00    local_load_i8_s   rev:0   off:0x00  idx:1
+0x0030  86 01 00 00  00 00 01 00    local_load_i8_u   rev:0   off:0x00  idx:1
+0x0038  88 01 00 00  00 00 00 00    local_load_f32    rev:0   off:0x00  idx:0
+0x0040  87 01 00 00  00 00 01 00    local_load_f64    rev:0   off:0x00  idx:1
+0x0048  c0 03                       end"
+        );
+
+        assert_eq!(
+            bytecode(
+                r#"
+fn foo(left:i32, right:i32) {
+    local_load_extend_i64(left, imm_i32(0x2))
+    local_load_extend_i32_s(left, imm_i32(0x4))
+    local_load_extend_i32_u(left, imm_i32(0x8))
+    local_load_extend_i16_s(right, imm_i32(0x2))
+    local_load_extend_i16_u(right, imm_i32(0x4))
+    local_load_extend_i8_s(right, imm_i32(0x8))
+    local_load_extend_i8_u(right, imm_i32(0xa))
+    local_load_extend_f32(left, imm_i32(0x2))
+    local_load_extend_f64(right, imm_i32(0x4))
+}
+        "#
+            ),
+            "\
+0x0000  40 01 00 00  02 00 00 00    imm_i32           0x00000002
+0x0008  8f 01 00 00  00 00 00 00    local_load_extend_i64  rev:0   idx:0
+0x0010  40 01 00 00  04 00 00 00    imm_i32           0x00000004
+0x0018  90 01 00 00  00 00 00 00    local_load_extend_i32_s  rev:0   idx:0
+0x0020  40 01 00 00  08 00 00 00    imm_i32           0x00000008
+0x0028  91 01 00 00  00 00 00 00    local_load_extend_i32_u  rev:0   idx:0
+0x0030  40 01 00 00  02 00 00 00    imm_i32           0x00000002
+0x0038  92 01 00 00  01 00 00 00    local_load_extend_i16_s  rev:0   idx:1
+0x0040  40 01 00 00  04 00 00 00    imm_i32           0x00000004
+0x0048  93 01 00 00  01 00 00 00    local_load_extend_i16_u  rev:0   idx:1
+0x0050  40 01 00 00  08 00 00 00    imm_i32           0x00000008
+0x0058  94 01 00 00  01 00 00 00    local_load_extend_i8_s  rev:0   idx:1
+0x0060  40 01 00 00  0a 00 00 00    imm_i32           0x0000000a
+0x0068  95 01 00 00  01 00 00 00    local_load_extend_i8_u  rev:0   idx:1
+0x0070  40 01 00 00  02 00 00 00    imm_i32           0x00000002
+0x0078  97 01 00 00  00 00 00 00    local_load_extend_f32  rev:0   idx:0
+0x0080  40 01 00 00  04 00 00 00    imm_i32           0x00000004
+0x0088  96 01 00 00  01 00 00 00    local_load_extend_f64  rev:0   idx:1
+0x0090  c0 03                       end"
+        );
+
+        assert_eq!(
+            bytecode(
+                r#"
+fn foo()
+[left:i32, right:i32]
+{
+    local_store_i64(left, imm_i64(0x11), offset=4)
+    local_store_i32(left, imm_i32(0x13), offset=2)
+    local_store_i16(right, imm_i32(0x17))
+    local_store_i8(right, imm_i32(0x19))
+    local_store_f32(left, imm_f32(3.142))
+    local_store_f64(right, imm_f64(2.718))
+}
+        "#
+            ),
+            "\
+0x0000  41 01 00 00  11 00 00 00    imm_i64           low:0x00000011  high:0x00000000
+        00 00 00 00
+0x000c  89 01 00 00  04 00 00 00    local_store_i64   rev:0   off:0x04  idx:0
+0x0014  40 01 00 00  13 00 00 00    imm_i32           0x00000013
+0x001c  8a 01 00 00  02 00 00 00    local_store_i32   rev:0   off:0x02  idx:0
+0x0024  40 01 00 00  17 00 00 00    imm_i32           0x00000017
+0x002c  8b 01 00 00  00 00 01 00    local_store_i16   rev:0   off:0x00  idx:1
+0x0034  40 01 00 00  19 00 00 00    imm_i32           0x00000019
+0x003c  8c 01 00 00  00 00 01 00    local_store_i8    rev:0   off:0x00  idx:1
+0x0044  42 01 00 00  87 16 49 40    imm_f32           0x40491687
+0x004c  8e 01 00 00  00 00 00 00    local_store_f32   rev:0   off:0x00  idx:0
+0x0054  43 01 00 00  58 39 b4 c8    imm_f64           low:0xc8b43958  high:0x4005be76
+        76 be 05 40
+0x0060  8d 01 00 00  00 00 01 00    local_store_f64   rev:0   off:0x00  idx:1
+0x0068  c0 03                       end"
+        );
+
+        assert_eq!(
+            bytecode(
+                r#"
+fn foo()
+[left:i32, right:i32]
+{
+    local_store_extend_i64(left, imm_i32(0x2), imm_i64(0x11))
+    local_store_extend_i32(left, imm_i32(0x4),imm_i32(0x13))
+    local_store_extend_i16(right, imm_i32(0x8),imm_i32(0x17))
+    local_store_extend_i8(right, imm_i32(0xa),imm_i32(0x19))
+    local_store_extend_f32(left, imm_i32(0x2),imm_f32(3.142))
+    local_store_extend_f64(right, imm_i32(0x4),imm_f64(2.718))
+}
+        "#
+            ),
+            "\
+0x0000  40 01 00 00  02 00 00 00    imm_i32           0x00000002
+0x0008  41 01 00 00  11 00 00 00    imm_i64           low:0x00000011  high:0x00000000
+        00 00 00 00
+0x0014  98 01 00 00  00 00 00 00    local_store_extend_i64  rev:0   idx:0
+0x001c  40 01 00 00  04 00 00 00    imm_i32           0x00000004
+0x0024  40 01 00 00  13 00 00 00    imm_i32           0x00000013
+0x002c  99 01 00 00  00 00 00 00    local_store_extend_i32  rev:0   idx:0
+0x0034  40 01 00 00  08 00 00 00    imm_i32           0x00000008
+0x003c  40 01 00 00  17 00 00 00    imm_i32           0x00000017
+0x0044  9a 01 00 00  01 00 00 00    local_store_extend_i16  rev:0   idx:1
+0x004c  40 01 00 00  0a 00 00 00    imm_i32           0x0000000a
+0x0054  40 01 00 00  19 00 00 00    imm_i32           0x00000019
+0x005c  9b 01 00 00  01 00 00 00    local_store_extend_i8  rev:0   idx:1
+0x0064  40 01 00 00  02 00 00 00    imm_i32           0x00000002
+0x006c  42 01 00 00  87 16 49 40    imm_f32           0x40491687
+0x0074  9d 01 00 00  00 00 00 00    local_store_extend_f32  rev:0   idx:0
+0x007c  40 01 00 00  04 00 00 00    imm_i32           0x00000004
+0x0084  43 01 00 00  58 39 b4 c8    imm_f64           low:0xc8b43958  high:0x4005be76
+        76 be 05 40
+0x0090  9c 01 00 00  01 00 00 00    local_store_extend_f64  rev:0   idx:1
+0x0098  c0 03                       end"
+        );
     }
 
     #[test]
@@ -3124,7 +3305,85 @@ pub data obj:byte[align=8] = [
 
     #[test]
     fn test_assemble_instruction_calling() {
-        // todo
+        assert_eq!(
+            bytecode(
+                r#"
+fn foo()
+{
+    call(bar, imm_i32(0x11), imm_i32(0x13))
+    envcall(0x100, imm_i32(0x23), imm_i32(0x29))
+    syscall(
+        imm_i32(0x31), imm_i32(0x37) // args
+        imm_i32(0x100) // syscall num
+        imm_i32(2)     // args count
+        )
+    dyncall(get_function(bar), imm_i32(0x41), imm_i32(0x43))
+}
+
+fn bar(left:i32, right:i32) nop()
+        "#
+            ),
+            "\
+0x0000  40 01 00 00  11 00 00 00    imm_i32           0x00000011
+0x0008  40 01 00 00  13 00 00 00    imm_i32           0x00000013
+0x0010  00 04 00 00  01 00 00 00    call              idx:1
+0x0018  40 01 00 00  23 00 00 00    imm_i32           0x00000023
+0x0020  40 01 00 00  29 00 00 00    imm_i32           0x00000029
+0x0028  02 04 00 00  00 01 00 00    envcall           idx:256
+0x0030  40 01 00 00  31 00 00 00    imm_i32           0x00000031
+0x0038  40 01 00 00  37 00 00 00    imm_i32           0x00000037
+0x0040  40 01 00 00  00 01 00 00    imm_i32           0x00000100
+0x0048  40 01 00 00  02 00 00 00    imm_i32           0x00000002
+0x0050  01 04                       dyncall
+0x0052  00 01                       nop
+0x0054  05 04 00 00  01 00 00 00    get_function      idx:1
+0x005c  40 01 00 00  41 00 00 00    imm_i32           0x00000041
+0x0064  40 01 00 00  43 00 00 00    imm_i32           0x00000043
+0x006c  01 04                       dyncall
+0x006e  c0 03                       end"
+        );
+
+        // test external
+        assert_eq!(
+            bytecode_with_import_and_external(
+                r#"
+external fn libabc::dothis(i32,i32)->i32
+external fn libabc::dothat()
+
+fn foo() {
+    extcall(dothis, imm_i32(0x17), imm_i32(0x19))   // index 0
+    extcall(dothat) // index 1
+
+    // the public index of function "bar" is `1`,
+    // because the function public index does not include external functions.
+    call(bar)
+}
+
+fn bar() {
+    nop()
+}"#,
+                vec![],
+                vec![ExternalLibraryEntry::new(
+                    "libabc".to_owned(),
+                    Box::new(ExternalLibraryDependency::Local(Box::new(
+                        DependencyLocal {
+                            path: "libabc.so.1".to_owned(),
+                            values: None,
+                            condition: None
+                        }
+                    )))
+                )]
+            ),
+            "\
+0x0000  40 01 00 00  17 00 00 00    imm_i32           0x00000017
+0x0008  40 01 00 00  19 00 00 00    imm_i32           0x00000019
+0x0010  04 04 00 00  00 00 00 00    extcall           idx:0
+0x0018  04 04 00 00  01 00 00 00    extcall           idx:1
+0x0020  00 04 00 00  01 00 00 00    call              idx:1
+0x0028  c0 03                       end"
+        );
+
+
     }
 
     #[test]
