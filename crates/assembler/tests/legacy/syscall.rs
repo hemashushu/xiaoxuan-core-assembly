@@ -4,7 +4,7 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancasm_assembler::utils::helper_generate_module_image_binary_from_str;
+use ancasm_assembler::utils::helper_make_single_module_app;
 use ancvm_binary::bytecode_reader::format_bytecode_as_text;
 use ancvm_context::program_resource::ProgramResource;
 use ancvm_processor::{
@@ -22,7 +22,7 @@ fn test_assemble_syscall_without_args() {
     // syscall:
     // `pid_t getpid(void);`
 
-    let module_binary = helper_generate_module_image_binary_from_str(&format!(
+    let binary0 = helper_make_single_module_app(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -36,8 +36,9 @@ fn test_assemble_syscall_without_args() {
         SYS_CALL_NUMBER_0 = (SysCallNum::getpid as u32)
     ));
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()
@@ -73,7 +74,7 @@ fn test_assemble_syscall_with_2_args() {
     // syscall:
     // `char *getcwd(char buf[.size], size_t size);`
 
-    let module_binary = helper_generate_module_image_binary_from_str(&format!(
+    let binary0 = helper_make_single_module_app(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -94,8 +95,9 @@ fn test_assemble_syscall_with_2_args() {
         SYS_CALL_NUMBER_0 = (SysCallNum::getcwd as u32)
     ));
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()
@@ -122,6 +124,7 @@ fn test_assemble_syscall_with_2_args() {
     let buf_addr = buf.as_ptr() as u64;
 
     let result0 = process_function(
+        &handler,
         &mut thread_context0,
         0,
         0,
@@ -156,7 +159,7 @@ fn test_assemble_syscall_error_no() {
     // syscall:
     // `int open(const char *pathname, int flags)`
 
-    let module_binary = helper_generate_module_image_binary_from_str(&format!(
+    let binary0 = helper_make_single_module_app(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -176,8 +179,9 @@ fn test_assemble_syscall_error_no() {
         SYS_CALL_NUMBER_0 = (SysCallNum::open as u32)
     ));
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()
@@ -206,6 +210,7 @@ fn test_assemble_syscall_error_no() {
     let file_path_addr1 = file_path1.as_ptr() as usize;
 
     let result0 = process_function(
+        &handler,
         &mut thread_context0,
         0,
         0,

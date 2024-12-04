@@ -4,7 +4,7 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancasm_assembler::utils::helper_generate_module_image_binary_from_str;
+use ancasm_assembler::utils::helper_make_single_module_app;
 use ancvm_processor::{
     in_memory_program_resource::InMemoryProgramResource, interpreter::process_function,
 };
@@ -27,7 +27,7 @@ fn test_assemble_math_i32() {
     //
     // (i32 i32) -> (i32 i32 i32 i32)
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
             (module $app
                 (runtime_version "1.0")
@@ -47,11 +47,13 @@ fn test_assemble_math_i32() {
             "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(
+        &handler,
         &mut thread_context0,
         0,
         0,
@@ -82,7 +84,7 @@ fn test_assemble_math_i64() {
     //
     // (i64 i64) -> (i64 i64 i64 i64)
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
             (module $app
                 (runtime_version "1.0")
@@ -102,11 +104,13 @@ fn test_assemble_math_i64() {
             "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(
+        &handler,
         &mut thread_context0,
         0,
         0,
@@ -176,7 +180,7 @@ fn test_assemble_math_f32_part_a() {
     //  f32 f32 f32 f32 f32 f32 f32 f32
     //  f32 f32 f32 f32 f32 f32 f32 f32)
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
             (module $app
                 (runtime_version "1.0")
@@ -236,11 +240,13 @@ fn test_assemble_math_f32_part_a() {
             "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(
+        &handler,
         &mut thread_context0,
         0,
         0,
@@ -355,7 +361,7 @@ fn test_assemble_math_f32_part_b() {
     //  f32 f32 f32 f32
     //  f32 f32 f32 f32)
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
             (module $app
                 (runtime_version "1.0")
@@ -414,11 +420,13 @@ fn test_assemble_math_f32_part_b() {
             "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(
+        &handler,
         &mut thread_context0,
         0,
         0,
@@ -526,7 +534,7 @@ fn test_assemble_math_f64_part_a() {
     //  f64 f64 f64 f64 f64 f64 f64 f64
     //  f64 f64 f64 f64 f64 f64 f64 f64)
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
             (module $app
                 (runtime_version "1.0")
@@ -586,11 +594,13 @@ fn test_assemble_math_f64_part_a() {
             "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(
+        &handler,
         &mut thread_context0,
         0,
         0,
@@ -705,7 +715,7 @@ fn test_assemble_math_f64_part_b() {
     //  f64 f64 f64 f64
     //  f64 f64 f64 f64)
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
             (module $app
                 (runtime_version "1.0")
@@ -764,11 +774,13 @@ fn test_assemble_math_f64_part_b() {
             "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(
+        &handler,
         &mut thread_context0,
         0,
         0,

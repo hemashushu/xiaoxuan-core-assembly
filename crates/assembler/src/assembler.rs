@@ -376,22 +376,23 @@ impl IdentifierPublicIndexLookupTable {
         let mut external_functions: Vec<NameIndexPair> = vec![];
 
         // fill function ids
+        let mut function_public_index: usize = 0;
         for function_ids in [
             &identifier_source.import_function_ids,
             &identifier_source.function_ids,
         ] {
-            functions.extend(
-                function_ids
-                    .iter()
-                    .enumerate()
-                    .map(|(idx, id)| NameIndexPair {
-                        id: id.to_owned(),
-                        public_index: idx,
-                    }),
-            );
+            functions.extend(function_ids.iter().map(|id| {
+                let pair = NameIndexPair {
+                    id: id.to_owned(),
+                    public_index: function_public_index,
+                };
+                function_public_index += 1;
+                pair
+            }));
         }
 
         // fill data ids
+        let mut data_public_index: usize = 0;
         for data_ids in [
             &identifier_source.import_read_only_data_ids,
             &identifier_source.import_read_write_data_ids,
@@ -400,9 +401,13 @@ impl IdentifierPublicIndexLookupTable {
             &identifier_source.read_write_data_ids,
             &identifier_source.uninit_data_ids,
         ] {
-            datas.extend(data_ids.iter().enumerate().map(|(idx, id)| NameIndexPair {
-                id: id.to_owned(),
-                public_index: idx,
+            datas.extend(data_ids.iter().map(|id| {
+                let pair = NameIndexPair {
+                    id: id.to_owned(),
+                    public_index: data_public_index,
+                };
+                data_public_index += 1;
+                pair
             }));
         }
 
@@ -3383,8 +3388,6 @@ fn bar() {
 0x0020  00 04 00 00  01 00 00 00    call              idx:1
 0x0028  c0 03                       end"
         );
-
-
     }
 
     #[test]

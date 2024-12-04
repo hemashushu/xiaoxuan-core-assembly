@@ -4,7 +4,7 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancasm_assembler::utils::helper_generate_module_image_binary_from_str;
+use ancasm_assembler::utils::helper_make_single_module_app;
 use ancvm_binary::bytecode_reader::format_bytecode_as_text;
 use ancvm_context::program_resource::ProgramResource;
 use ancvm_processor::{
@@ -21,7 +21,7 @@ use pretty_assertions::assert_eq;
 fn test_assemble_envcall_runtime_version() {
     // () -> (i64)
 
-    let module_binary = helper_generate_module_image_binary_from_str(&format!(
+    let binary0 = helper_make_single_module_app(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -35,8 +35,9 @@ fn test_assemble_envcall_runtime_version() {
         ENV_CALL_CODE_RUNTIME_VERSION = (EnvCallCode::runtime_version as u32)
     ));
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()
@@ -71,7 +72,7 @@ fn test_assemble_envcall_runtime_code_name() {
     //        |    |name buffer (8 bytes)
     //        |name length
 
-    let module_binary = helper_generate_module_image_binary_from_str(&format!(
+    let binary0 = helper_make_single_module_app(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -87,8 +88,9 @@ fn test_assemble_envcall_runtime_code_name() {
         ENV_CALL_CODE_RUNTIME_NAME = (EnvCallCode::runtime_name as u32)
     ));
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()

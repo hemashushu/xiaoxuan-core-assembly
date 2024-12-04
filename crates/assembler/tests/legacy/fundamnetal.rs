@@ -4,7 +4,7 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancasm_assembler::utils::helper_generate_module_image_binary_from_str;
+use ancasm_assembler::utils::helper_make_single_module_app;
 use ancvm_context::program_resource::ProgramResource;
 use ancvm_processor::{
     in_memory_program_resource::InMemoryProgramResource, interpreter::process_function,
@@ -16,7 +16,7 @@ use pretty_assertions::assert_eq;
 #[test]
 fn test_assemble_fundamental_nop() {
     // () -> (i32)
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -31,8 +31,9 @@ fn test_assemble_fundamental_nop() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(11)]);
@@ -42,7 +43,7 @@ fn test_assemble_fundamental_nop() {
 #[test]
 fn test_assemble_fundamental_zero() {
     // () -> (i32)
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -55,8 +56,9 @@ fn test_assemble_fundamental_zero() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
@@ -67,7 +69,7 @@ fn test_assemble_fundamental_zero() {
 #[test]
 fn test_assemble_fundamental_drop() {
     // () -> (i32)
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -83,8 +85,9 @@ fn test_assemble_fundamental_drop() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
@@ -94,7 +97,7 @@ fn test_assemble_fundamental_drop() {
 #[test]
 fn test_assemble_fundamental_duplicate() {
     // () -> (i32, i32)
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -109,8 +112,9 @@ fn test_assemble_fundamental_duplicate() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
@@ -123,7 +127,7 @@ fn test_assemble_fundamental_duplicate() {
 #[test]
 fn test_assemble_fundamental_swap() {
     // () -> (i32, i32)
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -139,8 +143,9 @@ fn test_assemble_fundamental_swap() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
@@ -154,7 +159,7 @@ fn test_assemble_fundamental_swap() {
 #[test]
 fn test_assemble_fundamental_select_nez_false() {
     // () -> (i32)
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -171,8 +176,9 @@ fn test_assemble_fundamental_select_nez_false() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
@@ -182,7 +188,7 @@ fn test_assemble_fundamental_select_nez_false() {
 #[test]
 fn test_assemble_fundamental_select_nez_true() {
     // () -> (i32)
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -199,8 +205,9 @@ fn test_assemble_fundamental_select_nez_true() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
@@ -210,7 +217,7 @@ fn test_assemble_fundamental_select_nez_true() {
 #[test]
 fn test_assemble_fundamental_immediate_int() {
     // () -> (i32, i64, i32, i64)
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -226,8 +233,9 @@ fn test_assemble_fundamental_immediate_int() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
@@ -245,7 +253,7 @@ fn test_assemble_fundamental_immediate_int() {
 #[test]
 fn test_assemble_fundamental_immediate_float() {
     // () -> (f32, f64, f32, f64)
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
             (module $app
                 (runtime_version "1.0")
@@ -261,8 +269,9 @@ fn test_assemble_fundamental_immediate_float() {
             "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
@@ -280,7 +289,7 @@ fn test_assemble_fundamental_immediate_float() {
 #[test]
 fn test_assemble_fundamental_immediate_float_hex() {
     // () -> (f32, f64, f32, f64)
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
             (module $app
                 (runtime_version "1.0")
@@ -296,8 +305,9 @@ fn test_assemble_fundamental_immediate_float_hex() {
             "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);

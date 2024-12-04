@@ -6,7 +6,7 @@
 
 use std::time::Instant;
 
-use ancasm_assembler::utils::helper_generate_module_image_binary_from_str;
+use ancasm_assembler::utils::helper_make_single_module_app;
 use ancvm_processor::{
     in_memory_program_resource::InMemoryProgramResource,
     process::start_program_in_multithread
@@ -20,7 +20,7 @@ fn test_assemble_multithread_run_program_in_multithread() {
     // the signature of 'thread start function' must be
     // () -> (i64)
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -33,7 +33,8 @@ fn test_assemble_multithread_run_program_in_multithread() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
     let result0 = start_program_in_multithread(program_resource0, vec![]);
 
     const EXPECT_THREAD_EXIT_CODE: u64 = 0x11;
@@ -45,7 +46,7 @@ fn test_assemble_multithread_thread_id() {
     // the signature of 'thread start function' must be
     // () -> (i64)
 
-    let module_binary = helper_generate_module_image_binary_from_str(&format!(
+    let binary0 = helper_make_single_module_app(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -61,7 +62,8 @@ fn test_assemble_multithread_thread_id() {
         ENV_CALL_CODE_THREAD_ID = (EnvCallCode::thread_id as u32)
     ));
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
     let result0 = start_program_in_multithread(program_resource0, vec![]);
 
     const FIRST_CHILD_THREAD_ID: u64 = 1;
@@ -73,7 +75,7 @@ fn test_assemble_multithread_thread_create() {
     // the signature of 'thread start function' must be
     // () -> (i64)
 
-    let module_binary = helper_generate_module_image_binary_from_str(&format!(
+    let binary0 = helper_make_single_module_app(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -107,7 +109,8 @@ fn test_assemble_multithread_thread_create() {
         ENV_CALL_CODE_THREAD_CREATE = (EnvCallCode::thread_create as u32)
     ));
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
     let result0 = start_program_in_multithread(program_resource0, vec![]);
     assert_eq!(result0.unwrap(), 0x13);
 }
@@ -117,7 +120,7 @@ fn test_assemble_multithread_thread_local_storage() {
     // the signature of 'thread start function' must be
     // () -> (i64)
 
-    let module_binary = helper_generate_module_image_binary_from_str(&format!(
+    let binary0 = helper_make_single_module_app(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -222,7 +225,8 @@ fn test_assemble_multithread_thread_local_storage() {
         ENV_CALL_CODE_THREAD_CREATE = (EnvCallCode::thread_create as u32)
     ));
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
     let result0 = start_program_in_multithread(program_resource0, vec![]);
     assert_eq!(result0.unwrap(), 0);
 }
@@ -232,7 +236,7 @@ fn test_assemble_multithread_thread_sleep() {
     // the signature of 'thread start function' must be
     // () -> (i64)
 
-    let module_binary = helper_generate_module_image_binary_from_str(&format!(
+    let binary0 = helper_make_single_module_app(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -251,7 +255,8 @@ fn test_assemble_multithread_thread_sleep() {
         ENV_CALL_CODE_THREAD_SLEEP = (EnvCallCode::thread_sleep as u32)
     ));
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
 
     let before = Instant::now();
     let result0 = start_program_in_multithread(program_resource0, vec![]);
@@ -282,7 +287,7 @@ fn test_assemble_multithread_thread_start_data() {
     //
     //        i32 0x19171311     i32 0x37312923
 
-    let module_binary = helper_generate_module_image_binary_from_str(&format!(
+    let binary0 = helper_make_single_module_app(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -353,7 +358,8 @@ fn test_assemble_multithread_thread_start_data() {
         ENV_CALL_CODE_THREAD_START_DATA_READ = (EnvCallCode::thread_start_data_read as u32)
     ));
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
     let result0 = start_program_in_multithread(
         program_resource0,
         vec![0x11, 0x13, 0x17, 0x19, 0x23, 0x29, 0x31, 0x37],
@@ -366,7 +372,7 @@ fn test_assemble_multithread_thread_running_status() {
     // the signature of 'thread start function' must be
     // () -> (i64)
 
-    let module_binary = helper_generate_module_image_binary_from_str(&format!(
+    let binary0 = helper_make_single_module_app(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -482,7 +488,8 @@ fn test_assemble_multithread_thread_running_status() {
         ENV_CALL_CODE_THREAD_CREATE = (EnvCallCode::thread_create as u32)
     ));
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
     let result0 = start_program_in_multithread(program_resource0, vec![]);
     assert_eq!(result0.unwrap(), 0x17);
 }
@@ -492,7 +499,7 @@ fn test_assemble_multithread_thread_terminate() {
     // the signature of 'thread start function' must be
     // () -> (i64)
 
-    let module_binary = helper_generate_module_image_binary_from_str(&format!(
+    let binary0 = helper_make_single_module_app(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -594,7 +601,8 @@ fn test_assemble_multithread_thread_terminate() {
         ENV_CALL_CODE_THREAD_CREATE = (EnvCallCode::thread_create as u32)
     ));
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
     let result0 = start_program_in_multithread(program_resource0, vec![]);
     assert_eq!(result0.unwrap(), 0x23);
 }
@@ -613,7 +621,7 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
     //              exit
     // 0x17        <----- 0x17
 
-    let module_binary = helper_generate_module_image_binary_from_str(&format!(
+    let binary0 = helper_make_single_module_app(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -856,7 +864,8 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
         ENV_CALL_CODE_THREAD_SLEEP = (EnvCallCode::thread_sleep as u32),
     ));
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
     let result0 = start_program_in_multithread(program_resource0, vec![]);
     assert_eq!(result0.unwrap(), 0x17);
 }
@@ -876,7 +885,7 @@ fn test_assemble_multithread_thread_message_forward() {
     //   |
     //   \-- exit code
 
-    let module_binary = helper_generate_module_image_binary_from_str(&format!(
+    let binary0 = helper_make_single_module_app(&format!(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -1011,7 +1020,8 @@ fn test_assemble_multithread_thread_message_forward() {
         ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT = (EnvCallCode::thread_wait_and_collect as u32),
     ));
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
     let result0 = start_program_in_multithread(program_resource0, vec![]);
     assert_eq!(result0.unwrap(), 0x19);
 }

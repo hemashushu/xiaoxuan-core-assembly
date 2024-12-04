@@ -4,7 +4,7 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancasm_assembler::utils::helper_generate_module_image_binary_from_str;
+use ancasm_assembler::utils::helper_make_single_module_app;
 use ancvm_extfunc_util::cstr_pointer_to_str;
 use ancvm_processor::{
     in_memory_program_resource::InMemoryProgramResource, interpreter::process_function,
@@ -21,7 +21,7 @@ fn test_assemble_extcall_with_system_libc_getuid() {
     // `man 3 getuid`
     // 'uid_t getuid(void);'
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -40,8 +40,9 @@ fn test_assemble_extcall_with_system_libc_getuid() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
@@ -57,7 +58,7 @@ fn test_assemble_extcall_with_system_libc_getenv() {
     // `man 3 getenv`
     // 'char *getenv(const char *name);'
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -79,8 +80,9 @@ fn test_assemble_extcall_with_system_libc_getenv() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
@@ -99,7 +101,7 @@ fn test_assemble_extcall_with_user_lib() {
     // 'libtest0.so.1'
     // 'int add(int, int)'
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -141,10 +143,11 @@ fn test_assemble_extcall_with_user_lib() {
         &ProgramSettings::new(program_source_path, true, "", ""),
     );
 
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(
+        &handler,
         &mut thread_context0,
         0,
         0,

@@ -4,7 +4,7 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancasm_assembler::utils::helper_generate_module_image_binary_from_str;
+use ancasm_assembler::utils::helper_make_single_module_app;
 use ancvm_binary::bytecode_reader::format_bytecode_as_text;
 use ancvm_processor::{
     in_memory_program_resource::InMemoryProgramResource, interpreter::process_function,
@@ -33,7 +33,7 @@ fn test_assemble_control_flow_block_equ_structure_for() {
     //
     // expect (11, 13, 23, 29)
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -57,8 +57,9 @@ fn test_assemble_control_flow_block_equ_structure_for() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()
@@ -150,7 +151,7 @@ fn test_assemble_control_flow_block_with_args_and_results_equ_structure_for() {
     //
     // expect (11, 30, 19)
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -173,8 +174,9 @@ fn test_assemble_control_flow_block_with_args_and_results_equ_structure_for() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()
@@ -269,7 +271,7 @@ fn test_assemble_control_flow_block_with_local_vars_equ_structure_for() {
     //
     // expect (19, 11) -> (27, 44, 32, 7, 18, 10, 20, 13)
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -346,8 +348,9 @@ fn test_assemble_control_flow_block_with_local_vars_equ_structure_for() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()
@@ -489,6 +492,7 @@ fn test_assemble_control_flow_block_with_local_vars_equ_structure_for() {
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(
+        &handler,
         &mut thread_context0,
         0,
         0,
@@ -521,7 +525,7 @@ fn test_assemble_control_flow_break_function_equ_statement_return() {
     //
     // expect (11, 13)
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -541,8 +545,9 @@ fn test_assemble_control_flow_break_function_equ_statement_return() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()
@@ -588,7 +593,7 @@ fn test_assemble_control_flow_break_block_equ_statement_break() {
     //
     // expect (17, 19, 31, 37)
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -617,8 +622,9 @@ fn test_assemble_control_flow_break_block_equ_statement_break() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()
@@ -677,7 +683,7 @@ fn test_assemble_control_flow_break_block_to_function_equ_statement_return() {
     //
     // expect (17, 19)
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -706,8 +712,9 @@ fn test_assemble_control_flow_break_block_to_function_equ_statement_return() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()
@@ -764,7 +771,7 @@ fn test_assemble_control_flow_structure_when() {
     // assert (11, 13) -> (13)
     // assert (19, 17) -> (19)
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -791,8 +798,9 @@ fn test_assemble_control_flow_structure_when() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()
@@ -822,6 +830,7 @@ fn test_assemble_control_flow_structure_when() {
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(
+        &handler,
         &mut thread_context0,
         0,
         0,
@@ -866,7 +875,7 @@ fn test_assemble_control_flow_break_block_crossing_equ_statement_break() {
     // expect (1) -> (23, 29, 51, 53)
     // expect (0) -> (41, 43, 51, 53)
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -905,8 +914,9 @@ fn test_assemble_control_flow_break_block_crossing_equ_statement_break() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()
@@ -984,7 +994,7 @@ fn test_assemble_control_flow_structure_if() {
     // assert (11, 13) -> (13)
     // assert (19, 17) -> (19)
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -1008,8 +1018,9 @@ fn test_assemble_control_flow_structure_if() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()
@@ -1037,6 +1048,7 @@ fn test_assemble_control_flow_structure_if() {
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(
+        &handler,
         &mut thread_context0,
         0,
         0,
@@ -1087,7 +1099,7 @@ fn test_assemble_control_flow_structure_if_nested() {
     // assert (50) -> (68) 'D'
     // assert (40) -> (68) 'D'
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -1126,8 +1138,9 @@ fn test_assemble_control_flow_structure_if_nested() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()
@@ -1231,7 +1244,7 @@ fn test_assemble_control_flow_structure_branch() {
     // assert (50) -> (68) 'D'
     // assert (40) -> (68) 'D'
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -1272,8 +1285,9 @@ fn test_assemble_control_flow_structure_branch() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()
@@ -1372,7 +1386,7 @@ fn test_assemble_control_flow_structure_branch_without_default_arm() {
     // assert (70) -> unreachable
     // assert (60) -> unreachable
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -1403,9 +1417,10 @@ fn test_assemble_control_flow_structure_branch_without_default_arm() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
 
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()
@@ -1498,7 +1513,7 @@ fn test_assemble_control_flow_structure_loop() {
     // assert (10) -> (55)
     // assert (100) -> (5050)
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -1535,8 +1550,9 @@ fn test_assemble_control_flow_structure_loop() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()
@@ -1607,7 +1623,7 @@ fn test_assemble_control_flow_structure_loop_with_block_parameters() {
     // assert (10) -> (55)
     // assert (100) -> (5050)
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -1646,8 +1662,9 @@ fn test_assemble_control_flow_structure_loop_with_block_parameters() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()
@@ -1720,7 +1737,7 @@ fn test_assemble_control_flow_structure_loop_with_if() {
     // assert (10) -> (55)
     // assert (100) -> (5050)
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -1758,8 +1775,9 @@ fn test_assemble_control_flow_structure_loop_with_if() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()
@@ -1832,7 +1850,7 @@ fn test_assemble_control_flow_function_tail_call() {
     // assert (0, 10) -> (55)
     // assert (0, 100) -> (5050)
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -1870,8 +1888,9 @@ fn test_assemble_control_flow_function_tail_call() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()
@@ -1907,6 +1926,7 @@ fn test_assemble_control_flow_function_tail_call() {
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(
+        &handler,
         &mut thread_context0,
         0,
         0,
@@ -1945,7 +1965,7 @@ fn test_assemble_control_flow_function_tail_call_with_if() {
     // assert (0, 10) -> (55)
     // assert (0, 100) -> (5050)
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -1978,8 +1998,9 @@ fn test_assemble_control_flow_function_tail_call_with_if() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()
@@ -2012,6 +2033,7 @@ fn test_assemble_control_flow_function_tail_call_with_if() {
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(
+        &handler,
         &mut thread_context0,
         0,
         0,

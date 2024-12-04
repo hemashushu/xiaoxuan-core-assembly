@@ -735,7 +735,7 @@ impl<'a> Parser<'a> {
             }
             _ => {
                 return Err(ParserError::MessageWithLocation(
-                    "Expect a data type".to_owned(),
+                    "Expect a valid data type".to_owned(),
                     self.peek_range(0).unwrap().get_position_by_range_start(),
                 ));
             }
@@ -837,7 +837,7 @@ impl<'a> Parser<'a> {
             }
             _ => {
                 return Err(ParserError::MessageWithLocation(
-                    "Expect a data type".to_owned(),
+                    "Expect a valid data type".to_owned(),
                     self.peek_range(0).unwrap().get_position_by_range_start(),
                 ));
             }
@@ -998,7 +998,7 @@ impl<'a> Parser<'a> {
             }
             _ => {
                 return Err(ParserError::MessageWithLocation(
-                    "Expect a data type".to_owned(),
+                    "Expect a valid data type".to_owned(),
                     self.peek_range(0).unwrap().get_position_by_range_start(),
                 ));
             }
@@ -1081,7 +1081,7 @@ impl<'a> Parser<'a> {
             }
             _ => {
                 return Err(ParserError::MessageWithLocation(
-                    "Expect a data type".to_owned(),
+                    "Expect a valid data type".to_owned(),
                     self.peek_range(0).unwrap().get_position_by_range_start(),
                 ));
             }

@@ -4,7 +4,7 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancasm_assembler::utils::helper_generate_module_image_binary_from_str;
+use ancasm_assembler::utils::helper_make_single_module_app;
 use ancvm_binary::bytecode_reader::format_bytecode_as_text;
 use ancvm_context::{program_resource::ProgramResource, program_settings::ProgramSettings};
 use ancvm_processor::{
@@ -20,7 +20,7 @@ use pretty_assertions::assert_eq;
 fn test_assemble_host_panic() {
     // () -> ()
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -34,8 +34,9 @@ fn test_assemble_host_panic() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let mut thread_context0 = process_context0.create_thread_context();
 
@@ -53,7 +54,7 @@ fn test_assemble_host_panic() {
 fn test_assemble_host_debug() {
     // () -> ()
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -67,8 +68,9 @@ fn test_assemble_host_debug() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let mut thread_context0 = process_context0.create_thread_context();
 
@@ -86,7 +88,7 @@ fn test_assemble_host_debug() {
 fn test_assemble_host_unreachable() {
     // () -> ()
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -100,8 +102,9 @@ fn test_assemble_host_unreachable() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let mut thread_context0 = process_context0.create_thread_context();
 
@@ -168,7 +171,7 @@ fn test_assemble_host_address_of_data_and_local_vars() {
     //
     // read the values of data and local vars through the host address.
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -219,8 +222,9 @@ fn test_assemble_host_address_of_data_and_local_vars() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()
@@ -315,7 +319,7 @@ fn test_assemble_host_address_offset_of_data_and_local_vars() {
     //
     // read the values of data and local vars through the host address.
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -348,8 +352,9 @@ fn test_assemble_host_address_offset_of_data_and_local_vars() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()
@@ -419,7 +424,7 @@ fn test_assemble_host_address_heap() {
     //
     // () -> (i64,i64,i64,i64,i64)
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -456,8 +461,9 @@ fn test_assemble_host_address_heap() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
 
     let function_entry = process_context0.module_images[0]
         .get_function_section()
@@ -525,7 +531,7 @@ fn test_assemble_host_heap_copy() {
     // host |01234567|
     //      src_ptr
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -558,8 +564,9 @@ fn test_assemble_host_heap_copy() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
     let src_buf: &[u8; 8] = b"hello.vm";
@@ -569,6 +576,7 @@ fn test_assemble_host_heap_copy() {
     let dst_ptr = dst_buf.as_ptr();
 
     let result0 = process_function(
+        &handler,
         &mut thread_context0,
         0,
         0,
@@ -591,7 +599,7 @@ fn test_assemble_host_memory_copy() {
     // host src_ptr  local var     host dst_ptr
     // |01234567| -> |45670123| -> |45670123|
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -624,8 +632,9 @@ fn test_assemble_host_memory_copy() {
         "#,
     );
 
-    let program_resource0 = InMemoryProgramResource::new(vec![module_binary]);
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
     let src_buf: &[u8; 8] = b"whatever";
@@ -635,6 +644,7 @@ fn test_assemble_host_memory_copy() {
     let dst_ptr = dst_buf.as_ptr();
 
     let result0 = process_function(
+        &handler,
         &mut thread_context0,
         0,
         0,
@@ -673,7 +683,7 @@ fn test_assemble_host_addr_function_and_callback_function() {
     // calling path:
     // (11,13) -> func0(VM) -> do_something(C) -> func1(VM) -> do_something(C) -> func0(VM) -> (11*2+13)
 
-    let module_binary = helper_generate_module_image_binary_from_str(
+    let binary0 = helper_make_single_module_app(
         r#"
         (module $app
             (runtime_version "1.0")
@@ -732,10 +742,11 @@ fn test_assemble_host_addr_function_and_callback_function() {
         &ProgramSettings::new(program_source_path, true, "", ""),
     );
 
-    let process_context0 = program_resource0.create_process_context().unwrap();
+    let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(
+        &handler,
         &mut thread_context0,
         0,
         0,
