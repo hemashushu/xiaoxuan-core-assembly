@@ -10,8 +10,8 @@ use anc_assembly::ast::{
     ArgumentValue, BlockNode, BreakNode, DataNode, DataSection, DataTypeValuePair, DataValue,
     DeclareDataType, ExpressionNode, ExternalDataNode, ExternalFunctionNode, ExternalNode,
     FixedDeclareDataType, FunctionNode, IfNode, ImportDataNode, ImportFunctionNode, ImportNode,
-    InstructionNode, LiteralNumber, LocalVariable, ModuleNode, NamedArgument, NamedParameter,
-    WhenNode,
+    InstructionNode, LiteralNumber, LocalVariable, ModuleNode, NameValueParameter, NamedArgument,
+    NamedParameter, WhenNode,
 };
 
 use crate::{
@@ -1326,6 +1326,54 @@ impl<'a> Parser<'a> {
         Ok(local_variables)
     }
 
+    fn continue_parse_block_param_values(
+        &mut self,
+    ) -> Result<Vec<NameValueParameter>, ParserError> {
+        // (name:type=value, name:type=value, ...) ?  //
+        // ^                                       ^__// to here
+        // |------------------------------------------// current token, NOT validated
+
+        self.consume_left_paren()?; // consume '('
+        self.consume_new_line_if_exist();
+
+        let mut param_values = vec![];
+        while let Some(token) = self.peek_token(0) {
+            if token == &Token::RightParen {
+                break;
+            }
+
+            let name = self.consume_name()?;
+            self.consume_new_line_if_exist();
+
+            self.consume_colon()?;
+            self.consume_new_line_if_exist();
+
+            let data_type = self.continue_parse_function_data_type()?;
+            self.consume_new_line_if_exist();
+
+            self.consume_equal()?;
+            self.consume_new_line_if_exist();
+
+            let value = self.parse_expression_node()?;
+            self.consume_new_line_if_exist();
+
+            param_values.push(NameValueParameter {
+                name,
+                data_type,
+                value: Box::new(value),
+            });
+
+            let found_sep = self.consume_new_line_or_comma_if_exist();
+            if !found_sep {
+                break;
+            }
+        }
+
+        self.consume_right_paren()?; // consume ')'
+
+        Ok(param_values)
+    }
+
     fn parse_expression_node(&mut self) -> Result<ExpressionNode, ParserError> {
         // expression ?  //
         // ^          ^__// to here
@@ -1358,16 +1406,14 @@ impl<'a> Parser<'a> {
                     let for_node = self.parse_block_expression()?;
                     ExpressionNode::Block(for_node)
                 }
-                Token::Keyword(keyword)
-                    if (keyword == "break" || keyword == "break_if" || keyword == "break_fn") =>
+                Token::Keyword(keyword) if (keyword == "break" || /* keyword == "break_if" || */ keyword == "break_fn") =>
                 {
                     // "break*" expression
                     let keyword_ref = &keyword.to_owned();
                     let break_node = self.parse_break_expression(keyword_ref)?;
                     ExpressionNode::Break(break_node)
                 }
-                Token::Keyword(keyword)
-                    if (keyword == "recur" || keyword == "recur_if" || keyword == "recur_fn") =>
+                Token::Keyword(keyword) if (keyword == "recur" || /* keyword == "recur_if" || */ keyword == "recur_fn") =>
                 {
                     // "recur*" expression
                     let keyword_ref = &keyword.to_owned();
@@ -1526,20 +1572,22 @@ impl<'a> Parser<'a> {
         // |------------------------------// current token, validated
         //
         // also:
-        // - break_if testing (value0, value1, ...)
+        // // - break_if testing (value0, value1, ...)
         // - break_fn (value0, value1, ...)
         // - recur*
 
         self.next_token(); // consume 'break' or 'recur'
         self.consume_new_line_if_exist();
 
-        let node = if keyword == "break_if" || keyword == "recur_if" {
-            let testing = self.parse_expression_node()?;
-            self.consume_new_line_if_exist();
+        //         let node = if keyword == "break_if" || keyword == "recur_if" {
+        //             let testing = self.parse_expression_node()?;
+        //             self.consume_new_line_if_exist();
+        //
+        //             let args = self.continue_parse_break_arguments()?;
+        //             BreakNode::BreakIf(Box::new(testing), args)
+        //         } else
 
-            let args = self.continue_parse_break_arguments()?;
-            BreakNode::BreakIf(Box::new(testing), args)
-        } else if keyword == "break" || keyword == "recur" {
+        let node = if keyword == "break" || keyword == "recur" {
             let args = self.continue_parse_break_arguments()?;
             BreakNode::Break(args)
         } else {
@@ -1580,15 +1628,15 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_block_expression(&mut self) -> Result<BlockNode, ParserError> {
-        // block params -> results [locals] body ?  //
+        // block param_values -> results [locals] body ?  //
         // ^                                     ^__// to here
         // |----------------------------------------// current token, validated
 
         self.next_token(); // consume 'block'
         self.consume_new_line_if_exist();
 
-        let (params, results) = if self.expect_token(0, &Token::LeftParen) {
-            let params = self.continue_parse_function_params()?;
+        let (param_values, results) = if self.expect_token(0, &Token::LeftParen) {
+            let param_values = self.continue_parse_block_param_values()?;
             self.consume_new_line_if_exist();
 
             let results: Vec<OperandDataType> = if self.expect_token(0, &Token::RightArrow) {
@@ -1601,7 +1649,7 @@ impl<'a> Parser<'a> {
             };
             self.consume_new_line_if_exist();
 
-            (params, results)
+            (param_values, results)
         } else {
             (vec![], vec![])
         };
@@ -1619,7 +1667,7 @@ impl<'a> Parser<'a> {
         self.consume_new_line_if_exist();
 
         let node = BlockNode {
-            params,
+            param_values,
             results,
             locals,
             body: Box::new(body),
@@ -1629,31 +1677,31 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_if_expression(&mut self) -> Result<IfNode, ParserError> {
-        // if params -> results tesing consequence alternative ?  //
+        // if -> results tesing consequence alternative ?  //
         // ^                                                   ^__// to here
         // |------------------------------------------------------// current token, validated
 
         self.next_token(); // consume 'if'
         self.consume_new_line_if_exist();
 
-        let (params, results) = if self.expect_token(0, &Token::LeftParen) {
-            let params = self.continue_parse_function_params()?;
+        // let (params, results) = if self.expect_token(0, &Token::LeftParen) {
+        //     let params = self.continue_parse_function_params()?;
+        //     self.consume_new_line_if_exist();
+
+        let results = if self.expect_token(0, &Token::RightArrow) {
+            self.next_token(); // consume '->'
             self.consume_new_line_if_exist();
 
-            let results = if self.expect_token(0, &Token::RightArrow) {
-                self.next_token(); // consume '->'
-                self.consume_new_line_if_exist();
-
-                self.continue_parse_function_results()?
-            } else {
-                vec![]
-            };
-            self.consume_new_line_if_exist();
-
-            (params, results)
+            self.continue_parse_function_results()?
         } else {
-            (vec![], vec![])
+            vec![]
         };
+        self.consume_new_line_if_exist();
+
+        //     (params, results)
+        // } else {
+        //     (vec![], vec![])
+        // };
 
         let testing = self.parse_expression_node()?;
         self.consume_new_line_if_exist();
@@ -1664,7 +1712,7 @@ impl<'a> Parser<'a> {
         let alternative = self.parse_expression_node()?;
 
         let node = IfNode {
-            params,
+            // params,
             results,
             testing: Box::new(testing),
             consequence: Box::new(consequence),
@@ -2377,7 +2425,7 @@ fn foo() -> ()
             format(
                 "\
 fn foo()
-    if (num:i32)
+    if
         eqz_i32(local_load_i32_s(num))
         imm_i32(11)
         imm_i32(13)
@@ -2385,7 +2433,7 @@ fn foo()
             ),
             "\
 fn foo() -> ()
-    if (num:i32) -> ()
+    if -> ()
         eqz_i32(
             local_load_i32_s(num))
         imm_i32(11)
@@ -2398,7 +2446,7 @@ fn foo() -> ()
             format(
                 "\
 fn foo()
-    if (left:i32,right:i32)->(i32,i32)
+    if -> (i32,i32)
         eqz_i32(local_load_i32_s(num))
         imm_i32(11)
         imm_i32(13)
@@ -2406,7 +2454,7 @@ fn foo()
             ),
             "\
 fn foo() -> ()
-    if (left:i32, right:i32) -> (i32, i32)
+    if -> (i32, i32)
         eqz_i32(
             local_load_i32_s(num))
         imm_i32(11)
@@ -2419,7 +2467,7 @@ fn foo() -> ()
             format(
                 "\
 fn foo()
-    if ()->i32
+    if ->i32
         eqz_i32(local_load_i32_s(num))
         imm_i32(11)
         imm_i32(13)
@@ -2427,7 +2475,7 @@ fn foo()
             ),
             "\
 fn foo() -> ()
-    if () -> i32
+    if -> i32
         eqz_i32(
             local_load_i32_s(num))
         imm_i32(11)
@@ -2447,7 +2495,7 @@ fn foo()
             ),
             "\
 fn foo() -> ()
-    if () -> ()
+    if -> ()
         eqz_i32(
             local_load_i32_s(num))
         imm_i32(11)
@@ -2462,11 +2510,6 @@ fn foo() -> ()
 fn
 foo()
 if
-(
-num
-:
-i32
-)
 ->
 (
 i32
@@ -2479,7 +2522,7 @@ imm_i32(17)
             ),
             "\
 fn foo() -> ()
-    if (num:i32) -> (i32, i32)
+    if -> (i32, i32)
         imm_i32(11)
         imm_i32(13)
         imm_i32(17)
@@ -2493,13 +2536,16 @@ fn foo() -> ()
             format(
                 "\
 fn foo()
-    block (num:i32)
+    block (num:i32=
+        data_load_extend_i32_s(buffer, local_load_i32_s(offset))
+        )
         imm_i32(11)
         "
             ),
             "\
 fn foo() -> ()
-    block (num:i32) -> ()
+    block (num:i32=data_load_extend_i32_s(buffer,
+        local_load_i32_s(offset))) -> ()
         imm_i32(11)
 "
         );
@@ -2509,13 +2555,13 @@ fn foo() -> ()
             format(
                 "\
 fn foo()
-    block (left:i32, right:i32)->i32
+    block (left:i32=imm_i32(11), right:i32=imm_i32(13))->i32
         imm_i32(11)
         "
             ),
             "\
 fn foo() -> ()
-    block (left:i32, right:i32) -> i32
+    block (left:i32=imm_i32(11), right:i32=imm_i32(13)) -> i32
         imm_i32(11)
 "
         );
@@ -2558,25 +2604,27 @@ fn foo() -> ()
 fn foo()
 block
 (
-left
+num
 :
 i32
-right
-:
-i32
+=
+imm_i32
+(
+11
+)
 )
 ->
 i32
 imm_i32
 (
-11
+13
 )
 "
             ),
             "\
 fn foo() -> ()
-    block (left:i32, right:i32) -> i32
-        imm_i32(11)
+    block (num:i32=imm_i32(11)) -> i32
+        imm_i32(13)
 "
         );
     }
@@ -2589,7 +2637,7 @@ fn foo() -> ()
 fn foo()
     block {
         break(imm_i32(11), imm_i32(13))
-        break_if imm_i32(15) (imm_i32(17), imm_i32(23))
+        // break_if imm_i32(15) (imm_i32(17), imm_i32(23))
         break_fn(imm_i32(29))
     }"
             ),
@@ -2600,12 +2648,6 @@ fn foo() -> ()
             break(
                 imm_i32(11)
                 imm_i32(13)
-            )
-            break_if
-                imm_i32(15)
-                (
-                imm_i32(17)
-                imm_i32(23)
             )
             break_fn(
                 imm_i32(29)
@@ -2620,11 +2662,7 @@ fn foo() -> ()
                 "\
 fn foo()
 block
-break_if
-imm_i32
-(
-15
-)
+break
 (
 imm_i32
 (
@@ -2640,9 +2678,7 @@ imm_i32
             "\
 fn foo() -> ()
     block () -> ()
-        break_if
-            imm_i32(15)
-            (
+        break(
             imm_i32(17)
             imm_i32(23)
         )
@@ -2658,7 +2694,7 @@ fn foo() -> ()
 fn foo()
     block {
         recur(imm_i32(11), imm_i32(13))
-        recur_if imm_i32(15) (imm_i32(17), imm_i32(23))
+        // recur_if imm_i32(15) (imm_i32(17), imm_i32(23))
         recur_fn(imm_i32(29))
     }"
             ),
@@ -2669,12 +2705,6 @@ fn foo() -> ()
             recur(
                 imm_i32(11)
                 imm_i32(13)
-            )
-            recur_if
-                imm_i32(15)
-                (
-                imm_i32(17)
-                imm_i32(23)
             )
             recur_fn(
                 imm_i32(29)
@@ -2689,11 +2719,7 @@ fn foo() -> ()
                 "\
 fn foo()
 block
-recur_if
-imm_i32
-(
-15
-)
+recur
 (
 imm_i32
 (
@@ -2709,9 +2735,7 @@ imm_i32
             "\
 fn foo() -> ()
     block () -> ()
-        recur_if
-            imm_i32(15)
-            (
+        recur(
             imm_i32(17)
             imm_i32(23)
         )

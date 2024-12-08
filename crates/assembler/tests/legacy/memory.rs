@@ -1,46 +1,40 @@
-// Copyright (c) 2023 Hemashushu <hippospark@gmail.com>, All rights reserved.
+// Copyright (c) 2024 Hemashushu <hippospark@gmail.com>, All rights reserved.
 //
 // This Source Code Form is subject to the terms of
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancasm_assembler::utils::helper_make_single_module_app;
-use ancvm_context::program_resource::ProgramResource;
-use ancvm_processor::{
-    in_memory_program_resource::InMemoryProgramResource, interpreter::process_function,
+use anc_assembler::utils::helper_make_single_module_app;
+use anc_context::resource::Resource;
+use anc_isa::ForeignValue;
+use anc_processor::{
+    handler::Handler, in_memory_resource::InMemoryResource, process::process_function,
 };
-use ancvm_types::ForeignValue;
-
 use pretty_assertions::assert_eq;
 
 #[test]
-fn test_assemble_heap_capacity() {
+fn test_assemble_memory_capacity() {
     // () -> (i64, i64, i64, i64, i64)
 
     let binary0 = helper_make_single_module_app(
         r#"
-        (module $app
-            (runtime_version "1.0")
-            (function $test
-                (results i64 i64 i64 i64 i64)
-                (code
-                    // get the capacity
-                    (heap.capacity)
+        fn test()->(i64, i64, i64, i64, i64)
+        {
+            // get the capacity
+            heap_capacity()
 
-                    // resize - increase
-                    (heap.resize (i32.imm 2))
+            // resize - increase
+            (heap.resize (i32.imm 2))
 
-                    // resize - increase
-                    (heap.resize (i32.imm 4))
+            // resize - increase
+            (heap.resize (i32.imm 4))
 
-                    // resize - decrease
-                    (heap.resize (i32.imm 1))
+            // resize - decrease
+            (heap.resize (i32.imm 1))
 
-                    // get the capcity
-                    (heap.capacity)
-                )
-            )
-        )
+            // get the capcity
+            (heap.capacity)
+        }
         "#,
     );
 

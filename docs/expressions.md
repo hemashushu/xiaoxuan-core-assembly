@@ -57,7 +57,7 @@ Where:
 
 Condition with alternative branch.
 
-`if params -> results tesing consequence alternative`
+`if -> results tesing consequence alternative`
 
 Where:
 
@@ -88,11 +88,11 @@ branch {
 
 ### Block
 
-`block params -> results [locals] body`
+`block param_values -> results [locals] body`
 
 Where:
 
-- `params` is a list of parameters, e.g.`(left:i32, right:i32)`, or `()` if the expression has no parameteres, note that this part cannot be omitted.
+- `param_values` is a list of parameters and values, e.g.`(left:i32=value, right:i32=value)`, or `()` if the expression has no parameteres, note that this part cannot be omitted.
 - `results` is a list of the types of return values, as in `if` expressions, and if there is no return value, the entire `-> ()` can be omitted.
 - `body` is an expression, usually it is a `group` expression.
 
@@ -104,8 +104,10 @@ Break the nearest `for` expression, this expression never return.
 
 Variants:
 
+<!--
 - `break_if testing (value0, value1, ...)`
   Break only when the `testing` expression returns true.
+-->
 - `break_fn (value0, value1, ...)`
   Break to the current function.
 
@@ -117,8 +119,10 @@ Recur to the nearest `for` expression , this expression never return.
 
 Variants:
 
+<!--
 - `recur_if testing (value0, value1, ...)`
   Recur only when the `testing` expression returns true.
+-->
+
 - `recur_fn (value0, value1, ...)`
   Recur to the current function.
-

@@ -384,7 +384,7 @@ impl<'a> Lexer<'a> {
             match name_string.as_str() {
                 "import" | "as" | "external" | "fn" | "data" | "pub" | "readonly" | "uninit"
                 | "align" | "block" | "when" | "if" | /* "branch" | "case" | "default" | */ "break"
-                | "break_if" | "break_fn" | "recur" | "recur_if" | "recur_fn" => {
+                | /*  "break_if" | */ "break_fn" | "recur" | /* "recur_if" | */ "recur_fn" => {
                     Token::Keyword(name_string)
                 }
                 "i64" | "i32" | "i16" | "i8" | "f64" | "f32" | "byte" => {
@@ -2109,10 +2109,12 @@ mod tests {
     fn test_lex_keywords() {
         assert_eq!(
             lex_from_str_without_location(
-                "import as external fn data \
+                "import as \
+external fn data \
 pub readonly uninit align \
 block when if \
-break break_if break_fn recur recur_if recur_fn"
+break break_fn \
+recur recur_fn"
             )
             .unwrap(),
             vec![
@@ -2136,10 +2138,10 @@ break break_if break_fn recur recur_if recur_fn"
                 // Token::new_keyword("default"),
                 //
                 Token::new_keyword("break"),
-                Token::new_keyword("break_if"),
+                // Token::new_keyword("break_if"),
                 Token::new_keyword("break_fn"),
                 Token::new_keyword("recur"),
-                Token::new_keyword("recur_if"),
+                // Token::new_keyword("recur_if"),
                 Token::new_keyword("recur_fn"),
             ]
         );

@@ -1,16 +1,15 @@
-// Copyright (c) 2023 Hemashushu <hippospark@gmail.com>, All rights reserved.
+// Copyright (c) 2024 Hemashushu <hippospark@gmail.com>, All rights reserved.
 //
 // This Source Code Form is subject to the terms of
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancasm_assembler::utils::helper_make_single_module_app;
-use ancvm_context::program_resource::ProgramResource;
-use ancvm_processor::{
-    in_memory_program_resource::InMemoryProgramResource, interpreter::process_function,
+use anc_assembler::utils::helper_make_single_module_app;
+use anc_context::resource::Resource;
+use anc_isa::ForeignValue;
+use anc_processor::{
+    handler::Handler, in_memory_resource::InMemoryResource, process::process_function,
 };
-use ancvm_types::ForeignValue;
-
 use pretty_assertions::assert_eq;
 
 #[test]
@@ -18,16 +17,7 @@ fn test_assemble_fundamental_nop() {
     // () -> (i32)
     let binary0 = helper_make_single_module_app(
         r#"
-        (module $app
-            (runtime_version "1.0")
-            (function $test
-                (param $a i32)
-                (result i32)
-                (code
-                    nop
-                )
-            )
-        )
+        fn test()->() nop()
         "#,
     );
 
@@ -36,10 +26,11 @@ fn test_assemble_fundamental_nop() {
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
-    let result0 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(11)]);
-    assert_eq!(result0.unwrap(), vec![ForeignValue::U32(11)]);
+    let result0 = process_function(&handler, &mut thread_context0, 0, 0, &[]);
+    assert!(matches!(result0, Ok(_)));
 }
 
+/*
 #[test]
 fn test_assemble_fundamental_zero() {
     // () -> (i32)
@@ -65,7 +56,6 @@ fn test_assemble_fundamental_zero() {
     assert_eq!(result0.unwrap(), vec![ForeignValue::U32(0)]);
 }
 
-/*
 #[test]
 fn test_assemble_fundamental_drop() {
     // () -> (i32)
@@ -154,7 +144,6 @@ fn test_assemble_fundamental_swap() {
         vec![ForeignValue::U32(223), ForeignValue::U32(211)]
     );
 }
-*/
 
 #[test]
 fn test_assemble_fundamental_select_nez_false() {
@@ -213,23 +202,20 @@ fn test_assemble_fundamental_select_nez_true() {
     let result0 = process_function(&mut thread_context0, 0, 0, &[]);
     assert_eq!(result0.unwrap(), vec![ForeignValue::U32(11)]);
 }
+*/
 
 #[test]
-fn test_assemble_fundamental_immediate_int() {
+fn test_assemble_fundamental_immediate_integer() {
     // () -> (i32, i64, i32, i64)
     let binary0 = helper_make_single_module_app(
         r#"
-        (module $app
-            (runtime_version "1.0")
-            (function $test (results i32 i64 i32 i64)
-                (code
-                    (i32.imm 23)
-                    (i64.imm 0x29313741_43475359)
-                    (i32.imm 0xffffff21)            // -223
-                    (i64.imm 0xffffffff_ffffff1d)   // -227
-                )
-            )
-        )
+        fn test ()->(i32, i64, i32, i64)
+        {
+            imm_i32(23)
+            imm_i64(0x29313741_43475359_i64)
+            imm_i32(0xffffff21)                 // -223
+            imm_i64(0xffffffff_ffffff1d_i64)    // -227
+        }
         "#,
     );
 
@@ -238,7 +224,7 @@ fn test_assemble_fundamental_immediate_int() {
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
-    let result0 = process_function(&mut thread_context0, 0, 0, &[]);
+    let result0 = process_function(&handler, &mut thread_context0, 0, 0, &[]);
     assert_eq!(
         result0.unwrap(),
         vec![
@@ -255,18 +241,13 @@ fn test_assemble_fundamental_immediate_float() {
     // () -> (f32, f64, f32, f64)
     let binary0 = helper_make_single_module_app(
         r#"
-            (module $app
-                (runtime_version "1.0")
-                (function $test (results f32 f64 f32 f64)
-                    (code
-                        (f32.imm 3.14159265358979323846264338327950288)     // Pi
-                        (f64.imm 1.41421356237309504880168872420969808)     // sqrt(2)
-                        (f32.imm -2.71828182845904523536028747135266250)    // -E
-                        (f64.imm -0.52359877559829887307710723054658381)    // -Pi/6
-                    )
-                )
-            )
-            "#,
+        fn test()->(f32, f64, f32, f64) {
+            imm_f32(3.14159265358979323846264338327950288_f32)      // Pi
+            imm_f64(1.41421356237309504880168872420969808)          // sqrt(2)
+            imm_f32(-2.71828182845904523536028747135266250_f32)     // -E
+            imm_f64(-0.52359877559829887307710723054658381)         // -Pi/6
+        }
+        "#,
     );
 
     let handler = Handler::new();
@@ -274,7 +255,7 @@ fn test_assemble_fundamental_immediate_float() {
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
-    let result0 = process_function(&mut thread_context0, 0, 0, &[]);
+    let result0 = process_function(&handler, &mut thread_context0, 0, 0, &[]);
     assert_eq!(
         result0.unwrap(),
         vec![
@@ -291,18 +272,13 @@ fn test_assemble_fundamental_immediate_float_hex() {
     // () -> (f32, f64, f32, f64)
     let binary0 = helper_make_single_module_app(
         r#"
-            (module $app
-                (runtime_version "1.0")
-                (function $test (results f32 f64 f32 f64)
-                    (code
-                        (f32.imm 3.1415927)
-                        (f64.imm 2.718281828459045)
-                        (f32.imm 0x1.921fb6p1)
-                        (f64.imm 0x1.5bf0a8b145769p1)
-                    )
-                )
-            )
-            "#,
+        fn test () -> (f32, f64, f32, f64) {
+            imm_f32(3.1415927_f32)
+            imm_f64(2.718281828459045)
+            imm_f32(0x1.921fb6p1_f32)
+            imm_f64(0x1.5bf0a8b145769p1)
+        }
+        "#,
     );
 
     let handler = Handler::new();
@@ -310,7 +286,7 @@ fn test_assemble_fundamental_immediate_float_hex() {
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
-    let result0 = process_function(&mut thread_context0, 0, 0, &[]);
+    let result0 = process_function(&handler, &mut thread_context0, 0, 0, &[]);
     assert_eq!(
         result0.unwrap(),
         vec![

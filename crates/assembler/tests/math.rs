@@ -1,16 +1,15 @@
-// Copyright (c) 2023 Hemashushu <hippospark@gmail.com>, All rights reserved.
+// Copyright (c) 2024 Hemashushu <hippospark@gmail.com>, All rights reserved.
 //
 // This Source Code Form is subject to the terms of
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
-use ancasm_assembler::utils::helper_make_single_module_app;
-use ancvm_processor::{
-    in_memory_program_resource::InMemoryProgramResource, interpreter::process_function,
+use anc_assembler::utils::helper_make_single_module_app;
+use anc_context::resource::Resource;
+use anc_isa::ForeignValue;
+use anc_processor::{
+    handler::Handler, in_memory_resource::InMemoryResource, process::process_function,
 };
-use ancvm_context::program_resource::ProgramResource;
-use ancvm_types::ForeignValue;
-
 use pretty_assertions::assert_eq;
 
 #[test]
@@ -29,22 +28,15 @@ fn test_assemble_math_i32() {
 
     let binary0 = helper_make_single_module_app(
         r#"
-            (module $app
-                (runtime_version "1.0")
-                (function $test
-                    (param $a0 i32)
-                    (param $a1 i32)
-                    (results
-                        i32 i32 i32 i32)
-                    (code
-                        (i32.abs (local.load32_i32 $a0))
-                        (i32.abs (local.load32_i32 $a1))
-                        (i32.neg (local.load32_i32 $a0))
-                        (i32.neg (local.load32_i32 $a1))
-                    )
-                )
-            )
-            "#,
+        fn test(a0:i32, a1:i32) ->
+            (i32, i32, i32, i32)
+        {
+            abs_i32(local_load_i32_s(a0))
+            abs_i32(local_load_i32_s(a1))
+            neg_i32(local_load_i32_s(a0))
+            neg_i32(local_load_i32_s(a1))
+        }
+        "#,
     );
 
     let handler = Handler::new();
@@ -86,22 +78,15 @@ fn test_assemble_math_i64() {
 
     let binary0 = helper_make_single_module_app(
         r#"
-            (module $app
-                (runtime_version "1.0")
-                (function $test
-                    (param $a0 i64)
-                    (param $a1 i64)
-                    (results
-                        i64 i64 i64 i64)
-                    (code
-                        (i64.abs (local.load64_i64 $a0))
-                        (i64.abs (local.load64_i64 $a1))
-                        (i64.neg (local.load64_i64 $a0))
-                        (i64.neg (local.load64_i64 $a1))
-                    )
-                )
-            )
-            "#,
+        fn test(a0:i64, a1:i64) ->
+            (i64, i64, i64, i64)
+        {
+            abs_i64(local_load_i64(a0))
+            abs_i64(local_load_i64(a1))
+            neg_i64(local_load_i64(a0))
+            neg_i64(local_load_i64(a1))
+        }
+        "#,
     );
 
     let handler = Handler::new();
@@ -182,62 +167,60 @@ fn test_assemble_math_f32_part_a() {
 
     let binary0 = helper_make_single_module_app(
         r#"
-            (module $app
-                (runtime_version "1.0")
-                (function $test
-                    (param $a0 f32)
-                    (param $a1 f32)
-                    (param $a2 f32)
-                    (param $a3 f32)
-                    (param $a4 f32)
-                    (param $a5 f32)
-                    (param $a6 f32)
-                    (param $a7 f32)
-                    (param $a8 f32)
-                    (param $a9 f32)
-                    (results
-                        f32 f32 f32 f32
-                        f32 f32 f32 f32
-                        f32 f32 f32 f32
-                        f32 f32 f32 f32 f32 f32 f32 f32
-                        f32 f32 f32 f32 f32 f32 f32 f32)
-                    (code
-                        (f32.abs (local.load32_f32 $a0))
-                        (f32.abs (local.load32_f32 $a1))
-                        (f32.neg (local.load32_f32 $a0))
-                        (f32.neg (local.load32_f32 $a1))
-
-                        (f32.ceil (local.load32_f32 $a2))
-                        (f32.ceil (local.load32_f32 $a4))
-                        (f32.ceil (local.load32_f32 $a6))
-                        (f32.ceil (local.load32_f32 $a8))
-
-                        (f32.floor (local.load32_f32 $a2))
-                        (f32.floor (local.load32_f32 $a4))
-                        (f32.floor (local.load32_f32 $a6))
-                        (f32.floor (local.load32_f32 $a8))
-
-                        (f32.round_half_away_from_zero (local.load32_f32 $a2))
-                        (f32.round_half_away_from_zero (local.load32_f32 $a3))
-                        (f32.round_half_away_from_zero (local.load32_f32 $a4))
-                        (f32.round_half_away_from_zero (local.load32_f32 $a5))
-                        (f32.round_half_away_from_zero (local.load32_f32 $a6))
-                        (f32.round_half_away_from_zero (local.load32_f32 $a7))
-                        (f32.round_half_away_from_zero (local.load32_f32 $a8))
-                        (f32.round_half_away_from_zero (local.load32_f32 $a9))
-
-                        (f32.round_half_to_even (local.load32_f32 $a2))
-                        (f32.round_half_to_even (local.load32_f32 $a3))
-                        (f32.round_half_to_even (local.load32_f32 $a4))
-                        (f32.round_half_to_even (local.load32_f32 $a5))
-                        (f32.round_half_to_even (local.load32_f32 $a6))
-                        (f32.round_half_to_even (local.load32_f32 $a7))
-                        (f32.round_half_to_even (local.load32_f32 $a8))
-                        (f32.round_half_to_even (local.load32_f32 $a9))
-                    )
-                )
+        fn test(
+            a0:f32
+            a1:f32
+            a2:f32
+            a3:f32
+            a4:f32
+            a5:f32
+            a6:f32
+            a7:f32
+            a8:f32
+            a9:f32
+            ) ->
+            (
+            f32, f32, f32, f32
+            f32, f32, f32, f32
+            f32, f32, f32, f32
+            f32, f32, f32, f32, f32, f32, f32, f32
+            f32, f32, f32, f32, f32, f32, f32, f32
             )
-            "#,
+        {
+            abs_f32(local_load_f32(a0))
+            abs_f32(local_load_f32(a1))
+            neg_f32(local_load_f32(a0))
+            neg_f32(local_load_f32(a1))
+
+            ceil_f32(local_load_f32(a2))
+            ceil_f32(local_load_f32(a4))
+            ceil_f32(local_load_f32(a6))
+            ceil_f32(local_load_f32(a8))
+
+            floor_f32(local_load_f32(a2))
+            floor_f32(local_load_f32(a4))
+            floor_f32(local_load_f32(a6))
+            floor_f32(local_load_f32(a8))
+
+            round_half_away_from_zero_f32(local_load_f32(a2))
+            round_half_away_from_zero_f32(local_load_f32(a3))
+            round_half_away_from_zero_f32(local_load_f32(a4))
+            round_half_away_from_zero_f32(local_load_f32(a5))
+            round_half_away_from_zero_f32(local_load_f32(a6))
+            round_half_away_from_zero_f32(local_load_f32(a7))
+            round_half_away_from_zero_f32(local_load_f32(a8))
+            round_half_away_from_zero_f32(local_load_f32(a9))
+
+            round_half_to_even_f32(local_load_f32(a2))
+            round_half_to_even_f32(local_load_f32(a3))
+            round_half_to_even_f32(local_load_f32(a4))
+            round_half_to_even_f32(local_load_f32(a5))
+            round_half_to_even_f32(local_load_f32(a6))
+            round_half_to_even_f32(local_load_f32(a7))
+            round_half_to_even_f32(local_load_f32(a8))
+            round_half_to_even_f32(local_load_f32(a9))
+        }
+    "#,
     );
 
     let handler = Handler::new();
@@ -314,8 +297,8 @@ fn test_assemble_math_f32_part_b() {
     //   - 5  -3.0
     //   - 6: -9.0
     //   - 7: 100.0
-    //   - 8: 2.718281828               // std::f32::consts::E
-    //   - 9: 0.523598776   (deg 30)    // std::f32::consts::FRAC_PI_6
+    //   - 8: 2.718281828               ;; std::f32::consts::E
+    //   - 9: 0.523598776   (deg 30)    ;; std::f32::consts::FRAC_PI_6
     //
     // functions:
     //   group 0:
@@ -363,61 +346,60 @@ fn test_assemble_math_f32_part_b() {
 
     let binary0 = helper_make_single_module_app(
         r#"
-            (module $app
-                (runtime_version "1.0")
-                (function $test
-                    (param $a0 f32)
-                    (param $a1 f32)
-                    (param $a2 f32)
-                    (param $a3 f32)
-                    (param $a4 f32)
-                    (param $a5 f32)
-                    (param $a6 f32)
-                    (param $a7 f32)
-                    (param $a8 f32)
-                    (param $a9 f32)
-                    (results
-                        f32 f32 f32 f32
-                        f32 f32 f32 f32 f32
-                        f32 f32 f32 f32 f32 f32
-                        f32 f32
-                        f32 f32 f32 f32
-                        f32 f32 f32 f32)
-                    (code
-                        (f32.trunc (local.load32_f32 $a0))
-                        (f32.fract (local.load32_f32 $a0))
-                        (f32.sqrt (local.load32_f32 $a1))
-                        (f32.cbrt (local.load32_f32 $a2))
-
-                        (f32.exp (local.load32_f32 $a3))
-                        (f32.exp2 (local.load32_f32 $a4))
-                        (f32.ln (local.load32_f32 $a8))
-                        (f32.log2 (local.load32_f32 $a1))
-                        (f32.log10 (local.load32_f32 $a7))
-
-                        (f32.sin (local.load32_f32 $a9))
-                        (f32.cos (local.load32_f32 $a9))
-                        (f32.tan (local.load32_f32 $a9))
-                        (f32.asin (f32.imm 0.5))
-                        (f32.acos (f32.imm 0.866_025_4))
-                        (f32.atan (f32.imm 0.577_350_3))
-
-                        (f32.pow (local.load32_f32 $a1) (local.load32_f32 $a3))
-                        (f32.log (local.load32_f32 $a4) (local.load32_f32 $a3))
-
-                        (f32.copysign (local.load32_f32 $a4) (local.load32_f32 $a3))
-                        (f32.copysign (local.load32_f32 $a4) (local.load32_f32 $a5))
-                        (f32.copysign (local.load32_f32 $a5) (local.load32_f32 $a4))
-                        (f32.copysign (local.load32_f32 $a5) (local.load32_f32 $a6))
-
-                        (f32.min (local.load32_f32 $a3) (local.load32_f32 $a4))
-                        (f32.min (local.load32_f32 $a4) (local.load32_f32 $a5))
-                        (f32.max (local.load32_f32 $a4) (local.load32_f32 $a5))
-                        (f32.max (local.load32_f32 $a5) (local.load32_f32 $a6))
-                    )
-                )
+        fn test(
+            a0:f32,
+            a1:f32,
+            a2:f32,
+            a3:f32,
+            a4:f32,
+            a5:f32,
+            a6:f32,
+            a7:f32,
+            a8:f32,
+            a9:f32
             )
-            "#,
+            ->
+            (
+            f32, f32, f32, f32
+            f32, f32, f32, f32, f32
+            f32, f32, f32, f32, f32, f32
+            f32, f32,
+            f32, f32, f32, f32
+            f32, f32, f32, f32
+            )
+        {
+            trunc_f32(local_load_f32(a0))
+            fract_f32(local_load_f32(a0))
+            sqrt_f32(local_load_f32(a1))
+            cbrt_f32(local_load_f32(a2))
+
+            exp_f32(local_load_f32(a3))
+            exp2_f32(local_load_f32(a4))
+            ln_f32(local_load_f32(a8))
+            log2_f32(local_load_f32(a1))
+            log10_f32(local_load_f32(a7))
+
+            sin_f32(local_load_f32(a9))
+            cos_f32(local_load_f32(a9))
+            tan_f32(local_load_f32(a9))
+            asin_f32(imm_f32(0.5_f32))
+            acos_f32(imm_f32(0.866_025_4_f32))
+            atan_f32(imm_f32(0.577_350_3_f32))
+
+            pow_f32(local_load_f32(a1), local_load_f32(a3))
+            log_f32(local_load_f32(a4), local_load_f32(a3))
+
+            copysign_f32(local_load_f32(a4), local_load_f32(a3))
+            copysign_f32(local_load_f32(a4), local_load_f32(a5))
+            copysign_f32(local_load_f32(a5), local_load_f32(a4))
+            copysign_f32(local_load_f32(a5), local_load_f32(a6))
+
+            min_f32(local_load_f32(a3), local_load_f32(a4))
+            min_f32(local_load_f32(a4), local_load_f32(a5))
+            max_f32(local_load_f32(a4), local_load_f32(a5))
+            max_f32(local_load_f32(a5), local_load_f32(a6))
+        }
+    "#,
     );
 
     let handler = Handler::new();
@@ -536,62 +518,60 @@ fn test_assemble_math_f64_part_a() {
 
     let binary0 = helper_make_single_module_app(
         r#"
-            (module $app
-                (runtime_version "1.0")
-                (function $test
-                    (param $a0 f64)
-                    (param $a1 f64)
-                    (param $a2 f64)
-                    (param $a3 f64)
-                    (param $a4 f64)
-                    (param $a5 f64)
-                    (param $a6 f64)
-                    (param $a7 f64)
-                    (param $a8 f64)
-                    (param $a9 f64)
-                    (results
-                        f64 f64 f64 f64
-                        f64 f64 f64 f64
-                        f64 f64 f64 f64
-                        f64 f64 f64 f64 f64 f64 f64 f64
-                        f64 f64 f64 f64 f64 f64 f64 f64)
-                    (code
-                        (f64.abs (local.load64_f64 $a0))
-                        (f64.abs (local.load64_f64 $a1))
-                        (f64.neg (local.load64_f64 $a0))
-                        (f64.neg (local.load64_f64 $a1))
-
-                        (f64.ceil (local.load64_f64 $a2))
-                        (f64.ceil (local.load64_f64 $a4))
-                        (f64.ceil (local.load64_f64 $a6))
-                        (f64.ceil (local.load64_f64 $a8))
-
-                        (f64.floor (local.load64_f64 $a2))
-                        (f64.floor (local.load64_f64 $a4))
-                        (f64.floor (local.load64_f64 $a6))
-                        (f64.floor (local.load64_f64 $a8))
-
-                        (f64.round_half_away_from_zero (local.load64_f64 $a2))
-                        (f64.round_half_away_from_zero (local.load64_f64 $a3))
-                        (f64.round_half_away_from_zero (local.load64_f64 $a4))
-                        (f64.round_half_away_from_zero (local.load64_f64 $a5))
-                        (f64.round_half_away_from_zero (local.load64_f64 $a6))
-                        (f64.round_half_away_from_zero (local.load64_f64 $a7))
-                        (f64.round_half_away_from_zero (local.load64_f64 $a8))
-                        (f64.round_half_away_from_zero (local.load64_f64 $a9))
-
-                        (f64.round_half_to_even (local.load64_f64 $a2))
-                        (f64.round_half_to_even (local.load64_f64 $a3))
-                        (f64.round_half_to_even (local.load64_f64 $a4))
-                        (f64.round_half_to_even (local.load64_f64 $a5))
-                        (f64.round_half_to_even (local.load64_f64 $a6))
-                        (f64.round_half_to_even (local.load64_f64 $a7))
-                        (f64.round_half_to_even (local.load64_f64 $a8))
-                        (f64.round_half_to_even (local.load64_f64 $a9))
-                    )
-                )
+        fn test(
+            a0:f64,
+            a1:f64,
+            a2:f64,
+            a3:f64,
+            a4:f64,
+            a5:f64,
+            a6:f64,
+            a7:f64,
+            a8:f64,
+            a9:f64)
+            ->
+            (
+            f64, f64, f64, f64
+            f64, f64, f64, f64
+            f64, f64, f64, f64
+            f64, f64, f64, f64, f64, f64, f64, f64
+            f64, f64, f64, f64, f64, f64, f64, f64
             )
-            "#,
+        {
+            abs_f64(local_load_f64(a0))
+            abs_f64(local_load_f64(a1))
+            neg_f64(local_load_f64(a0))
+            neg_f64(local_load_f64(a1))
+
+            ceil_f64(local_load_f64(a2))
+            ceil_f64(local_load_f64(a4))
+            ceil_f64(local_load_f64(a6))
+            ceil_f64(local_load_f64(a8))
+
+            floor_f64(local_load_f64(a2))
+            floor_f64(local_load_f64(a4))
+            floor_f64(local_load_f64(a6))
+            floor_f64(local_load_f64(a8))
+
+            round_half_away_from_zero_f64(local_load_f64(a2))
+            round_half_away_from_zero_f64(local_load_f64(a3))
+            round_half_away_from_zero_f64(local_load_f64(a4))
+            round_half_away_from_zero_f64(local_load_f64(a5))
+            round_half_away_from_zero_f64(local_load_f64(a6))
+            round_half_away_from_zero_f64(local_load_f64(a7))
+            round_half_away_from_zero_f64(local_load_f64(a8))
+            round_half_away_from_zero_f64(local_load_f64(a9))
+
+            round_half_to_even_f64(local_load_f64(a2))
+            round_half_to_even_f64(local_load_f64(a3))
+            round_half_to_even_f64(local_load_f64(a4))
+            round_half_to_even_f64(local_load_f64(a5))
+            round_half_to_even_f64(local_load_f64(a6))
+            round_half_to_even_f64(local_load_f64(a7))
+            round_half_to_even_f64(local_load_f64(a8))
+            round_half_to_even_f64(local_load_f64(a9))
+        }
+    "#,
     );
 
     let handler = Handler::new();
@@ -668,8 +648,8 @@ fn test_assemble_math_f64_part_b() {
     //   - 5: -3.0
     //   - 6: -9.0
     //   - 7: 100.0
-    //   - 8: 2.718281828               // std::f64::consts::E
-    //   - 9: 0.523598776   (deg 30)    // std::f64::consts::FRAC_PI_6
+    //   - 8: 2.718281828               ;; std::f64::consts::E
+    //   - 9: 0.523598776   (deg 30)    ;; std::f64::consts::FRAC_PI_6
     //
     // functions:
     //   group 0:
@@ -717,61 +697,60 @@ fn test_assemble_math_f64_part_b() {
 
     let binary0 = helper_make_single_module_app(
         r#"
-            (module $app
-                (runtime_version "1.0")
-                (function $test
-                    (param $a0 f64)
-                    (param $a1 f64)
-                    (param $a2 f64)
-                    (param $a3 f64)
-                    (param $a4 f64)
-                    (param $a5 f64)
-                    (param $a6 f64)
-                    (param $a7 f64)
-                    (param $a8 f64)
-                    (param $a9 f64)
-                    (results
-                        f64 f64 f64 f64
-                        f64 f64 f64 f64 f64
-                        f64 f64 f64 f64 f64 f64
-                        f64 f64
-                        f64 f64 f64 f64
-                        f64 f64 f64 f64)
-                    (code
-                        (f64.trunc (local.load64_f64 $a0))
-                        (f64.fract (local.load64_f64 $a0))
-                        (f64.sqrt (local.load64_f64 $a1))
-                        (f64.cbrt (local.load64_f64 $a2))
-
-                        (f64.exp (local.load64_f64 $a3))
-                        (f64.exp2 (local.load64_f64 $a4))
-                        (f64.ln (local.load64_f64 $a8))
-                        (f64.log2 (local.load64_f64 $a1))
-                        (f64.log10 (local.load64_f64 $a7))
-
-                        (f64.sin (local.load64_f64 $a9))
-                        (f64.cos (local.load64_f64 $a9))
-                        (f64.tan (local.load64_f64 $a9))
-                        (f64.asin (f64.imm 0.5))
-                        (f64.acos (f64.imm 0.8660254037844386))
-                        (f64.atan (f64.imm 0.5773502691896258))
-
-                        (f64.pow (local.load64_f64 $a1) (local.load64_f64 $a3))
-                        (f64.log (local.load64_f64 $a4) (local.load64_f64 $a3))
-
-                        (f64.copysign (local.load64_f64 $a4) (local.load64_f64 $a3))
-                        (f64.copysign (local.load64_f64 $a4) (local.load64_f64 $a5))
-                        (f64.copysign (local.load64_f64 $a5) (local.load64_f64 $a4))
-                        (f64.copysign (local.load64_f64 $a5) (local.load64_f64 $a6))
-
-                        (f64.min (local.load64_f64 $a3) (local.load64_f64 $a4))
-                        (f64.min (local.load64_f64 $a4) (local.load64_f64 $a5))
-                        (f64.max (local.load64_f64 $a4) (local.load64_f64 $a5))
-                        (f64.max (local.load64_f64 $a5) (local.load64_f64 $a6))
-                    )
-                )
+        fn test(
+            a0:f64,
+            a1:f64,
+            a2:f64,
+            a3:f64,
+            a4:f64,
+            a5:f64,
+            a6:f64,
+            a7:f64,
+            a8:f64,
+            a9:f64
             )
-            "#,
+            ->
+            (
+            f64, f64, f64, f64
+            f64, f64, f64, f64, f64
+            f64, f64, f64, f64, f64, f64
+            f64, f64
+            f64, f64, f64, f64
+            f64, f64, f64, f64
+            )
+        {
+            trunc_f64(local_load_f64(a0))
+            fract_f64(local_load_f64(a0))
+            sqrt_f64(local_load_f64(a1))
+            cbrt_f64(local_load_f64(a2))
+
+            exp_f64(local_load_f64(a3))
+            exp2_f64(local_load_f64(a4))
+            ln_f64(local_load_f64(a8))
+            log2_f64(local_load_f64(a1))
+            log10_f64(local_load_f64(a7))
+
+            sin_f64(local_load_f64(a9))
+            cos_f64(local_load_f64(a9))
+            tan_f64(local_load_f64(a9))
+            asin_f64(imm_f64(0.5))
+            acos_f64(imm_f64(0.8660254037844386))
+            atan_f64(imm_f64(0.5773502691896258))
+
+            pow_f64(local_load_f64(a1), local_load_f64(a3))
+            log_f64(local_load_f64(a4), local_load_f64(a3))
+
+            copysign_f64(local_load_f64(a4), local_load_f64(a3))
+            copysign_f64(local_load_f64(a4), local_load_f64(a5))
+            copysign_f64(local_load_f64(a5), local_load_f64(a4))
+            copysign_f64(local_load_f64(a5), local_load_f64(a6))
+
+            min_f64(local_load_f64(a3), local_load_f64(a4))
+            min_f64(local_load_f64(a4), local_load_f64(a5))
+            max_f64(local_load_f64(a4), local_load_f64(a5))
+            max_f64(local_load_f64(a5), local_load_f64(a6))
+        }
+        "#,
     );
 
     let handler = Handler::new();

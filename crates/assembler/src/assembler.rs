@@ -767,18 +767,15 @@ fn emit_expression(
 
             // type index
             let type_index =
-                find_or_create_function_type_index(type_entries, &if_node.params, &if_node.results);
+                find_or_create_function_type_index(type_entries, &[], &if_node.results);
 
             // local variable list index
-            let local_variable_list_index = find_or_create_local_variable_list_index(
-                local_variable_list_entries,
-                &if_node.params,
-                &[],
-            );
+            let local_variable_list_index =
+                find_or_create_local_variable_list_index(local_variable_list_entries, &[], &[]);
 
             // local variable names
             let local_variable_names =
-                build_local_variable_names_by_params_and_local_variables(&if_node.params, &[]);
+                build_local_variable_names_by_params_and_local_variables(&[], &[]);
 
             // write inst 'block_alt'
             let address_of_block_alt = bytecode_writer.write_opcode_i32_i32_i32(
@@ -835,26 +832,54 @@ fn emit_expression(
             control_flow_stack.pop_layer(bytecode_writer, address_next_to_end);
         }
         ExpressionNode::Block(block_node) => {
-            //  asm: `for params -> results [locals] body`
+            //  asm: `for param_values -> results [locals] body`
             // code: block (param type_index:i32, local_variable_list_index:i32)
+
+            // assemble param values
+            let values = block_node
+                .param_values
+                .iter()
+                .map(|item| item.value.as_ref())
+                .collect::<Vec<_>>();
+
+            for value in values {
+                emit_expression(
+                    function_name,
+                    &value,
+                    identifier_public_index_lookup_table,
+                    type_entries,
+                    local_variable_list_entries,
+                    control_flow_stack,
+                    bytecode_writer,
+                )?;
+            }
+
+            let named_params = block_node
+                .param_values
+                .iter()
+                .map(|item| NamedParameter {
+                    name: item.name.clone(),
+                    data_type: item.data_type,
+                })
+                .collect::<Vec<NamedParameter>>();
 
             // type index
             let type_index = find_or_create_function_type_index(
                 type_entries,
-                &block_node.params,
+                &named_params,
                 &block_node.results,
             );
 
             // local variable index
             let local_variable_list_index = find_or_create_local_variable_list_index(
                 local_variable_list_entries,
-                &block_node.params,
+                &named_params,
                 &block_node.locals,
             );
 
             // local variable names
             let local_variable_names = build_local_variable_names_by_params_and_local_variables(
-                &block_node.params,
+                &named_params,
                 &block_node.locals,
             );
 
@@ -893,12 +918,12 @@ fn emit_expression(
         ExpressionNode::Break(break_node) => {
             // asm:
             // `break (value0, value1, ...)`
-            // `break_if testing (value0, value1, ...)`
+            // // `break_if testing (value0, value1, ...)`
             // `break_fn (value0, value1, ...)`
             //
             // code:
             // break_ (param reversed_index:i16, next_inst_offset:i32)
-            // break_nez (param reversed_index:i16, next_inst_offset:i32)
+            // // break_nez (param reversed_index:i16, next_inst_offset:i32)
 
             let (opcode, reversed_index, next_inst_offset, expressions) = match break_node {
                 BreakNode::Break(expressions) => {
@@ -911,16 +936,16 @@ fn emit_expression(
                         expressions,
                     )
                 }
-                BreakNode::BreakIf(_, expressions) => {
-                    let reversed_index =
-                        control_flow_stack.get_reversed_index_to_the_nearest_block();
-                    (
-                        Opcode::break_nez,
-                        reversed_index,
-                        INSTRUCTION_STUB_VALUE,
-                        expressions,
-                    )
-                }
+                // BreakNode::BreakIf(_, expressions) => {
+                //     let reversed_index =
+                //         control_flow_stack.get_reversed_index_to_the_nearest_block();
+                //     (
+                //         Opcode::break_nez,
+                //         reversed_index,
+                //         INSTRUCTION_STUB_VALUE,
+                //         expressions,
+                //     )
+                // }
                 BreakNode::BreakFn(expressions) => {
                     let reversed_index = control_flow_stack.get_reversed_index_to_function();
                     (Opcode::break_, reversed_index, 0, expressions)
@@ -939,17 +964,17 @@ fn emit_expression(
                 )?;
             }
 
-            if let BreakNode::BreakIf(testing, _) = break_node {
-                emit_expression(
-                    function_name,
-                    testing,
-                    identifier_public_index_lookup_table,
-                    type_entries,
-                    local_variable_list_entries,
-                    control_flow_stack,
-                    bytecode_writer,
-                )?;
-            }
+            // if let BreakNode::BreakIf(testing, _) = break_node {
+            //     emit_expression(
+            //         function_name,
+            //         testing,
+            //         identifier_public_index_lookup_table,
+            //         type_entries,
+            //         local_variable_list_entries,
+            //         control_flow_stack,
+            //         bytecode_writer,
+            //     )?;
+            // }
 
             // write inst 'break'
             let address_of_break = bytecode_writer.write_opcode_i16_i32(
@@ -963,7 +988,7 @@ fn emit_expression(
         ExpressionNode::Recur(break_node) => {
             // asm:
             // `recur (value0, value1, ...)`
-            // `recur_if testing (value0, value1, ...)`
+            // // `recur_if testing (value0, value1, ...)`
             // `recur_fn (value0, value1, ...)`
             //
             // code:
@@ -972,7 +997,7 @@ fn emit_expression(
 
             let (opcode, expressions) = match break_node {
                 BreakNode::Break(expressions) => (Opcode::recur, expressions),
-                BreakNode::BreakIf(_, expressions) => (Opcode::recur_nez, expressions),
+                // BreakNode::BreakIf(_, expressions) => (Opcode::recur_nez, expressions),
                 BreakNode::BreakFn(expressions) => (Opcode::recur, expressions),
             };
 
@@ -988,17 +1013,17 @@ fn emit_expression(
                 )?;
             }
 
-            if let BreakNode::BreakIf(testing, _) = break_node {
-                emit_expression(
-                    function_name,
-                    testing,
-                    identifier_public_index_lookup_table,
-                    type_entries,
-                    local_variable_list_entries,
-                    control_flow_stack,
-                    bytecode_writer,
-                )?;
-            }
+            // if let BreakNode::BreakIf(testing, _) = break_node {
+            //     emit_expression(
+            //         function_name,
+            //         testing,
+            //         identifier_public_index_lookup_table,
+            //         type_entries,
+            //         local_variable_list_entries,
+            //         control_flow_stack,
+            //         bytecode_writer,
+            //     )?;
+            // }
 
             // 'start_inst_offset' is the address of the next instruction after 'block'.
             // 'start_inst_offset' = 'address_of_recur' - 'address_of_block' - INSTRUCTION_LENGTH('block')
@@ -1733,9 +1758,6 @@ struct BreakItem {
 enum BreakType {
     Break,
     BreakAlt,
-
-    #[allow(dead_code)]
-    BreakNez,
 }
 
 impl ControlFlowStack {
@@ -2818,16 +2840,16 @@ pub data obj:byte[align=8] = [
             &[LocalVariableListEntry::new(vec![])],
         );
 
-        // test params
+        // test results
         assert_fn(
             r#"
-        fn foo(num:i32) -> i32
+        fn foo(num:i32, inc:i32) -> i32
         {
             imm_i32(0x11)
-            if (arg:i32) -> i32
+            if -> i32
                 eqz_i32(local_load_i32_s(num))                          // testing
-                add_i32(local_load_i32_s(arg), imm_i32(0x13))           // consequence
-                mul_i32(local_load_i32_s(arg), local_load_i32_s(num))   // alternative
+                add_i32(local_load_i32_s(inc), imm_i32(0x13))           // consequence
+                mul_i32(local_load_i32_s(inc), local_load_i32_s(num))   // alternative
 
         }"#,
             &["\
@@ -2835,25 +2857,32 @@ pub data obj:byte[align=8] = [
 0x0008  81 01 00 00  00 00 00 00    local_load_i32_s  rev:0   off:0x00  idx:0
 0x0010  c0 02                       eqz_i32
 0x0012  00 01                       nop
-0x0014  c4 03 00 00  01 00 00 00    block_alt         type:1   local:1   off:0x2c
-        01 00 00 00  2c 00 00 00
-0x0024  81 01 00 00  00 00 00 00    local_load_i32_s  rev:0   off:0x00  idx:0
+0x0014  c4 03 00 00  02 00 00 00    block_alt         type:2   local:0   off:0x2c
+        00 00 00 00  2c 00 00 00
+0x0024  81 01 01 00  00 00 01 00    local_load_i32_s  rev:1   off:0x00  idx:1
 0x002c  40 01 00 00  13 00 00 00    imm_i32           0x00000013
 0x0034  00 03                       add_i32
 0x0036  00 01                       nop
 0x0038  c5 03 00 00  1c 00 00 00    break_alt         off:0x1c
-0x0040  81 01 00 00  00 00 00 00    local_load_i32_s  rev:0   off:0x00  idx:0
+0x0040  81 01 01 00  00 00 01 00    local_load_i32_s  rev:1   off:0x00  idx:1
 0x0048  81 01 01 00  00 00 00 00    local_load_i32_s  rev:1   off:0x00  idx:0
 0x0050  04 03                       mul_i32
 0x0052  c0 03                       end
 0x0054  c0 03                       end"],
             &[
                 TypeEntry::new(vec![], vec![]),
-                TypeEntry::new(vec![OperandDataType::I32], vec![OperandDataType::I32]),
+                TypeEntry::new(
+                    vec![OperandDataType::I32, OperandDataType::I32],
+                    vec![OperandDataType::I32],
+                ),
+                TypeEntry::new(vec![], vec![OperandDataType::I32]),
             ],
             &[
                 LocalVariableListEntry::new(vec![]),
-                LocalVariableListEntry::new(vec![LocalVariableEntry::from_i32()]),
+                LocalVariableListEntry::new(vec![
+                    LocalVariableEntry::from_i32(),
+                    LocalVariableEntry::from_i32(),
+                ]),
             ],
         );
     }
@@ -2911,21 +2940,18 @@ pub data obj:byte[align=8] = [
             r#"
         fn foo(a1:i32)
         {
-            imm_i32(0x11)
-            block(b1:i32) -> i32
+            block(b1:i32 = imm_i32(0x11)) -> i32
             [b2:i32, b3:i32]
             {
-                imm_i32(0x13)
-                block(c1:i32, c2:i32) -> (i32,i32)
+                block(c1:i32 = imm_i32(0x13), c2:i32=imm_i32(0x17)) -> (i32,i32)
                 [c3:i32, c4:i32, c5:i32]
                 {
-                    imm_i32(0x17)
-                    local_load_i32_s(a1)
-                    local_load_i32_s(b1)
-                    local_load_i32_s(b2)
-                    local_load_i32_s(c1)
-                    local_load_i32_s(c2)
-                    local_load_i32_s(c3)
+                    local_load_i32_s(a1) // rindex=2, index=0
+                    local_load_i32_s(b1) // rindex=1, index=0
+                    local_load_i32_s(b2) // rindex=1, index=1
+                    local_load_i32_s(c1) // rindex=0, index=0
+                    local_load_i32_s(c2) // rindex=0, index=1
+                    local_load_i32_s(c3) // rindex=0, index=2
                 }
             }
         }"#,
@@ -2934,9 +2960,9 @@ pub data obj:byte[align=8] = [
 0x0008  c1 03 00 00  02 00 00 00    block             type:2   local:2
         02 00 00 00
 0x0014  40 01 00 00  13 00 00 00    imm_i32           0x00000013
-0x001c  c1 03 00 00  03 00 00 00    block             type:3   local:3
+0x001c  40 01 00 00  17 00 00 00    imm_i32           0x00000017
+0x0024  c1 03 00 00  03 00 00 00    block             type:3   local:3
         03 00 00 00
-0x0028  40 01 00 00  17 00 00 00    imm_i32           0x00000017
 0x0030  81 01 02 00  00 00 00 00    local_load_i32_s  rev:2   off:0x00  idx:0
 0x0038  81 01 01 00  00 00 00 00    local_load_i32_s  rev:1   off:0x00  idx:0
 0x0040  81 01 01 00  00 00 01 00    local_load_i32_s  rev:1   off:0x00  idx:1
@@ -2976,34 +3002,40 @@ pub data obj:byte[align=8] = [
         // test type index and local list index
         assert_fn(
             r#"
-        fn foo(a1:i32, a2:i32) -> i32
+        fn foo(a1:i32, a2:i32) -> i32   // type=1, local=1
         [a3:i32]
         {
-            block(b1:i32) -> i32
+            block(b1:i32=imm_i32(0x11)) -> i32  // type=2, local=1
             [b2:i32, b3:i32]
             nop()
 
-            block(c1:i32, c2:i32) -> i32
+            block(c1:i32=imm_i32(0x13), c2:i32=imm_i32(0x17)) -> i32    // type=1, local=1
             [c3:i32]
             nop()
 
-            block(d1:i32, d2:i32, d3:i32) -> i32
+            block(d1:i32=imm_i32(0x19), d2:i32=imm_i32(0x23), d3:i32=imm_i32(0x29)) -> i32  // type=3, local=1
             nop()
         }"#,
             &["\
-0x0000  c1 03 00 00  02 00 00 00    block             type:2   local:1
+0x0000  40 01 00 00  11 00 00 00    imm_i32           0x00000011
+0x0008  c1 03 00 00  02 00 00 00    block             type:2   local:1
         01 00 00 00
-0x000c  00 01                       nop
-0x000e  c0 03                       end
-0x0010  c1 03 00 00  01 00 00 00    block             type:1   local:1
+0x0014  00 01                       nop
+0x0016  c0 03                       end
+0x0018  40 01 00 00  13 00 00 00    imm_i32           0x00000013
+0x0020  40 01 00 00  17 00 00 00    imm_i32           0x00000017
+0x0028  c1 03 00 00  01 00 00 00    block             type:1   local:1
         01 00 00 00
-0x001c  00 01                       nop
-0x001e  c0 03                       end
-0x0020  c1 03 00 00  03 00 00 00    block             type:3   local:1
+0x0034  00 01                       nop
+0x0036  c0 03                       end
+0x0038  40 01 00 00  19 00 00 00    imm_i32           0x00000019
+0x0040  40 01 00 00  23 00 00 00    imm_i32           0x00000023
+0x0048  40 01 00 00  29 00 00 00    imm_i32           0x00000029
+0x0050  c1 03 00 00  03 00 00 00    block             type:3   local:1
         01 00 00 00
-0x002c  00 01                       nop
-0x002e  c0 03                       end
-0x0030  c0 03                       end"],
+0x005c  00 01                       nop
+0x005e  c0 03                       end
+0x0060  c0 03                       end"],
             &[
                 TypeEntry::new(vec![], vec![]),
                 TypeEntry::new(
@@ -3037,10 +3069,8 @@ pub data obj:byte[align=8] = [
             bytecode(
                 r#"
         fn foo() {
-            imm_i32(0x42)
-            block(a:i32) {
+            block(a:i32=imm_i32(0x42)) {
                 break (imm_i32(0x11))
-                break_if eqz_i32(local_load_i32_s(a)) (imm_i32(0x13), imm_i32(0x17))
                 break_fn (imm_i32(0x19), imm_i32(0x23), imm_i32(0x29))
             }
         }
@@ -3051,19 +3081,13 @@ pub data obj:byte[align=8] = [
 0x0008  c1 03 00 00  01 00 00 00    block             type:1   local:1
         01 00 00 00
 0x0014  40 01 00 00  11 00 00 00    imm_i32           0x00000011
-0x001c  c2 03 00 00  4e 00 00 00    break             rev:0   off:0x4e
-0x0024  40 01 00 00  13 00 00 00    imm_i32           0x00000013
-0x002c  40 01 00 00  17 00 00 00    imm_i32           0x00000017
-0x0034  81 01 00 00  00 00 00 00    local_load_i32_s  rev:0   off:0x00  idx:0
-0x003c  c0 02                       eqz_i32
-0x003e  00 01                       nop
-0x0040  c7 03 00 00  2a 00 00 00    break_nez         rev:0   off:0x2a
-0x0048  40 01 00 00  19 00 00 00    imm_i32           0x00000019
-0x0050  40 01 00 00  23 00 00 00    imm_i32           0x00000023
-0x0058  40 01 00 00  29 00 00 00    imm_i32           0x00000029
-0x0060  c2 03 01 00  00 00 00 00    break             rev:1   off:0x00
-0x0068  c0 03                       end
-0x006a  c0 03                       end"
+0x001c  c2 03 00 00  2a 00 00 00    break             rev:0   off:0x2a
+0x0024  40 01 00 00  19 00 00 00    imm_i32           0x00000019
+0x002c  40 01 00 00  23 00 00 00    imm_i32           0x00000023
+0x0034  40 01 00 00  29 00 00 00    imm_i32           0x00000029
+0x003c  c2 03 01 00  00 00 00 00    break             rev:1   off:0x00
+0x0044  c0 03                       end
+0x0046  c0 03                       end"
         );
     }
 
@@ -3073,11 +3097,9 @@ pub data obj:byte[align=8] = [
             bytecode(
                 r#"
         fn foo() {
-            imm_i32(0x42)
-            block(a:i32) {
+            block(a:i32=imm_i32(0x42)) {
                 imm_i32(0x50)
                 recur (imm_i32(0x11))
-                recur_if eqz_i32(local_load_i32_s(a)) (imm_i32(0x13), imm_i32(0x17))
                 recur_fn (imm_i32(0x19), imm_i32(0x23), imm_i32(0x29))
             }
         }
@@ -3090,18 +3112,12 @@ pub data obj:byte[align=8] = [
 0x0014  40 01 00 00  50 00 00 00    imm_i32           0x00000050
 0x001c  40 01 00 00  11 00 00 00    imm_i32           0x00000011
 0x0024  c3 03 00 00  10 00 00 00    recur             rev:0   off:0x10
-0x002c  40 01 00 00  13 00 00 00    imm_i32           0x00000013
-0x0034  40 01 00 00  17 00 00 00    imm_i32           0x00000017
-0x003c  81 01 00 00  00 00 00 00    local_load_i32_s  rev:0   off:0x00  idx:0
-0x0044  c0 02                       eqz_i32
-0x0046  00 01                       nop
-0x0048  c8 03 00 00  34 00 00 00    recur_nez         rev:0   off:0x34
-0x0050  40 01 00 00  19 00 00 00    imm_i32           0x00000019
-0x0058  40 01 00 00  23 00 00 00    imm_i32           0x00000023
-0x0060  40 01 00 00  29 00 00 00    imm_i32           0x00000029
-0x0068  c3 03 00 00  54 00 00 00    recur             rev:0   off:0x54
-0x0070  c0 03                       end
-0x0072  c0 03                       end"
+0x002c  40 01 00 00  19 00 00 00    imm_i32           0x00000019
+0x0034  40 01 00 00  23 00 00 00    imm_i32           0x00000023
+0x003c  40 01 00 00  29 00 00 00    imm_i32           0x00000029
+0x0044  c3 03 00 00  30 00 00 00    recur             rev:0   off:0x30
+0x004c  c0 03                       end
+0x004e  c0 03                       end"
         );
     }
 

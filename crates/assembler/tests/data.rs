@@ -274,7 +274,7 @@ fn test_assemble_data_load_and_store_uninitialized() {
 }
 
 #[test]
-fn test_assemble_data_offset_load_and_store() {
+fn test_assemble_data_load_and_store_extend() {
     //        uninitialized data section
     //        ==========================
     //

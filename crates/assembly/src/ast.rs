@@ -197,7 +197,7 @@ pub struct WhenNode {
 
 #[derive(Debug, PartialEq)]
 pub struct IfNode {
-    pub params: Vec<NamedParameter>,
+    // pub params: Vec<NamedParameter>,
     pub results: Vec<OperandDataType>,
     pub testing: Box<ExpressionNode>,
     pub consequence: Box<ExpressionNode>,
@@ -205,8 +205,15 @@ pub struct IfNode {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct NameValueParameter {
+    pub name: String,
+    pub data_type: OperandDataType,
+    pub value: Box<ExpressionNode>
+}
+
+#[derive(Debug, PartialEq)]
 pub struct BlockNode {
-    pub params: Vec<NamedParameter>,
+    pub param_values: Vec<NameValueParameter>,
     pub results: Vec<OperandDataType>,
     pub locals: Vec<LocalVariable>,
     pub body: Box<ExpressionNode>,
@@ -215,10 +222,10 @@ pub struct BlockNode {
 #[derive(Debug, PartialEq)]
 pub enum BreakNode {
     Break(/* values */ Vec<ExpressionNode>),
-    BreakIf(
-        /* testing */ Box<ExpressionNode>,
-        /* values */ Vec<ExpressionNode>,
-    ),
+    // BreakIf(
+    //     /* testing */ Box<ExpressionNode>,
+    //     /* values */ Vec<ExpressionNode>,
+    // ),
     BreakFn(/* values */ Vec<ExpressionNode>),
 }
 
