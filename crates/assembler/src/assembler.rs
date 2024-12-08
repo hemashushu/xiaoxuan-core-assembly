@@ -1310,7 +1310,8 @@ fn emit_instruction(
         "memory_load_i8_s" |
         "memory_load_i8_u" |
         "memory_load_f32" |
-        "memory_load_f64" => {
+        "memory_load_f64" |
+        /* host */ "host_addr_memory" => {
             //  asm: (addr:i64, offset=literal_i16)
             // code: (param offset_bytes:i16) (operand heap_addr:i64)
             let offset = match get_named_argument_value(named_args, "offset") {
@@ -1603,29 +1604,42 @@ fn emit_instruction(
 
             bytecode_writer.write_opcode_i32(opcode, public_index as u32);
         }
-        "envcall" => {
-            // asm: (env_call_number:liter_i32, value0, value1, ...)
-            // code: envcall(param envcall_num:i32) (operand args...)
-            let num = read_argument_value_as_i32(inst_name, &args[0])?;
-            let opcode = Opcode::from_name(inst_name);
-
-            for arg in &args[1..] {
-                let arg_expression_node = read_argument_value_as_expression(inst_name, arg)?;
-                emit_expression(function_name, arg_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
-            }
-
-            bytecode_writer.write_opcode_i32(opcode, num);
-        }
-        "dyncall" | "syscall" => {
+        "dyncall" => {
             // asm: (fn_pub_index:i32, value0, value1, ...)
             // code: dyncall() (operand function_public_index:i32, args...)
-            // code: syscall() (operand args..., syscall_num:i32, params_count: i32)
             for arg in args {
                 let arg_expression_node = read_argument_value_as_expression(inst_name, arg)?;
                 emit_expression(function_name, arg_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
             }
 
             bytecode_writer.write_opcode(Opcode::dyncall);
+        }
+        "envcall" => {
+            // asm: (env_call_number:liter_i32, value0, value1, ...)
+            // code: envcall(param envcall_num:i32) (operand args...)
+            let num = read_argument_value_as_i32(inst_name, &args[0])?;
+
+            for arg in &args[1..] {
+                let arg_expression_node = read_argument_value_as_expression(inst_name, arg)?;
+                emit_expression(function_name, arg_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+            }
+
+            bytecode_writer.write_opcode_i32(Opcode::envcall, num);
+        }
+        "syscall" => {
+            // asm: (syscall_num:i32, value0, value1, ...)
+            // code: syscall() (operand args..., syscall_num:i32, params_count: i32)
+            let num = read_argument_value_as_i32(inst_name, &args[0])?;
+            let params_count = args.len()-1;
+
+            for arg in &args[1..] {
+                let arg_expression_node = read_argument_value_as_expression(inst_name, arg)?;
+                emit_expression(function_name, arg_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+            }
+
+            bytecode_writer.write_opcode_i32(Opcode::imm_i32, num);
+            bytecode_writer.write_opcode_i32(Opcode::imm_i32, params_count as u32);
+            bytecode_writer.write_opcode(Opcode::syscall);
         }
         "get_function" | "host_addr_function"=> {
             // asm: (identifier)
@@ -3335,9 +3349,8 @@ fn foo()
     call(bar, imm_i32(0x11), imm_i32(0x13))
     envcall(0x100, imm_i32(0x23), imm_i32(0x29))
     syscall(
+        0x101 // num
         imm_i32(0x31), imm_i32(0x37) // args
-        imm_i32(0x100) // syscall num
-        imm_i32(2)     // args count
         )
     dyncall(get_function(bar), imm_i32(0x41), imm_i32(0x43))
 }
@@ -3354,9 +3367,9 @@ fn bar(left:i32, right:i32) nop()
 0x0028  02 04 00 00  00 01 00 00    envcall           idx:256
 0x0030  40 01 00 00  31 00 00 00    imm_i32           0x00000031
 0x0038  40 01 00 00  37 00 00 00    imm_i32           0x00000037
-0x0040  40 01 00 00  00 01 00 00    imm_i32           0x00000100
+0x0040  40 01 00 00  01 01 00 00    imm_i32           0x00000101
 0x0048  40 01 00 00  02 00 00 00    imm_i32           0x00000002
-0x0050  01 04                       dyncall
+0x0050  03 04                       syscall
 0x0052  00 01                       nop
 0x0054  05 04 00 00  01 00 00 00    get_function      idx:1
 0x005c  40 01 00 00  41 00 00 00    imm_i32           0x00000041

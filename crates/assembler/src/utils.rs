@@ -5,8 +5,14 @@
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
 use anc_image::{
+    entry::{ExternalFunctionIndexEntry, ExternalFunctionIndexListEntry, ExternalLibraryEntry},
     index_sections::{
+        self,
         data_index_section::{DataIndexItem, DataIndexSection},
+        external_function_index_section::ExternalFunctionIndexSection,
+        external_function_section::UnifiedExternalFunctionSection,
+        external_library_section::UnifiedExternalLibrarySection,
+        external_type_section::{self, UnifiedExternalTypeSection},
         function_index_section::{FunctionIndexItem, FunctionIndexSection},
         index_property_section::IndexPropertySection,
     },
@@ -20,7 +26,10 @@ use crate::{
     imggen::generate_object_file,
 };
 
-pub fn helper_assemble_single_module(source: &str) -> Vec<u8> {
+pub fn helper_assemble_single_module(
+    source: &str,
+    external_library_entries: Vec<ExternalLibraryEntry>,
+) -> Vec<u8> {
     let module_node = match parse_from_str(source) {
         Ok(node) => node,
         Err(parser_error) => {
@@ -29,7 +38,6 @@ pub fn helper_assemble_single_module(source: &str) -> Vec<u8> {
     };
 
     let import_module_entries = vec![create_virtual_dependency_module()];
-    let external_library_entries = vec![];
 
     let image_common_entry = assemble_module_node(
         &module_node,
@@ -45,22 +53,31 @@ pub fn helper_assemble_single_module(source: &str) -> Vec<u8> {
 }
 
 pub fn helper_make_single_module_app(source: &str) -> Vec<u8> {
-    let common_binary = helper_assemble_single_module(source);
+    helper_make_single_module_app_with_external_library(source, vec![])
+}
+
+pub fn helper_make_single_module_app_with_external_library(
+    source: &str,
+    external_library_entries: Vec<ExternalLibraryEntry>,
+) -> Vec<u8> {
+    let common_binary = helper_assemble_single_module(source, external_library_entries);
     let common_module_image = ModuleImage::load(&common_binary).unwrap();
 
     // build the following index sections:
     //
     // - index_property_section
-    // - (empty) module_list_section
+    // - module_list_section (empty)
     // - function_index_section
     // - data_index_section
-    // - (empty) unified_external_type_section
-    // - (empty) unified_external_library_section
-    // - (empty) unified_external_function_section
-    // - (empty) external_function_index_section
+    // - unified_external_type_section (clone from external_type_section)
+    // - unified_external_library_section (clone from external_library_section)
+    // - unified_external_function_section (clone from external_function_section)
+    // - external_function_index_section
 
     // build function index
-    let function_count = common_module_image.get_function_section().items.len();
+
+    let function_section = common_module_image.get_function_section();
+    let function_count = function_section.items.len();
 
     let function_ranges: Vec<RangeItem> = vec![RangeItem {
         offset: 0,
@@ -130,11 +147,6 @@ pub fn helper_make_single_module_app(source: &str) -> Vec<u8> {
         entry_function_public_index: 0,
     };
 
-    let type_section = common_module_image.get_type_section();
-    let local_variable_section = common_module_image.get_local_variable_section();
-    let function_section = common_module_image.get_function_section();
-    let common_property_section = common_module_image.get_common_property_section();
-
     let read_only_data_section = common_module_image
         .get_optional_read_only_data_section()
         .unwrap_or_default();
@@ -151,22 +163,113 @@ pub fn helper_make_single_module_app(source: &str) -> Vec<u8> {
         .get_optional_data_name_path_section()
         .unwrap_or_default();
 
+    // build unified external type/library/function sections
+
+    let type_section = common_module_image.get_type_section();
+    let external_type_items = type_section
+        .items
+        .iter()
+        .map(|item| {
+            external_type_section::TypeItem::new(
+                item.params_count,
+                item.results_count,
+                item.params_offset,
+                item.results_offset,
+            )
+        })
+        .collect::<Vec<_>>();
+
+    let unified_external_type_section = UnifiedExternalTypeSection {
+        items: &external_type_items,
+        types_data: type_section.types_data,
+    };
+
+    let external_library_section = common_module_image
+        .get_optional_external_library_section()
+        .unwrap_or_default();
+    let external_library_items = external_library_section
+        .items
+        .iter()
+        .map(|item| {
+            index_sections::external_library_section::ExternalLibraryItem::new(
+                item.name_offset,
+                item.name_length,
+                item.value_offset,
+                item.value_length,
+                item.external_library_dependent_type,
+            )
+        })
+        .collect::<Vec<_>>();
+
+    let unified_external_library_section = UnifiedExternalLibrarySection {
+        items: &external_library_items,
+        items_data: external_library_section.items_data,
+    };
+
+    let external_function_section = common_module_image
+        .get_optional_external_function_section()
+        .unwrap_or_default();
+    let external_function_items = external_function_section
+        .items
+        .iter()
+        .map(|item| {
+            index_sections::external_function_section::ExternalFunctionItem::new(
+                item.name_offset,
+                item.name_length,
+                item.external_library_index,
+                item.type_index,
+            )
+        })
+        .collect::<Vec<_>>();
+
+    let unified_external_function_section = UnifiedExternalFunctionSection {
+        items: &external_function_items,
+        names_data: external_function_section.names_data,
+    };
+
+    // build external function index
+
+    let external_function_index_entries = (0..external_function_items.len())
+        .map(|idx| ExternalFunctionIndexEntry::new(idx))
+        .collect::<Vec<_>>();
+
+    let external_function_index_list_entries = vec![ExternalFunctionIndexListEntry::new(
+        external_function_index_entries,
+    )];
+    let (external_index_ranges, external_index_items) =
+        ExternalFunctionIndexSection::convert_from_entries(&external_function_index_list_entries);
+    let external_function_index_section = ExternalFunctionIndexSection {
+        ranges: &external_index_ranges,
+        items: &external_index_items,
+    };
+
+    // other sections
+
+    let local_variable_section = common_module_image.get_local_variable_section();
+    let common_property_section = common_module_image.get_common_property_section();
+
     let section_entries: Vec<&dyn SectionEntry> = vec![
+        // common sections
         &type_section,
         &local_variable_section,
         &function_section,
         &read_only_data_section,
         &read_write_data_section,
         &uninit_data_section,
-        // &external_library_section,
-        // &external_function_section,
+        &external_library_section,
+        &external_function_section,
         // &import_function_section,
         // &import_data_section,
         &function_name_section,
         &data_name_section,
         &common_property_section,
+        // index sections
         &function_index_section,
         &data_index_section,
+        &unified_external_type_section,
+        &unified_external_library_section,
+        &unified_external_function_section,
+        &external_function_index_section,
         &index_property_section,
     ];
 

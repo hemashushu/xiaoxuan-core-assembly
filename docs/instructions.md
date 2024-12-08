@@ -10,7 +10,8 @@
   - [Local Loading/Storing Extension](#local-loadingstoring-extension)
   - [Data Loading/Storing](#data-loadingstoring)
   - [Data Loading/Storing Extension](#data-loadingstoring-extension)
-  - [Heap Loading/Storing](#heap-loadingstoring)
+  - [Memory Loading/Storing](#memory-loadingstoring)
+  - [Memory Management](#memory-management)
   - [Conversion](#conversion)
   - [Comparison](#comparison)
   - [Arithmetic](#arithmetic)
@@ -193,7 +194,7 @@ data_store_extend_f64(identifier, offset:i64, value:f64) -> (remain_values)
 data_store_extend_f32(identifier, offset:i64, value:f32) -> (remain_values)
 ```
 
-### Heap Loading/Storing
+### Memory Loading/Storing
 
 ```rust
 memory_load_i64(  addr:i64, offset=imm_i16) -> i64
@@ -213,6 +214,8 @@ memory_store_i8( addr:i64, value:i8,  offset=imm_i16) -> (remain_values)
 memory_store_f64(addr:i64, value:f64, offset=imm_i16) -> (remain_values)
 memory_store_f32(addr:i64, value:f32, offset=imm_i16) -> (remain_values)
 ```
+
+### Memory Management
 
 ```rust
 memory_fill(addr:i64, value:i8, count:i64) -> ()
@@ -445,14 +448,19 @@ log_f64(left:f64 right:f64) -> f64
 
 - `call(identifier, value0, value1, ...) -> (values)`
    call a function
+
 - `extcall(identifier, value0, value1, ...) -> return_value:void/i32/i64/f32/f64`
    call a external function
+
 - `envcall(env_call_number:liter_i32, value0, value1, ...) -> (values)`
    environment call
-- `syscall(value0, value1, ..., syscall_num:i32, params_count: i32) -> (return_value:i64, error_no:i32)`
+
+- `syscall(syscall_num:i32, value0, value1, ...) -> (return_value:i64, error_no:i32)`
    system call
+
 - `get_function(identifier) -> i32`
    get the public index of the specified function
+
 - `dyncall(fn_pub_index:i32, value0, value1, ...) -> (values)`
    dynamic call
 

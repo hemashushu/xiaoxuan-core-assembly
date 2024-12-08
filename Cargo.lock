@@ -24,7 +24,9 @@ dependencies = [
  "anc-isa",
  "anc-parser-asm",
  "anc-processor",
+ "dyncall-util",
  "pretty_assertions",
+ "syscall-util",
 ]
 
 [[package]]
