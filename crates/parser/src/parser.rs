@@ -1355,7 +1355,6 @@ impl<'a> Parser<'a> {
             self.consume_new_line_if_exist();
 
             let value = self.parse_expression_node()?;
-            self.consume_new_line_if_exist();
 
             param_values.push(NameValueParameter {
                 name,
