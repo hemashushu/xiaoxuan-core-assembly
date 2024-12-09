@@ -1030,8 +1030,16 @@ fn emit_expression(
             //
             // NOTE that the 'recur' instruction requires 4-byte align
             let address_of_recur = bytecode_writer.get_addr_with_align();
-            let (reversed_index, start_inst_offset) =
-                control_flow_stack.get_recur_to_nearest_block(address_of_recur);
+            let (reversed_index, start_inst_offset) = match break_node {
+                BreakNode::Break(_) => control_flow_stack
+                    .get_reversed_index_and_start_inst_offset_to_the_nearest_block(
+                        address_of_recur,
+                    ),
+                BreakNode::BreakFn(_) => {
+                    let reversed_index = control_flow_stack.get_reversed_index_to_function();
+                    (reversed_index, 0)
+                }
+            };
 
             // write inst 'recur'
             //
@@ -1868,7 +1876,7 @@ impl ControlFlowStack {
         self.control_flow_items.len() - idx - 1
     }
 
-    pub fn get_recur_to_nearest_block(
+    pub fn get_reversed_index_and_start_inst_offset_to_the_nearest_block(
         &self,
         address_of_recur: usize,
     ) -> (
@@ -3129,7 +3137,7 @@ pub data obj:byte[align=8] = [
 0x002c  40 01 00 00  19 00 00 00    imm_i32           0x00000019
 0x0034  40 01 00 00  23 00 00 00    imm_i32           0x00000023
 0x003c  40 01 00 00  29 00 00 00    imm_i32           0x00000029
-0x0044  c3 03 00 00  30 00 00 00    recur             rev:0   off:0x30
+0x0044  c3 03 01 00  00 00 00 00    recur             rev:1   off:0x00
 0x004c  c0 03                       end
 0x004e  c0 03                       end"
         );

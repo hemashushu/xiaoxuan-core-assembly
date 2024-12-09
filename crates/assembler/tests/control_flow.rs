@@ -1037,7 +1037,7 @@ fn test_assemble_control_flow_structure_loop() {
 }
 
 #[test]
-fn test_assemble_control_flow_structure_loop_with_block_parameters() {
+fn test_assemble_control_flow_structure_loop_with_block_parameters_and_when() {
     // fn accu (count/0:i32) -> (i32)
     //     imm_i32(0)                   ;; sum
     //     local_load32(0, 0)           ;; count
@@ -1116,344 +1116,231 @@ fn test_assemble_control_flow_structure_loop_with_block_parameters() {
     assert_eq!(result1.unwrap(), vec![ForeignValue::U32(5050)]);
 }
 
-// #[test]
-// fn test_assemble_control_flow_structure_loop_with_if() {
-//     // fn $accu (count/0:i32) -> (i32)
-//     //     zero                     ;; sum
-//     //     (local_load32 0 0)       ;; count
-//     //     (block 1 1) (sum/0:i32, n/1:i32)->(i32)
-//     //                              ;; if n==0
-//     //         (local_load32 0 1)
-//     //         i32_eqz
-//     //         (block_alt)
-//     //             (local_load32 0 1)
-//     //             (break 1)
-//     //         (break 0)
-//     //                              ;; sum + n
-//     //             (local_load32 0 0)
-//     //             (local_load32 0 1)
-//     //             i32_add
-//     //                              ;; n - 1
-//     //             (local_load32 0 1)
-//     //             (i32_dec 1)
-//     //                              ;; recur
-//     //             (recur 0)
-//     //         end
-//     //     end
-//     // end
-//     //
-//     // assert (10) -> (55)
-//     // assert (100) -> (5050)
-//
-//     let binary0 = helper_make_single_module_app(
-//         r#"
-//         (module $app
-//             (runtime_version "1.0")
-//             (function $test
-//                 (param $count i32)
-//                 (results i32)
-//                 (code
-//                     zero                        // for arg 'sum'
-//                     local_load_i32_s(count)   // for arg 'n'
-//                     (for
-//                         (param $sum i32)
-//                         (param $n i32)
-//                         (result i32)
-//                         (do
-//                             (if
-//                                 (i32.eqz local_load_i32_s(n))
-//                                 (break local_load_i32_s(sum))
-//                                 (recur
-//                                     (add_i32
-//                                         local_load_i32_s(sum)
-//                                         local_load_i32_s(n)
-//                                     )
-//
-//                                     (i32.dec
-//                                         local_load_i32_s(n)
-//                                         1
-//                                     )
-//                                 )
-//                             )
-//                         )
-//                     )
-//                 )
-//             )
-//         )
-//         "#,
-//     );
-//
-//     let handler = Handler::new();
-//     let resource0 = InMemoryResource::new(vec![binary0]);
-//     let process_context0 = resource0.create_process_context().unwrap();
-//
-//     let function_entry = process_context0.module_images[0]
-//         .get_function_section()
-//         .get_function_entry(0);
-//
-//     let bytecode_text = format_bytecode_as_text(&function_entry.code);
-//     // println!("{}", bytecode_text);
-//
-//     assert_eq!(
-//         bytecode_text,
-//         "\
-// 0x0000  01 01                       zero
-// 0x0002  02 02 00 00  00 00 00 00    local.load32_i32  rev:0   off:0x00  idx:0
-// 0x000a  00 01                       nop
-// 0x000c  01 0a 00 00  01 00 00 00    block             type:1   local:1
-//         01 00 00 00
-// 0x0018  02 02 00 00  00 00 01 00    local.load32_i32  rev:0   off:0x00  idx:1
-// 0x0020  00 06                       i32.eqz
-// 0x0022  00 01                       nop
-// 0x0024  05 0a 00 00  02 00 00 00    block_alt         type:2   local:2   off:0x28
-//         02 00 00 00  28 00 00 00
-// 0x0034  02 02 01 00  00 00 00 00    local.load32_i32  rev:1   off:0x00  idx:0
-// 0x003c  02 0a 01 00  3c 00 00 00    break             rev:1   off:0x3c
-// 0x0044  02 0a 00 00  32 00 00 00    break             rev:0   off:0x32
-// 0x004c  02 02 01 00  00 00 00 00    local.load32_i32  rev:1   off:0x00  idx:0
-// 0x0054  02 02 01 00  00 00 01 00    local.load32_i32  rev:1   off:0x00  idx:1
-// 0x005c  00 07                       add_i32
-// 0x005e  02 02 01 00  00 00 01 00    local.load32_i32  rev:1   off:0x00  idx:1
-// 0x0066  08 07 01 00                 i32.dec           1
-// 0x006a  00 01                       nop
-// 0x006c  03 0a 01 00  54 00 00 00    recur             rev:1   off:0x54
-// 0x0074  00 0a                       end
-// 0x0076  00 0a                       end
-// 0x0078  00 0a                       end"
-//     );
-//
-//     let mut thread_context0 = process_context0.create_thread_context();
-//
-//     let result0 = process_function(&handler, &mut thread_context0, 0, 0, &[ForeignValue::U32(10)]);
-//     assert_eq!(result0.unwrap(), vec![ForeignValue::U32(55)]);
-//
-//     let result1 = process_function(&mut thread_context0, 0, 0, &[ForeignValue::U32(100)]);
-//     assert_eq!(result1.unwrap(), vec![ForeignValue::U32(5050)]);
-// }
-//
-// #[test]
-// fn test_assemble_control_flow_function_tail_call() {
-//     // fn $accu (sum/0:i32, n/1:i32) -> (i32)
-//     //                              ;; sum = sum + n
-//     //     (local_load32 0 0)
-//     //     (local_load32 0 1)
-//     //     i32_add
-//     //     (local_store32 0 0)
-//     //                              ;; n = n - 1
-//     //     (local_load32 0 1)
-//     //     (i32_dec 1)
-//     //     (local_store32 0 1)
-//     //                              ;; if n > 0 recur (sum,n)
-//     //     (local_load32 0 1)
-//     //     zero
-//     //     i32_gt_u
-//     //     (block_nez 1) () -> ()
-//     //         (local_load32 0 0)
-//     //         (local_load32 0 1)
-//     //         (recur 1)
-//     //     end
-//     //     (local_load32 0 0)       ;; load sum
-//     // end
-//     //
-//     // assert (0, 10) -> (55)
-//     // assert (0, 100) -> (5050)
-//
-//     let binary0 = helper_make_single_module_app(
-//         r#"
-//         (module $app
-//             (runtime_version "1.0")
-//             (function $test
-//                 (param $sum i32)
-//                 (param $n i32)
-//                 (results i32)
-//                 (code
-//                     local_store_i32(sum
-//                         (add_i32
-//                             local_load_i32_s(sum)
-//                             local_load_i32_s(n)
-//                         )
-//                     )
-//                     local_store_i32(n
-//                         (i32.dec
-//                             local_load_i32_s(n)
-//                             1
-//                         )
-//                     )
-//                     (when
-//                         gt_i32_u(
-//                             local_load_i32_s(n)
-//                             zero
-//                         )
-//                         (fnrecur
-//                             local_load_i32_s(sum)
-//                             local_load_i32_s(n)
-//                         )
-//                     )
-//                     local_load_i32_s(sum)
-//                 )
-//             )
-//         )
-//         "#,
-//     );
-//
-//     let handler = Handler::new();
-//     let resource0 = InMemoryResource::new(vec![binary0]);
-//     let process_context0 = resource0.create_process_context().unwrap();
-//
-//     let function_entry = process_context0.module_images[0]
-//         .get_function_section()
-//         .get_function_entry(0);
-//
-//     let bytecode_text = format_bytecode_as_text(&function_entry.code);
-//     // println!("{}", bytecode_text);
-//
-//     assert_eq!(
-//         bytecode_text,
-//         "\
-// 0x0000  02 02 00 00  00 00 00 00    local.load32_i32  rev:0   off:0x00  idx:0
-// 0x0008  02 02 00 00  00 00 01 00    local.load32_i32  rev:0   off:0x00  idx:1
-// 0x0010  00 07                       add_i32
-// 0x0012  09 02 00 00  00 00 00 00    local.store32     rev:0   off:0x00  idx:0
-// 0x001a  02 02 00 00  00 00 01 00    local.load32_i32  rev:0   off:0x00  idx:1
-// 0x0022  08 07 01 00                 i32.dec           1
-// 0x0026  09 02 00 00  00 00 01 00    local.store32     rev:0   off:0x00  idx:1
-// 0x002e  02 02 00 00  00 00 01 00    local.load32_i32  rev:0   off:0x00  idx:1
-// 0x0036  01 01                       zero
-// 0x0038  07 06                       i32.gt_u
-// 0x003a  00 01                       nop
-// 0x003c  04 0a 00 00  01 00 00 00    block_nez         local:1   off:0x26
-//         26 00 00 00
-// 0x0048  02 02 01 00  00 00 00 00    local.load32_i32  rev:1   off:0x00  idx:0
-// 0x0050  02 02 01 00  00 00 01 00    local.load32_i32  rev:1   off:0x00  idx:1
-// 0x0058  03 0a 01 00  00 00 00 00    recur             rev:1   off:0x00
-// 0x0060  00 0a                       end
-// 0x0062  02 02 00 00  00 00 00 00    local.load32_i32  rev:0   off:0x00  idx:0
-// 0x006a  00 0a                       end"
-//     );
-//
-//     let mut thread_context0 = process_context0.create_thread_context();
-//
-//     let result0 = process_function(
-//         &handler,
-//         &mut thread_context0,
-//         0,
-//         0,
-//         &[ForeignValue::U32(0), ForeignValue::U32(10)],
-//     );
-//     assert_eq!(result0.unwrap(), vec![ForeignValue::U32(55)]);
-//
-//     let result1 = process_function(
-//         &mut thread_context0,
-//         0,
-//         0,
-//         &[ForeignValue::U32(0), ForeignValue::U32(100)],
-//     );
-//     assert_eq!(result1.unwrap(), vec![ForeignValue::U32(5050)]);
-// }
-//
-// #[test]
-// fn test_assemble_control_flow_function_tail_call_with_if() {
-//     // fn $accu (sum:i32, n:i32) -> (i32)
-//     //     (local_load32 0 1)               ;; load n
-//     //     i32_eqz
-//     //     (block_alt 1 1) () -> (i32)      ;; if n == 0
-//     //         (local_load32 1 0)           ;; then sum
-//     //     (break 0)                        ;; else
-//     //                                      ;; sum + n
-//     //         (local_load32 1 0)
-//     //         (local_load32 1 1)
-//     //         i32_add
-//     //                                      ;; n - 1
-//     //         (local_load32 1 1)
-//     //         (i32_dec 1)
-//     //         (recur 1)                    ;; recur
-//     //     end
-//     // end
-//     //
-//     // assert (0, 10) -> (55)
-//     // assert (0, 100) -> (5050)
-//
-//     let binary0 = helper_make_single_module_app(
-//         r#"
-//         (module $app
-//             (runtime_version "1.0")
-//             (function $test
-//                 (param $sum i32)
-//                 (param $n i32)
-//                 (results i32)
-//                 (code
-//                     (if
-//                         (result i32)
-//                         (i32.eqz
-//                             local_load_i32_s(n)
-//                         )
-//                         local_load_i32_s(sum)
-//                         (fnrecur
-//                             (add_i32
-//                                 local_load_i32_s(sum)
-//                                 local_load_i32_s(n)
-//                             )
-//                             (i32.dec
-//                                 local_load_i32_s(n)
-//                                 1
-//                             )
-//
-//                         )
-//                     )
-//                 )
-//             )
-//         )
-//         "#,
-//     );
-//
-//     let handler = Handler::new();
-//     let resource0 = InMemoryResource::new(vec![binary0]);
-//     let process_context0 = resource0.create_process_context().unwrap();
-//
-//     let function_entry = process_context0.module_images[0]
-//         .get_function_section()
-//         .get_function_entry(0);
-//
-//     let bytecode_text = format_bytecode_as_text(&function_entry.code);
-//     // println!("{}", bytecode_text);
-//
-//     assert_eq!(
-//         bytecode_text,
-//         "\
-// 0x0000  02 02 00 00  00 00 01 00    local.load32_i32  rev:0   off:0x00  idx:1
-// 0x0008  00 06                       i32.eqz
-// 0x000a  00 01                       nop
-// 0x000c  05 0a 00 00  01 00 00 00    block_alt         type:1   local:1   off:0x20
-//         01 00 00 00  20 00 00 00
-// 0x001c  02 02 01 00  00 00 00 00    local.load32_i32  rev:1   off:0x00  idx:0
-// 0x0024  02 0a 00 00  32 00 00 00    break             rev:0   off:0x32
-// 0x002c  02 02 01 00  00 00 00 00    local.load32_i32  rev:1   off:0x00  idx:0
-// 0x0034  02 02 01 00  00 00 01 00    local.load32_i32  rev:1   off:0x00  idx:1
-// 0x003c  00 07                       add_i32
-// 0x003e  02 02 01 00  00 00 01 00    local.load32_i32  rev:1   off:0x00  idx:1
-// 0x0046  08 07 01 00                 i32.dec           1
-// 0x004a  00 01                       nop
-// 0x004c  03 0a 01 00  00 00 00 00    recur             rev:1   off:0x00
-// 0x0054  00 0a                       end
-// 0x0056  00 0a                       end"
-//     );
-//
-//     let mut thread_context0 = process_context0.create_thread_context();
-//
-//     let result0 = process_function(
-//         &handler,
-//         &mut thread_context0,
-//         0,
-//         0,
-//         &[ForeignValue::U32(0), ForeignValue::U32(10)],
-//     );
-//     assert_eq!(result0.unwrap(), vec![ForeignValue::U32(55)]);
-//
-//     let result1 = process_function(
-//         &mut thread_context0,
-//         0,
-//         0,
-//         &[ForeignValue::U32(0), ForeignValue::U32(100)],
-//     );
-//     assert_eq!(result1.unwrap(), vec![ForeignValue::U32(5050)]);
-// }
+#[test]
+fn test_assemble_control_flow_structure_loop_with_block_parameters_and_if() {
+    // fn accu (count/0:i32) -> (i32)
+    //     imm_i32(0)                   ;; sum
+    //     local_load32(0, 0)           ;; count
+    //     block (sum/0:i32, n/1:i32)->(i32)
+    //                                  ;; if n==0
+    //         local_load32(0, 1)
+    //         eqz_i32
+    //         block_alt
+    //             local_load32(0, 1)
+    //             break(1)
+    //         break_alt
+    //                                  ;; sum + n
+    //             local_load32(0, 0)
+    //             local_load32(0, 1)
+    //             add_i32
+    //                                  ;; n - 1
+    //             local_load32(0, 1)
+    //             sub_imm_i32(1)
+    //                                  ;; recur
+    //             recur(1)
+    //         end
+    //     end
+    // end
+    //
+    // assert (10) -> (55)
+    // assert (100) -> (5050)
+
+    let binary0 = helper_make_single_module_app(
+        r#"
+        fn test(count:i32) -> i32
+        {
+            block(
+                sum:i32 = imm_i32(0)
+                n:i32 = local_load_i32_s(count)) -> i32 {
+
+                if eqz_i32(local_load_i32_s(n))
+                    break(local_load_i32_s(sum))
+                    recur(
+                        add_i32(
+                            local_load_i32_s(sum)
+                            local_load_i32_s(n)
+                        )
+                        sub_imm_i32(
+                            1
+                            local_load_i32_s(n)
+                        )
+                    )
+            }
+        }
+        "#,
+    );
+
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
+    let mut thread_context0 = process_context0.create_thread_context();
+
+    let result0 = process_function(
+        &handler,
+        &mut thread_context0,
+        0,
+        0,
+        &[ForeignValue::U32(10)],
+    );
+    assert_eq!(result0.unwrap(), vec![ForeignValue::U32(55)]);
+
+    let result1 = process_function(
+        &handler,
+        &mut thread_context0,
+        0,
+        0,
+        &[ForeignValue::U32(100)],
+    );
+    assert_eq!(result1.unwrap(), vec![ForeignValue::U32(5050)]);
+}
+
+#[test]
+fn test_assemble_control_flow_function_tail_call_with_when() {
+    // fn $accu (sum/0:i32, n/1:i32) -> (i32)
+    //                              ;; sum = sum + n
+    //     (local_load32 0 0)
+    //     (local_load32 0 1)
+    //     i32_add
+    //     (local_store32 0 0)
+    //                              ;; n = n - 1
+    //     (local_load32 0 1)
+    //     (i32_dec 1)
+    //     (local_store32 0 1)
+    //                              ;; if n > 0 recur (sum,n)
+    //     (local_load32 0 1)
+    //     zero
+    //     i32_gt_u
+    //     (block_nez 1) () -> ()
+    //         (local_load32 0 0)
+    //         (local_load32 0 1)
+    //         (recur 1)
+    //     end
+    //     (local_load32 0 0)       ;; load sum
+    // end
+    //
+    // assert (0, 10) -> (55)
+    // assert (0, 100) -> (5050)
+
+    let binary0 = helper_make_single_module_app(
+        r#"
+        fn test(sum:i32,n:i32) -> i32
+        {
+            local_store_i32(sum
+                add_i32(
+                    local_load_i32_s(sum)
+                    local_load_i32_s(n)
+                )
+            )
+
+            local_store_i32(n
+                sub_imm_i32(
+                    1
+                    local_load_i32_s(n)
+                )
+            )
+
+            when gt_i32_u(
+                local_load_i32_s(n)
+                imm_i32(0)) {
+                recur_fn(
+                    local_load_i32_s(sum)
+                    local_load_i32_s(n)
+                )
+            }
+
+            local_load_i32_s(sum)
+        }
+        "#,
+    );
+
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
+    let mut thread_context0 = process_context0.create_thread_context();
+
+    let result0 = process_function(
+        &handler,
+        &mut thread_context0,
+        0,
+        0,
+        &[ForeignValue::U32(0), ForeignValue::U32(10)],
+    );
+    assert_eq!(result0.unwrap(), vec![ForeignValue::U32(55)]);
+
+    let result1 = process_function(
+        &handler,
+        &mut thread_context0,
+        0,
+        0,
+        &[ForeignValue::U32(0), ForeignValue::U32(100)],
+    );
+    assert_eq!(result1.unwrap(), vec![ForeignValue::U32(5050)]);
+}
+
+#[test]
+fn test_assemble_control_flow_function_tail_call_with_if() {
+    // fn accu (sum:i32, n:i32) -> (i32)
+    //     local_load32(0, 1)               ;; load n
+    //     eqz_i32
+    //     block_alt () -> (i32)            ;; if n == 0
+    //         local_load32(1, 0)           ;; then sum
+    //     break_alt                        ;; else
+    //                                      ;; sum + n
+    //         local_load32(1, 0)
+    //         local_load32(1, 1)
+    //         add_i32
+    //                                      ;; n - 1
+    //         local_load32(1, 1)
+    //         sub_imm_i32(1)
+    //         recur(1)                     ;; recur
+    //     end
+    // end
+    //
+    // assert (0, 10) -> (55)
+    // assert (0, 100) -> (5050)
+
+    let binary0 = helper_make_single_module_app(
+        r#"
+        fn test(sum:i32, n:i32) -> i32
+        {
+            if -> i32
+                eqz_i32(
+                    local_load_i32_s(n))
+                local_load_i32_s(sum)
+                recur_fn(
+                    add_i32(
+                        local_load_i32_s(sum)
+                        local_load_i32_s(n)
+                    )
+                    sub_imm_i32(
+                        1
+                        local_load_i32_s(n)
+                    )
+                )
+        }
+        "#,
+    );
+
+    let handler = Handler::new();
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
+    let mut thread_context0 = process_context0.create_thread_context();
+
+    let result0 = process_function(
+        &handler,
+        &mut thread_context0,
+        0,
+        0,
+        &[ForeignValue::U32(0), ForeignValue::U32(10)],
+    );
+    assert_eq!(result0.unwrap(), vec![ForeignValue::U32(55)]);
+
+    let result1 = process_function(
+        &handler,
+        &mut thread_context0,
+        0,
+        0,
+        &[ForeignValue::U32(0), ForeignValue::U32(100)],
+    );
+    assert_eq!(result1.unwrap(), vec![ForeignValue::U32(5050)]);
+}
