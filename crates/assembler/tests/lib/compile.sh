@@ -1,10 +1,4 @@
-# Copyright (c) 2023 Hemashushu <hippospark@gmail.com>, All rights reserved.
-#
-# This Source Code Form is subject to the terms of
-# the Mozilla Public License version 2.0 and additional exceptions,
-# more details in file LICENSE and CONTRIBUTING.
-
-#!/bin/bash
+#!/bin/sh
 gcc -Wall -g -fpic -shared -Wl,-soname,libtest0.so.1 -o libtest0.so.1.0.0 libtest0.c
 gcc -Wall -g -o app.elf app.c
 

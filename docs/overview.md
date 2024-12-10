@@ -21,8 +21,10 @@ project_folder
  |   |-- cmd2.ancasm    // sub-executable unit
  |
  |-- test               // unit test source files
- |   |-- test1.ancasm
- |   |-- test2.ancasm
+ |   |-- test1.ancasm   // a testing unit
+ |   |-- test2.ancasm   // another testing unit
+ |   |-- subfolder
+ |       |-- bar.ancasm // submodule for unit testing only
  |
  |-- doc
  |   |-- README.md      // documentations
@@ -143,6 +145,12 @@ Content of file `./module.anc.ason`:
             revision: "v1.0.1"
             path: "/lib/libfoo.so.1"
         })
+    ]
+    module_repositories: [
+        // ...
+    ]
+    library_repositories: [
+        // ...
     ]
 }
 ```
