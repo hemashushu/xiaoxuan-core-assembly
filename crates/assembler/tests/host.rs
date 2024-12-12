@@ -633,7 +633,7 @@ fn test_assemble_host_addr_function_and_callback_function() {
             )
         }
         "#,
-        vec![libtest0],
+        &[libtest0],
     );
 
     let mut pwd = std::env::current_dir().unwrap();

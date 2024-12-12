@@ -9,11 +9,11 @@ use std::io::Write;
 use anc_image::{
     common_sections::{
         common_property_section::CommonPropertySection,
-        data_name_path_section::DataNamePathSection,
+        data_name_section::DataNameSection,
         data_section::{ReadOnlyDataSection, ReadWriteDataSection, UninitDataSection},
         external_function_section::ExternalFunctionSection,
         external_library_section::ExternalLibrarySection,
-        function_name_path_section::FunctionNamePathSection,
+        function_name_section::FunctionNameSection,
         function_section::FunctionSection,
         import_data_section::ImportDataSection,
         import_function_section::ImportFunctionSection,
@@ -106,7 +106,7 @@ pub fn generate_object_file(
         ImportFunctionSection::convert_from_entries(&image_common_entry.import_function_entries);
     let import_function_section = ImportFunctionSection {
         items: &import_function_items,
-        name_paths_data: &import_function_data,
+        full_names_data: &import_function_data,
     };
 
     // import data entries
@@ -114,24 +114,23 @@ pub fn generate_object_file(
         ImportDataSection::convert_from_entries(&image_common_entry.import_data_entries);
     let import_data_section = ImportDataSection {
         items: &import_data_items,
-        name_paths_data: &import_data,
+        full_names_data: &import_data,
     };
 
     // func name section
-    let (function_name_items, function_name_data) = FunctionNamePathSection::convert_from_entries(
-        &image_common_entry.function_name_path_entries,
-    );
-    let function_name_section = FunctionNamePathSection {
+    let (function_name_items, function_name_data) =
+        FunctionNameSection::convert_from_entries(&image_common_entry.function_name_entries);
+    let function_name_section = FunctionNameSection {
         items: &function_name_items,
-        name_paths_data: &function_name_data,
+        full_names_data: &function_name_data,
     };
 
     // data name section
     let (data_name_items, data_name_data) =
-        DataNamePathSection::convert_from_entries(&image_common_entry.data_name_path_entries);
-    let data_name_section = DataNamePathSection {
+        DataNameSection::convert_from_entries(&image_common_entry.data_name_entries);
+    let data_name_section = DataNameSection {
         items: &data_name_items,
-        name_paths_data: &data_name_data,
+        full_names_data: &data_name_data,
     };
 
     let section_entries: Vec<&dyn SectionEntry> = vec![
@@ -170,57 +169,21 @@ mod tests {
 
     use anc_image::{
         bytecode_reader::format_bytecode_as_text,
-        entry::{
-            ExternalLibraryEntry, ImportModuleEntry, LocalVariableEntry, LocalVariableListEntry,
-            TypeEntry,
-        },
+        entry::{LocalVariableEntry, LocalVariableListEntry, TypeEntry},
         module_image::ModuleImage,
     };
-    use anc_parser_asm::parser::parse_from_str;
 
-    use crate::{
-        assembler::{assemble_module_node, create_virtual_dependency_module},
-        imggen::generate_object_file,
-    };
+    use crate::utils::helper_assemble_single_module;
 
-    fn generate(source: &str) -> Vec<u8> {
-        generate_with_import_and_external(source, vec![], vec![])
-    }
-
-    fn generate_with_import_and_external(
-        source: &str,
-        mut import_module_entries_excludes_virtual: Vec<ImportModuleEntry>,
-        external_library_entries: Vec<ExternalLibraryEntry>,
-    ) -> Vec<u8> {
-        let module_node = match parse_from_str(source) {
-            Ok(node) => node,
-            Err(parser_error) => {
-                panic!("{}", parser_error.with_source(source));
-            }
-        };
-
-        let mut import_module_entries = vec![create_virtual_dependency_module()];
-        import_module_entries.append(&mut import_module_entries_excludes_virtual);
-
-        let image_common_entry = assemble_module_node(
-            &module_node,
-            "mymodule",
-            &import_module_entries,
-            &external_library_entries,
-        )
-        .unwrap();
-
-        let mut buf: Vec<u8> = vec![];
-        generate_object_file(&image_common_entry, &mut buf).unwrap();
-
-        buf
+    fn generate_binary(source: &str) -> Vec<u8> {
+        helper_assemble_single_module(source, &[], &[])
     }
 
     #[test]
     fn test_image_generate_base() {
         // todo: add 'data' statements
 
-        let image_binary = generate(
+        let image_binary = generate_binary(
             r#"
 pub fn foo () -> i32 {
     call(add
@@ -304,22 +267,22 @@ fn add(left:i32, right:i32) -> i32 {
 0x0012  c0 03                       end"
         );
 
-        // check function name path
-        let function_name_path_section = common_module_image
-            .get_optional_function_name_path_section()
+        // check function full name
+        let function_name_section = common_module_image
+            .get_optional_function_name_section()
             .unwrap();
 
         assert_eq!(
-            function_name_path_section.get_item_name_and_export(0),
-            ("foo", true)
+            function_name_section.get_item_full_name_and_export(0),
+            ("mymodule::foo", true)
         );
 
         assert_eq!(
-            function_name_path_section.get_item_name_and_export(1),
-            ("add", false)
+            function_name_section.get_item_full_name_and_export(1),
+            ("mymodule::add", false)
         );
 
-        // todo: check data name path
+        // todo: check data full name
     }
 
     #[test]

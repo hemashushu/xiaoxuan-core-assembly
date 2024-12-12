@@ -6,8 +6,8 @@
 
 use anc_image::{
     entry::{
-        DataNamePathEntry, ExternalFunctionEntry, ExternalLibraryEntry, FunctionEntry,
-        FunctionNamePathEntry, ImportDataEntry, ImportFunctionEntry, ImportModuleEntry,
+        DataNameEntry, ExternalFunctionEntry, ExternalLibraryEntry, FunctionEntry,
+        FunctionNameEntry, ImportDataEntry, ImportFunctionEntry, ImportModuleEntry,
         InitedDataEntry, LocalVariableListEntry, TypeEntry, UninitDataEntry,
     },
     module_image::ImageType,
@@ -15,12 +15,19 @@ use anc_image::{
 
 #[derive(Debug)]
 pub struct ImageCommonEntry {
-    /*
-     * Note that this is the name of module/package,
-     * it CANNOT be the sub-module name even if the current image is
-     * the object file of a sub-module.
-     * it CANNOT be a name path either.
-     */
+    // Note that this is the name of module/package,
+    // it CANNOT be the name of submodule even if the current image is
+    // a "object module", it also CANNOT be the full name or name path.
+    //
+    // about the "full_name" and "name_path"
+    // -------------------------------------
+    // - "full_name" = "module_name::name_path"
+    // - "name_path" = "namespace::identifier"
+    // - "namespace" = "sub_module_name"{0,N}
+    //
+    // e.g.
+    // the name path of function "add" in submodule "myapp:utils" is "utils::add",
+    // and the full name is "myapp::utils::add"
     pub name: String,
 
     pub image_type: ImageType,
@@ -28,9 +35,11 @@ pub struct ImageCommonEntry {
     // the dependencies
     pub import_module_entries: Vec<ImportModuleEntry>,
 
-    // the import_function_entries, import_data_entries,
-    // function_name_entries, data_name_entries are
-    // used for linking.
+    // the following entries are used for linking:
+    // - import_function_entries
+    // - import_data_entries
+    // - function_name_entries
+    // - data_name_entries
     pub import_function_entries: Vec<ImportFunctionEntry>,
     pub import_data_entries: Vec<ImportDataEntry>,
 
@@ -43,10 +52,10 @@ pub struct ImageCommonEntry {
     pub uninit_data_entries: Vec<UninitDataEntry>,
 
     // the name path entries only contain the internal functions.
-    pub function_name_path_entries: Vec<FunctionNamePathEntry>,
+    pub function_name_entries: Vec<FunctionNameEntry>,
 
     // the name path entries only contain the internal data items.
-    pub data_name_path_entries: Vec<DataNamePathEntry>,
+    pub data_name_entries: Vec<DataNameEntry>,
 
     // the dependencies
     pub external_library_entries: Vec<ExternalLibraryEntry>,

@@ -12,16 +12,13 @@ use anc_assembly::ast::{
 use anc_image::{
     bytecode_writer::BytecodeWriter,
     entry::{
-        DataNamePathEntry, ExternalFunctionEntry, ExternalLibraryEntry, FunctionEntry,
-        FunctionNamePathEntry, ImportDataEntry, ImportFunctionEntry, ImportModuleEntry,
+        DataNameEntry, ExternalFunctionEntry, ExternalLibraryEntry, FunctionEntry,
+        FunctionNameEntry, ImportDataEntry, ImportFunctionEntry, ImportModuleEntry,
         InitedDataEntry, LocalVariableEntry, LocalVariableListEntry, TypeEntry, UninitDataEntry,
     },
     module_image::ImageType,
 };
-use anc_isa::{
-    opcode::Opcode, DataSectionType, DependencyLocal, MemoryDataType, ModuleDependency,
-    OperandDataType,
-};
+use anc_isa::{opcode::Opcode, DataSectionType, MemoryDataType, ModuleDependency, OperandDataType};
 
 use crate::{entry::ImageCommonEntry, AssembleError};
 
@@ -62,19 +59,27 @@ fn get_library_name_and_identifier(full_name: &str) -> (&str, &str) {
     full_name.split_once("::").unwrap()
 }
 
-/// The virtual which named "module" must be the first of imported modules.
-pub fn create_virtual_dependency_module() -> ImportModuleEntry {
-    ImportModuleEntry::new(
-        "module".to_owned(),
-        Box::new(ModuleDependency::Local(Box::new(DependencyLocal {
-            path: "".to_owned(),
-            values: None,
-            condition: None,
-        }))),
-    )
+// /// The virtual which named "module" must be the first of imported modules.
+// pub fn create_virtual_module() -> ImportModuleEntry {
+//     ImportModuleEntry::new(
+//         "module".to_owned(),
+//         Box::new(ModuleDependency::Local(Box::new(DependencyLocal {
+//             path: "".to_owned(),
+//             values: None,
+//             condition: None,
+//         }))),
+//     )
+// }
+
+pub fn create_object_module_self_dependency_entry(module_name: &str) -> ImportModuleEntry {
+    assert!(module_name != "module");
+    ImportModuleEntry {
+        name: module_name.to_owned(),
+        value: Box::new(ModuleDependency::Object(module_name.to_owned())),
+    }
 }
 
-/// parameter 'module_full_name' is the full name of a sub-module.
+/// parameter 'submodule_full_name' is the full name of a submodule.
 ///
 /// e.g.
 /// consider there is a module/project named 'network'.
@@ -95,20 +100,11 @@ pub fn create_virtual_dependency_module() -> ImportModuleEntry {
 /// - "namespace" = "sub_module_name"{0,N}
 pub fn assemble_module_node(
     module_node: &ModuleNode,
-    module_full_name: &str,
-    import_module_entries: &[ImportModuleEntry],
-    external_library_entries: &[ExternalLibraryEntry],
+    submodule_full_name: &str,
+    config_import_module_entries: &[ImportModuleEntry],
+    config_external_library_entries: &[ExternalLibraryEntry],
 ) -> Result<ImageCommonEntry, AssembleError> {
-    // the `import_module_entries` should not be empty.
-    // it must contains a virtual module named "module" with is
-    // refer to the current module.
-    assert!(!import_module_entries.is_empty());
-    assert_eq!(
-        import_module_entries.first(),
-        Some(&create_virtual_dependency_module())
-    );
-
-    let (module_name, module_name_path) = get_module_name_and_name_path(module_full_name);
+    let (module_name, _) = get_module_name_and_name_path(submodule_full_name);
 
     let mut type_entries: Vec<TypeEntry> = vec![];
     let mut local_variable_list_entries: Vec<LocalVariableListEntry> = vec![];
@@ -122,55 +118,66 @@ pub fn assemble_module_node(
     // add an empty local variable list record.
     local_variable_list_entries.push(LocalVariableListEntry::new(vec![]));
 
+    // get the names of the import modules and external libraries.
+    // as well as add the self-referent module `ModuleDependency::Object`.
     let AssembleResultForDependencies {
         import_module_entries,
-        import_module_ids,
+        import_module_identifiers,
         external_library_entries,
-        external_library_ids,
-    } = assemble_dependencies(import_module_entries, external_library_entries)?;
+        external_library_identifiers,
+    } = assemble_dependencies(
+        module_name,
+        config_import_module_entries,
+        config_external_library_entries,
+    )?;
 
     let AssembleResultForImportNodes {
         import_function_entries,
-        import_function_ids,
+        import_function_identifiers,
         import_data_entries,
-        import_read_only_data_ids,
-        import_read_write_data_ids,
-        import_uninit_data_ids,
-    } = assemble_import_nodes(&import_module_ids, &module_node.imports, &mut type_entries)?;
+        import_read_only_data_identifiers,
+        import_read_write_data_identifiers,
+        import_uninit_data_identifiers,
+    } = assemble_import_nodes(
+        module_name,
+        &import_module_identifiers,
+        &module_node.imports,
+        &mut type_entries,
+    )?;
 
     let AssembleResultForExternalNode {
         external_function_entries,
-        external_function_ids,
+        external_function_identifiers,
     } = assemble_external_nodes(
-        &external_library_ids,
+        &external_library_identifiers,
         &module_node.externals,
         &mut type_entries,
     )?;
 
-    let (function_name_path_entries, function_ids) =
-        assemble_function_name_entries(&module_node.functions, module_name_path);
+    let (function_name_entries, function_identifiers) =
+        assemble_function_name_entries(&module_node.functions, submodule_full_name);
 
     let AssembleResultForDataNameEntry {
-        data_name_path_entries,
-        read_only_data_ids,
-        read_write_data_ids,
-        uninit_data_ids,
-    } = assemble_data_name_entries(&module_node.datas, module_name_path);
+        data_name_entries,
+        read_only_data_identifiers,
+        read_write_data_identifiers,
+        uninit_data_identifiers,
+    } = assemble_data_name_entries(&module_node.datas, submodule_full_name);
 
     let identifier_public_index_lookup_table =
         IdentifierPublicIndexLookupTable::build(IdentifierSource {
-            import_function_ids,
-            function_ids,
+            import_function_identifiers,
+            function_identifiers,
             //
-            import_read_only_data_ids,
-            import_read_write_data_ids,
-            import_uninit_data_ids,
+            import_read_only_data_identifiers,
+            import_read_write_data_identifiers,
+            import_uninit_data_identifiers,
             //
-            read_only_data_ids,
-            read_write_data_ids,
-            uninit_data_ids,
+            read_only_data_identifiers,
+            read_write_data_identifiers,
+            uninit_data_identifiers,
             //
-            external_function_ids,
+            external_function_identifiers,
         });
 
     let function_entries = assemble_function_nodes(
@@ -202,8 +209,8 @@ pub fn assemble_module_node(
         read_write_data_entries,
         uninit_data_entries,
         //
-        function_name_path_entries,
-        data_name_path_entries,
+        function_name_entries,
+        data_name_entries,
         //
         external_library_entries,
         external_function_entries,
@@ -214,91 +221,82 @@ pub fn assemble_module_node(
 
 fn assemble_function_name_entries(
     function_nodes: &[FunctionNode],
-    module_name_path: &str,
-) -> (Vec<FunctionNamePathEntry>, Vec<String>) {
-    let mut function_name_path_entries = vec![];
-    // let mut function_public_index = import_function_count;
-    let mut function_ids: Vec<String> = vec![];
+    submodule_full_name: &str,
+) -> (Vec<FunctionNameEntry>, Vec<String>) {
+    let mut function_name_entries = vec![];
+    let mut function_identifiers: Vec<String> = vec![];
 
     for function_node in function_nodes {
         // add function id
-        function_ids.push(function_node.name.to_owned());
+        function_identifiers.push(function_node.name.to_owned());
 
-        let name_path = if module_name_path.is_empty() {
-            function_node.name.to_owned()
-        } else {
-            format!("{}::{}", module_name_path, function_node.name)
-        };
+        let full_name = format!("{}::{}", submodule_full_name, function_node.name);
 
         // add function name entry
-        let function_name_path_entry = FunctionNamePathEntry::new(name_path, function_node.export);
+        let function_name_entry = FunctionNameEntry::new(full_name, function_node.export);
 
-        function_name_path_entries.push(function_name_path_entry);
+        function_name_entries.push(function_name_entry);
     }
 
-    (function_name_path_entries, function_ids)
+    (function_name_entries, function_identifiers)
 }
 
 struct AssembleResultForDataNameEntry {
-    data_name_path_entries: Vec<DataNamePathEntry>,
-    read_only_data_ids: Vec<String>,
-    read_write_data_ids: Vec<String>,
-    uninit_data_ids: Vec<String>,
+    data_name_entries: Vec<DataNameEntry>,
+    read_only_data_identifiers: Vec<String>,
+    read_write_data_identifiers: Vec<String>,
+    uninit_data_identifiers: Vec<String>,
 }
 
 fn assemble_data_name_entries(
     data_nodes: &[DataNode],
-    module_name_path: &str,
+    submodule_full_name: &str,
 ) -> AssembleResultForDataNameEntry {
     // the data name paths in `DataNamePathSection` follow these order:
     // 1. internal read-only data
     // 2. internal read-write data
     // 3. internal uninit data
-    let mut read_only_name_paths: Vec<DataNamePathEntry> = vec![];
-    let mut read_only_data_ids: Vec<String> = vec![];
+    let mut read_only_name_entries: Vec<DataNameEntry> = vec![];
+    let mut read_only_data_identifiers: Vec<String> = vec![];
 
-    let mut read_write_name_paths: Vec<DataNamePathEntry> = vec![];
-    let mut read_write_data_ids: Vec<String> = vec![];
+    let mut read_write_name_entries: Vec<DataNameEntry> = vec![];
+    let mut read_write_data_identifiers: Vec<String> = vec![];
 
-    let mut uninit_name_paths: Vec<DataNamePathEntry> = vec![];
-    let mut uninit_data_ids: Vec<String> = vec![];
+    let mut uninit_name_entries: Vec<DataNameEntry> = vec![];
+    let mut uninit_data_identifiers: Vec<String> = vec![];
 
     for data_node in data_nodes {
-        let name_path = if module_name_path.is_empty() {
-            data_node.name.to_owned()
-        } else {
-            format!("{}::{}", module_name_path, data_node.name)
-        };
+        let full_name = format!("{}::{}", submodule_full_name, data_node.name);
 
-        let data_name_path_entry = DataNamePathEntry::new(name_path, data_node.export);
+        let data_name_entry = DataNameEntry::new(full_name, data_node.export);
         let id = data_node.name.to_owned();
 
         match data_node.data_section {
             DataSection::ReadOnly(_) => {
-                read_only_name_paths.push(data_name_path_entry);
-                read_only_data_ids.push(id);
+                read_only_name_entries.push(data_name_entry);
+                read_only_data_identifiers.push(id);
             }
             DataSection::ReadWrite(_) => {
-                read_write_name_paths.push(data_name_path_entry);
-                read_write_data_ids.push(id);
+                read_write_name_entries.push(data_name_entry);
+                read_write_data_identifiers.push(id);
             }
             DataSection::Uninit(_) => {
-                uninit_name_paths.push(data_name_path_entry);
-                uninit_data_ids.push(id);
+                uninit_name_entries.push(data_name_entry);
+                uninit_data_identifiers.push(id);
             }
         }
     }
 
-    let mut data_name_path_entries = vec![];
-    data_name_path_entries.append(&mut read_only_name_paths);
-    data_name_path_entries.append(&mut read_write_name_paths);
-    data_name_path_entries.append(&mut uninit_name_paths);
+    let mut data_name_entries = vec![];
+    data_name_entries.append(&mut read_only_name_entries);
+    data_name_entries.append(&mut read_write_name_entries);
+    data_name_entries.append(&mut uninit_name_entries);
 
     AssembleResultForDataNameEntry {
-        data_name_path_entries,
-        read_only_data_ids,
-        read_write_data_ids,
-        uninit_data_ids,
+        data_name_entries,
+        read_only_data_identifiers,
+        read_write_data_identifiers,
+        uninit_data_identifiers,
     }
 }
 
@@ -311,18 +309,18 @@ fn assemble_data_name_entries(
 /// - "name_path" = "namespace::identifier"
 /// - "namespace" = "sub_module_name"{0,N}
 struct IdentifierSource {
-    import_function_ids: Vec<String>,
-    function_ids: Vec<String>,
+    import_function_identifiers: Vec<String>,
+    function_identifiers: Vec<String>,
     //
-    import_read_only_data_ids: Vec<String>,
-    import_read_write_data_ids: Vec<String>,
-    import_uninit_data_ids: Vec<String>,
+    import_read_only_data_identifiers: Vec<String>,
+    import_read_write_data_identifiers: Vec<String>,
+    import_uninit_data_identifiers: Vec<String>,
     //
-    read_only_data_ids: Vec<String>,
-    read_write_data_ids: Vec<String>,
-    uninit_data_ids: Vec<String>,
+    read_only_data_identifiers: Vec<String>,
+    read_write_data_identifiers: Vec<String>,
+    uninit_data_identifiers: Vec<String>,
     //
-    external_function_ids: Vec<String>,
+    external_function_identifiers: Vec<String>,
 }
 
 /// this table only contains function/data names,
@@ -377,11 +375,11 @@ impl IdentifierPublicIndexLookupTable {
 
         // fill function ids
         let mut function_public_index: usize = 0;
-        for function_ids in [
-            &identifier_source.import_function_ids,
-            &identifier_source.function_ids,
+        for function_identifiers in [
+            &identifier_source.import_function_identifiers,
+            &identifier_source.function_identifiers,
         ] {
-            functions.extend(function_ids.iter().map(|id| {
+            functions.extend(function_identifiers.iter().map(|id| {
                 let pair = NameIndexPair {
                     id: id.to_owned(),
                     public_index: function_public_index,
@@ -393,15 +391,15 @@ impl IdentifierPublicIndexLookupTable {
 
         // fill data ids
         let mut data_public_index: usize = 0;
-        for data_ids in [
-            &identifier_source.import_read_only_data_ids,
-            &identifier_source.import_read_write_data_ids,
-            &identifier_source.import_uninit_data_ids,
-            &identifier_source.read_only_data_ids,
-            &identifier_source.read_write_data_ids,
-            &identifier_source.uninit_data_ids,
+        for data_identifiers in [
+            &identifier_source.import_read_only_data_identifiers,
+            &identifier_source.import_read_write_data_identifiers,
+            &identifier_source.import_uninit_data_identifiers,
+            &identifier_source.read_only_data_identifiers,
+            &identifier_source.read_write_data_identifiers,
+            &identifier_source.uninit_data_identifiers,
         ] {
-            datas.extend(data_ids.iter().map(|id| {
+            datas.extend(data_identifiers.iter().map(|id| {
                 let pair = NameIndexPair {
                     id: id.to_owned(),
                     public_index: data_public_index,
@@ -414,7 +412,7 @@ impl IdentifierPublicIndexLookupTable {
         // full external function ids
         external_functions.extend(
             identifier_source
-                .external_function_ids
+                .external_function_identifiers
                 .iter()
                 .enumerate()
                 .map(|(idx, id)| NameIndexPair {
@@ -2009,69 +2007,109 @@ fn assemble_data_nodes(
 
 struct AssembleResultForDependencies {
     import_module_entries: Vec<ImportModuleEntry>,
-    import_module_ids: Vec<String>,
+    import_module_identifiers: Vec<String>,
     external_library_entries: Vec<ExternalLibraryEntry>,
-    external_library_ids: Vec<String>,
+    external_library_identifiers: Vec<String>,
 }
 
 fn assemble_dependencies(
-    import_module_entries: &[ImportModuleEntry],
-    external_library_entries: &[ExternalLibraryEntry],
+    module_name: &str,
+    config_import_module_entries: &[ImportModuleEntry],
+    config_external_library_entries: &[ExternalLibraryEntry],
 ) -> Result<AssembleResultForDependencies, AssembleError> {
-    let import_module_ids: Vec<String> = import_module_entries
-        .iter()
-        .map(|item| item.name.to_owned())
-        .collect();
-    let external_library_ids: Vec<String> = external_library_entries
+    let mut import_module_identifiers: Vec<String> = config_import_module_entries
         .iter()
         .map(|item| item.name.to_owned())
         .collect();
 
+    let external_library_identifiers: Vec<String> = config_external_library_entries
+        .iter()
+        .map(|item| item.name.to_owned())
+        .collect();
+
+    let mut import_module_entries = config_import_module_entries.to_vec();
+    let external_library_entries = config_external_library_entries.to_vec();
+
+    // insert the self-referent module to index 0.
+    // this module is used for importing other functions and data
+    // in the same module.
+
+    import_module_identifiers.insert(0, module_name.to_owned());
+    import_module_entries.insert(0, create_object_module_self_dependency_entry(module_name));
+
     Ok(AssembleResultForDependencies {
-        import_module_entries: import_module_entries.to_vec(),
-        import_module_ids,
-        external_library_entries: external_library_entries.to_vec(),
-        external_library_ids,
+        import_module_entries,
+        import_module_identifiers,
+        external_library_entries,
+        external_library_identifiers,
     })
 }
 
 struct AssembleResultForImportNodes {
     import_function_entries: Vec<ImportFunctionEntry>,
-    import_function_ids: Vec<String>,
+    import_function_identifiers: Vec<String>,
     import_data_entries: Vec<ImportDataEntry>,
-    import_read_only_data_ids: Vec<String>,
-    import_read_write_data_ids: Vec<String>,
-    import_uninit_data_ids: Vec<String>,
+    import_read_only_data_identifiers: Vec<String>,
+    import_read_write_data_identifiers: Vec<String>,
+    import_uninit_data_identifiers: Vec<String>,
 }
 
 fn assemble_import_nodes(
-    import_module_ids: &[String],
+    module_name: &str,
+    import_module_identifiers: &[String],
     import_nodes: &[ImportNode],
     type_entries: &mut Vec<TypeEntry>,
 ) -> Result<AssembleResultForImportNodes, AssembleError> {
     let mut import_function_entries: Vec<ImportFunctionEntry> = vec![];
-    let mut import_function_ids: Vec<String> = vec![];
+    let mut import_function_identifiers: Vec<String> = vec![];
 
     let mut import_read_only_data_entries: Vec<ImportDataEntry> = vec![];
-    let mut import_read_only_data_ids: Vec<String> = vec![];
+    let mut import_read_only_data_identifiers: Vec<String> = vec![];
 
     let mut import_read_write_data_entries: Vec<ImportDataEntry> = vec![];
-    let mut import_read_write_data_ids: Vec<String> = vec![];
+    let mut import_read_write_data_identifiers: Vec<String> = vec![];
 
     let mut import_uninit_data_entries: Vec<ImportDataEntry> = vec![];
-    let mut import_uninit_data_ids: Vec<String> = vec![];
+    let mut import_uninit_data_identifiers: Vec<String> = vec![];
 
-    let get_module_index_by_name = |module_ids: &[String], name: &str| -> usize {
-        module_ids.iter().position(|id| id == name).unwrap()
+    let get_module_index_by_name = |module_identifiers: &[String],
+                                    expected_canonical_module_name: &str|
+     -> Result<usize, AssembleError> {
+        match module_identifiers
+            .iter()
+            .position(|id| id == expected_canonical_module_name)
+        {
+            Some(idx) => Ok(idx),
+            None => Err(AssembleError::new(&format!(
+                "Can not find the import module \"{}\".",
+                expected_canonical_module_name
+            ))),
+        }
     };
 
     for import_node in import_nodes {
         match import_node {
             ImportNode::Function(import_function_node) => {
-                let (module_name, name_path) =
+                let (declare_module_name, name_path) =
                     get_module_name_and_name_path(&import_function_node.full_name);
                 let (_, function_name) = get_namespace_and_identifier(name_path);
-                let import_module_index = get_module_index_by_name(import_module_ids, module_name);
+
+                // contains "from ..."
+                let actual_module_name = if let Some(from) = &import_function_node.from {
+                    from
+                } else {
+                    declare_module_name
+                };
+
+                // interpreter keyword "module"
+                let canonical_module_name = if actual_module_name == "module" {
+                    module_name
+                } else {
+                    actual_module_name
+                };
+
+                let import_module_index =
+                    get_module_index_by_name(import_module_identifiers, canonical_module_name)?;
 
                 // use the alias name if it presents.
                 let identifier = if let Some(alias_name) = &import_function_node.alias_name {
@@ -2081,7 +2119,7 @@ fn assemble_import_nodes(
                 };
 
                 // add function identifier
-                import_function_ids.push(identifier);
+                import_function_identifiers.push(identifier);
 
                 // get type index
                 let type_index = find_or_create_import_function_type_index(
@@ -2090,16 +2128,41 @@ fn assemble_import_nodes(
                     &import_function_node.results,
                 );
 
+                // the module name in the "full name" is not necessarily the same as
+                // the module (project) name. so the value of the "from" statement is ignored,
+                // but the special name "module" still needs to be handled.
+                let canonical_full_name = if declare_module_name == "module" {
+                    format!("{}::{}", module_name, name_path)
+                } else {
+                    import_function_node.full_name.to_owned()
+                };
+
                 // add import function entry
                 let import_function_entry =
-                    ImportFunctionEntry::new(name_path.to_owned(), import_module_index, type_index);
+                    ImportFunctionEntry::new(canonical_full_name, import_module_index, type_index);
                 import_function_entries.push(import_function_entry);
             }
             ImportNode::Data(import_data_node) => {
-                let (module_name, name_path) =
+                let (declare_module_name, name_path) =
                     get_module_name_and_name_path(&import_data_node.full_name);
                 let (_, data_name) = get_namespace_and_identifier(name_path);
-                let import_module_index = get_module_index_by_name(import_module_ids, module_name);
+
+                // contains "from ..."
+                let actual_module_name = if let Some(from) = &import_data_node.from {
+                    from
+                } else {
+                    declare_module_name
+                };
+
+                // interpreter keyword "module"
+                let canonical_module_name = if actual_module_name == "module" {
+                    module_name
+                } else {
+                    actual_module_name
+                };
+
+                let import_module_index =
+                    get_module_index_by_name(import_module_identifiers, canonical_module_name)?;
 
                 // use the alias name if it presents.
                 let identifier = if let Some(alias_name) = &import_data_node.alias_name {
@@ -2108,9 +2171,18 @@ fn assemble_import_nodes(
                     data_name.to_owned()
                 };
 
+                // the module name in the "full name" is not necessarily the same as
+                // the module (project) name. so the value of the "from" statement is ignored,
+                // but the special name "module" still needs to be handled.
+                let canonical_full_name = if declare_module_name == "module" {
+                    format!("{}::{}", module_name, name_path)
+                } else {
+                    import_data_node.full_name.to_owned()
+                };
+
                 // import data entry
                 let import_data_entry = ImportDataEntry::new(
-                    name_path.to_owned(),
+                    canonical_full_name,
                     import_module_index,
                     import_data_node.data_section_type,
                     import_data_node.data_type,
@@ -2120,15 +2192,15 @@ fn assemble_import_nodes(
                 match import_data_node.data_section_type {
                     DataSectionType::ReadOnly => {
                         import_read_only_data_entries.push(import_data_entry);
-                        import_read_only_data_ids.push(identifier);
+                        import_read_only_data_identifiers.push(identifier);
                     }
                     DataSectionType::ReadWrite => {
                         import_read_write_data_entries.push(import_data_entry);
-                        import_read_write_data_ids.push(identifier);
+                        import_read_write_data_identifiers.push(identifier);
                     }
                     DataSectionType::Uninit => {
                         import_uninit_data_entries.push(import_data_entry);
-                        import_uninit_data_ids.push(identifier);
+                        import_uninit_data_identifiers.push(identifier);
                     }
                 };
             }
@@ -2144,10 +2216,10 @@ fn assemble_import_nodes(
         import_function_entries,
         import_data_entries,
         //
-        import_function_ids,
-        import_read_only_data_ids,
-        import_read_write_data_ids,
-        import_uninit_data_ids,
+        import_function_identifiers,
+        import_read_only_data_identifiers,
+        import_read_write_data_identifiers,
+        import_uninit_data_identifiers,
     };
 
     Ok(result)
@@ -2155,19 +2227,22 @@ fn assemble_import_nodes(
 
 struct AssembleResultForExternalNode {
     external_function_entries: Vec<ExternalFunctionEntry>,
-    external_function_ids: Vec<String>,
+    external_function_identifiers: Vec<String>,
 }
 
 fn assemble_external_nodes(
-    external_library_ids: &[String],
+    external_library_identifiers: &[String],
     external_nodes: &[ExternalNode],
     type_entries: &mut Vec<TypeEntry>,
 ) -> Result<AssembleResultForExternalNode, AssembleError> {
     let mut external_function_entries: Vec<ExternalFunctionEntry> = vec![];
-    let mut external_function_ids: Vec<String> = vec![];
+    let mut external_function_identifiers: Vec<String> = vec![];
 
-    let get_library_index_by_name = |library_ids: &[String], name: &str| -> usize {
-        library_ids.iter().position(|id| id == name).unwrap()
+    let get_library_index_by_name = |library_identifiers: &[String], name: &str| -> usize {
+        library_identifiers
+            .iter()
+            .position(|id| id == name)
+            .unwrap()
     };
 
     for external_node in external_nodes {
@@ -2176,7 +2251,7 @@ fn assemble_external_nodes(
                 let (library_name, function_name) =
                     get_library_name_and_identifier(&external_function_node.full_name);
                 let external_library_index =
-                    get_library_index_by_name(external_library_ids, library_name);
+                    get_library_index_by_name(external_library_identifiers, library_name);
 
                 // use the alias name if it presents.
                 let identifier = if let Some(alias_name) = &external_function_node.alias_name {
@@ -2186,7 +2261,7 @@ fn assemble_external_nodes(
                 };
 
                 // add external function id
-                external_function_ids.push(identifier);
+                external_function_identifiers.push(identifier);
 
                 let results = if let Some(result) = external_function_node.result {
                     vec![result]
@@ -2220,7 +2295,7 @@ fn assemble_external_nodes(
 
     Ok(AssembleResultForExternalNode {
         external_function_entries,
-        external_function_ids,
+        external_function_identifiers,
     })
 }
 
@@ -2499,18 +2574,21 @@ mod tests {
     use anc_image::{
         bytecode_reader::format_bytecode_as_text,
         entry::{
-            DataNamePathEntry, ExternalLibraryEntry, FunctionEntry, FunctionNamePathEntry,
-            ImportModuleEntry, InitedDataEntry, LocalVariableEntry, LocalVariableListEntry,
-            TypeEntry, UninitDataEntry,
+            DataNameEntry, ExternalLibraryEntry, FunctionEntry, FunctionNameEntry, ImportDataEntry,
+            ImportFunctionEntry, ImportModuleEntry, InitedDataEntry, LocalVariableEntry,
+            LocalVariableListEntry, TypeEntry, UninitDataEntry,
         },
     };
-    use anc_isa::{DependencyLocal, ExternalLibraryDependency, OperandDataType};
+    use anc_isa::{
+        DataSectionType, DependencyLocal, ExternalLibraryDependency, MemoryDataType,
+        ModuleDependency, OperandDataType,
+    };
     use anc_parser_asm::parser::parse_from_str;
     use pretty_assertions::assert_eq;
 
-    use crate::entry::ImageCommonEntry;
+    use crate::{assembler::create_object_module_self_dependency_entry, entry::ImageCommonEntry};
 
-    use super::{assemble_module_node, create_virtual_dependency_module};
+    use super::assemble_module_node;
 
     fn assemble(source: &str) -> ImageCommonEntry {
         assemble_with_imports_and_externals(source, vec![], vec![])
@@ -2518,12 +2596,9 @@ mod tests {
 
     fn assemble_with_imports_and_externals(
         source: &str,
-        mut import_module_entries_excludes_virtual: Vec<ImportModuleEntry>,
+        import_module_entries: Vec<ImportModuleEntry>,
         external_library_entries: Vec<ExternalLibraryEntry>,
     ) -> ImageCommonEntry {
-        let mut import_module_entries = vec![create_virtual_dependency_module()];
-        import_module_entries.append(&mut import_module_entries_excludes_virtual);
-
         let module_node = match parse_from_str(source) {
             Ok(node) => node,
             Err(parser_error) => {
@@ -2582,7 +2657,109 @@ mod tests {
 
     #[test]
     fn test_assemble_import_statement() {
-        // todo
+        let mod1 = ImportModuleEntry {
+            name: "std".to_owned(),
+            value: Box::new(ModuleDependency::Runtime),
+        };
+
+        let mod2 = ImportModuleEntry {
+            name: "merged_module".to_owned(),
+            value: Box::new(ModuleDependency::Local(Box::new(DependencyLocal {
+                path: "/path/to/merged_module".to_owned(),
+                values: None,
+                condition: None,
+            }))),
+        };
+
+        let mod3 = ImportModuleEntry {
+            name: "some_module".to_owned(),
+            value: Box::new(ModuleDependency::Local(Box::new(DependencyLocal {
+                path: "/path/to/some_module".to_owned(),
+                values: None,
+                condition: None,
+            }))),
+        };
+
+        let entry = assemble_with_imports_and_externals(
+            r#"
+import fn mymodule::foo()       // module index: 0, type 0
+import fn module::bar()         // module index: 0, type 0
+import fn std::math::muladd(i32,i32,i32) -> i32     // module index: 1, type 1
+import fn network::http_client::get(i64) -> i64 from merged_module // module index: 2, type 2
+import readonly data some_module::msg:byte[]        // module index: 3
+import data restful::count:i64 from merged_module   // module index: 2
+import data module::sum:i32                 // module index: 0
+import uninit data mymodule::calc::result:i32     // module index: 0
+            "#,
+            vec![mod1.clone(), mod2.clone(), mod3.clone()],
+            vec![],
+        );
+
+        // check import modules
+        assert_eq!(
+            &entry.import_module_entries[0],
+            &create_object_module_self_dependency_entry("mymodule")
+        );
+
+        assert_eq!(&entry.import_module_entries[1], &mod1);
+        assert_eq!(&entry.import_module_entries[2], &mod2);
+        assert_eq!(&entry.import_module_entries[3], &mod3);
+
+        // check import functions
+        assert_eq!(
+            &entry.import_function_entries[0],
+            &ImportFunctionEntry::new("mymodule::foo".to_owned(), 0, 0)
+        );
+        assert_eq!(
+            &entry.import_function_entries[1],
+            &ImportFunctionEntry::new("mymodule::bar".to_owned(), 0, 0)
+        );
+        assert_eq!(
+            &entry.import_function_entries[2],
+            &ImportFunctionEntry::new("std::math::muladd".to_owned(), 1, 1)
+        );
+        assert_eq!(
+            &entry.import_function_entries[3],
+            &ImportFunctionEntry::new("network::http_client::get".to_owned(), 2, 2)
+        );
+
+        // check import data
+        assert_eq!(
+            &entry.import_data_entries[0],
+            &ImportDataEntry::new(
+                "some_module::msg".to_owned(),
+                3,
+                DataSectionType::ReadOnly,
+                MemoryDataType::Bytes
+            )
+        );
+        assert_eq!(
+            &entry.import_data_entries[1],
+            &ImportDataEntry::new(
+                "restful::count".to_owned(),
+                2,
+                DataSectionType::ReadWrite,
+                MemoryDataType::I64
+            )
+        );
+        assert_eq!(
+            &entry.import_data_entries[2],
+            &ImportDataEntry::new(
+                "mymodule::sum".to_owned(),
+                0,
+                DataSectionType::ReadWrite,
+                MemoryDataType::I32
+            )
+        );
+        assert_eq!(
+            &entry.import_data_entries[3],
+            &ImportDataEntry::new(
+                "mymodule::calc::result".to_owned(),
+                0,
+                DataSectionType::Uninit,
+                MemoryDataType::I32
+            )
+        );
     }
 
     #[test]
@@ -2649,13 +2826,13 @@ pub data obj:byte[align=8] = [
 
         // data name path
         assert_eq!(
-            &entry.data_name_path_entries,
+            &entry.data_name_entries,
             &[
-                DataNamePathEntry::new("msg".to_owned(), true),
-                DataNamePathEntry::new("foo".to_owned(), false),
-                DataNamePathEntry::new("buf".to_owned(), true),
-                DataNamePathEntry::new("obj".to_owned(), true),
-                DataNamePathEntry::new("bar".to_owned(), false),
+                DataNameEntry::new("mymodule::msg".to_owned(), true),
+                DataNameEntry::new("mymodule::foo".to_owned(), false),
+                DataNameEntry::new("mymodule::buf".to_owned(), true),
+                DataNameEntry::new("mymodule::obj".to_owned(), true),
+                DataNameEntry::new("mymodule::bar".to_owned(), false),
             ]
         );
     }
@@ -2738,11 +2915,11 @@ pub data obj:byte[align=8] = [
 
         // function name paths
         assert_eq!(
-            &entry.function_name_path_entries,
+            &entry.function_name_entries,
             &vec![
-                FunctionNamePathEntry::new("add".to_owned(), false),
-                FunctionNamePathEntry::new("fib".to_owned(), false),
-                FunctionNamePathEntry::new("inc".to_owned(), true),
+                FunctionNameEntry::new("mymodule::add".to_owned(), false),
+                FunctionNameEntry::new("mymodule::fib".to_owned(), false),
+                FunctionNameEntry::new("mymodule::inc".to_owned(), true),
             ]
         );
     }

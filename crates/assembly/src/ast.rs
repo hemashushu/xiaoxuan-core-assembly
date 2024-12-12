@@ -33,6 +33,7 @@ pub struct ImportFunctionNode {
     pub params: Vec<OperandDataType>,
     pub results: Vec<OperandDataType>,
     pub alias_name: Option<String>,
+    pub from: Option<String>
 }
 
 #[derive(Debug, PartialEq)]
@@ -41,6 +42,7 @@ pub struct ImportDataNode {
     pub full_name: String,
     pub data_type: MemoryDataType,
     pub alias_name: Option<String>,
+    pub from: Option<String>
 }
 
 #[derive(Debug, PartialEq)]

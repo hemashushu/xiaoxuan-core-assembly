@@ -88,21 +88,21 @@ impl<'a> Parser<'a> {
         matches!(self.peek_token(offset), Some(Token::Keyword(keyword)) if keyword == expected_keyword )
     }
 
-    /// Returns:
-    /// - `None` if the specified token is not found,
-    /// - `Some(false)` if no new-line is found,
-    /// - `Some(true)` otherwise.
-    fn expect_keyword_ignore_newline(&self, offset: usize, expected_keyword: &str) -> Option<bool> {
-        if self.expect_keyword(offset, expected_keyword) {
-            Some(false)
-        } else if self.expect_token(offset, &Token::NewLine)
-            && self.expect_keyword(offset + 1, expected_keyword)
-        {
-            Some(true)
-        } else {
-            None
-        }
-    }
+    // /// Returns:
+    // /// - `None` if the specified token is not found,
+    // /// - `Some(false)` if no new-line is found,
+    // /// - `Some(true)` otherwise.
+    // fn expect_keyword_ignore_newline(&self, offset: usize, expected_keyword: &str) -> Option<bool> {
+    //     if self.expect_keyword(offset, expected_keyword) {
+    //         Some(false)
+    //     } else if self.expect_token(offset, &Token::NewLine)
+    //         && self.expect_keyword(offset + 1, expected_keyword)
+    //     {
+    //         Some(true)
+    //     } else {
+    //         None
+    //     }
+    // }
 
     // consume '\n' if it exists.
     fn consume_new_line_if_exist(&mut self) -> bool {
@@ -454,9 +454,9 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_import_function_node(&mut self) -> Result<ImportFunctionNode, ParserError> {
-        // fn name_path ()->() [as ...] ?  //
-        // ^                            ^__// to here
-        // |-------------------------------// current token, validated
+        // fn full_name ()->() [as ...] [from ...]?  //
+        // ^                                      ^__// to here
+        // |-----------------------------------------// current token, validated
 
         self.next_token(); // consume 'fn'
         self.consume_new_line_if_exist();
@@ -480,27 +480,35 @@ impl<'a> Parser<'a> {
         self.consume_new_line_if_exist();
 
         // parse the 'as' part
-        let alias_name = match self.expect_keyword_ignore_newline(0, "as") {
-            Some(exists_newline) => {
-                if exists_newline {
-                    self.next_token(); // consume '\n'
-                }
-                self.next_token(); // consume 'as'
-                self.consume_new_line_if_exist();
+        let alias_name = if self.expect_keyword(0, "as") {
+            self.next_token(); // consume 'as'
+            self.consume_new_line_if_exist();
 
-                let name = self.consume_name()?;
-                Some(name)
-            }
-            None => None,
+            let name = self.consume_name()?;
+            Some(name)
+        } else {
+            None
         };
+        self.consume_new_line_if_exist();
 
-        self.consume_new_line_if_exist(); // consume '\n'
+        // parse the 'from' part
+        let from = if self.expect_keyword(0, "from") {
+            self.next_token(); // consume 'from'
+            self.consume_new_line_if_exist();
+
+            let name = self.consume_name()?;
+            Some(name)
+        } else {
+            None
+        };
+        self.consume_new_line_if_exist();
 
         let node = ImportFunctionNode {
             full_name,
             params,
             results,
             alias_name,
+            from,
         };
 
         Ok(node)
@@ -540,9 +548,9 @@ impl<'a> Parser<'a> {
         &mut self,
         data_section_type: DataSectionType,
     ) -> Result<ImportDataNode, ParserError> {
-        // data name_path:data_type [as ...] ?  //
-        // ^                                 ^__// to here
-        // |------------------------------------// current token, NOT validated
+        // data full_name:data_type [as ...] [from ...] ?  //
+        // ^                                            ^__// to here
+        // |-----------------------------------------------// current token, NOT validated
 
         self.consume_keyword("data")?; // consume 'data'
         self.consume_new_line_if_exist();
@@ -554,28 +562,38 @@ impl<'a> Parser<'a> {
         self.consume_new_line_if_exist();
 
         let data_type = self.continue_parse_external_data_type()?;
+        self.consume_new_line_if_exist();
 
-        let alias_name = match self.expect_keyword_ignore_newline(0, "as") {
-            Some(exists_newline) => {
-                if exists_newline {
-                    self.next_token(); // consume '\n'
-                }
-                self.next_token(); // consume 'as'
-                self.consume_new_line_if_exist();
+        // parse the 'as' part
+        let alias_name = if self.expect_keyword(0, "as") {
+            self.next_token(); // consume 'as'
+            self.consume_new_line_if_exist();
 
-                let name = self.consume_name()?;
-                Some(name)
-            }
-            None => None,
+            let name = self.consume_name()?;
+            Some(name)
+        } else {
+            None
         };
+        self.consume_new_line_if_exist();
 
-        self.consume_new_line_if_exist(); // consume '\n'
+        // parse the 'from' part
+        let from = if self.expect_keyword(0, "from") {
+            self.next_token(); // consume 'from'
+            self.consume_new_line_if_exist();
+
+            let name = self.consume_name()?;
+            Some(name)
+        } else {
+            None
+        };
+        self.consume_new_line_if_exist();
 
         let node = ImportDataNode {
             data_section_type,
             full_name,
             data_type,
             alias_name,
+            from
         };
 
         Ok(node)
@@ -616,7 +634,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_external_function_node(&mut self) -> Result<ExternalFunctionNode, ParserError> {
-        // fn name_path ()->() [as ...] ?  //
+        // fn full_name ()->() [as ...] ?  //
         // ^                            ^__// to here
         // |-------------------------------// current token, validated
 
@@ -665,23 +683,19 @@ impl<'a> Parser<'a> {
         } else {
             None
         };
+        self.consume_new_line_if_exist();
 
         // parse the 'as' part
-        let alias_name = match self.expect_keyword_ignore_newline(0, "as") {
-            Some(exists_newline) => {
-                if exists_newline {
-                    self.next_token(); // consume '\n'
-                }
-                self.next_token(); // consume 'as'
-                self.consume_new_line_if_exist();
+        let alias_name = if self.expect_keyword(0, "as") {
+            self.next_token(); // consume 'as'
+            self.consume_new_line_if_exist();
 
-                let name = self.consume_name()?;
-                Some(name)
-            }
-            None => None,
+            let name = self.consume_name()?;
+            Some(name)
+        } else {
+            None
         };
-
-        self.consume_new_line_if_exist(); // consume '\n'
+        self.consume_new_line_if_exist();
 
         let node = ExternalFunctionNode {
             full_name,
@@ -745,7 +759,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_external_data_node(&mut self) -> Result<ExternalDataNode, ParserError> {
-        // data name_path:data_type [as ...] ?  //
+        // data full_name:data_type [as ...] ?  //
         // ^                                 ^__// to here
         // |------------------------------------// current token, validated
         self.next_token(); // consume 'data'
@@ -758,22 +772,19 @@ impl<'a> Parser<'a> {
         self.consume_new_line_if_exist();
 
         let data_type = self.continue_parse_external_data_type()?;
+        self.consume_new_line_if_exist();
 
-        let alias_name = match self.expect_keyword_ignore_newline(0, "as") {
-            Some(exists_newline) => {
-                if exists_newline {
-                    self.next_token(); // consume '\n'
-                }
-                self.next_token(); // consume 'as'
-                self.consume_new_line_if_exist();
+        // parse the 'as' part
+        let alias_name = if self.expect_keyword(0, "as") {
+            self.next_token(); // consume 'as'
+            self.consume_new_line_if_exist();
 
-                let name = self.consume_name()?;
-                Some(name)
-            }
-            None => None,
+            let name = self.consume_name()?;
+            Some(name)
+        } else {
+            None
         };
-
-        self.consume_new_line_if_exist(); // consume '\n'
+        self.consume_new_line_if_exist();
 
         let node = ExternalDataNode {
             full_name,
@@ -1889,10 +1900,16 @@ mod tests {
             "import fn foo::add(i32, i32) -> i32 as add_i32\n\n"
         );
 
-        // test 'as' without results
+        // test no results but has 'as'
         assert_eq!(
             format("import fn foo::bar() as baz"),
             "import fn foo::bar() -> () as baz\n\n"
+        );
+
+        // test from
+        assert_eq!(
+            format("import fn foo::bar() from mymod"),
+            "import fn foo::bar() -> () from mymod\n\n"
         );
 
         // test multiple items
@@ -1921,9 +1938,11 @@ i32
 ->
 i32
 as
-add_i32"
+add_i32
+from
+mymod"
             ),
-            "import fn foo::add(i32, i32) -> i32 as add_i32\n\n"
+            "import fn foo::add(i32, i32) -> i32 as add_i32 from mymod\n\n"
         );
     }
 
@@ -1948,6 +1967,12 @@ add_i32"
         assert_eq!(
             format("import data foo::bar:byte[] as baz"),
             "import data foo::bar:byte[] as baz\n\n"
+        );
+
+        // test from
+        assert_eq!(
+            format("import data foo::count:i32 from mymod"),
+            "import data foo::count:i32 from mymod\n\n"
         );
 
         // test multiple items
@@ -1975,9 +2000,11 @@ byte
 [
 ]
 as
-baz"
+baz
+from
+mymod"
             ),
-            "import readonly data foo::bar:byte[] as baz\n\n"
+            "import readonly data foo::bar:byte[] as baz from mymod\n\n"
         );
     }
 

@@ -348,7 +348,7 @@ fn test_assemble_extcall_with_system_libc_getuid() {
         fn test ()-> i32
             extcall(getuid)
         "#,
-        vec![libc],
+        &[libc],
     );
 
     let handler = Handler::new();
@@ -386,7 +386,7 @@ fn test_assemble_extcall_with_system_libc_getenv() {
                 getenv
                 host_addr_data(pwd))
         "#,
-        vec![libc],
+        &[libc],
     );
 
     let handler = Handler::new();
@@ -432,7 +432,7 @@ fn test_assemble_extcall_with_user_lib() {
             local_load_i32_s(b)
         )
         "#,
-        vec![libtest0],
+        &[libtest0],
     );
 
     let mut pwd = std::env::current_dir().unwrap();

@@ -79,9 +79,9 @@ In a module composed of multiple source files, each source file is a "submodule"
 
 If there is a subfolder inside the "src" folder, and there are source files in that subfolder, then the name of that subfolder will also be part of the submodule name.
 
-The correspondence between file names and module names is shown in the following table:
+The correspondence between file names and submodule names is shown in the following table:
 
-| File                   | Submodule name | Full submodule name     |
+| File                   | Submodule name | Submodule full name     |
 |------------------------|----------------|-------------------------|
 | ./src/one.ancasm       | one            | hello_world::one        |
 | ./src/two.ancasm       | two            | hello_world::two        |
@@ -120,13 +120,18 @@ Source files in the "test" folder are generated only during unit testing and are
 
 ### Importing Functions and Data within the Same Module
 
-If you want to import functions and data located in other submodules within the same module, you must use the special name "module" instead of the actual name of the current module, e.g.:
+If you want to import functions and data located in other submodules within the same module, you can use the special name "module" instead of the actual name of the current module, e.g.:
 
 - `import fn module::hello_world::do_this()`
 - `import fn module::hello_world::one::do_that()`
 - `import readonly data module::hello_world::two::message:byte[]`
 
-> Note: Do not use the actual name of the current module in this case, otherwise the assembler will assume that you are importing an external module.
+### Specify Module
+
+The name of module is implicit in the full name of the imported function and data, so the import statement does not need to specify the module. However, sometimes the module name does not match the full name, such as in a merged module (the XiaoXuan Core linker allows multiple modules to be merged into a single module), in which case you can use the `from` keyword to specify the module name, e.g.
+
+- `import fn foo::bar(i32) -> i32 from mymod`
+- `import fn network::http_client::get(i64) -> i64 as http_get from commons_module`
 
 ## The `external` Statements
 

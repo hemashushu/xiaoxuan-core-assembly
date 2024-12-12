@@ -5,7 +5,10 @@
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
 use anc_image::{
-    entry::{ExternalFunctionIndexEntry, ExternalFunctionIndexListEntry, ExternalLibraryEntry},
+    entry::{
+        ExternalFunctionIndexEntry, ExternalFunctionIndexListEntry, ExternalLibraryEntry,
+        ImportModuleEntry,
+    },
     index_sections::{
         self,
         data_index_section::{DataIndexItem, DataIndexSection},
@@ -21,14 +24,12 @@ use anc_image::{
 use anc_isa::{DataSectionType, RUNTIME_MAJOR_VERSION, RUNTIME_MINOR_VERSION};
 use anc_parser_asm::parser::parse_from_str;
 
-use crate::{
-    assembler::{assemble_module_node, create_virtual_dependency_module},
-    imggen::generate_object_file,
-};
+use crate::{assembler::assemble_module_node, imggen::generate_object_file};
 
 pub fn helper_assemble_single_module(
     source: &str,
-    external_library_entries: Vec<ExternalLibraryEntry>,
+    import_module_entries: &[ImportModuleEntry],
+    external_library_entries: &[ExternalLibraryEntry],
 ) -> Vec<u8> {
     let module_node = match parse_from_str(source) {
         Ok(node) => node,
@@ -37,13 +38,11 @@ pub fn helper_assemble_single_module(
         }
     };
 
-    let import_module_entries = vec![create_virtual_dependency_module()];
-
     let image_common_entry = assemble_module_node(
         &module_node,
         "mymodule",
-        &import_module_entries,
-        &external_library_entries,
+        import_module_entries,
+        external_library_entries,
     )
     .unwrap();
 
@@ -53,14 +52,14 @@ pub fn helper_assemble_single_module(
 }
 
 pub fn helper_make_single_module_app(source: &str) -> Vec<u8> {
-    helper_make_single_module_app_with_external_library(source, vec![])
+    helper_make_single_module_app_with_external_library(source, &[])
 }
 
 pub fn helper_make_single_module_app_with_external_library(
     source: &str,
-    external_library_entries: Vec<ExternalLibraryEntry>,
+    external_library_entries: &[ExternalLibraryEntry],
 ) -> Vec<u8> {
-    let common_binary = helper_assemble_single_module(source, external_library_entries);
+    let common_binary = helper_assemble_single_module(source, &[], external_library_entries);
     let common_module_image = ModuleImage::load(&common_binary).unwrap();
 
     // build the following index sections:
@@ -157,10 +156,10 @@ pub fn helper_make_single_module_app_with_external_library(
         .get_optional_uninit_data_section()
         .unwrap_or_default();
     let function_name_section = common_module_image
-        .get_optional_function_name_path_section()
+        .get_optional_function_name_section()
         .unwrap_or_default();
     let data_name_section = common_module_image
-        .get_optional_data_name_path_section()
+        .get_optional_data_name_section()
         .unwrap_or_default();
 
     // build unified external type/library/function sections

@@ -382,7 +382,7 @@ impl<'a> Lexer<'a> {
             Token::FullName(name_string)
         } else {
             match name_string.as_str() {
-                "import" | "as" | "external" | "fn" | "data" | "pub" | "readonly" | "uninit"
+                "import" | "as" | "from" | "external" | "fn" | "data" | "pub" | "readonly" | "uninit"
                 | "align" | "block" | "when" | "if" | /* "branch" | "case" | "default" | */ "break"
                 | /*  "break_if" | */ "break_fn" | "recur" | /* "recur_if" | */ "recur_fn" => {
                     Token::Keyword(name_string)
@@ -2109,7 +2109,7 @@ mod tests {
     fn test_lex_keywords() {
         assert_eq!(
             lex_from_str_without_location(
-                "import as \
+                "import as from \
 external fn data \
 pub readonly uninit align \
 block when if \
@@ -2120,6 +2120,8 @@ recur recur_fn"
             vec![
                 Token::new_keyword("import"),
                 Token::new_keyword("as"),
+                Token::new_keyword("from"),
+                //
                 Token::new_keyword("external"),
                 Token::new_keyword("fn"),
                 Token::new_keyword("data"),

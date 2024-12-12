@@ -118,6 +118,11 @@ fn print_import_function_node(
     if let Some(alias) = &node.alias_name {
         write!(writer, " as {}", alias)?;
     }
+
+    if let Some(from) = &node.from {
+        write!(writer, " from {}", from)?;
+    }
+
     Ok(())
 }
 
@@ -144,6 +149,10 @@ fn print_import_data_node(writer: &mut dyn Write, node: &ImportDataNode) -> Resu
 
     if let Some(alias) = &node.alias_name {
         write!(writer, " as {}", alias)?;
+    }
+
+    if let Some(from) = &node.from {
+        write!(writer, " from {}", from)?;
     }
 
     Ok(())
@@ -828,6 +837,7 @@ mod tests {
             params: vec![],
             results: vec![],
             alias_name: None,
+            from: None
         };
 
         assert_eq!(print(&f0), "import fn foo::bar() -> ()");
@@ -837,11 +847,12 @@ mod tests {
             params: vec![OperandDataType::I32, OperandDataType::I32],
             results: vec![OperandDataType::I64, OperandDataType::I64],
             alias_name: Some("baz".to_owned()),
+            from: Some("mymod".to_owned())
         };
 
         assert_eq!(
             print(&f1),
-            "import fn foo::bar(i32, i32) -> (i64, i64) as baz"
+            "import fn foo::bar(i32, i32) -> (i64, i64) as baz from mymod"
         );
     }
 
@@ -858,6 +869,7 @@ mod tests {
             full_name: "foo::count".to_owned(),
             data_type: MemoryDataType::I32,
             alias_name: None,
+            from: None
         };
 
         assert_eq!(print(&d0), "import data foo::count:i32");
@@ -867,11 +879,12 @@ mod tests {
             full_name: "foo::got".to_owned(),
             data_type: MemoryDataType::Bytes,
             alias_name: Some("global_offset_table".to_owned()),
+            from: Some("mymod".to_owned())
         };
 
         assert_eq!(
             print(&d1),
-            "import uninit data foo::got:byte[] as global_offset_table"
+            "import uninit data foo::got:byte[] as global_offset_table from mymod"
         );
     }
 
@@ -2171,12 +2184,14 @@ fn foo() -> ()
                     params: vec![OperandDataType::I32, OperandDataType::I64],
                     results: vec![OperandDataType::I64],
                     alias_name: None,
+                    from: None,
                 }),
                 ImportNode::Data(ImportDataNode {
                     data_section_type: DataSectionType::ReadOnly,
                     full_name: "std::def".to_owned(),
                     data_type: MemoryDataType::I32,
                     alias_name: Some("xyz".to_owned()),
+                    from: Some("mymod".to_owned())
                 }),
             ],
             externals: vec![
@@ -2259,7 +2274,7 @@ fn foo() -> ()
             print_to_string(&node),
             "\
 import fn std::abc(i32, i64) -> i64
-import readonly data std::def:i32 as xyz
+import readonly data std::def:i32 as xyz from mymod
 
 external fn liba::abc(i32, i64) -> i64
 external data libb::def:i32 as xyz
