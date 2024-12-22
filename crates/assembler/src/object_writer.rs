@@ -17,18 +17,19 @@ use anc_image::{
         function_section::FunctionSection,
         import_data_section::ImportDataSection,
         import_function_section::ImportFunctionSection,
+        import_module_section::ImportModuleSection,
         local_variable_section::LocalVariableSection,
         type_section::TypeSection,
     },
     module_image::{ImageType, ModuleImage, SectionEntry},
 };
 
-use crate::{entry::ImageCommonEntry, AssembleError};
+use crate::{entry::ImageCommonEntry, AssemblerError};
 
-pub fn generate_object_file(
+pub fn write_object_file(
     image_common_entry: &ImageCommonEntry,
     writer: &mut dyn Write,
-) -> Result<(), AssembleError> {
+) -> Result<(), AssemblerError> {
     // property section
     let common_property_section = CommonPropertySection::new(
         &image_common_entry.name,
@@ -45,10 +46,10 @@ pub fn generate_object_file(
     };
 
     // local variable section
-    let (local_list_items, local_list_data) =
+    let (local_lists, local_list_data) =
         LocalVariableSection::convert_from_entries(&image_common_entry.local_variable_list_entries);
     let local_variable_section = LocalVariableSection {
-        list_items: &local_list_items,
+        lists: &local_lists,
         list_data: &local_list_data,
     };
 
@@ -101,6 +102,14 @@ pub fn generate_object_file(
         names_data: &external_function_names_data,
     };
 
+    // import module section
+    let (import_module_items, import_module_data) =
+        ImportModuleSection::convert_from_entries(&image_common_entry.import_module_entries);
+    let import_module_section = ImportModuleSection {
+        items: &import_module_items,
+        items_data: &import_module_data,
+    };
+
     // import function section
     let (import_function_items, import_function_data) =
         ImportFunctionSection::convert_from_entries(&image_common_entry.import_function_entries);
@@ -142,6 +151,7 @@ pub fn generate_object_file(
         &uninit_data_section,
         &external_library_section,
         &external_function_section,
+        &import_module_section,
         &import_function_section,
         &import_data_section,
         &function_name_section,
@@ -150,7 +160,8 @@ pub fn generate_object_file(
     ];
 
     // build object file binary
-    let (section_items, sections_data) = ModuleImage::convert_from_entries(&section_entries);
+    let (section_items, sections_data) =
+        ModuleImage::convert_from_section_entries(&section_entries);
     let module_image = ModuleImage {
         image_type: ImageType::ObjectFile,
         items: &section_items,
@@ -158,8 +169,12 @@ pub fn generate_object_file(
     };
 
     // save
-    module_image.save(writer).unwrap();
-    Ok(())
+    module_image.write(writer).map_err(|io_error| {
+        AssemblerError::new(&format!(
+            "Failed to write object file: {}",
+            io_error.to_string()
+        ))
+    })
 }
 
 #[cfg(test)]
@@ -180,7 +195,7 @@ mod tests {
     }
 
     #[test]
-    fn test_image_generate_base() {
+    fn test_write_object_file() {
         // todo: add 'data' statements
 
         let image_binary = generate_binary(
@@ -201,22 +216,20 @@ fn add(left:i32, right:i32) -> i32 {
         "#,
         );
 
-        let common_module_image = ModuleImage::load(&image_binary).unwrap();
+        let common_module_image = ModuleImage::read(&image_binary).unwrap();
 
         // check types
 
         let type_section = common_module_image.get_type_section();
+        let type_entries = type_section.convert_to_entries();
+        assert_eq!(&type_entries[0], &TypeEntry::new(vec![], vec![]));
         assert_eq!(
-            type_section.get_type_entry(0),
-            TypeEntry::new(vec![], vec![])
+            &type_entries[1],
+            &TypeEntry::new(vec![], vec![OperandDataType::I32])
         );
         assert_eq!(
-            type_section.get_type_entry(1),
-            TypeEntry::new(vec![], vec![OperandDataType::I32])
-        );
-        assert_eq!(
-            type_section.get_type_entry(2),
-            TypeEntry::new(
+            &type_entries[2],
+            &TypeEntry::new(
                 vec![OperandDataType::I32, OperandDataType::I32],
                 vec![OperandDataType::I32]
             )
@@ -225,13 +238,15 @@ fn add(left:i32, right:i32) -> i32 {
         // check local variable list
 
         let local_variable_section = common_module_image.get_local_variable_section();
+        let local_variable_list_entries = local_variable_section.convert_to_entries();
+
         assert_eq!(
-            local_variable_section.get_local_variable_list_entry(0),
-            LocalVariableListEntry::new(vec![])
+            &local_variable_list_entries[0],
+            &LocalVariableListEntry::new(vec![])
         );
         assert_eq!(
-            local_variable_section.get_local_variable_list_entry(1),
-            LocalVariableListEntry::new(vec![
+            &local_variable_list_entries[1],
+            &LocalVariableListEntry::new(vec![
                 LocalVariableEntry::from_i32(),
                 LocalVariableEntry::from_i32()
             ])
@@ -242,8 +257,9 @@ fn add(left:i32, right:i32) -> i32 {
         // check functions
 
         let function_section = common_module_image.get_function_section();
+        let function_entries = function_section.convert_to_entries();
 
-        let function0 = function_section.get_function_entry(0);
+        let function0 = &function_entries[0];
         assert_eq!(function0.type_index, 1);
         assert_eq!(function0.local_variable_list_index, 0);
         assert_eq!(
@@ -255,7 +271,7 @@ fn add(left:i32, right:i32) -> i32 {
 0x0018  c0 03                       end"
         );
 
-        let function1 = function_section.get_function_entry(1);
+        let function1 = &function_entries[1];
         assert_eq!(function1.type_index, 2);
         assert_eq!(function1.local_variable_list_index, 1);
         assert_eq!(

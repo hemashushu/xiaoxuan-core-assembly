@@ -8,7 +8,7 @@ use std::fmt::Display;
 
 pub mod assembler;
 pub mod entry;
-pub mod imggen;
+pub mod object_writer;
 
 // https://doc.rust-lang.org/reference/conditional-compilation.html#debug_assertions
 // https://doc.rust-lang.org/reference/conditional-compilation.html#test
@@ -16,11 +16,11 @@ pub mod imggen;
 pub mod utils;
 
 #[derive(Debug)]
-pub struct AssembleError {
+pub struct AssemblerError {
     pub message: String,
 }
 
-impl AssembleError {
+impl AssemblerError {
     pub fn new(message: &str) -> Self {
         Self {
             message: message.to_owned(),
@@ -28,10 +28,10 @@ impl AssembleError {
     }
 }
 
-impl Display for AssembleError {
+impl Display for AssemblerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Assemble error: {}", self.message)
+        write!(f, "Assembler error: {}", self.message)
     }
 }
 
-impl std::error::Error for AssembleError {}
+impl std::error::Error for AssemblerError {}

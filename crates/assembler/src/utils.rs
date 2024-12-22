@@ -24,7 +24,7 @@ use anc_image::{
 use anc_isa::{DataSectionType, RUNTIME_MAJOR_VERSION, RUNTIME_MINOR_VERSION};
 use anc_parser_asm::parser::parse_from_str;
 
-use crate::{assembler::assemble_module_node, imggen::generate_object_file};
+use crate::{assembler::assemble_module_node, object_writer::write_object_file};
 
 pub fn helper_assemble_single_module(
     source: &str,
@@ -47,7 +47,7 @@ pub fn helper_assemble_single_module(
     .unwrap();
 
     let mut buf: Vec<u8> = vec![];
-    generate_object_file(&image_common_entry, &mut buf).unwrap();
+    write_object_file(&image_common_entry, &mut buf).unwrap();
     buf
 }
 
@@ -60,7 +60,7 @@ pub fn helper_make_single_module_app_with_external_library(
     external_library_entries: &[ExternalLibraryEntry],
 ) -> Vec<u8> {
     let common_binary = helper_assemble_single_module(source, &[], external_library_entries);
-    let common_module_image = ModuleImage::load(&common_binary).unwrap();
+    let common_module_image = ModuleImage::read(&common_binary).unwrap();
 
     // build the following index sections:
     //
@@ -273,7 +273,7 @@ pub fn helper_make_single_module_app_with_external_library(
     ];
 
     // build application module binary
-    let (section_items, sections_data) = ModuleImage::convert_from_entries(&section_entries);
+    let (section_items, sections_data) = ModuleImage::convert_from_section_entries(&section_entries);
     let module_image = ModuleImage {
         image_type: ImageType::Application,
         items: &section_items,
@@ -281,6 +281,6 @@ pub fn helper_make_single_module_app_with_external_library(
     };
 
     let mut buf: Vec<u8> = vec![];
-    module_image.save(&mut buf).unwrap();
+    module_image.write(&mut buf).unwrap();
     buf
 }

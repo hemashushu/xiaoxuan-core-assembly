@@ -20,7 +20,7 @@ use anc_image::{
 };
 use anc_isa::{opcode::Opcode, DataSectionType, MemoryDataType, ModuleDependency, OperandDataType};
 
-use crate::{entry::ImageCommonEntry, AssembleError};
+use crate::{entry::ImageCommonEntry, AssemblerError};
 
 // the value of the stub for the instruction parameter 'next_inst_offset'
 const INSTRUCTION_STUB_VALUE: u32 = 0;
@@ -71,11 +71,10 @@ fn get_library_name_and_identifier(full_name: &str) -> (&str, &str) {
 //     )
 // }
 
-pub fn create_object_module_self_dependency_entry(module_name: &str) -> ImportModuleEntry {
-    assert!(module_name != "module");
+pub fn create_self_dependent_import_module_entry() -> ImportModuleEntry {
     ImportModuleEntry {
-        name: module_name.to_owned(),
-        value: Box::new(ModuleDependency::Object(module_name.to_owned())),
+        name: "module".to_owned(),
+        value: Box::new(ModuleDependency::Current)
     }
 }
 
@@ -103,7 +102,7 @@ pub fn assemble_module_node(
     submodule_full_name: &str,
     config_import_module_entries: &[ImportModuleEntry],
     config_external_library_entries: &[ExternalLibraryEntry],
-) -> Result<ImageCommonEntry, AssembleError> {
+) -> Result<ImageCommonEntry, AssemblerError> {
     let (module_name, _) = get_module_name_and_name_path(submodule_full_name);
 
     let mut type_entries: Vec<TypeEntry> = vec![];
@@ -126,7 +125,6 @@ pub fn assemble_module_node(
         external_library_entries,
         external_library_identifiers,
     } = assemble_dependencies(
-        module_name,
         config_import_module_entries,
         config_external_library_entries,
     )?;
@@ -157,6 +155,13 @@ pub fn assemble_module_node(
     let (function_name_entries, function_identifiers) =
         assemble_function_name_entries(&module_node.functions, submodule_full_name);
 
+    // the data public index is mixed the following items:
+    // - imported read-only data items
+    // - imported read-write data items
+    // - imported uninitilized data items
+    // - internal read-only data items
+    // - internal read-write data items
+    // - internal uninitilized data items
     let AssembleResultForDataNameEntry {
         data_name_entries,
         read_only_data_identifiers,
@@ -252,7 +257,7 @@ fn assemble_data_name_entries(
     data_nodes: &[DataNode],
     submodule_full_name: &str,
 ) -> AssembleResultForDataNameEntry {
-    // the data name paths in `DataNamePathSection` follow these order:
+    // the data name in `DataNamePathSection` follow these order:
     // 1. internal read-only data
     // 2. internal read-write data
     // 3. internal uninit data
@@ -428,34 +433,34 @@ impl IdentifierPublicIndexLookupTable {
         }
     }
 
-    pub fn get_function_public_index(&self, identifier: &str) -> Result<usize, AssembleError> {
+    pub fn get_function_public_index(&self, identifier: &str) -> Result<usize, AssemblerError> {
         match self.functions.iter().find(|entry| entry.id == identifier) {
             Some(p) => Ok(p.public_index),
-            None => Err(AssembleError::new(&format!(
+            None => Err(AssemblerError::new(&format!(
                 "Can not find the function: {}",
                 identifier
             ))),
         }
     }
 
-    pub fn get_data_public_index(&self, identifier: &str) -> Result<usize, AssembleError> {
+    pub fn get_data_public_index(&self, identifier: &str) -> Result<usize, AssemblerError> {
         match self.datas.iter().find(|entry| entry.id == identifier) {
             Some(p) => Ok(p.public_index),
-            None => Err(AssembleError::new(&format!(
+            None => Err(AssemblerError::new(&format!(
                 "Can not find the data: {}",
                 identifier
             ))),
         }
     }
 
-    pub fn get_external_function_index(&self, identifier: &str) -> Result<usize, AssembleError> {
+    pub fn get_external_function_index(&self, identifier: &str) -> Result<usize, AssemblerError> {
         match self
             .external_functions
             .iter()
             .find(|entry| entry.id == identifier)
         {
             Some(p) => Ok(p.public_index),
-            None => Err(AssembleError::new(&format!(
+            None => Err(AssemblerError::new(&format!(
                 "Can not find the external function: {}",
                 identifier
             ))),
@@ -468,7 +473,7 @@ fn assemble_function_nodes(
     type_entries: &mut Vec<TypeEntry>,
     local_variable_list_entries: &mut Vec<LocalVariableListEntry>,
     identifier_public_index_lookup_table: &IdentifierPublicIndexLookupTable,
-) -> Result<Vec<FunctionEntry>, AssembleError> {
+) -> Result<Vec<FunctionEntry>, AssemblerError> {
     let mut function_entries = vec![];
 
     for function_node in function_nodes {
@@ -621,7 +626,7 @@ fn assemble_function_code(
     identifier_public_index_lookup_table: &IdentifierPublicIndexLookupTable,
     type_entries: &mut Vec<TypeEntry>,
     local_variable_list_entries: &mut Vec<LocalVariableListEntry>,
-) -> Result<Vec<u8>, AssembleError> {
+) -> Result<Vec<u8>, AssemblerError> {
     let mut bytecode_writer = BytecodeWriter::new();
     let mut control_flow_stack = ControlFlowStack::new();
 
@@ -649,7 +654,7 @@ fn assemble_function_code(
 
     // check control flow stack
     if !control_flow_stack.control_flow_items.is_empty() {
-        return Err(AssembleError::new(&format!(
+        return Err(AssemblerError::new(&format!(
             "Not all control flows closed in the function \"{}\"",
             function_name
         )));
@@ -666,7 +671,7 @@ fn emit_expression(
     local_variable_list_entries: &mut Vec<LocalVariableListEntry>,
     control_flow_stack: &mut ControlFlowStack,
     bytecode_writer: &mut BytecodeWriter,
-) -> Result<(), AssembleError> {
+) -> Result<(), AssemblerError> {
     match expression_node {
         ExpressionNode::Group(items) => {
             for item in items {
@@ -1061,7 +1066,7 @@ fn emit_instruction(
     local_variable_list_entries: &mut Vec<LocalVariableListEntry>,
     control_flow_stack: &mut ControlFlowStack,
     bytecode_writer: &mut BytecodeWriter,
-) -> Result<(), AssembleError> {
+) -> Result<(), AssemblerError> {
     let inst_name = &instruction_node.name;
     let args = &instruction_node.positional_args;
     let named_args = &instruction_node.named_args;
@@ -1662,7 +1667,7 @@ fn emit_instruction(
             bytecode_writer.write_opcode_i32(Opcode::panic, num);
         }
         _ => {
-            return Err(AssembleError {
+            return Err(AssemblerError {
                 message: format!("Encounters unknown instruction \"{}\" in the function \"{}\".", inst_name, function_name),
             })
         }
@@ -1933,7 +1938,7 @@ impl ControlFlowStack {
     pub fn get_local_variable_reversed_index_and_variable_index_by_name(
         &self,
         local_variable_name: &str,
-    ) -> Result<(usize, usize), AssembleError> {
+    ) -> Result<(usize, usize), AssemblerError> {
         // used to check duplication
         let mut result: Option<(usize, usize)> = None;
 
@@ -1948,7 +1953,7 @@ impl ControlFlowStack {
                 if result.is_none() {
                     result.replace((reversed_index, variable_index));
                 } else {
-                    return Err(AssembleError::new(&format!(
+                    return Err(AssemblerError::new(&format!(
                         "Local variable name duplicated: {}",
                         local_variable_name
                     )));
@@ -1959,7 +1964,7 @@ impl ControlFlowStack {
         if let Some(val) = result {
             Ok(val)
         } else {
-            Err(AssembleError::new(&format!(
+            Err(AssemblerError::new(&format!(
                 "Can not find the local variable: {}",
                 local_variable_name
             )))
@@ -1975,7 +1980,7 @@ struct AssembleResultForDataNodes {
 
 fn assemble_data_nodes(
     data_nodes: &[DataNode],
-) -> Result<AssembleResultForDataNodes, AssembleError> {
+) -> Result<AssembleResultForDataNodes, AssemblerError> {
     let mut read_only_data_entries: Vec<InitedDataEntry> = vec![];
     let mut read_write_data_entries: Vec<InitedDataEntry> = vec![];
     let mut uninit_data_entries: Vec<UninitDataEntry> = vec![];
@@ -2013,10 +2018,9 @@ struct AssembleResultForDependencies {
 }
 
 fn assemble_dependencies(
-    module_name: &str,
     config_import_module_entries: &[ImportModuleEntry],
     config_external_library_entries: &[ExternalLibraryEntry],
-) -> Result<AssembleResultForDependencies, AssembleError> {
+) -> Result<AssembleResultForDependencies, AssemblerError> {
     let mut import_module_identifiers: Vec<String> = config_import_module_entries
         .iter()
         .map(|item| item.name.to_owned())
@@ -2034,8 +2038,8 @@ fn assemble_dependencies(
     // this module is used for importing other functions and data
     // in the same module.
 
-    import_module_identifiers.insert(0, module_name.to_owned());
-    import_module_entries.insert(0, create_object_module_self_dependency_entry(module_name));
+    import_module_identifiers.insert(0, "module".to_owned());
+    import_module_entries.insert(0, create_self_dependent_import_module_entry());
 
     Ok(AssembleResultForDependencies {
         import_module_entries,
@@ -2059,7 +2063,7 @@ fn assemble_import_nodes(
     import_module_identifiers: &[String],
     import_nodes: &[ImportNode],
     type_entries: &mut Vec<TypeEntry>,
-) -> Result<AssembleResultForImportNodes, AssembleError> {
+) -> Result<AssembleResultForImportNodes, AssemblerError> {
     let mut import_function_entries: Vec<ImportFunctionEntry> = vec![];
     let mut import_function_identifiers: Vec<String> = vec![];
 
@@ -2074,13 +2078,13 @@ fn assemble_import_nodes(
 
     let get_module_index_by_name = |module_identifiers: &[String],
                                     expected_canonical_module_name: &str|
-     -> Result<usize, AssembleError> {
+     -> Result<usize, AssemblerError> {
         match module_identifiers
             .iter()
             .position(|id| id == expected_canonical_module_name)
         {
             Some(idx) => Ok(idx),
-            None => Err(AssembleError::new(&format!(
+            None => Err(AssemblerError::new(&format!(
                 "Can not find the import module \"{}\".",
                 expected_canonical_module_name
             ))),
@@ -2101,9 +2105,9 @@ fn assemble_import_nodes(
                     declare_module_name
                 };
 
-                // interpreter keyword "module"
-                let canonical_module_name = if actual_module_name == "module" {
-                    module_name
+                // use the special name "module" to represent the current module
+                let canonical_module_name = if actual_module_name == module_name {
+                    "module"
                 } else {
                     actual_module_name
                 };
@@ -2154,9 +2158,9 @@ fn assemble_import_nodes(
                     declare_module_name
                 };
 
-                // interpreter keyword "module"
-                let canonical_module_name = if actual_module_name == "module" {
-                    module_name
+                // use the special name "module" to represent the current module
+                let canonical_module_name = if actual_module_name == module_name {
+                    "module"
                 } else {
                     actual_module_name
                 };
@@ -2234,7 +2238,7 @@ fn assemble_external_nodes(
     external_library_identifiers: &[String],
     external_nodes: &[ExternalNode],
     type_entries: &mut Vec<TypeEntry>,
-) -> Result<AssembleResultForExternalNode, AssembleError> {
+) -> Result<AssembleResultForExternalNode, AssemblerError> {
     let mut external_function_entries: Vec<ExternalFunctionEntry> = vec![];
     let mut external_function_identifiers: Vec<String> = vec![];
 
@@ -2286,7 +2290,7 @@ fn assemble_external_nodes(
                 external_function_entries.push(external_function_entry);
             }
             ExternalNode::Data(_) => {
-                return Err(AssembleError {
+                return Err(AssemblerError {
                     message: "Does not support external data yet.".to_owned(),
                 })
             }
@@ -2299,43 +2303,43 @@ fn assemble_external_nodes(
     })
 }
 
-fn read_data_value_as_i32(data_value: &DataValue) -> Result<u32, AssembleError> {
+fn read_data_value_as_i32(data_value: &DataValue) -> Result<u32, AssemblerError> {
     match data_value {
         DataValue::I8(v) => Ok(*v as u32),
         DataValue::I16(v) => Ok(*v as u32),
         DataValue::I64(v) => Ok(*v as u32),
         DataValue::I32(v) => Ok(*v),
-        DataValue::F64(v) => Err(AssembleError {
+        DataValue::F64(v) => Err(AssemblerError {
             message: format!("Can not convert f64 \"{}\" into i32", v),
         }),
-        DataValue::F32(v) => Err(AssembleError {
+        DataValue::F32(v) => Err(AssemblerError {
             message: format!("Can not convert f32 \"{}\" into i32", v),
         }),
-        DataValue::String(_) => Err(AssembleError::new("Can not convert string into i32.")),
-        DataValue::ByteData(_) => Err(AssembleError::new("Can not convert byte data into i32.")),
-        DataValue::List(_) => Err(AssembleError::new("Can not convert list data into i32.")),
+        DataValue::String(_) => Err(AssemblerError::new("Can not convert string into i32.")),
+        DataValue::ByteData(_) => Err(AssemblerError::new("Can not convert byte data into i32.")),
+        DataValue::List(_) => Err(AssemblerError::new("Can not convert list data into i32.")),
     }
 }
 
-fn read_data_value_as_i64(data_value: &DataValue) -> Result<u64, AssembleError> {
+fn read_data_value_as_i64(data_value: &DataValue) -> Result<u64, AssemblerError> {
     match data_value {
         DataValue::I8(v) => Ok(*v as u64),
         DataValue::I16(v) => Ok(*v as u64),
         DataValue::I64(v) => Ok(*v),
         DataValue::I32(v) => Ok(*v as u64),
-        DataValue::F64(v) => Err(AssembleError {
+        DataValue::F64(v) => Err(AssemblerError {
             message: format!("Can not convert f64 \"{}\" into i64", v),
         }),
-        DataValue::F32(v) => Err(AssembleError {
+        DataValue::F32(v) => Err(AssemblerError {
             message: format!("Can not convert f32 \"{}\" into i64", v),
         }),
-        DataValue::String(_) => Err(AssembleError::new("Can not convert string into i64.")),
-        DataValue::ByteData(_) => Err(AssembleError::new("Can not convert byte data into i64.")),
-        DataValue::List(_) => Err(AssembleError::new("Can not convert list data into i64.")),
+        DataValue::String(_) => Err(AssemblerError::new("Can not convert string into i64.")),
+        DataValue::ByteData(_) => Err(AssemblerError::new("Can not convert byte data into i64.")),
+        DataValue::List(_) => Err(AssemblerError::new("Can not convert list data into i64.")),
     }
 }
 
-fn read_data_value_as_f32(data_value: &DataValue) -> Result<f32, AssembleError> {
+fn read_data_value_as_f32(data_value: &DataValue) -> Result<f32, AssemblerError> {
     match data_value {
         DataValue::I8(v) => Ok(*v as f32),
         DataValue::I16(v) => Ok(*v as f32),
@@ -2343,13 +2347,13 @@ fn read_data_value_as_f32(data_value: &DataValue) -> Result<f32, AssembleError> 
         DataValue::I32(v) => Ok(*v as f32),
         DataValue::F64(v) => Ok(*v as f32),
         DataValue::F32(v) => Ok(*v),
-        DataValue::String(_) => Err(AssembleError::new("Can not convert string into f32.")),
-        DataValue::ByteData(_) => Err(AssembleError::new("Can not convert byte data into f32.")),
-        DataValue::List(_) => Err(AssembleError::new("Can not convert list data into f32.")),
+        DataValue::String(_) => Err(AssemblerError::new("Can not convert string into f32.")),
+        DataValue::ByteData(_) => Err(AssemblerError::new("Can not convert byte data into f32.")),
+        DataValue::List(_) => Err(AssemblerError::new("Can not convert list data into f32.")),
     }
 }
 
-fn read_data_value_as_f64(data_value: &DataValue) -> Result<f64, AssembleError> {
+fn read_data_value_as_f64(data_value: &DataValue) -> Result<f64, AssemblerError> {
     match data_value {
         DataValue::I8(v) => Ok(*v as f64),
         DataValue::I16(v) => Ok(*v as f64),
@@ -2357,13 +2361,13 @@ fn read_data_value_as_f64(data_value: &DataValue) -> Result<f64, AssembleError> 
         DataValue::I32(v) => Ok(*v as f64),
         DataValue::F64(v) => Ok(*v),
         DataValue::F32(v) => Ok(*v as f64),
-        DataValue::String(_) => Err(AssembleError::new("Can not convert string into f64.")),
-        DataValue::ByteData(_) => Err(AssembleError::new("Can not convert byte data into f64.")),
-        DataValue::List(_) => Err(AssembleError::new("Can not convert list data into f64.")),
+        DataValue::String(_) => Err(AssemblerError::new("Can not convert string into f64.")),
+        DataValue::ByteData(_) => Err(AssemblerError::new("Can not convert byte data into f64.")),
+        DataValue::List(_) => Err(AssemblerError::new("Can not convert list data into f64.")),
     }
 }
 
-fn read_data_value_as_bytes(data_value: &DataValue) -> Result<Vec<u8>, AssembleError> {
+fn read_data_value_as_bytes(data_value: &DataValue) -> Result<Vec<u8>, AssemblerError> {
     let bytes = match data_value {
         DataValue::I8(v) => v.to_le_bytes().to_vec(),
         DataValue::I16(v) => v.to_le_bytes().to_vec(),
@@ -2386,9 +2390,9 @@ fn read_data_value_as_bytes(data_value: &DataValue) -> Result<Vec<u8>, AssembleE
     Ok(bytes)
 }
 
-fn read_argument_value_as_i16(inst_name: &str, v: &ArgumentValue) -> Result<u16, AssembleError> {
+fn read_argument_value_as_i16(inst_name: &str, v: &ArgumentValue) -> Result<u16, AssemblerError> {
     match v {
-        ArgumentValue::Identifier(_) => Err(AssembleError{
+        ArgumentValue::Identifier(_) => Err(AssemblerError{
             message: format!("Expect an i16 value for parameter of instruction \"{}\", but it is actually an identifier.", inst_name)
         }),
         ArgumentValue::LiteralNumber(literal_number) => match literal_number {
@@ -2396,19 +2400,19 @@ fn read_argument_value_as_i16(inst_name: &str, v: &ArgumentValue) -> Result<u16,
             LiteralNumber::I16(v) => Ok(*v),
             LiteralNumber::I32(v) => Ok(*v as u16),
             LiteralNumber::I64(v) => Ok(*v as u16),
-            LiteralNumber::F32(_) | LiteralNumber::F64(_)  => Err(AssembleError{
+            LiteralNumber::F32(_) | LiteralNumber::F64(_)  => Err(AssemblerError{
                 message: format!("Expect an i16 value for parameter of instruction \"{}\", but it is actually a floating-point number.", inst_name)
             }),
         },
-        ArgumentValue::Expression(_) => Err(AssembleError{
+        ArgumentValue::Expression(_) => Err(AssemblerError{
             message: format!("Expect an i16 value for parameter of instruction \"{}\", but it is actually an expression.", inst_name)
         }),
     }
 }
 
-fn read_argument_value_as_i32(inst_name: &str, v: &ArgumentValue) -> Result<u32, AssembleError> {
+fn read_argument_value_as_i32(inst_name: &str, v: &ArgumentValue) -> Result<u32, AssemblerError> {
     match v {
-        ArgumentValue::Identifier(_) => Err(AssembleError{
+        ArgumentValue::Identifier(_) => Err(AssemblerError{
             message: format!("Expect an i32 value for parameter of instruction \"{}\", but it is actually an identifier.", inst_name)
         }),
         ArgumentValue::LiteralNumber(literal_number) => match literal_number {
@@ -2416,19 +2420,19 @@ fn read_argument_value_as_i32(inst_name: &str, v: &ArgumentValue) -> Result<u32,
             LiteralNumber::I16(v) => Ok(*v as u32),
             LiteralNumber::I32(v) => Ok(*v),
             LiteralNumber::I64(v) => Ok(*v as u32),
-            LiteralNumber::F32(_) | LiteralNumber::F64(_)  => Err(AssembleError{
+            LiteralNumber::F32(_) | LiteralNumber::F64(_)  => Err(AssemblerError{
                 message: format!("Expect an i32 value for parameter of instruction \"{}\", but it is actually a floating-point number.", inst_name)
             }),
         },
-        ArgumentValue::Expression(_) => Err(AssembleError{
+        ArgumentValue::Expression(_) => Err(AssemblerError{
             message: format!("Expect an i32 value for parameter of instruction \"{}\", but it is actually an expression.", inst_name)
         }),
     }
 }
 
-fn read_argument_value_as_i64(inst_name: &str, v: &ArgumentValue) -> Result<u64, AssembleError> {
+fn read_argument_value_as_i64(inst_name: &str, v: &ArgumentValue) -> Result<u64, AssemblerError> {
     match v {
-        ArgumentValue::Identifier(_) => Err(AssembleError{
+        ArgumentValue::Identifier(_) => Err(AssemblerError{
             message: format!("Expect an i64 value for parameter of instruction \"{}\", but it is actually an identifier.", inst_name)
         }),
         ArgumentValue::LiteralNumber(literal_number) => match literal_number {
@@ -2436,19 +2440,19 @@ fn read_argument_value_as_i64(inst_name: &str, v: &ArgumentValue) -> Result<u64,
             LiteralNumber::I16(v) => Ok(*v as u64),
             LiteralNumber::I32(v) => Ok(*v as u64),
             LiteralNumber::I64(v) => Ok(*v),
-            LiteralNumber::F32(_) | LiteralNumber::F64(_)  => Err(AssembleError{
+            LiteralNumber::F32(_) | LiteralNumber::F64(_)  => Err(AssemblerError{
                 message: format!("Expect an i64 value for parameter of instruction \"{}\", but it is actually a floating-point number.", inst_name)
             }),
         },
-        ArgumentValue::Expression(_) => Err(AssembleError{
+        ArgumentValue::Expression(_) => Err(AssemblerError{
             message: format!("Expect an i64 value for parameter of instruction \"{}\", but it is actually an expression.", inst_name)
         }),
     }
 }
 
-fn read_argument_value_as_f32(inst_name: &str, v: &ArgumentValue) -> Result<f32, AssembleError> {
+fn read_argument_value_as_f32(inst_name: &str, v: &ArgumentValue) -> Result<f32, AssemblerError> {
     match v {
-        ArgumentValue::Identifier(_) => Err(AssembleError{
+        ArgumentValue::Identifier(_) => Err(AssemblerError{
             message: format!("Expect an f32 value for parameter of instruction \"{}\", but it is actually an identifier.", inst_name)
         }),
         ArgumentValue::LiteralNumber(literal_number) => match literal_number {
@@ -2459,15 +2463,15 @@ fn read_argument_value_as_f32(inst_name: &str, v: &ArgumentValue) -> Result<f32,
             LiteralNumber::F32(v)  => Ok(*v),
             LiteralNumber::F64(v)  => Ok(*v as f32),
         },
-        ArgumentValue::Expression(_) => Err(AssembleError{
+        ArgumentValue::Expression(_) => Err(AssemblerError{
             message: format!("Expect an f32 value for parameter of instruction \"{}\", but it is actually an expression.", inst_name)
         }),
     }
 }
 
-fn read_argument_value_as_f64(inst_name: &str, v: &ArgumentValue) -> Result<f64, AssembleError> {
+fn read_argument_value_as_f64(inst_name: &str, v: &ArgumentValue) -> Result<f64, AssemblerError> {
     match v {
-        ArgumentValue::Identifier(_) => Err(AssembleError{
+        ArgumentValue::Identifier(_) => Err(AssemblerError{
             message: format!("Expect an f64 value for parameter of instruction \"{}\", but it is actually an identifier.", inst_name)
         }),
         ArgumentValue::LiteralNumber(literal_number) => match literal_number {
@@ -2478,7 +2482,7 @@ fn read_argument_value_as_f64(inst_name: &str, v: &ArgumentValue) -> Result<f64,
             LiteralNumber::F32(v)  => Ok(*v as f64),
             LiteralNumber::F64(v)  => Ok(*v),
         },
-        ArgumentValue::Expression(_) => Err(AssembleError{
+        ArgumentValue::Expression(_) => Err(AssemblerError{
             message: format!("Expect an f64 value for parameter of instruction \"{}\", but it is actually an expression.", inst_name)
         }),
     }
@@ -2487,12 +2491,12 @@ fn read_argument_value_as_f64(inst_name: &str, v: &ArgumentValue) -> Result<f64,
 fn read_argument_value_as_expression<'a>(
     inst_name: &str,
     v: &'a ArgumentValue,
-) -> Result<&'a ExpressionNode, AssembleError> {
+) -> Result<&'a ExpressionNode, AssemblerError> {
     match v {
-        ArgumentValue::Identifier(_) => Err(AssembleError{
+        ArgumentValue::Identifier(_) => Err(AssemblerError{
             message: format!("Expect an expression for parameter of instruction \"{}\", but it is actually an identifier.", inst_name)
         }),
-        ArgumentValue::LiteralNumber(_) => Err(AssembleError{
+        ArgumentValue::LiteralNumber(_) => Err(AssemblerError{
             message: format!("Expect an expression for parameter of instruction \"{}\", but it is actually a number literal.", inst_name)
         }),
 
@@ -2503,13 +2507,13 @@ fn read_argument_value_as_expression<'a>(
 fn read_argument_value_as_identifer<'a>(
     inst_name: &str,
     v: &'a ArgumentValue,
-) -> Result<&'a String, AssembleError> {
+) -> Result<&'a String, AssemblerError> {
     match v {
         ArgumentValue::Identifier(id) => Ok(id),
-        ArgumentValue::LiteralNumber(_) => Err(AssembleError{
+        ArgumentValue::LiteralNumber(_) => Err(AssemblerError{
             message: format!("Expect an identifier for parameter of instruction \"{}\", but it is actually a number literal.", inst_name)
         }),
-        ArgumentValue::Expression(_) => Err(AssembleError{
+        ArgumentValue::Expression(_) => Err(AssemblerError{
             message: format!("Expect an identifier for parameter of instruction \"{}\", but it is actually an expression.", inst_name)
         }),
     }
@@ -2527,7 +2531,7 @@ fn get_named_argument_value<'a>(
 
 fn conver_data_type_value_pair_to_inited_data_entry(
     data_type_value_pair: &DataTypeValuePair,
-) -> Result<InitedDataEntry, AssembleError> {
+) -> Result<InitedDataEntry, AssemblerError> {
     let entry = match data_type_value_pair.data_type {
         DeclareDataType::I64 => {
             InitedDataEntry::from_i64(read_data_value_as_i64(&data_type_value_pair.value)?)
@@ -2586,7 +2590,7 @@ mod tests {
     use anc_parser_asm::parser::parse_from_str;
     use pretty_assertions::assert_eq;
 
-    use crate::{assembler::create_object_module_self_dependency_entry, entry::ImageCommonEntry};
+    use crate::{assembler::create_self_dependent_import_module_entry, entry::ImageCommonEntry};
 
     use super::assemble_module_node;
 
@@ -2698,7 +2702,7 @@ import uninit data mymodule::calc::result:i32     // module index: 0
         // check import modules
         assert_eq!(
             &entry.import_module_entries[0],
-            &create_object_module_self_dependency_entry("mymodule")
+            &create_self_dependent_import_module_entry()
         );
 
         assert_eq!(&entry.import_module_entries[1], &mod1);

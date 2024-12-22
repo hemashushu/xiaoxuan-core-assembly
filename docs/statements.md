@@ -15,49 +15,6 @@
 
 <!-- /code_chunk_output -->
 
-<!--
-
-## The `use` Statements
-
-To use identifiers (the name of functions or data) from other namespace (or other namespaces of the current modules) in the current namespace, use the `use` keyword:
-
-`use full_name [as new_name]`
-
-Where:
-
-- `path` = `module_name::name_path`
-- `name_path` = `namespace::identifier`
-- `namespace` = `sub_module_name::`{0,}
-
-Example of `use` statement:
-
-```rust
-use std::memory::copy
-use digest::sha2::init
-```
-
-You can rename the external identifer using the `as` keyword, for example:
-
-```rust
-use std::memory::copy as mem_copy
-```
-
-There are three special module names:
-
-- `module`: The current module
-- `self`: The current namespace
-- `parent`: The parent namespace
-
-For example:
-
-```rust
-use module::sub_module::some_func
-use self::sub_module::some_func
-use parent::sub_sub_module::some_data as other_data
-```
-
--->
-
 ## The `import` Statements
 
 To import identifiers (the name of functions or data) from the other modules to the current namespace, use the `import` keyword:
@@ -70,6 +27,8 @@ Where:
 - `full_name` = `module_name::name_path`
 - `name_path` = `namespace::identifier`
 - `namespace` = `sub_module_name::`{0,}
+
+When importing functions or data, you can only reference them by their identifiers (not full names or name paths). If there's a naming conflict between multiple imports, use the 'as' keyword to provide an alias for a specific import.
 
 ### Multi-Source File Modules
 
