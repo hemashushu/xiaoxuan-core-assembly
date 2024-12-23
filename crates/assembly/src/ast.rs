@@ -224,10 +224,6 @@ pub struct BlockNode {
 #[derive(Debug, PartialEq)]
 pub enum BreakNode {
     Break(/* values */ Vec<ExpressionNode>),
-    // BreakIf(
-    //     /* testing */ Box<ExpressionNode>,
-    //     /* values */ Vec<ExpressionNode>,
-    // ),
     BreakFn(/* values */ Vec<ExpressionNode>),
 }
 

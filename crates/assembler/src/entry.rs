@@ -6,9 +6,7 @@
 
 use anc_image::{
     entry::{
-        DataNameEntry, ExternalFunctionEntry, ExternalLibraryEntry, FunctionEntry,
-        FunctionNameEntry, ImportDataEntry, ImportFunctionEntry, ImportModuleEntry,
-        InitedDataEntry, LocalVariableListEntry, TypeEntry, UninitDataEntry,
+        DataNameEntry, ExternalFunctionEntry, ExternalLibraryEntry, FunctionEntry, FunctionNameEntry, ImportDataEntry, ImportFunctionEntry, ImportModuleEntry, InitedDataEntry, LocalVariableListEntry, RelocateListEntry, TypeEntry, UninitDataEntry
     },
     module_image::ImageType,
 };
@@ -56,6 +54,8 @@ pub struct ImageCommonEntry {
 
     // the name path entries only contain the internal data items.
     pub data_name_entries: Vec<DataNameEntry>,
+
+    pub relocate_list_entries: Vec<RelocateListEntry>,
 
     // the dependencies
     pub external_library_entries: Vec<ExternalLibraryEntry>,

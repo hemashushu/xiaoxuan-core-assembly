@@ -82,7 +82,7 @@ impl<'a> Lexer<'a> {
     }
 }
 
-impl<'a> Lexer<'a> {
+impl Lexer<'_> {
     fn lex(&mut self) -> Result<Vec<TokenWithRange>, ParserError> {
         let mut token_with_ranges = vec![];
 
@@ -382,11 +382,9 @@ impl<'a> Lexer<'a> {
             Token::FullName(name_string)
         } else {
             match name_string.as_str() {
-                "import" | "as" | "from" | "external" | "fn" | "data" | "pub" | "readonly" | "uninit"
-                | "align" | "block" | "when" | "if" | /* "branch" | "case" | "default" | */ "break"
-                | /*  "break_if" | */ "break_fn" | "recur" | /* "recur_if" | */ "recur_fn" => {
-                    Token::Keyword(name_string)
-                }
+                "import" | "as" | "from" | "external" | "fn" | "data" | "pub" | "readonly"
+                | "uninit" | "align" | "block" | "when" | "if" | "break" | "break_fn" | "recur"
+                | "recur_fn" => Token::Keyword(name_string),
                 "i64" | "i32" | "i16" | "i8" | "f64" | "f32" | "byte" => {
                     Token::DataTypeName(name_string)
                 }
@@ -2135,15 +2133,9 @@ recur recur_fn"
                 Token::new_keyword("when"),
                 Token::new_keyword("if"),
                 //
-                // Token::new_keyword("branch"),
-                // Token::new_keyword("case"),
-                // Token::new_keyword("default"),
-                //
                 Token::new_keyword("break"),
-                // Token::new_keyword("break_if"),
                 Token::new_keyword("break_fn"),
                 Token::new_keyword("recur"),
-                // Token::new_keyword("recur_if"),
                 Token::new_keyword("recur_fn"),
             ]
         );

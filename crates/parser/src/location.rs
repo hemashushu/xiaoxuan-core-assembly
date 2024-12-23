@@ -86,7 +86,7 @@ impl Location {
         Self::new_position(self.unit, self.index, self.line, self.column)
     }
 
-    /// Convert Range to Position
+    // Convert Range to Position
     // pub fn get_position_by_range_end(&self) -> Self {
     //     let index = self.index + self.length;
     //     let column = self.column + self.length;

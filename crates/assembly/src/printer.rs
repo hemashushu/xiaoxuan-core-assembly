@@ -523,17 +523,6 @@ fn format_expression_break(
                 indent_chars.repeat(indent_level)
             )
         }
-        // BreakNode::BreakIf(testing, nodes) => {
-        //     format!(
-        //         "{}\n{}{}\n{}(\n{}\n{})",
-        //         if is_recur { "recur_if" } else { "break_if" },
-        //         indent,
-        //         format_expression(testing, indent_chars, indent_level + 1),
-        //         indent,
-        //         format_expression_list(nodes, indent_chars, indent_level + 1),
-        //         indent_chars.repeat(indent_level)
-        //     )
-        // }
         BreakNode::BreakFn(nodes) => {
             format!(
                 "{}(\n{}\n{})",
@@ -837,7 +826,7 @@ mod tests {
             params: vec![],
             results: vec![],
             alias_name: None,
-            from: None
+            from: None,
         };
 
         assert_eq!(print(&f0), "import fn foo::bar() -> ()");
@@ -847,7 +836,7 @@ mod tests {
             params: vec![OperandDataType::I32, OperandDataType::I32],
             results: vec![OperandDataType::I64, OperandDataType::I64],
             alias_name: Some("baz".to_owned()),
-            from: Some("mymod".to_owned())
+            from: Some("mymod".to_owned()),
         };
 
         assert_eq!(
@@ -869,7 +858,7 @@ mod tests {
             full_name: "foo::count".to_owned(),
             data_type: MemoryDataType::I32,
             alias_name: None,
-            from: None
+            from: None,
         };
 
         assert_eq!(print(&d0), "import data foo::count:i32");
@@ -879,7 +868,7 @@ mod tests {
             full_name: "foo::got".to_owned(),
             data_type: MemoryDataType::Bytes,
             alias_name: Some("global_offset_table".to_owned()),
-            from: Some("mymod".to_owned())
+            from: Some("mymod".to_owned()),
         };
 
         assert_eq!(
@@ -2035,29 +2024,6 @@ fn foo() -> ()
                         named_args: vec![],
                     }),
                 ])),
-                // ExpressionNode::Break(BreakNode::BreakIf(
-                //     Box::new(ExpressionNode::Instruction(InstructionNode {
-                //         name: "imm_i32".to_owned(),
-                //         positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(7))],
-                //         named_args: vec![],
-                //     })),
-                //     vec![
-                //         ExpressionNode::Instruction(InstructionNode {
-                //             name: "imm_i32".to_owned(),
-                //             positional_args: vec![ArgumentValue::LiteralNumber(
-                //                 LiteralNumber::I32(17),
-                //             )],
-                //             named_args: vec![],
-                //         }),
-                //         ExpressionNode::Instruction(InstructionNode {
-                //             name: "imm_i32".to_owned(),
-                //             positional_args: vec![ArgumentValue::LiteralNumber(
-                //                 LiteralNumber::I32(19),
-                //             )],
-                //             named_args: vec![],
-                //         }),
-                //     ],
-                // )),
                 ExpressionNode::Break(BreakNode::BreakFn(vec![
                     ExpressionNode::Instruction(InstructionNode {
                         name: "imm_i32".to_owned(),
@@ -2109,29 +2075,6 @@ fn foo() -> ()
                         named_args: vec![],
                     }),
                 ])),
-                // ExpressionNode::Recur(BreakNode::BreakIf(
-                //     Box::new(ExpressionNode::Instruction(InstructionNode {
-                //         name: "imm_i32".to_owned(),
-                //         positional_args: vec![ArgumentValue::LiteralNumber(LiteralNumber::I32(7))],
-                //         named_args: vec![],
-                //     })),
-                //     vec![
-                //         ExpressionNode::Instruction(InstructionNode {
-                //             name: "imm_i32".to_owned(),
-                //             positional_args: vec![ArgumentValue::LiteralNumber(
-                //                 LiteralNumber::I32(17),
-                //             )],
-                //             named_args: vec![],
-                //         }),
-                //         ExpressionNode::Instruction(InstructionNode {
-                //             name: "imm_i32".to_owned(),
-                //             positional_args: vec![ArgumentValue::LiteralNumber(
-                //                 LiteralNumber::I32(19),
-                //             )],
-                //             named_args: vec![],
-                //         }),
-                //     ],
-                // )),
                 ExpressionNode::Recur(BreakNode::BreakFn(vec![
                     ExpressionNode::Instruction(InstructionNode {
                         name: "imm_i32".to_owned(),
@@ -2191,7 +2134,7 @@ fn foo() -> ()
                     full_name: "std::def".to_owned(),
                     data_type: MemoryDataType::I32,
                     alias_name: Some("xyz".to_owned()),
-                    from: Some("mymod".to_owned())
+                    from: Some("mymod".to_owned()),
                 }),
             ],
             externals: vec![

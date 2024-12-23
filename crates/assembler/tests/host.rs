@@ -602,7 +602,7 @@ fn test_assemble_host_addr_function_and_callback_function() {
     // return (11*2+13)
 
     let libtest0 = ExternalLibraryEntry::new(
-        "libtest0".to_owned(),
+        "test0".to_owned(),
         Box::new(ExternalLibraryDependency::Local(Box::new(
             DependencyLocal {
                 path: "lib/libtest0.so.1".to_owned(), // it should be a path of file "*.so.VERSION" relative to the application
@@ -614,7 +614,7 @@ fn test_assemble_host_addr_function_and_callback_function() {
 
     let binary0 = helper_make_single_module_app_with_external_library(
         r#"
-        external fn libtest0::do_something(i64,i32,i32)->i32
+        external fn test0::do_something(i64,i32,i32)->i32
 
         fn func0(a:i32, b:i32)->i32
         {

@@ -74,18 +74,6 @@ Note that:
 - If the expression has no params but has return values, the format is `() -> results`.
 - If the expression has no params and no return value, the entire `params -> results` can be omitted.
 
-<!--
-### Branch
-
-```json
-branch {
-    case testing consequence
-    case testing consequence
-    default consequence
-}
-```
--->
-
 ### Block
 
 `block param_values -> results [locals] body`
@@ -104,10 +92,6 @@ Break the nearest `for` expression, this expression never return.
 
 Variants:
 
-<!--
-- `break_if testing (value0, value1, ...)`
-  Break only when the `testing` expression returns true.
--->
 - `break_fn (value0, value1, ...)`
   Break to the current function.
 
@@ -118,11 +102,6 @@ Variants:
 Recur to the nearest `for` expression , this expression never return.
 
 Variants:
-
-<!--
-- `recur_if testing (value0, value1, ...)`
-  Recur only when the `testing` expression returns true.
--->
 
 - `recur_fn (value0, value1, ...)`
   Recur to the current function.

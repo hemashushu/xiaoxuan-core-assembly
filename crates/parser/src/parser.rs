@@ -268,7 +268,7 @@ impl<'a> Parser<'a> {
     }
 }
 
-impl<'a> Parser<'a> {
+impl Parser<'_> {
     pub fn parse_module_node(&mut self) -> Result<ModuleNode, ParserError> {
         // let mut uses: Vec<UseNode> = vec![];
         let mut imports: Vec<ImportNode> = vec![];
@@ -439,12 +439,10 @@ impl<'a> Parser<'a> {
                     let data_node = self.parse_import_data_node(DataSectionType::Uninit)?;
                     Ok(ImportNode::Data(data_node))
                 }
-                _ => {
-                    return Err(ParserError::MessageWithLocation(
-                        "Expect import \"fn\" or \"data\".".to_owned(),
-                        self.peek_range(0).unwrap().get_position_by_range_start(),
-                    ));
-                }
+                _ => Err(ParserError::MessageWithLocation(
+                    "Expect import \"fn\" or \"data\".".to_owned(),
+                    self.peek_range(0).unwrap().get_position_by_range_start(),
+                )),
             }
         } else {
             Err(ParserError::UnexpectedEndOfDocument(
@@ -593,7 +591,7 @@ impl<'a> Parser<'a> {
             full_name,
             data_type,
             alias_name,
-            from
+            from,
         };
 
         Ok(node)
@@ -619,12 +617,10 @@ impl<'a> Parser<'a> {
                     let data_node = self.parse_external_data_node()?;
                     Ok(ExternalNode::Data(data_node))
                 }
-                _ => {
-                    return Err(ParserError::MessageWithLocation(
-                        "Expect external \"fn\" or \"data\".".to_owned(),
-                        self.peek_range(0).unwrap().get_position_by_range_start(),
-                    ))
-                }
+                _ => Err(ParserError::MessageWithLocation(
+                    "Expect external \"fn\" or \"data\".".to_owned(),
+                    self.peek_range(0).unwrap().get_position_by_range_start(),
+                )),
             }
         } else {
             Err(ParserError::UnexpectedEndOfDocument(
@@ -1416,15 +1412,13 @@ impl<'a> Parser<'a> {
                     let for_node = self.parse_block_expression()?;
                     ExpressionNode::Block(for_node)
                 }
-                Token::Keyword(keyword) if (keyword == "break" || /* keyword == "break_if" || */ keyword == "break_fn") =>
-                {
+                Token::Keyword(keyword) if (keyword == "break" || keyword == "break_fn") => {
                     // "break*" expression
                     let keyword_ref = &keyword.to_owned();
                     let break_node = self.parse_break_expression(keyword_ref)?;
                     ExpressionNode::Break(break_node)
                 }
-                Token::Keyword(keyword) if (keyword == "recur" || /* keyword == "recur_if" || */ keyword == "recur_fn") =>
-                {
+                Token::Keyword(keyword) if (keyword == "recur" || keyword == "recur_fn") => {
                     // "recur*" expression
                     let keyword_ref = &keyword.to_owned();
                     let recur_node = self.parse_break_expression(keyword_ref)?;
@@ -1582,20 +1576,12 @@ impl<'a> Parser<'a> {
         // |------------------------------// current token, validated
         //
         // also:
-        // // - break_if testing (value0, value1, ...)
         // - break_fn (value0, value1, ...)
-        // - recur*
+        // - recur (value0, value1, ...)
+        // - recur_fn (value0, value1, ...)
 
         self.next_token(); // consume 'break' or 'recur'
         self.consume_new_line_if_exist();
-
-        //         let node = if keyword == "break_if" || keyword == "recur_if" {
-        //             let testing = self.parse_expression_node()?;
-        //             self.consume_new_line_if_exist();
-        //
-        //             let args = self.continue_parse_break_arguments()?;
-        //             BreakNode::BreakIf(Box::new(testing), args)
-        //         } else
 
         let node = if keyword == "break" || keyword == "recur" {
             let args = self.continue_parse_break_arguments()?;
@@ -2663,7 +2649,6 @@ fn foo() -> ()
 fn foo()
     block {
         break(imm_i32(11), imm_i32(13))
-        // break_if imm_i32(15) (imm_i32(17), imm_i32(23))
         break_fn(imm_i32(29))
     }"
             ),
@@ -2720,7 +2705,6 @@ fn foo() -> ()
 fn foo()
     block {
         recur(imm_i32(11), imm_i32(13))
-        // recur_if imm_i32(15) (imm_i32(17), imm_i32(23))
         recur_fn(imm_i32(29))
     }"
             ),

@@ -14,7 +14,8 @@ use anc_image::{
     entry::{
         DataNameEntry, ExternalFunctionEntry, ExternalLibraryEntry, FunctionEntry,
         FunctionNameEntry, ImportDataEntry, ImportFunctionEntry, ImportModuleEntry,
-        InitedDataEntry, LocalVariableEntry, LocalVariableListEntry, TypeEntry, UninitDataEntry,
+        InitedDataEntry, LocalVariableEntry, LocalVariableListEntry, RelocateEntry,
+        RelocateListEntry, TypeEntry, UninitDataEntry,
     },
     module_image::ImageType,
 };
@@ -59,22 +60,10 @@ fn get_library_name_and_identifier(full_name: &str) -> (&str, &str) {
     full_name.split_once("::").unwrap()
 }
 
-// /// The virtual which named "module" must be the first of imported modules.
-// pub fn create_virtual_module() -> ImportModuleEntry {
-//     ImportModuleEntry::new(
-//         "module".to_owned(),
-//         Box::new(ModuleDependency::Local(Box::new(DependencyLocal {
-//             path: "".to_owned(),
-//             values: None,
-//             condition: None,
-//         }))),
-//     )
-// }
-
 pub fn create_self_dependent_import_module_entry() -> ImportModuleEntry {
     ImportModuleEntry {
         name: "module".to_owned(),
-        value: Box::new(ModuleDependency::Current)
+        value: Box::new(ModuleDependency::Current),
     }
 }
 
@@ -185,7 +174,7 @@ pub fn assemble_module_node(
             external_function_identifiers,
         });
 
-    let function_entries = assemble_function_nodes(
+    let (function_entries, relocate_list_entries) = assemble_function_nodes(
         &module_node.functions,
         &mut type_entries,
         &mut local_variable_list_entries,
@@ -216,6 +205,7 @@ pub fn assemble_module_node(
         //
         function_name_entries,
         data_name_entries,
+        relocate_list_entries,
         //
         external_library_entries,
         external_function_entries,
@@ -473,8 +463,9 @@ fn assemble_function_nodes(
     type_entries: &mut Vec<TypeEntry>,
     local_variable_list_entries: &mut Vec<LocalVariableListEntry>,
     identifier_public_index_lookup_table: &IdentifierPublicIndexLookupTable,
-) -> Result<Vec<FunctionEntry>, AssemblerError> {
+) -> Result<(Vec<FunctionEntry>, Vec<RelocateListEntry>), AssemblerError> {
     let mut function_entries = vec![];
+    let mut relocate_list_entries = vec![];
 
     for function_node in function_nodes {
         let type_index = find_or_create_function_type_index(
@@ -495,7 +486,7 @@ fn assemble_function_nodes(
                 &function_node.locals,
             );
 
-        let code = assemble_function_code(
+        let (code, relocate_entries) = assemble_function_code(
             &function_node.name, // for building error message
             local_variable_names_include_params,
             &function_node.body,
@@ -509,9 +500,11 @@ fn assemble_function_nodes(
             local_variable_list_index,
             code,
         });
+
+        relocate_list_entries.push(RelocateListEntry::new(relocate_entries));
     }
 
-    Ok(function_entries)
+    Ok((function_entries, relocate_list_entries))
 }
 
 /// function type = params + results
@@ -626,9 +619,41 @@ fn assemble_function_code(
     identifier_public_index_lookup_table: &IdentifierPublicIndexLookupTable,
     type_entries: &mut Vec<TypeEntry>,
     local_variable_list_entries: &mut Vec<LocalVariableListEntry>,
-) -> Result<Vec<u8>, AssemblerError> {
-    let mut bytecode_writer = BytecodeWriter::new();
+) -> Result<(Vec<u8>, Vec<RelocateEntry>), AssemblerError> {
+    // About re-locating
+    // -----------------
+    //
+    // there are indices in the instructions need to re-locate (re-map) when linking
+    //
+    // ## type_index and local_variable_list_index
+    //
+    // - block                   (param type_index:i32, local_variable_list_index:i32) NO_RETURN
+    // - block_alt               (param type_index:i32, local_variable_list_index:i32, next_inst_offset:i32) NO_RETURN
+    // - block_nez               (param local_variable_list_index:i32, next_inst_offset:i32) NO_RETURN
+    //
+    // ## function_public_index
+    //
+    // - call                    (param function_public_index:i32) (operand args...) -> (values)
+    // - get_function            (param function_public_index:i32) -> i32
+    // - host_addr_function      (param function_public_index:i32) -> i64
+    //
+    // ## external_function_index
+    //
+    // - extcall                 (param external_function_index:i32) (operand args...) -> return_value:void/i32/i64/f32/f64
+    //
+    // ## data_public_index
+    //
+    // - data_load_*             (param offset_bytes:i16 data_public_index:i32) -> i64
+    // - data_store_*            (param offset_bytes:i16 data_public_index:i32) (operand value:i64) -> (remain_values)
+    // - host_addr_data          (param offset_bytes:i16 data_public_index:i32) -> i64
+    // - data_load_extend_*      (param data_public_index:i32) (operand offset_bytes:i64) -> i64
+    // - data_store_extend_*     (param data_public_index:i32) (operand offset_bytes:i64 value:i64) -> (remain_values)
+    // - host_addr_data_extend   (param data_public_index:i32) (operand offset_bytes:i64) -> i64
+    //
+    let mut relocate_entries: Vec<RelocateEntry> = vec![];
+
     let mut control_flow_stack = ControlFlowStack::new();
+    let mut bytecode_writer = BytecodeWriter::new();
 
     control_flow_stack.push_layer(
         0,
@@ -642,6 +667,7 @@ fn assemble_function_code(
         identifier_public_index_lookup_table,
         type_entries,
         local_variable_list_entries,
+        &mut relocate_entries,
         &mut control_flow_stack,
         &mut bytecode_writer,
     )?;
@@ -660,15 +686,17 @@ fn assemble_function_code(
         )));
     }
 
-    Ok(bytecode_writer.to_bytes())
+    Ok((bytecode_writer.to_bytes(), relocate_entries))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn emit_expression(
     function_name: &str, // for building error message
     expression_node: &ExpressionNode,
     identifier_public_index_lookup_table: &IdentifierPublicIndexLookupTable,
     type_entries: &mut Vec<TypeEntry>,
     local_variable_list_entries: &mut Vec<LocalVariableListEntry>,
+    relocate_entries: &mut Vec<RelocateEntry>,
     control_flow_stack: &mut ControlFlowStack,
     bytecode_writer: &mut BytecodeWriter,
 ) -> Result<(), AssemblerError> {
@@ -681,6 +709,7 @@ fn emit_expression(
                     identifier_public_index_lookup_table,
                     type_entries,
                     local_variable_list_entries,
+                    relocate_entries,
                     control_flow_stack,
                     bytecode_writer,
                 )?;
@@ -692,6 +721,7 @@ fn emit_expression(
             identifier_public_index_lookup_table,
             type_entries,
             local_variable_list_entries,
+            relocate_entries,
             control_flow_stack,
             bytecode_writer,
         )?,
@@ -706,6 +736,7 @@ fn emit_expression(
                 identifier_public_index_lookup_table,
                 type_entries,
                 local_variable_list_entries,
+                relocate_entries,
                 control_flow_stack,
                 bytecode_writer,
             )?;
@@ -727,6 +758,10 @@ fn emit_expression(
                 INSTRUCTION_STUB_VALUE,
             );
 
+            relocate_entries.push(RelocateEntry::from_block_with_local_variables(
+                address_of_block_nez,
+            ));
+
             // push flow stack
             control_flow_stack.push_layer(
                 address_of_block_nez,
@@ -741,6 +776,7 @@ fn emit_expression(
                 identifier_public_index_lookup_table,
                 type_entries,
                 local_variable_list_entries,
+                relocate_entries,
                 control_flow_stack,
                 bytecode_writer,
             )?;
@@ -764,6 +800,7 @@ fn emit_expression(
                 identifier_public_index_lookup_table,
                 type_entries,
                 local_variable_list_entries,
+                relocate_entries,
                 control_flow_stack,
                 bytecode_writer,
             )?;
@@ -788,6 +825,10 @@ fn emit_expression(
                 INSTRUCTION_STUB_VALUE,
             );
 
+            relocate_entries.append(
+                &mut RelocateEntry::from_block_with_type_and_local_variables(address_of_block_alt),
+            );
+
             // push flow stack
             control_flow_stack.push_layer(
                 address_of_block_alt,
@@ -802,6 +843,7 @@ fn emit_expression(
                 identifier_public_index_lookup_table,
                 type_entries,
                 local_variable_list_entries,
+                relocate_entries,
                 control_flow_stack,
                 bytecode_writer,
             )?;
@@ -823,6 +865,7 @@ fn emit_expression(
                 identifier_public_index_lookup_table,
                 type_entries,
                 local_variable_list_entries,
+                relocate_entries,
                 control_flow_stack,
                 bytecode_writer,
             )?;
@@ -848,10 +891,11 @@ fn emit_expression(
             for value in values {
                 emit_expression(
                     function_name,
-                    &value,
+                    value,
                     identifier_public_index_lookup_table,
                     type_entries,
                     local_variable_list_entries,
+                    relocate_entries,
                     control_flow_stack,
                     bytecode_writer,
                 )?;
@@ -893,6 +937,10 @@ fn emit_expression(
                 local_variable_list_index as u32,
             );
 
+            relocate_entries.append(
+                &mut RelocateEntry::from_block_with_type_and_local_variables(address_of_block),
+            );
+
             // push flow stack
             control_flow_stack.push_layer(
                 address_of_block,
@@ -907,6 +955,7 @@ fn emit_expression(
                 identifier_public_index_lookup_table,
                 type_entries,
                 local_variable_list_entries,
+                relocate_entries,
                 control_flow_stack,
                 bytecode_writer,
             )?;
@@ -921,12 +970,10 @@ fn emit_expression(
         ExpressionNode::Break(break_node) => {
             // asm:
             // `break (value0, value1, ...)`
-            // // `break_if testing (value0, value1, ...)`
             // `break_fn (value0, value1, ...)`
             //
             // code:
             // break_ (param reversed_index:i16, next_inst_offset:i32)
-            // // break_nez (param reversed_index:i16, next_inst_offset:i32)
 
             let (opcode, reversed_index, next_inst_offset, expressions) = match break_node {
                 BreakNode::Break(expressions) => {
@@ -939,16 +986,7 @@ fn emit_expression(
                         expressions,
                     )
                 }
-                // BreakNode::BreakIf(_, expressions) => {
-                //     let reversed_index =
-                //         control_flow_stack.get_reversed_index_to_the_nearest_block();
-                //     (
-                //         Opcode::break_nez,
-                //         reversed_index,
-                //         INSTRUCTION_STUB_VALUE,
-                //         expressions,
-                //     )
-                // }
+
                 BreakNode::BreakFn(expressions) => {
                     let reversed_index = control_flow_stack.get_reversed_index_to_function();
                     (Opcode::break_, reversed_index, 0, expressions)
@@ -962,22 +1000,11 @@ fn emit_expression(
                     identifier_public_index_lookup_table,
                     type_entries,
                     local_variable_list_entries,
+                    relocate_entries,
                     control_flow_stack,
                     bytecode_writer,
                 )?;
             }
-
-            // if let BreakNode::BreakIf(testing, _) = break_node {
-            //     emit_expression(
-            //         function_name,
-            //         testing,
-            //         identifier_public_index_lookup_table,
-            //         type_entries,
-            //         local_variable_list_entries,
-            //         control_flow_stack,
-            //         bytecode_writer,
-            //     )?;
-            // }
 
             // write inst 'break'
             let address_of_break = bytecode_writer.write_opcode_i16_i32(
@@ -991,16 +1018,13 @@ fn emit_expression(
         ExpressionNode::Recur(break_node) => {
             // asm:
             // `recur (value0, value1, ...)`
-            // // `recur_if testing (value0, value1, ...)`
             // `recur_fn (value0, value1, ...)`
             //
             // code:
             // recur (param reversed_index:i16, start_inst_offset:i32)
-            // recur_nez (param reversed_index:i16, start_inst_offset:i32)
 
             let (opcode, expressions) = match break_node {
                 BreakNode::Break(expressions) => (Opcode::recur, expressions),
-                // BreakNode::BreakIf(_, expressions) => (Opcode::recur_nez, expressions),
                 BreakNode::BreakFn(expressions) => (Opcode::recur, expressions),
             };
 
@@ -1011,22 +1035,11 @@ fn emit_expression(
                     identifier_public_index_lookup_table,
                     type_entries,
                     local_variable_list_entries,
+                    relocate_entries,
                     control_flow_stack,
                     bytecode_writer,
                 )?;
             }
-
-            // if let BreakNode::BreakIf(testing, _) = break_node {
-            //     emit_expression(
-            //         function_name,
-            //         testing,
-            //         identifier_public_index_lookup_table,
-            //         type_entries,
-            //         local_variable_list_entries,
-            //         control_flow_stack,
-            //         bytecode_writer,
-            //     )?;
-            // }
 
             // 'start_inst_offset' is the address of the next instruction after 'block'.
             // 'start_inst_offset' = 'address_of_recur' - 'address_of_block' - INSTRUCTION_LENGTH('block')
@@ -1058,12 +1071,14 @@ fn emit_expression(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn emit_instruction(
     function_name: &str, // for building error message
     instruction_node: &InstructionNode,
     identifier_public_index_lookup_table: &IdentifierPublicIndexLookupTable,
     type_entries: &mut Vec<TypeEntry>,
     local_variable_list_entries: &mut Vec<LocalVariableListEntry>,
+    relocate_entries: &mut Vec<RelocateEntry>,
     control_flow_stack: &mut ControlFlowStack,
     bytecode_writer: &mut BytecodeWriter,
 ) -> Result<(), AssemblerError> {
@@ -1150,6 +1165,7 @@ fn emit_instruction(
                 identifier_public_index_lookup_table,
                 type_entries,
                 local_variable_list_entries,
+                relocate_entries,
                 control_flow_stack,
                 bytecode_writer,
             )?;
@@ -1181,7 +1197,7 @@ fn emit_instruction(
             let opcode = Opcode::from_name(inst_name);
 
             let offset_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
-            emit_expression(function_name, offset_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+            emit_expression(function_name, offset_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             bytecode_writer.write_opcode_i16_i32(
                 opcode,
@@ -1204,10 +1220,10 @@ fn emit_instruction(
             let opcode = Opcode::from_name(inst_name);
 
             let offset_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
-            emit_expression(function_name, offset_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+            emit_expression(function_name, offset_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             let value_expression_node = read_argument_value_as_expression(inst_name, &args[2])?;
-            emit_expression(function_name, value_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+            emit_expression(function_name, value_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             bytecode_writer.write_opcode_i16_i32(
                 opcode,
@@ -1232,11 +1248,13 @@ fn emit_instruction(
             };
             let opcode = Opcode::from_name(inst_name);
 
-            bytecode_writer.write_opcode_i16_i32(
+            let inst_addr = bytecode_writer.write_opcode_i16_i32(
                 opcode,
                 offset,
                 data_public_index as u32,
             );
+
+            relocate_entries.push(RelocateEntry::from_data_public_index(inst_addr));
 
         }
         "data_store_i64" | "data_store_i32" | "data_store_i16" | "data_store_i8"
@@ -1254,13 +1272,15 @@ fn emit_instruction(
             let opcode = Opcode::from_name(inst_name);
 
             let value_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
-            emit_expression(function_name, value_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+            emit_expression(function_name, value_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
-            bytecode_writer.write_opcode_i16_i32(
+            let inst_addr = bytecode_writer.write_opcode_i16_i32(
                 opcode,
                 offset,
                 data_public_index as u32,
             );
+
+            relocate_entries.push(RelocateEntry::from_data_public_index(inst_addr));
         }
         "data_load_extend_i64" |
         "data_load_extend_i32_s" |
@@ -1282,12 +1302,14 @@ fn emit_instruction(
             let opcode = Opcode::from_name(inst_name);
 
             let offset_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
-            emit_expression(function_name, offset_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+            emit_expression(function_name, offset_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
-            bytecode_writer.write_opcode_i32(
+            let inst_addr = bytecode_writer.write_opcode_i32(
                 opcode,
                 data_public_index as u32,
             );
+
+            relocate_entries.push(RelocateEntry::from_data_public_index(inst_addr));
         }
         "data_store_extend_i64" |
         "data_store_extend_i32" |
@@ -1304,14 +1326,16 @@ fn emit_instruction(
             let opcode = Opcode::from_name(inst_name);
 
             let offset_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
-            emit_expression(function_name, offset_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+            emit_expression(function_name, offset_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
             let value_expression_node = read_argument_value_as_expression(inst_name, &args[2])?;
-            emit_expression(function_name, value_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+            emit_expression(function_name, value_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
-            bytecode_writer.write_opcode_i32(
+            let inst_addr = bytecode_writer.write_opcode_i32(
                 opcode,
                 data_public_index as u32,
             );
+
+            relocate_entries.push(RelocateEntry::from_data_public_index(inst_addr));
         }
         "memory_load_i64" |
         "memory_load_i32_s" |
@@ -1332,7 +1356,7 @@ fn emit_instruction(
             let opcode = Opcode::from_name(inst_name);
 
             let addr_expression_node = read_argument_value_as_expression(inst_name, &args[0])?;
-            emit_expression(function_name, addr_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+            emit_expression(function_name, addr_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             bytecode_writer.write_opcode_i16(
                 opcode,
@@ -1354,10 +1378,10 @@ fn emit_instruction(
             let opcode = Opcode::from_name(inst_name);
 
             let addr_expression_node = read_argument_value_as_expression(inst_name, &args[0])?;
-            emit_expression(function_name, addr_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+            emit_expression(function_name, addr_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             let value_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
-            emit_expression(function_name, value_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+            emit_expression(function_name, value_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             bytecode_writer.write_opcode_i16(
                 opcode,
@@ -1379,13 +1403,13 @@ fn emit_instruction(
             // host_copy_from_memory() (operand dst_pointer:i64 src_addr:i64 count:i64)
             // host_copy_to_memory() (operand dst_addr:i64 src_pointer:i64 count:i64)
             let one_expression_node = read_argument_value_as_expression(inst_name, &args[0])?;
-            emit_expression(function_name, one_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+            emit_expression(function_name, one_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             let two_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
-            emit_expression(function_name, two_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+            emit_expression(function_name, two_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             let three_expression_node = read_argument_value_as_expression(inst_name, &args[2])?;
-            emit_expression(function_name, three_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+            emit_expression(function_name, three_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             let opcode = Opcode::from_name(inst_name);
             bytecode_writer.write_opcode(opcode);
@@ -1400,7 +1424,7 @@ fn emit_instruction(
             //  asm: memory_resize(pages:i64)
             // code: memory_resize() (operand pages:i64)
             let pages_expression_node = read_argument_value_as_expression(inst_name, &args[0])?;
-            emit_expression(function_name, pages_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+            emit_expression(function_name, pages_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             bytecode_writer.write_opcode(Opcode::memory_resize);
         }
@@ -1488,7 +1512,7 @@ fn emit_instruction(
             //  asm: (num:*)
             // code: () (operand num:*)
             let num_expression_node = read_argument_value_as_expression(inst_name, &args[0])?;
-            emit_expression(function_name, num_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+            emit_expression(function_name, num_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             let opcode = Opcode::from_name(inst_name);
             bytecode_writer.write_opcode(opcode);
@@ -1574,10 +1598,10 @@ fn emit_instruction(
             //  asm: (left:*, right:*)
             // code: () (operand left:* right:*)
             let left_expression_node = read_argument_value_as_expression(inst_name, &args[0])?;
-            emit_expression(function_name, left_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+            emit_expression(function_name, left_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             let right_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
-            emit_expression(function_name, right_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+            emit_expression(function_name, right_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             let opcode = Opcode::from_name(inst_name);
             bytecode_writer.write_opcode(opcode);
@@ -1591,7 +1615,7 @@ fn emit_instruction(
             // code: (param imm:i16) (operand number:*)
             let imm = read_argument_value_as_i16(inst_name, &args[0])?;
             let num_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
-            emit_expression(function_name, num_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+            emit_expression(function_name, num_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             let opcode = Opcode::from_name(inst_name);
             bytecode_writer.write_opcode_i16(opcode, imm);
@@ -1610,17 +1634,23 @@ fn emit_instruction(
 
             for arg in &args[1..] {
                 let arg_expression_node = read_argument_value_as_expression(inst_name, arg)?;
-                emit_expression(function_name, arg_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+                emit_expression(function_name, arg_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
             }
 
-            bytecode_writer.write_opcode_i32(opcode, public_index as u32);
+            let inst_addr = bytecode_writer.write_opcode_i32(opcode, public_index as u32);
+
+            if inst_name == "call" {
+                relocate_entries.push(RelocateEntry::from_function_public_index(inst_addr));
+            }else {
+                relocate_entries.push(RelocateEntry::from_external_function_index(inst_addr));
+            }
         }
         "dyncall" => {
             // asm: (fn_pub_index:i32, value0, value1, ...)
             // code: dyncall() (operand function_public_index:i32, args...)
             for arg in args {
                 let arg_expression_node = read_argument_value_as_expression(inst_name, arg)?;
-                emit_expression(function_name, arg_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+                emit_expression(function_name, arg_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
             }
 
             bytecode_writer.write_opcode(Opcode::dyncall);
@@ -1632,7 +1662,7 @@ fn emit_instruction(
 
             for arg in &args[1..] {
                 let arg_expression_node = read_argument_value_as_expression(inst_name, arg)?;
-                emit_expression(function_name, arg_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+                emit_expression(function_name, arg_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
             }
 
             bytecode_writer.write_opcode_i32(Opcode::envcall, num);
@@ -1645,7 +1675,7 @@ fn emit_instruction(
 
             for arg in &args[1..] {
                 let arg_expression_node = read_argument_value_as_expression(inst_name, arg)?;
-                emit_expression(function_name, arg_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, control_flow_stack, bytecode_writer)?;
+                emit_expression(function_name, arg_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
             }
 
             bytecode_writer.write_opcode_i32(Opcode::imm_i32, num);
@@ -1658,7 +1688,8 @@ fn emit_instruction(
             let identifier = read_argument_value_as_identifer(inst_name, &args[0])?;
             let function_public_index =identifier_public_index_lookup_table.get_function_public_index(identifier)?;
             let opcode = Opcode::from_name(inst_name);
-            bytecode_writer.write_opcode_i32(opcode, function_public_index as u32);
+            let inst_addr = bytecode_writer.write_opcode_i32(opcode, function_public_index as u32);
+            relocate_entries.push(RelocateEntry::from_function_public_index(inst_addr));
         }
         "panic" => {
             // asm: panic(code:literal_i32)
@@ -1676,42 +1707,42 @@ fn emit_instruction(
     Ok(())
 }
 
-/**
- * XiaoXuan Core instruction set includes the following instructions
- * containing the "next_inst_offset" parameter:
- *
- * - block_alt (param type_index:i32, next_inst_offset:i32)
- * - block_nez (param local_variable_list_index:i32, next_inst_offset:i32)
- * - break (param reversed_index:i16, next_inst_offset:i32)
- * - break_alt (param next_inst_offset:i32)
- * - break_nez (param reversed_index:i16, next_inst_offset:i32)
- *
- * When emitting the binary code for these instructions, the values of
- * these parameters are UNKNOWN and are only determined when the "end"
- * instruction is generated.
- *
- * Therefore, when the assembler generates the binary code for these
- * instructions, it first fills the parameter with the number `0`
- * (this blank space are called "stubs") and records the addresses (positions)
- * of these instructions. Then, when generating the "end" (and the "break_alt")
- * instruction, the `0` in the stub is replaced with the actual number.
- *
- * The structure "ControlFlowStack" is designed to implement the above purpose.
- *
- * Note:
- *
- * 1. Generating the "recur*" instruction does not require
- *    inserting stubs because the value of the parameter "start_inst_offset" can
- *    be obtained immediately through the structure "ControlFlowStack".
- *
- * 2. If the target layer of "break" is "function", no stub needs to be inserted,
- *    and the "ControlFlowStack" is not needed because the "next_inst_offset" in
- *    this case is directly ignored by the VM.
- *
- * 3. If the target layer of "recur" is "function", no stub needs to be inserted,
- *    and the "ControlFlowStack" is not needed because the "start_inst_offset" in
- *    this case is directly ignored by the VM.
- */
+// About the stubs
+// ---------------
+//
+// the following instructions contain the "next_inst_offset" parameter:
+//
+// - block_alt (param type_index:i32, next_inst_offset:i32)
+// - block_nez (param local_variable_list_index:i32, next_inst_offset:i32)
+// - break (param reversed_index:i16, next_inst_offset:i32)
+// - break_alt (param next_inst_offset:i32)
+//
+// When emitting the byte code for these instructions, the value of
+// this parameter is UNKNOWN and it can be only determined when the "end"
+// instruction is generated.
+//
+// Therefore, when the assembler generates the byte code for these
+// instructions, it first fills the parameter with the number `0`
+// (these blank spaces are called "stubs") and records the addresses (positions)
+// of these instructions. Then, when generating the "end"
+// instruction, the `0` in the stub is replaced with the actual number.
+//
+// The structure "ControlFlowStack" is designed to implement the above purpose.
+//
+// Note:
+//
+// 1. Generating the "recur" instruction does not require
+//    inserting stubs because the value of the parameter "start_inst_offset" can
+//    be obtained immediately through the structure "ControlFlowStack".
+//
+// 2. If the target layer of "break" is "function", no stub needs to be inserted,
+//    and the "ControlFlowStack" is not needed because the "next_inst_offset" in
+//    this case is directly ignored by the VM.
+//
+// 3. If the target layer of "recur" is "function", no stub needs to be inserted,
+//    and the "ControlFlowStack" is not needed because the "start_inst_offset" in
+//    this case is directly ignored by the VM.
+//
 struct ControlFlowStack {
     control_flow_items: Vec<ControlFlowItem>,
 }
@@ -1769,7 +1800,6 @@ enum ControlFlowKind {
 //
 // - break     (opcode:i16 reversed_index:i16 next_inst_offset:i32)
 // - break_alt (opcode:i16 padding:i16        next_inst_offset:i32)
-// - break_nez (opcode:i16 reversed_index:i16 next_inst_offset:i32)
 //
 // stub: next_inst_offset
 struct BreakItem {
@@ -1809,7 +1839,7 @@ impl ControlFlowStack {
         self.control_flow_items.push(control_flow_item);
     }
 
-    /// call this function when encounting instruction 'break', 'break_alt', and 'break_nez'
+    /// call this function when encounting instruction 'break' and 'break_alt'.
     ///
     /// - 'break_alt' is equivalent to 'break 0, next_inst_offset'.
     /// - if the target layer is "function", the `break` does not need stub.
@@ -1845,7 +1875,7 @@ impl ControlFlowStack {
             bytecode_writer.fill_block_nez_stub(addr_of_block_nez, next_inst_offset);
         }
 
-        // patch 'next_inst_offset' of the instructions 'break', 'break_alt', 'break_nez'.
+        // patch 'next_inst_offset' of the instructions 'break' and 'break_alt'.
         for break_item in &control_flow_item.break_items {
             let address_of_break = break_item.address;
             let next_inst_offset = (address_next_to_end - address_of_break) as u32;
@@ -2580,8 +2610,9 @@ mod tests {
         entry::{
             DataNameEntry, ExternalLibraryEntry, FunctionEntry, FunctionNameEntry, ImportDataEntry,
             ImportFunctionEntry, ImportModuleEntry, InitedDataEntry, LocalVariableEntry,
-            LocalVariableListEntry, TypeEntry, UninitDataEntry,
+            LocalVariableListEntry, RelocateEntry, RelocateListEntry, TypeEntry, UninitDataEntry,
         },
+        module_image::RelocateType,
     };
     use anc_isa::{
         DataSectionType, DependencyLocal, ExternalLibraryDependency, MemoryDataType,
@@ -3571,8 +3602,8 @@ fn bar(left:i32, right:i32) nop()
         assert_eq!(
             bytecode_with_import_and_external(
                 r#"
-external fn libabc::dothis(i32,i32)->i32
-external fn libabc::dothat()
+external fn abc::dothis(i32,i32)->i32
+external fn abc::dothat()
 
 fn foo() {
     extcall(dothis, imm_i32(0x17), imm_i32(0x19))   // index 0
@@ -3588,7 +3619,7 @@ fn bar() {
 }"#,
                 vec![],
                 vec![ExternalLibraryEntry::new(
-                    "libabc".to_owned(),
+                    "abc".to_owned(),
                     Box::new(ExternalLibraryDependency::Local(Box::new(
                         DependencyLocal {
                             path: "libabc.so.1".to_owned(),
@@ -3611,5 +3642,286 @@ fn bar() {
     #[test]
     fn test_assemble_instruction_host() {
         // todo
+    }
+
+    #[test]
+    fn test_assemble_relocate_block_type_and_local_variables_list() {
+        let entry = assemble(
+            r#"
+fn foo(foo:i32) {
+    block(num:i32=local_load_i32_s(foo))->i32 [bar:i32] {
+        nop()
+    }
+
+    if -> i32
+        eqz_i32(imm_i32(1))
+        imm_i32(0x11)
+        imm_i32(0x13)
+
+    when [baz:i32]
+        eqz_i32(imm_i32(1))
+        imm_i32(0x17)
+}
+
+fn bar() {
+    block()->i32 [bar:i32] {
+        nop()
+    }
+
+    if -> i32
+        eqz_i32(imm_i32(1))
+        imm_i32(0x11)
+        imm_i32(0x13)
+}
+"#,
+        );
+
+        assert_eq!(
+            format_bytecode_as_text(&entry.function_entries[0].code),
+            "\
+0x0000  81 01 00 00  00 00 00 00    local_load_i32_s  rev:0   off:0x00  idx:0
+0x0008  c1 03 00 00  02 00 00 00    block             type:2   local:2
+        02 00 00 00
+0x0014  00 01                       nop
+0x0016  c0 03                       end
+0x0018  40 01 00 00  01 00 00 00    imm_i32           0x00000001
+0x0020  c0 02                       eqz_i32
+0x0022  00 01                       nop
+0x0024  c4 03 00 00  03 00 00 00    block_alt         type:3   local:0   off:0x20
+        00 00 00 00  20 00 00 00
+0x0034  40 01 00 00  11 00 00 00    imm_i32           0x00000011
+0x003c  c5 03 00 00  12 00 00 00    break_alt         off:0x12
+0x0044  40 01 00 00  13 00 00 00    imm_i32           0x00000013
+0x004c  c0 03                       end
+0x004e  00 01                       nop
+0x0050  40 01 00 00  01 00 00 00    imm_i32           0x00000001
+0x0058  c0 02                       eqz_i32
+0x005a  00 01                       nop
+0x005c  c6 03 00 00  01 00 00 00    block_nez         local:1   off:0x16
+        16 00 00 00
+0x0068  40 01 00 00  17 00 00 00    imm_i32           0x00000017
+0x0070  c0 03                       end
+0x0072  c0 03                       end"
+        );
+
+        assert_eq!(
+            format_bytecode_as_text(&entry.function_entries[1].code),
+            "\
+0x0000  c1 03 00 00  03 00 00 00    block             type:3   local:1
+        01 00 00 00
+0x000c  00 01                       nop
+0x000e  c0 03                       end
+0x0010  40 01 00 00  01 00 00 00    imm_i32           0x00000001
+0x0018  c0 02                       eqz_i32
+0x001a  00 01                       nop
+0x001c  c4 03 00 00  03 00 00 00    block_alt         type:3   local:0   off:0x20
+        00 00 00 00  20 00 00 00
+0x002c  40 01 00 00  11 00 00 00    imm_i32           0x00000011
+0x0034  c5 03 00 00  12 00 00 00    break_alt         off:0x12
+0x003c  40 01 00 00  13 00 00 00    imm_i32           0x00000013
+0x0044  c0 03                       end
+0x0046  c0 03                       end"
+        );
+
+        assert_eq!(
+            entry.relocate_list_entries,
+            vec![
+                RelocateListEntry::new(vec![
+                    RelocateEntry::new(0xc, RelocateType::TypeIndex),
+                    RelocateEntry::new(0x10, RelocateType::LocalVariableListIndex),
+                    RelocateEntry::new(0x28, RelocateType::TypeIndex),
+                    RelocateEntry::new(0x2c, RelocateType::LocalVariableListIndex),
+                    RelocateEntry::new(0x60, RelocateType::LocalVariableListIndex),
+                ]),
+                RelocateListEntry::new(vec![
+                    RelocateEntry::new(0x4, RelocateType::TypeIndex),
+                    RelocateEntry::new(0x8, RelocateType::LocalVariableListIndex),
+                    RelocateEntry::new(0x20, RelocateType::TypeIndex),
+                    RelocateEntry::new(0x24, RelocateType::LocalVariableListIndex),
+                ]),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_assemble_relocate_function_public_index() {
+        let entry = assemble(
+            r#"
+fn foo() {
+    call(bar)
+}
+
+fn bar() {
+    get_function(baz)
+    host_addr_function(baz)
+    call(baz)
+}
+
+fn baz() {
+    nop()
+}
+"#,
+        );
+
+        assert_eq!(
+            format_bytecode_as_text(&entry.function_entries[0].code),
+            "\
+0x0000  00 04 00 00  01 00 00 00    call              idx:1
+0x0008  c0 03                       end"
+        );
+
+        assert_eq!(
+            format_bytecode_as_text(&entry.function_entries[1].code),
+            "\
+0x0000  05 04 00 00  02 00 00 00    get_function      idx:2
+0x0008  46 04 00 00  02 00 00 00    host_addr_function  idx:2
+0x0010  00 04 00 00  02 00 00 00    call              idx:2
+0x0018  c0 03                       end"
+        );
+
+        assert_eq!(
+            entry.relocate_list_entries,
+            vec![
+                RelocateListEntry::new(vec![
+                    //
+                    RelocateEntry::new(4, RelocateType::FunctionPublicIndex)
+                ]),
+                RelocateListEntry::new(vec![
+                    RelocateEntry::new(4, RelocateType::FunctionPublicIndex),
+                    RelocateEntry::new(0xc, RelocateType::FunctionPublicIndex),
+                    RelocateEntry::new(0x14, RelocateType::FunctionPublicIndex),
+                ]),
+                RelocateListEntry::new(vec![])
+            ]
+        );
+    }
+
+    #[test]
+    fn test_assemble_relocate_data_public_index() {
+        let entry = assemble(
+            r#"
+data d0:i64=0x11
+data d1:i64=0x13
+
+fn foo() {
+    data_load_i64(d0)
+    data_load_extend_i64(d0, imm_i64(0x4))
+    data_store_i64(d0, imm_i64(0x23))
+    data_store_extend_i64(d0, imm_i64(0x4), imm_i64(0x29))
+}
+
+fn bar() {
+    host_addr_data(d1)
+    host_addr_data_extend(d1, imm_i64(0x4))
+}
+"#,
+        );
+
+        assert_eq!(
+            format_bytecode_as_text(&entry.function_entries[0].code),
+            "\
+0x0000  c0 01 00 00  00 00 00 00    data_load_i64     off:0x00  idx:0
+0x0008  41 01 00 00  04 00 00 00    imm_i64           low:0x00000004  high:0x00000000
+        00 00 00 00
+0x0014  cf 01 00 00  00 00 00 00    data_load_extend_i64  idx:0
+0x001c  41 01 00 00  23 00 00 00    imm_i64           low:0x00000023  high:0x00000000
+        00 00 00 00
+0x0028  c9 01 00 00  00 00 00 00    data_store_i64    off:0x00  idx:0
+0x0030  41 01 00 00  04 00 00 00    imm_i64           low:0x00000004  high:0x00000000
+        00 00 00 00
+0x003c  41 01 00 00  29 00 00 00    imm_i64           low:0x00000029  high:0x00000000
+        00 00 00 00
+0x0048  d8 01 00 00  00 00 00 00    data_store_extend_i64  idx:0
+0x0050  c0 03                       end"
+        );
+
+        assert_eq!(
+            format_bytecode_as_text(&entry.function_entries[1].code),
+            "\
+0x0000  43 04 00 00  01 00 00 00    host_addr_data    off:0x00  idx:1
+0x0008  41 01 00 00  04 00 00 00    imm_i64           low:0x00000004  high:0x00000000
+        00 00 00 00
+0x0014  44 04 00 00  01 00 00 00    host_addr_data_extend  idx:1
+0x001c  c0 03                       end"
+        );
+
+        assert_eq!(
+            entry.relocate_list_entries,
+            vec![
+                RelocateListEntry::new(vec![
+                    RelocateEntry::new(4, RelocateType::DataPublicIndex),
+                    RelocateEntry::new(0x18, RelocateType::DataPublicIndex),
+                    RelocateEntry::new(0x2c, RelocateType::DataPublicIndex),
+                    RelocateEntry::new(0x4c, RelocateType::DataPublicIndex),
+                ]),
+                RelocateListEntry::new(vec![
+                    RelocateEntry::new(4, RelocateType::DataPublicIndex),
+                    RelocateEntry::new(0x18, RelocateType::DataPublicIndex),
+                ]),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_assemble_relocate_external_function_index() {
+        // test external
+        let entry = assemble_with_imports_and_externals(
+            r#"
+external fn abc::dothis(i32,i32)->i32
+external fn abc::dothat()
+
+fn foo() {
+    extcall(dothis, imm_i32(0x11), imm_i32(0x13))
+    extcall(dothat)
+}
+
+fn bar() {
+    extcall(dothis, imm_i32(0x17), imm_i32(0x19))
+}
+"#,
+            vec![],
+            vec![ExternalLibraryEntry::new(
+                "abc".to_owned(),
+                Box::new(ExternalLibraryDependency::Local(Box::new(
+                    DependencyLocal {
+                        path: "libabc.so.1".to_owned(),
+                        values: None,
+                        condition: None,
+                    },
+                ))),
+            )],
+        );
+
+        assert_eq!(
+            format_bytecode_as_text(&entry.function_entries[0].code),
+            "\
+0x0000  40 01 00 00  11 00 00 00    imm_i32           0x00000011
+0x0008  40 01 00 00  13 00 00 00    imm_i32           0x00000013
+0x0010  04 04 00 00  00 00 00 00    extcall           idx:0
+0x0018  04 04 00 00  01 00 00 00    extcall           idx:1
+0x0020  c0 03                       end"
+        );
+        assert_eq!(
+            format_bytecode_as_text(&entry.function_entries[1].code),
+            "\
+0x0000  40 01 00 00  17 00 00 00    imm_i32           0x00000017
+0x0008  40 01 00 00  19 00 00 00    imm_i32           0x00000019
+0x0010  04 04 00 00  00 00 00 00    extcall           idx:0
+0x0018  c0 03                       end"
+        );
+
+        assert_eq!(
+            entry.relocate_list_entries,
+            vec![
+                RelocateListEntry::new(vec![
+                    RelocateEntry::new(0x14, RelocateType::ExternalFunctionIndex),
+                    RelocateEntry::new(0x1c, RelocateType::ExternalFunctionIndex)
+                ]),
+                RelocateListEntry::new(vec![
+                    //
+                    RelocateEntry::new(0x14, RelocateType::ExternalFunctionIndex),
+                ]),
+            ]
+        );
     }
 }

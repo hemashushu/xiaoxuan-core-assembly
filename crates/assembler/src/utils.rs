@@ -229,7 +229,7 @@ pub fn helper_make_single_module_app_with_external_library(
     // build external function index
 
     let external_function_index_entries = (0..external_function_items.len())
-        .map(|idx| ExternalFunctionIndexEntry::new(idx))
+        .map(ExternalFunctionIndexEntry::new)
         .collect::<Vec<_>>();
 
     let external_function_index_list_entries = vec![ExternalFunctionIndexListEntry::new(

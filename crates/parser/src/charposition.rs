@@ -35,7 +35,7 @@ impl<'a> CharsWithPositionIter<'a> {
     }
 }
 
-impl<'a> Iterator for CharsWithPositionIter<'a> {
+impl Iterator for CharsWithPositionIter<'_> {
     type Item = CharWithPosition;
 
     fn next(&mut self) -> Option<Self::Item> {

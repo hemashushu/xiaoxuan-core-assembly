@@ -172,7 +172,7 @@ pub fn write_object_file(
     module_image.write(writer).map_err(|io_error| {
         AssemblerError::new(&format!(
             "Failed to write object file: {}",
-            io_error.to_string()
+            io_error
         ))
     })
 }
