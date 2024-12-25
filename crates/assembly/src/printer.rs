@@ -131,17 +131,17 @@ fn print_import_data_node(writer: &mut dyn Write, node: &ImportDataNode) -> Resu
         DataSectionType::ReadOnly => {
             write!(
                 writer,
-                "import readonly data {}:{}",
+                "import readonly data {} type {}",
                 node.full_name, node.data_type
             )?;
         }
         DataSectionType::ReadWrite => {
-            write!(writer, "import data {}:{}", node.full_name, node.data_type)?;
+            write!(writer, "import data {} type {}", node.full_name, node.data_type)?;
         }
         DataSectionType::Uninit => {
             write!(
                 writer,
-                "import uninit data {}:{}",
+                "import uninit data {} type {}",
                 node.full_name, node.data_type
             )?;
         }
@@ -190,7 +190,7 @@ fn print_external_function_node(
 fn print_external_data_node(writer: &mut dyn Write, node: &ExternalDataNode) -> Result<(), Error> {
     write!(
         writer,
-        "external data {}:{}",
+        "external data {} type {}",
         node.full_name, node.data_type
     )?;
 
@@ -861,7 +861,7 @@ mod tests {
             from: None,
         };
 
-        assert_eq!(print(&d0), "import data foo::count:i32");
+        assert_eq!(print(&d0), "import data foo::count type i32");
 
         let d1 = ImportDataNode {
             data_section_type: DataSectionType::Uninit,
@@ -873,7 +873,7 @@ mod tests {
 
         assert_eq!(
             print(&d1),
-            "import uninit data foo::got:byte[] as global_offset_table from mymod"
+            "import uninit data foo::got type byte[] as global_offset_table from mymod"
         );
     }
 
@@ -921,7 +921,7 @@ mod tests {
             alias_name: None,
         };
 
-        assert_eq!(print(&d0), "external data libfoo::count:i32");
+        assert_eq!(print(&d0), "external data libfoo::count type i32");
 
         let d1 = ExternalDataNode {
             full_name: "libfoo::got".to_owned(),
@@ -931,7 +931,7 @@ mod tests {
 
         assert_eq!(
             print(&d1),
-            "external data libfoo::got:byte[] as global_offset_table"
+            "external data libfoo::got type byte[] as global_offset_table"
         );
     }
 
@@ -2217,10 +2217,10 @@ fn foo() -> ()
             print_to_string(&node),
             "\
 import fn std::abc(i32, i64) -> i64
-import readonly data std::def:i32 as xyz from mymod
+import readonly data std::def type i32 as xyz from mymod
 
 external fn liba::abc(i32, i64) -> i64
-external data libb::def:i32 as xyz
+external data libb::def type i32 as xyz
 
 data count:i32 = 37
 pub readonly data plt:byte[128, align=8] = [

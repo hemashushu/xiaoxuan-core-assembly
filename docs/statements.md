@@ -5,11 +5,15 @@
 <!-- code_chunk_output -->
 
 - [The `import` Statements](#the-import-statements)
+  - [Syntax](#syntax)
   - [Multi-Source File Modules](#multi-source-file-modules)
-  - [Importing Public Functions and Data](#importing-public-functions-and-data)
-  - [Importing Functions and Data within the Same Module](#importing-functions-and-data-within-the-same-module)
+  - [Importing Functions and Data from Other Modules](#importing-functions-and-data-from-other-modules)
+  - [Importing Functions and Data from the Current Module](#importing-functions-and-data-from-the-current-module)
+  - [Specify Module](#specify-module)
 - [The `external` Statements](#the-external-statements)
 - [The `data` Statements](#the-data-statements)
+  - [Data Values](#data-values)
+  - [Numeric Literal Type Automatic Conversion](#numeric-literal-type-automatic-conversion)
 - [The `fn` Statements](#the-fn-statements)
 - [Line Break Rules](#line-break-rules)
 
@@ -17,10 +21,12 @@
 
 ## The `import` Statements
 
+### Syntax
+
 To import identifiers (the name of functions or data) from the other modules to the current namespace, use the `import` keyword:
 
 - `import fn full_name signature [as new_name]`
-- `import [readonly|uninit] data full_name:data_type [as new_name]`
+- `import [readonly|uninit] data full_name type data_type [as new_name]`
 
 Where:
 
@@ -48,7 +54,7 @@ The correspondence between file names and submodule names is shown in the follow
 | ./src/utils/codegen/bar.ancasm | utils::codegen::bar | hello_world::utils::codegen::bar |
 | ./src/lib.ancasm       | -              | hello_world             |
 
-### Importing Public Functions and Data
+### Importing Functions and Data from Other Modules
 
 When importing public functions and data located within a submodule, the name of the submodule must be added. For example, if there is a function "do_this()" in the submodule "foo", the import statement would be:
 
@@ -77,17 +83,17 @@ Source files in the "test" folder are generated only during unit testing and are
 
 > Note: Unlike XiaoXuan Core, all executable units in XiaoXuan Native are independent, so like top-level files, they do not have submodule names.
 
-### Importing Functions and Data within the Same Module
+### Importing Functions and Data from the Current Module
 
 If you want to import functions and data located in other submodules within the same module, you can use the special name "module" instead of the actual name of the current module, e.g.:
 
 - `import fn module::hello_world::do_this()`
 - `import fn module::hello_world::one::do_that()`
-- `import readonly data module::hello_world::two::message:byte[]`
+- `import readonly data module::hello_world::two::message type byte[]`
 
 ### Specify Module
 
-The name of module is implicit in the full name of the imported function and data, so the import statement does not need to specify the module. However, sometimes the module name does not match the full name, such as in a merged module (the XiaoXuan Core linker allows multiple modules to be merged into a single module), in which case you can use the `from` keyword to specify the module name, e.g.
+The name of module is implicit in the full name of the imported function and data, so the import statement does not need to specify the module. However, sometimes the module name does not match the full name, such as in a merged module (the XiaoXuan Core linker allows multiple modules to be merged into a single module, just like the _GNU ar_), in which case you can use the `from` keyword to specify the module name, e.g.
 
 - `import fn foo::bar(i32) -> i32 from mymod`
 - `import fn network::http_client::get(i64) -> i64 as http_get from commons_module`
@@ -97,7 +103,7 @@ The name of module is implicit in the full name of the imported function and dat
 To declear external functions or data, use the `external` keyword:
 
 - `external fn full_name signature [as new_name]`
-- `external data full_name:data_type [as new_name]`
+- `external data full_name type data_type [as new_name]`
 
 Where:
 
@@ -107,7 +113,7 @@ Example of `external` statement:
 
 ```rust
 external fn libfoo::add(i32, i32) -> i32 as i32_add
-external data libfoo::PI:f32 as CONST_PI
+external data libfoo::PI type f32 as CONST_PI
 ```
 
 The possible data types of function's parameters and return value are: `i64`, `i32`, `f64` and `f32`. For external data, in addition to the previous, there are `byte[]`, which means that the target data can be arbitrary.
@@ -118,7 +124,8 @@ The possible data types of function's parameters and return value are: `i64`, `i
 
 To define data, use the `data` keyword:
 
-- `[pub] [readonly] data name:type = value`
+- `[pub] data name:type = value`
+- `[pub] readonly data name:type = value`
 - `[pub] uninit data name:type`
 
 The keyword `pub` is used to indicate the visibility of this item when this module is used as a shared module.
@@ -215,6 +222,8 @@ The keyword `pub` is used to indicate the visibility of this item when this modu
 
 Note that in the case of static linking, the item is always visible to other modules with or without this keyword.
 
+The `-> results` can be omitted if the function has no return value.
+
 Example of `fn` statement:
 
 ```rust
@@ -246,7 +255,7 @@ Ancasm has only 5 types of statements: `use`, `import`, `external`, `data`, and 
 
 Of course, for better readability, it is recommended to insert a newline after ecah statement. For example, the following five statements are all terminated with a newline, and an extra newline is inserted between different types of statements:
 
-```ancasm
+```rust
 import fn std::math::sqrt(f64)->f64
 import data mymod::count:i32
 
@@ -258,13 +267,13 @@ fn bar() {...}
 
 In addition to the unambiguous semantics of statements, Ancasm expressions are also semantically unambiguous. Therefore, when writing expressions, you do not need to use semicolons (`;`) or newlines to indicate the end. You can even write all expressions on the same line or insert a newline after each token, which is the same for the Assembler. For example, the following two code blocks are equivalent:
 
-```ancasm
+```rust
 imm_i32(10)
 ```
 
 and
 
-```ancasm
+```rust
 imm_i32
 (
 10
@@ -277,7 +286,7 @@ When calling a function, arguments must be separated by commas (`,`). Similary, 
 
 Example:
 
-```ancasm
+```rust
 fn add(left:i32, right:i32)->i32 {
     add_i32(
         local_load_i32s(left)
@@ -293,7 +302,7 @@ In the above code, the comma between the parameters `left` and `right` cannot be
 
 In expression group (i.e., expressions enclosed in a pair of curly braces, also known as a code block), multiple parallel expressions must be separated by newlines.
 
-```ancasm
+```rust
 when nez(local_load_i32s(num)) {
     local_store_i32(a, imm_i32(11))
     local_store_i32(b, imm_i32(13))

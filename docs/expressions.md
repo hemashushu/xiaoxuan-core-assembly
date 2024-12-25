@@ -11,6 +11,9 @@
   - [Block](#block)
   - [Break](#break)
   - [Recur](#recur)
+- [The Identifiers](#the-identifiers)
+  - [Duplication](#duplication)
+  - [Local Variables](#local-variables)
 
 <!-- /code_chunk_output -->
 
@@ -34,9 +37,9 @@ A group returns one or more values, or no values at all, the number of values be
 
 For example:
 
-- If there are two `_load_` instructions in the group, two values are returned.
-- If there is one `_store_` instruction and one `_load_` instruction, one value is returned.
-- If there are two `_store_` instructions, no value is returned.
+- If there are two `load` instructions in the group, two values are returned.
+- If there is one `store` instruction and one `load` instruction, one value is returned.
+- If there are two `store` instructions, no value is returned.
 
 ## Control Flow Expressions
 
@@ -81,7 +84,7 @@ Note that:
 Where:
 
 - `param_values` is a list of parameters and values, e.g.`(left:i32=value, right:i32=value)`, or `()` if the expression has no parameteres, note that this part cannot be omitted.
-- `results` is a list of the types of return values, as in `if` expressions, and if there is no return value, the entire `-> ()` can be omitted.
+- `results` is a list of the types of return values, as in `if` expressions, and if there is no return value, the entire `-> results` can be omitted.
 - `body` is an expression, usually it is a `group` expression.
 
 ### Break
@@ -105,3 +108,13 @@ Variants:
 
 - `recur_fn (value0, value1, ...)`
   Recur to the current function.
+
+## The Identifiers
+
+### Duplication
+
+TODO
+
+### Local Variables
+
+TODO

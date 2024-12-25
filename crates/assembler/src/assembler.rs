@@ -4,6 +4,8 @@
 // the Mozilla Public License version 2.0 and additional exceptions,
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
+use std::fmt::Display;
+
 use anc_assembly::ast::{
     ArgumentValue, BreakNode, DataNode, DataSection, DataTypeValuePair, DataValue, DeclareDataType,
     ExpressionNode, ExternalNode, FixedDeclareDataType, FunctionNode, ImportNode, InstructionNode,
@@ -672,19 +674,26 @@ fn assemble_function_code(
         &mut bytecode_writer,
     )?;
 
+    // check control flow stack
+    if control_flow_stack.control_flow_items.len() > 1 {
+        // format the path with format:
+        // "if { block { when"
+        let path = control_flow_stack.control_flow_items[1..]
+            .iter()
+            .map(|item| item.control_flow_kind.to_string())
+            .collect::<Vec<_>>()
+            .join(" { ");
+        return Err(AssemblerError::new(&format!(
+            "Control flows \"{}\" not close in function \"{}\"",
+            path, function_name
+        )));
+    }
+
     // write the implied instruction 'end'
     bytecode_writer.write_opcode(Opcode::end);
 
     // pop flow stack
     control_flow_stack.pop_layer(&mut bytecode_writer, 0);
-
-    // check control flow stack
-    if !control_flow_stack.control_flow_items.is_empty() {
-        return Err(AssemblerError::new(&format!(
-            "Not all control flows closed in the function \"{}\"",
-            function_name
-        )));
-    }
 
     Ok((bytecode_writer.to_bytes(), relocate_entries))
 }
@@ -1815,6 +1824,17 @@ enum BreakType {
     BreakAlt,
 }
 
+impl Display for ControlFlowKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ControlFlowKind::Function => f.write_str("fn"),
+            ControlFlowKind::Block => f.write_str("block"),
+            ControlFlowKind::BlockNez => f.write_str("when"),
+            ControlFlowKind::BlockAlt => f.write_str("if"),
+        }
+    }
+}
+
 impl ControlFlowStack {
     pub fn new() -> Self {
         Self {
@@ -2721,10 +2741,10 @@ import fn mymodule::foo()       // module index: 0, type 0
 import fn module::bar()         // module index: 0, type 0
 import fn std::math::muladd(i32,i32,i32) -> i32     // module index: 1, type 1
 import fn network::http_client::get(i64) -> i64 from merged_module // module index: 2, type 2
-import readonly data some_module::msg:byte[]        // module index: 3
-import data restful::count:i64 from merged_module   // module index: 2
-import data module::sum:i32                 // module index: 0
-import uninit data mymodule::calc::result:i32     // module index: 0
+import readonly data some_module::msg type byte[]        // module index: 3
+import data restful::count type i64 from merged_module   // module index: 2
+import data module::sum type i32                 // module index: 0
+import uninit data mymodule::calc::result type i32     // module index: 0
             "#,
             vec![mod1.clone(), mod2.clone(), mod3.clone()],
             vec![],

@@ -546,9 +546,9 @@ impl Parser<'_> {
         &mut self,
         data_section_type: DataSectionType,
     ) -> Result<ImportDataNode, ParserError> {
-        // data full_name:data_type [as ...] [from ...] ?  //
-        // ^                                            ^__// to here
-        // |-----------------------------------------------// current token, NOT validated
+        // data full_name type data_type [as ...] [from ...] ?  //
+        // ^                                                 ^__// to here
+        // |----------------------------------------------------// current token, NOT validated
 
         self.consume_keyword("data")?; // consume 'data'
         self.consume_new_line_if_exist();
@@ -556,7 +556,7 @@ impl Parser<'_> {
         let full_name = self.consume_full_name()?;
         self.consume_new_line_if_exist();
 
-        self.consume_colon()?; // consume ':'
+        self.consume_keyword("type")?; // consume keyword "type"
         self.consume_new_line_if_exist();
 
         let data_type = self.continue_parse_external_data_type()?;
@@ -755,16 +755,16 @@ impl Parser<'_> {
     }
 
     fn parse_external_data_node(&mut self) -> Result<ExternalDataNode, ParserError> {
-        // data full_name:data_type [as ...] ?  //
-        // ^                                 ^__// to here
-        // |------------------------------------// current token, validated
+        // data full_name type data_type [as ...] ?  //
+        // ^                                      ^__// to here
+        // |-----------------------------------------// current token, validated
         self.next_token(); // consume 'data'
         self.consume_new_line_if_exist();
 
         let full_name = self.consume_full_name()?;
         self.consume_new_line_if_exist();
 
-        self.consume_colon()?; // consume ':'
+        self.consume_keyword("type")?; // consume keyword "type"
         self.consume_new_line_if_exist();
 
         let data_type = self.continue_parse_external_data_type()?;
@@ -1935,42 +1935,42 @@ mymod"
     #[test]
     fn test_parse_import_data_statement() {
         assert_eq!(
-            format("import data foo::count:i32"),
-            "import data foo::count:i32\n\n"
+            format("import data foo::count type i32"),
+            "import data foo::count type i32\n\n"
         );
 
         assert_eq!(
-            format("import readonly data foo::PI:f32"),
-            "import readonly data foo::PI:f32\n\n"
+            format("import readonly data foo::PI type f32"),
+            "import readonly data foo::PI type f32\n\n"
         );
 
         assert_eq!(
-            format("import uninit data foo::table:byte[]"),
-            "import uninit data foo::table:byte[]\n\n"
+            format("import uninit data foo::table type byte[]"),
+            "import uninit data foo::table type byte[]\n\n"
         );
 
         // test 'as'
         assert_eq!(
-            format("import data foo::bar:byte[] as baz"),
-            "import data foo::bar:byte[] as baz\n\n"
+            format("import data foo::bar type byte[] as baz"),
+            "import data foo::bar type byte[] as baz\n\n"
         );
 
         // test from
         assert_eq!(
-            format("import data foo::count:i32 from mymod"),
-            "import data foo::count:i32 from mymod\n\n"
+            format("import data foo::count type i32 from mymod"),
+            "import data foo::count type i32 from mymod\n\n"
         );
 
         // test multiple items
         assert_eq!(
             format(
                 "\
-import readonly data foo::PI:f32
-import data foo::bar:byte[] as baz"
+import readonly data foo::PI type f32
+import data foo::bar type byte[] as baz"
             ),
             "\
-import readonly data foo::PI:f32
-import data foo::bar:byte[] as baz\n\n"
+import readonly data foo::PI type f32
+import data foo::bar type byte[] as baz\n\n"
         );
 
         // test line breaks
@@ -1981,7 +1981,7 @@ import
 readonly
 data
 foo::bar
-:
+type
 byte
 [
 ]
@@ -1990,7 +1990,7 @@ baz
 from
 mymod"
             ),
-            "import readonly data foo::bar:byte[] as baz from mymod\n\n"
+            "import readonly data foo::bar type byte[] as baz from mymod\n\n"
         );
     }
 
@@ -2060,26 +2060,26 @@ add_i32"
     #[test]
     fn test_parse_external_data_statement() {
         assert_eq!(
-            format("external data libfoo::PI:f32"),
-            "external data libfoo::PI:f32\n\n"
+            format("external data libfoo::PI type f32"),
+            "external data libfoo::PI type f32\n\n"
         );
 
         // test 'as'
         assert_eq!(
-            format("external data libfoo::bar:byte[] as baz"),
-            "external data libfoo::bar:byte[] as baz\n\n"
+            format("external data libfoo::bar type byte[] as baz"),
+            "external data libfoo::bar type byte[] as baz\n\n"
         );
 
         // test multiple items
         assert_eq!(
             format(
                 "\
-external data libfoo::PI:f32
-external data libfoo::bar:byte[] as baz"
+external data libfoo::PI type f32
+external data libfoo::bar type byte[] as baz"
             ),
             "\
-external data libfoo::PI:f32
-external data libfoo::bar:byte[] as baz\n\n"
+external data libfoo::PI type f32
+external data libfoo::bar type byte[] as baz\n\n"
         );
 
         // test line breaks
@@ -2089,14 +2089,14 @@ external data libfoo::bar:byte[] as baz\n\n"
 external
 data
 libfoo::bar
-:
+type
 byte
 [
 ]
 as
 baz"
             ),
-            "external data libfoo::bar:byte[] as baz\n\n"
+            "external data libfoo::bar type byte[] as baz\n\n"
         );
     }
 

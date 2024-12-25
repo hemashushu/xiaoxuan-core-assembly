@@ -382,7 +382,7 @@ impl Lexer<'_> {
             Token::FullName(name_string)
         } else {
             match name_string.as_str() {
-                "import" | "as" | "from" | "external" | "fn" | "data" | "pub" | "readonly"
+                "import" | "as" | "from" | "external" | "fn" | "data" | "type" | "pub" | "readonly"
                 | "uninit" | "align" | "block" | "when" | "if" | "break" | "break_fn" | "recur"
                 | "recur_fn" => Token::Keyword(name_string),
                 "i64" | "i32" | "i16" | "i8" | "f64" | "f32" | "byte" => {
@@ -2108,7 +2108,7 @@ mod tests {
         assert_eq!(
             lex_from_str_without_location(
                 "import as from \
-external fn data \
+external fn data type \
 pub readonly uninit align \
 block when if \
 break break_fn \
@@ -2123,6 +2123,7 @@ recur recur_fn"
                 Token::new_keyword("external"),
                 Token::new_keyword("fn"),
                 Token::new_keyword("data"),
+                Token::new_keyword("type"),
                 //
                 Token::new_keyword("pub"),
                 Token::new_keyword("readonly"),
