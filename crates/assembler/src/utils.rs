@@ -273,7 +273,8 @@ pub fn helper_make_single_module_app_with_external_library(
     ];
 
     // build application module binary
-    let (section_items, sections_data) = ModuleImage::convert_from_section_entries(&section_entries);
+    let (section_items, sections_data) =
+        ModuleImage::convert_from_section_entries(&section_entries);
     let module_image = ModuleImage {
         image_type: ImageType::Application,
         items: &section_items,

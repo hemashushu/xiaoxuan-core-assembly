@@ -136,7 +136,11 @@ fn print_import_data_node(writer: &mut dyn Write, node: &ImportDataNode) -> Resu
             )?;
         }
         DataSectionType::ReadWrite => {
-            write!(writer, "import data {} type {}", node.full_name, node.data_type)?;
+            write!(
+                writer,
+                "import data {} type {}",
+                node.full_name, node.data_type
+            )?;
         }
         DataSectionType::Uninit => {
             write!(

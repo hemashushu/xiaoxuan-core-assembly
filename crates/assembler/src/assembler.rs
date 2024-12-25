@@ -23,7 +23,7 @@ use anc_image::{
 };
 use anc_isa::{opcode::Opcode, DataSectionType, MemoryDataType, ModuleDependency, OperandDataType};
 
-use crate::{entry::ImageCommonEntry, AssemblerError};
+use crate::{entry::ImageCommonEntry, AssembleErrorType, AssemblerError};
 
 // the value of the stub for the instruction parameter 'next_inst_offset'
 const INSTRUCTION_STUB_VALUE: u32 = 0;
@@ -428,9 +428,8 @@ impl IdentifierPublicIndexLookupTable {
     pub fn get_function_public_index(&self, identifier: &str) -> Result<usize, AssemblerError> {
         match self.functions.iter().find(|entry| entry.id == identifier) {
             Some(p) => Ok(p.public_index),
-            None => Err(AssemblerError::new(&format!(
-                "Can not find the function: {}",
-                identifier
+            None => Err(AssemblerError::new(AssembleErrorType::FunctionNotFound(
+                identifier.to_owned(),
             ))),
         }
     }
@@ -438,9 +437,8 @@ impl IdentifierPublicIndexLookupTable {
     pub fn get_data_public_index(&self, identifier: &str) -> Result<usize, AssemblerError> {
         match self.datas.iter().find(|entry| entry.id == identifier) {
             Some(p) => Ok(p.public_index),
-            None => Err(AssemblerError::new(&format!(
-                "Can not find the data: {}",
-                identifier
+            None => Err(AssemblerError::new(AssembleErrorType::DataNotFound(
+                identifier.to_owned(),
             ))),
         }
     }
@@ -452,10 +450,9 @@ impl IdentifierPublicIndexLookupTable {
             .find(|entry| entry.id == identifier)
         {
             Some(p) => Ok(p.public_index),
-            None => Err(AssemblerError::new(&format!(
-                "Can not find the external function: {}",
-                identifier
-            ))),
+            None => Err(AssemblerError::new(
+                AssembleErrorType::ExternalFunctionNotFound(identifier.to_owned()),
+            )),
         }
     }
 }
@@ -677,16 +674,19 @@ fn assemble_function_code(
     // check control flow stack
     if control_flow_stack.control_flow_items.len() > 1 {
         // format the path with format:
-        // "if { block { when"
-        let path = control_flow_stack.control_flow_items[1..]
+        // "if >> block >> when"
+        let control_flow_path = control_flow_stack.control_flow_items[1..]
             .iter()
             .map(|item| item.control_flow_kind.to_string())
             .collect::<Vec<_>>()
-            .join(" { ");
-        return Err(AssemblerError::new(&format!(
-            "Control flows \"{}\" not close in function \"{}\"",
-            path, function_name
-        )));
+            .join(" >> ");
+
+        return Err(AssemblerError::new(
+            AssembleErrorType::IncompleteControlFlow {
+                control_flow_path,
+                function_name: function_name.to_owned(),
+            },
+        ));
     }
 
     // write the implied instruction 'end'
@@ -1116,19 +1116,19 @@ fn emit_instruction(
             // imm_f32(param number:i32)
             // imm_f64(param number_low:i32, number_high:i32)
 
-            let num = read_argument_value_as_i32(inst_name, &args[0])?;
+            let num = read_argument_value_as_i32(function_name, inst_name, &args[0])?;
             bytecode_writer.write_opcode_i32(Opcode::imm_i32, num);
         }
         "imm_i64" => {
-            let num = read_argument_value_as_i64(inst_name, &args[0])?;
+            let num = read_argument_value_as_i64(function_name, inst_name, &args[0])?;
             bytecode_writer.write_opcode_i64(Opcode::imm_i64,num);
         }
         "imm_f32" => {
-            let num = read_argument_value_as_f32(inst_name, &args[0])?;
+            let num = read_argument_value_as_f32(function_name, inst_name, &args[0])?;
             bytecode_writer.write_opcode_f32(Opcode::imm_f32,num);
         }
         "imm_f64" => {
-            let num = read_argument_value_as_f64(inst_name, &args[0])?;
+            let num = read_argument_value_as_f64(function_name, inst_name, &args[0])?;
             bytecode_writer.write_opcode_f64(Opcode::imm_f64, num);
         }
         "local_load_i64" | "local_load_i32_s" | "local_load_i32_u" | "local_load_i16_s"
@@ -1137,11 +1137,11 @@ fn emit_instruction(
             //  asm: (identifier, offset=literal_i16)
             // code: (param reversed_index:i16 offset_bytes:i16 local_variable_index:i16)
 
-            let identifier = read_argument_value_as_identifer(inst_name, &args[0])?;
+            let identifier = read_argument_value_as_identifer(function_name,inst_name, &args[0])?;
             let (reversed_index, local_variable_index) = control_flow_stack
-                .get_local_variable_reversed_index_and_variable_index_by_name(identifier)?;
+                .get_local_variable_reversed_index_and_variable_index_by_name(function_name, identifier)?;
             let offset = match get_named_argument_value(named_args, "offset") {
-                Some(v) => read_argument_value_as_i16(inst_name, v)?,
+                Some(v) => read_argument_value_as_i16(function_name,inst_name, v)?,
                 None => 0,
             };
             let opcode = Opcode::from_name(inst_name);
@@ -1158,16 +1158,16 @@ fn emit_instruction(
             //  asm: (identifier, value:i64, offset=literal_i16)
             // code: (param reversed_index:i16 offset_bytes:i16 local_variable_index:i16) (operand value:i64)
 
-            let identifier = read_argument_value_as_identifer(inst_name, &args[0])?;
+            let identifier = read_argument_value_as_identifer(function_name,inst_name, &args[0])?;
             let (reversed_index, local_variable_index) = control_flow_stack
-                .get_local_variable_reversed_index_and_variable_index_by_name(identifier)?;
+                .get_local_variable_reversed_index_and_variable_index_by_name(function_name, identifier)?;
             let offset = match get_named_argument_value(named_args, "offset") {
-                Some(v) => read_argument_value_as_i16(inst_name, v)?,
+                Some(v) => read_argument_value_as_i16(function_name,inst_name, v)?,
                 None => 0,
             };
             let opcode = Opcode::from_name(inst_name);
 
-            let value_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
+            let value_expression_node = read_argument_value_as_expression(function_name,inst_name, &args[1])?;
             emit_expression(
                 function_name,
                 value_expression_node,
@@ -1200,12 +1200,12 @@ fn emit_instruction(
             //  asm: (identifier, offset:i64)
             // code: (param reversed_index:i16 local_variable_index:i32) (operand offset_bytes:i64)
 
-            let identifier = read_argument_value_as_identifer(inst_name, &args[0])?;
+            let identifier = read_argument_value_as_identifer(function_name,inst_name, &args[0])?;
             let (reversed_index, local_variable_index) = control_flow_stack
-                .get_local_variable_reversed_index_and_variable_index_by_name(identifier)?;
+                .get_local_variable_reversed_index_and_variable_index_by_name(function_name, identifier)?;
             let opcode = Opcode::from_name(inst_name);
 
-            let offset_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
+            let offset_expression_node = read_argument_value_as_expression(function_name,inst_name, &args[1])?;
             emit_expression(function_name, offset_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             bytecode_writer.write_opcode_i16_i32(
@@ -1223,15 +1223,15 @@ fn emit_instruction(
             //  asm: (identifier, offset:i64, value:i64)
             // code: (param reversed_index:i16 local_variable_index:i32) (operand offset_bytes:i64 value:i64)
 
-            let identifier = read_argument_value_as_identifer(inst_name, &args[0])?;
+            let identifier = read_argument_value_as_identifer(function_name,inst_name, &args[0])?;
             let (reversed_index, local_variable_index) = control_flow_stack
-                .get_local_variable_reversed_index_and_variable_index_by_name(identifier)?;
+                .get_local_variable_reversed_index_and_variable_index_by_name(function_name, identifier)?;
             let opcode = Opcode::from_name(inst_name);
 
-            let offset_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
+            let offset_expression_node = read_argument_value_as_expression(function_name,inst_name, &args[1])?;
             emit_expression(function_name, offset_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
-            let value_expression_node = read_argument_value_as_expression(inst_name, &args[2])?;
+            let value_expression_node = read_argument_value_as_expression(function_name,inst_name, &args[2])?;
             emit_expression(function_name, value_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             bytecode_writer.write_opcode_i16_i32(
@@ -1248,11 +1248,11 @@ fn emit_instruction(
             //  asm: (identifier, offset=literal_i16)
             // code: (param offset_bytes:i16 data_public_index:i32)
 
-            let identifier = read_argument_value_as_identifer(inst_name, &args[0])?;
+            let identifier = read_argument_value_as_identifer(function_name,inst_name, &args[0])?;
             let data_public_index = identifier_public_index_lookup_table.get_data_public_index(identifier)?;
 
             let offset = match get_named_argument_value(named_args, "offset") {
-                Some(v) => read_argument_value_as_i16(inst_name, v)?,
+                Some(v) => read_argument_value_as_i16(function_name,inst_name, v)?,
                 None => 0,
             };
             let opcode = Opcode::from_name(inst_name);
@@ -1271,16 +1271,16 @@ fn emit_instruction(
             //  asm: (identifier, value:i64, offset=literal_i16)
             // code: (param offset_bytes:i16 data_public_index:i32) (operand value:i64)
 
-            let identifier = read_argument_value_as_identifer(inst_name, &args[0])?;
+            let identifier = read_argument_value_as_identifer(function_name,inst_name, &args[0])?;
             let data_public_index = identifier_public_index_lookup_table.get_data_public_index(identifier)?;
 
             let offset = match get_named_argument_value(named_args, "offset") {
-                Some(v) => read_argument_value_as_i16(inst_name, v)?,
+                Some(v) => read_argument_value_as_i16(function_name,inst_name, v)?,
                 None => 0,
             };
             let opcode = Opcode::from_name(inst_name);
 
-            let value_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
+            let value_expression_node = read_argument_value_as_expression(function_name,inst_name, &args[1])?;
             emit_expression(function_name, value_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             let inst_addr = bytecode_writer.write_opcode_i16_i32(
@@ -1305,12 +1305,12 @@ fn emit_instruction(
             //  asm: (identifier, offset:i64)
             // code: (param data_public_index:i32) (operand offset_bytes:i64)
 
-            let identifier = read_argument_value_as_identifer(inst_name, &args[0])?;
+            let identifier = read_argument_value_as_identifer(function_name,inst_name, &args[0])?;
             let data_public_index = identifier_public_index_lookup_table.get_data_public_index(identifier)?;
 
             let opcode = Opcode::from_name(inst_name);
 
-            let offset_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
+            let offset_expression_node = read_argument_value_as_expression(function_name,inst_name, &args[1])?;
             emit_expression(function_name, offset_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             let inst_addr = bytecode_writer.write_opcode_i32(
@@ -1329,14 +1329,14 @@ fn emit_instruction(
             //  asm: (identifier, offset:i64, value:i64)
             // code: (param data_public_index:i32) (operand offset_bytes:i64 value:i64)
 
-            let identifier = read_argument_value_as_identifer(inst_name, &args[0])?;
+            let identifier = read_argument_value_as_identifer(function_name,inst_name, &args[0])?;
             let data_public_index = identifier_public_index_lookup_table.get_data_public_index(identifier)?;
 
             let opcode = Opcode::from_name(inst_name);
 
-            let offset_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
+            let offset_expression_node = read_argument_value_as_expression(function_name,inst_name, &args[1])?;
             emit_expression(function_name, offset_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
-            let value_expression_node = read_argument_value_as_expression(inst_name, &args[2])?;
+            let value_expression_node = read_argument_value_as_expression(function_name,inst_name, &args[2])?;
             emit_expression(function_name, value_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             let inst_addr = bytecode_writer.write_opcode_i32(
@@ -1359,12 +1359,12 @@ fn emit_instruction(
             //  asm: (addr:i64, offset=literal_i16)
             // code: (param offset_bytes:i16) (operand heap_addr:i64)
             let offset = match get_named_argument_value(named_args, "offset") {
-                Some(v) => read_argument_value_as_i16(inst_name, v)?,
+                Some(v) => read_argument_value_as_i16(function_name,inst_name, v)?,
                 None => 0,
             };
             let opcode = Opcode::from_name(inst_name);
 
-            let addr_expression_node = read_argument_value_as_expression(inst_name, &args[0])?;
+            let addr_expression_node = read_argument_value_as_expression(function_name,inst_name, &args[0])?;
             emit_expression(function_name, addr_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             bytecode_writer.write_opcode_i16(
@@ -1381,15 +1381,15 @@ fn emit_instruction(
             //  asm: (addr:i64, value:i64, offset=literal_i16)
             // code: (param offset_bytes:i16) (operand heap_addr:i64 value:i64)
             let offset = match get_named_argument_value(named_args, "offset") {
-                Some(v) => read_argument_value_as_i16(inst_name, v)?,
+                Some(v) => read_argument_value_as_i16(function_name,inst_name, v)?,
                 None => 0,
             };
             let opcode = Opcode::from_name(inst_name);
 
-            let addr_expression_node = read_argument_value_as_expression(inst_name, &args[0])?;
+            let addr_expression_node = read_argument_value_as_expression(function_name,inst_name, &args[0])?;
             emit_expression(function_name, addr_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
-            let value_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
+            let value_expression_node = read_argument_value_as_expression(function_name,inst_name, &args[1])?;
             emit_expression(function_name, value_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             bytecode_writer.write_opcode_i16(
@@ -1411,13 +1411,13 @@ fn emit_instruction(
             // memory_copy() (operand dst_addr:i64 src_addr:i64 count:i64)
             // host_copy_from_memory() (operand dst_pointer:i64 src_addr:i64 count:i64)
             // host_copy_to_memory() (operand dst_addr:i64 src_pointer:i64 count:i64)
-            let one_expression_node = read_argument_value_as_expression(inst_name, &args[0])?;
+            let one_expression_node = read_argument_value_as_expression(function_name,inst_name, &args[0])?;
             emit_expression(function_name, one_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
-            let two_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
+            let two_expression_node = read_argument_value_as_expression(function_name,inst_name, &args[1])?;
             emit_expression(function_name, two_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
-            let three_expression_node = read_argument_value_as_expression(inst_name, &args[2])?;
+            let three_expression_node = read_argument_value_as_expression(function_name,inst_name, &args[2])?;
             emit_expression(function_name, three_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             let opcode = Opcode::from_name(inst_name);
@@ -1432,7 +1432,7 @@ fn emit_instruction(
         "memory_resize" => {
             //  asm: memory_resize(pages:i64)
             // code: memory_resize() (operand pages:i64)
-            let pages_expression_node = read_argument_value_as_expression(inst_name, &args[0])?;
+            let pages_expression_node = read_argument_value_as_expression(function_name,inst_name, &args[0])?;
             emit_expression(function_name, pages_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             bytecode_writer.write_opcode(Opcode::memory_resize);
@@ -1520,7 +1520,7 @@ fn emit_instruction(
         "atan_f64" => {
             //  asm: (num:*)
             // code: () (operand num:*)
-            let num_expression_node = read_argument_value_as_expression(inst_name, &args[0])?;
+            let num_expression_node = read_argument_value_as_expression(function_name,inst_name, &args[0])?;
             emit_expression(function_name, num_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             let opcode = Opcode::from_name(inst_name);
@@ -1606,10 +1606,10 @@ fn emit_instruction(
         "log_f64" => {
             //  asm: (left:*, right:*)
             // code: () (operand left:* right:*)
-            let left_expression_node = read_argument_value_as_expression(inst_name, &args[0])?;
+            let left_expression_node = read_argument_value_as_expression(function_name,inst_name, &args[0])?;
             emit_expression(function_name, left_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
-            let right_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
+            let right_expression_node = read_argument_value_as_expression(function_name,inst_name, &args[1])?;
             emit_expression(function_name, right_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             let opcode = Opcode::from_name(inst_name);
@@ -1622,8 +1622,8 @@ fn emit_instruction(
         "sub_imm_i64" => {
             //  asm: (imm:literal_i16, number:*)
             // code: (param imm:i16) (operand number:*)
-            let imm = read_argument_value_as_i16(inst_name, &args[0])?;
-            let num_expression_node = read_argument_value_as_expression(inst_name, &args[1])?;
+            let imm = read_argument_value_as_i16(function_name,inst_name, &args[0])?;
+            let num_expression_node = read_argument_value_as_expression(function_name,inst_name, &args[1])?;
             emit_expression(function_name, num_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
 
             let opcode = Opcode::from_name(inst_name);
@@ -1633,7 +1633,7 @@ fn emit_instruction(
             // asm: (identifier, value0, value1, ...)
             // code: call(param function_public_index:i32) (operand args...)
             // code: extcall(param external_function_index:i32) (operand args...)
-            let identifier = read_argument_value_as_identifer(inst_name, &args[0])?;
+            let identifier = read_argument_value_as_identifer(function_name,inst_name, &args[0])?;
             let public_index = if inst_name == "call" {
                 identifier_public_index_lookup_table.get_function_public_index(identifier)?
             }else {
@@ -1642,7 +1642,7 @@ fn emit_instruction(
             let opcode = Opcode::from_name(inst_name);
 
             for arg in &args[1..] {
-                let arg_expression_node = read_argument_value_as_expression(inst_name, arg)?;
+                let arg_expression_node = read_argument_value_as_expression(function_name,inst_name, arg)?;
                 emit_expression(function_name, arg_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
             }
 
@@ -1658,7 +1658,7 @@ fn emit_instruction(
             // asm: (fn_pub_index:i32, value0, value1, ...)
             // code: dyncall() (operand function_public_index:i32, args...)
             for arg in args {
-                let arg_expression_node = read_argument_value_as_expression(inst_name, arg)?;
+                let arg_expression_node = read_argument_value_as_expression(function_name,inst_name, arg)?;
                 emit_expression(function_name, arg_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
             }
 
@@ -1667,10 +1667,10 @@ fn emit_instruction(
         "envcall" => {
             // asm: (env_call_number:liter_i32, value0, value1, ...)
             // code: envcall(param envcall_num:i32) (operand args...)
-            let num = read_argument_value_as_i32(inst_name, &args[0])?;
+            let num = read_argument_value_as_i32(function_name,inst_name, &args[0])?;
 
             for arg in &args[1..] {
-                let arg_expression_node = read_argument_value_as_expression(inst_name, arg)?;
+                let arg_expression_node = read_argument_value_as_expression(function_name,inst_name, arg)?;
                 emit_expression(function_name, arg_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
             }
 
@@ -1679,11 +1679,11 @@ fn emit_instruction(
         "syscall" => {
             // asm: (syscall_num:i32, value0, value1, ...)
             // code: syscall() (operand args..., syscall_num:i32, params_count: i32)
-            let num = read_argument_value_as_i32(inst_name, &args[0])?;
+            let num = read_argument_value_as_i32(function_name,inst_name, &args[0])?;
             let params_count = args.len()-1;
 
             for arg in &args[1..] {
-                let arg_expression_node = read_argument_value_as_expression(inst_name, arg)?;
+                let arg_expression_node = read_argument_value_as_expression(function_name,inst_name, arg)?;
                 emit_expression(function_name, arg_expression_node, identifier_public_index_lookup_table, type_entries, local_variable_list_entries, relocate_entries, control_flow_stack, bytecode_writer)?;
             }
 
@@ -1694,7 +1694,7 @@ fn emit_instruction(
         "get_function" | "host_addr_function"=> {
             // asm: (identifier)
             // code: (param function_public_index:i32)
-            let identifier = read_argument_value_as_identifer(inst_name, &args[0])?;
+            let identifier = read_argument_value_as_identifer(function_name,inst_name, &args[0])?;
             let function_public_index =identifier_public_index_lookup_table.get_function_public_index(identifier)?;
             let opcode = Opcode::from_name(inst_name);
             let inst_addr = bytecode_writer.write_opcode_i32(opcode, function_public_index as u32);
@@ -1703,13 +1703,13 @@ fn emit_instruction(
         "panic" => {
             // asm: panic(code:literal_i32)
             // code: panic(param reason_code:u32)
-            let num = read_argument_value_as_i32(inst_name, &args[0])?;
+            let num = read_argument_value_as_i32(function_name,inst_name, &args[0])?;
             bytecode_writer.write_opcode_i32(Opcode::panic, num);
         }
         _ => {
-            return Err(AssemblerError {
-                message: format!("Encounters unknown instruction \"{}\" in the function \"{}\".", inst_name, function_name),
-            })
+            return Err(AssemblerError::new(
+                AssembleErrorType::UnknownInstruction { instruction_name: inst_name.to_owned(), function_name: function_name.to_owned() }
+            ))
         }
     }
 
@@ -1987,6 +1987,7 @@ impl ControlFlowStack {
     ///
     pub fn get_local_variable_reversed_index_and_variable_index_by_name(
         &self,
+        function_name: &str, // for building the error message only
         local_variable_name: &str,
     ) -> Result<(usize, usize), AssemblerError> {
         // used to check duplication
@@ -2003,10 +2004,12 @@ impl ControlFlowStack {
                 if result.is_none() {
                     result.replace((reversed_index, variable_index));
                 } else {
-                    return Err(AssemblerError::new(&format!(
-                        "Local variable name duplicated: {}",
-                        local_variable_name
-                    )));
+                    return Err(AssemblerError::new(
+                        AssembleErrorType::LocalVariableNotFound {
+                            local_variable_name: local_variable_name.to_owned(),
+                            function_name: function_name.to_owned(),
+                        },
+                    ));
                 }
             }
         }
@@ -2014,10 +2017,12 @@ impl ControlFlowStack {
         if let Some(val) = result {
             Ok(val)
         } else {
-            Err(AssemblerError::new(&format!(
-                "Can not find the local variable: {}",
-                local_variable_name
-            )))
+            Err(AssemblerError::new(
+                AssembleErrorType::LocalVariableNotFound {
+                    local_variable_name: local_variable_name.to_owned(),
+                    function_name: function_name.to_owned(),
+                },
+            ))
         }
     }
 }
@@ -2036,14 +2041,17 @@ fn assemble_data_nodes(
     let mut uninit_data_entries: Vec<UninitDataEntry> = vec![];
 
     for data_node in data_nodes {
+        let data_name = &data_node.name;
         match &data_node.data_section {
             DataSection::ReadOnly(data_type_value_pair) => {
                 read_only_data_entries.push(conver_data_type_value_pair_to_inited_data_entry(
+                    data_name,
                     data_type_value_pair,
                 )?);
             }
             DataSection::ReadWrite(data_type_value_pair) => {
                 read_write_data_entries.push(conver_data_type_value_pair_to_inited_data_entry(
+                    data_name,
                     data_type_value_pair,
                 )?);
             }
@@ -2134,10 +2142,9 @@ fn assemble_import_nodes(
             .position(|id| id == expected_canonical_module_name)
         {
             Some(idx) => Ok(idx),
-            None => Err(AssemblerError::new(&format!(
-                "Can not find the import module \"{}\".",
-                expected_canonical_module_name
-            ))),
+            None => Err(AssemblerError::new(
+                AssembleErrorType::ImportModuleNotFound(expected_canonical_module_name.to_owned()),
+            )),
         }
     };
 
@@ -2292,11 +2299,18 @@ fn assemble_external_nodes(
     let mut external_function_entries: Vec<ExternalFunctionEntry> = vec![];
     let mut external_function_identifiers: Vec<String> = vec![];
 
-    let get_library_index_by_name = |library_identifiers: &[String], name: &str| -> usize {
-        library_identifiers
+    let get_library_index_by_name = |library_identifiers: &[String],
+                                     expected_library_name: &str|
+     -> Result<usize, AssemblerError> {
+        match library_identifiers
             .iter()
-            .position(|id| id == name)
-            .unwrap()
+            .position(|id| id == expected_library_name)
+        {
+            Some(idx) => Ok(idx),
+            None => Err(AssemblerError::new(
+                AssembleErrorType::ExternalLibraryNotFound(expected_library_name.to_owned()),
+            )),
+        }
     };
 
     for external_node in external_nodes {
@@ -2305,7 +2319,7 @@ fn assemble_external_nodes(
                 let (library_name, function_name) =
                     get_library_name_and_identifier(&external_function_node.full_name);
                 let external_library_index =
-                    get_library_index_by_name(external_library_identifiers, library_name);
+                    get_library_index_by_name(external_library_identifiers, library_name)?;
 
                 // use the alias name if it presents.
                 let identifier = if let Some(alias_name) = &external_function_node.alias_name {
@@ -2340,9 +2354,8 @@ fn assemble_external_nodes(
                 external_function_entries.push(external_function_entry);
             }
             ExternalNode::Data(_) => {
-                return Err(AssemblerError {
-                    message: "Does not support external data yet.".to_owned(),
-                })
+                // todo
+                unimplemented!()
             }
         }
     }
@@ -2353,43 +2366,95 @@ fn assemble_external_nodes(
     })
 }
 
-fn read_data_value_as_i32(data_value: &DataValue) -> Result<u32, AssemblerError> {
+fn read_data_value_as_i32(data_name: &str, data_value: &DataValue) -> Result<u32, AssemblerError> {
     match data_value {
         DataValue::I8(v) => Ok(*v as u32),
         DataValue::I16(v) => Ok(*v as u32),
         DataValue::I64(v) => Ok(*v as u32),
         DataValue::I32(v) => Ok(*v),
-        DataValue::F64(v) => Err(AssemblerError {
-            message: format!("Can not convert f64 \"{}\" into i32", v),
-        }),
-        DataValue::F32(v) => Err(AssemblerError {
-            message: format!("Can not convert f32 \"{}\" into i32", v),
-        }),
-        DataValue::String(_) => Err(AssemblerError::new("Can not convert string into i32.")),
-        DataValue::ByteData(_) => Err(AssemblerError::new("Can not convert byte data into i32.")),
-        DataValue::List(_) => Err(AssemblerError::new("Can not convert list data into i32.")),
+        DataValue::F64(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectDataValueType {
+                expected: "i32".to_owned(),
+                actual: "f64".to_owned(),
+                data_name: data_name.to_owned(),
+            },
+        )),
+        DataValue::F32(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectDataValueType {
+                expected: "i32".to_owned(),
+                actual: "f32".to_owned(),
+                data_name: data_name.to_owned(),
+            },
+        )),
+        DataValue::String(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectDataValueType {
+                expected: "i32".to_owned(),
+                actual: "string".to_owned(),
+                data_name: data_name.to_owned(),
+            },
+        )),
+        DataValue::ByteData(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectDataValueType {
+                expected: "i32".to_owned(),
+                actual: "byte[]".to_owned(),
+                data_name: data_name.to_owned(),
+            },
+        )),
+        DataValue::List(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectDataValueType {
+                expected: "i32".to_owned(),
+                actual: "list".to_owned(),
+                data_name: data_name.to_owned(),
+            },
+        )),
     }
 }
 
-fn read_data_value_as_i64(data_value: &DataValue) -> Result<u64, AssemblerError> {
+fn read_data_value_as_i64(data_name: &str, data_value: &DataValue) -> Result<u64, AssemblerError> {
     match data_value {
         DataValue::I8(v) => Ok(*v as u64),
         DataValue::I16(v) => Ok(*v as u64),
         DataValue::I64(v) => Ok(*v),
         DataValue::I32(v) => Ok(*v as u64),
-        DataValue::F64(v) => Err(AssemblerError {
-            message: format!("Can not convert f64 \"{}\" into i64", v),
-        }),
-        DataValue::F32(v) => Err(AssemblerError {
-            message: format!("Can not convert f32 \"{}\" into i64", v),
-        }),
-        DataValue::String(_) => Err(AssemblerError::new("Can not convert string into i64.")),
-        DataValue::ByteData(_) => Err(AssemblerError::new("Can not convert byte data into i64.")),
-        DataValue::List(_) => Err(AssemblerError::new("Can not convert list data into i64.")),
+        DataValue::F64(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectDataValueType {
+                expected: "i64".to_owned(),
+                actual: "f64".to_owned(),
+                data_name: data_name.to_owned(),
+            },
+        )),
+        DataValue::F32(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectDataValueType {
+                expected: "i64".to_owned(),
+                actual: "f32".to_owned(),
+                data_name: data_name.to_owned(),
+            },
+        )),
+        DataValue::String(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectDataValueType {
+                expected: "i64".to_owned(),
+                actual: "string".to_owned(),
+                data_name: data_name.to_owned(),
+            },
+        )),
+        DataValue::ByteData(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectDataValueType {
+                expected: "i64".to_owned(),
+                actual: "byte[]".to_owned(),
+                data_name: data_name.to_owned(),
+            },
+        )),
+        DataValue::List(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectDataValueType {
+                expected: "i64".to_owned(),
+                actual: "list".to_owned(),
+                data_name: data_name.to_owned(),
+            },
+        )),
     }
 }
 
-fn read_data_value_as_f32(data_value: &DataValue) -> Result<f32, AssemblerError> {
+fn read_data_value_as_f32(data_name: &str, data_value: &DataValue) -> Result<f32, AssemblerError> {
     match data_value {
         DataValue::I8(v) => Ok(*v as f32),
         DataValue::I16(v) => Ok(*v as f32),
@@ -2397,13 +2462,31 @@ fn read_data_value_as_f32(data_value: &DataValue) -> Result<f32, AssemblerError>
         DataValue::I32(v) => Ok(*v as f32),
         DataValue::F64(v) => Ok(*v as f32),
         DataValue::F32(v) => Ok(*v),
-        DataValue::String(_) => Err(AssemblerError::new("Can not convert string into f32.")),
-        DataValue::ByteData(_) => Err(AssemblerError::new("Can not convert byte data into f32.")),
-        DataValue::List(_) => Err(AssemblerError::new("Can not convert list data into f32.")),
+        DataValue::String(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectDataValueType {
+                expected: "f32".to_owned(),
+                actual: "string".to_owned(),
+                data_name: data_name.to_owned(),
+            },
+        )),
+        DataValue::ByteData(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectDataValueType {
+                expected: "f32".to_owned(),
+                actual: "byte[]".to_owned(),
+                data_name: data_name.to_owned(),
+            },
+        )),
+        DataValue::List(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectDataValueType {
+                expected: "f32".to_owned(),
+                actual: "list".to_owned(),
+                data_name: data_name.to_owned(),
+            },
+        )),
     }
 }
 
-fn read_data_value_as_f64(data_value: &DataValue) -> Result<f64, AssemblerError> {
+fn read_data_value_as_f64(data_name: &str, data_value: &DataValue) -> Result<f64, AssemblerError> {
     match data_value {
         DataValue::I8(v) => Ok(*v as f64),
         DataValue::I16(v) => Ok(*v as f64),
@@ -2411,13 +2494,34 @@ fn read_data_value_as_f64(data_value: &DataValue) -> Result<f64, AssemblerError>
         DataValue::I32(v) => Ok(*v as f64),
         DataValue::F64(v) => Ok(*v),
         DataValue::F32(v) => Ok(*v as f64),
-        DataValue::String(_) => Err(AssemblerError::new("Can not convert string into f64.")),
-        DataValue::ByteData(_) => Err(AssemblerError::new("Can not convert byte data into f64.")),
-        DataValue::List(_) => Err(AssemblerError::new("Can not convert list data into f64.")),
+        DataValue::String(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectDataValueType {
+                expected: "f64".to_owned(),
+                actual: "string".to_owned(),
+                data_name: data_name.to_owned(),
+            },
+        )),
+        DataValue::ByteData(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectDataValueType {
+                expected: "f64".to_owned(),
+                actual: "byte[]".to_owned(),
+                data_name: data_name.to_owned(),
+            },
+        )),
+        DataValue::List(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectDataValueType {
+                expected: "f64".to_owned(),
+                actual: "list".to_owned(),
+                data_name: data_name.to_owned(),
+            },
+        )),
     }
 }
 
-fn read_data_value_as_bytes(data_value: &DataValue) -> Result<Vec<u8>, AssemblerError> {
+fn read_data_value_as_bytes(
+    data_name: &str,
+    data_value: &DataValue,
+) -> Result<Vec<u8>, AssemblerError> {
     let bytes = match data_value {
         DataValue::I8(v) => v.to_le_bytes().to_vec(),
         DataValue::I16(v) => v.to_le_bytes().to_vec(),
@@ -2430,7 +2534,7 @@ fn read_data_value_as_bytes(data_value: &DataValue) -> Result<Vec<u8>, Assembler
         DataValue::List(v) => {
             let mut bytes: Vec<u8> = vec![];
             for item in v {
-                let mut b = read_data_value_as_bytes(item)?;
+                let mut b = read_data_value_as_bytes(data_name, item)?;
                 bytes.append(&mut b);
             }
             bytes
@@ -2440,132 +2544,238 @@ fn read_data_value_as_bytes(data_value: &DataValue) -> Result<Vec<u8>, Assembler
     Ok(bytes)
 }
 
-fn read_argument_value_as_i16(inst_name: &str, v: &ArgumentValue) -> Result<u16, AssemblerError> {
+fn read_argument_value_as_i16(
+    function_name: &str,
+    inst_name: &str,
+    v: &ArgumentValue,
+) -> Result<u16, AssemblerError> {
     match v {
-        ArgumentValue::Identifier(_) => Err(AssemblerError{
-            message: format!("Expect an i16 value for parameter of instruction \"{}\", but it is actually an identifier.", inst_name)
-        }),
+        ArgumentValue::Identifier(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectInstructionParameterType {
+                expected: "i16".to_owned(),
+                actual: "identifier".to_owned(),
+                instruction_name: inst_name.to_owned(),
+                function_name: function_name.to_owned(),
+            },
+        )),
         ArgumentValue::LiteralNumber(literal_number) => match literal_number {
             LiteralNumber::I8(v) => Ok(*v as u16),
             LiteralNumber::I16(v) => Ok(*v),
             LiteralNumber::I32(v) => Ok(*v as u16),
             LiteralNumber::I64(v) => Ok(*v as u16),
-            LiteralNumber::F32(_) | LiteralNumber::F64(_)  => Err(AssemblerError{
-                message: format!("Expect an i16 value for parameter of instruction \"{}\", but it is actually a floating-point number.", inst_name)
-            }),
+            LiteralNumber::F32(_) | LiteralNumber::F64(_) => Err(AssemblerError::new(
+                AssembleErrorType::IncorrectInstructionParameterType {
+                    expected: "i16".to_owned(),
+                    actual: "f32/f64".to_owned(),
+                    instruction_name: inst_name.to_owned(),
+                    function_name: function_name.to_owned(),
+                },
+            )),
         },
-        ArgumentValue::Expression(_) => Err(AssemblerError{
-            message: format!("Expect an i16 value for parameter of instruction \"{}\", but it is actually an expression.", inst_name)
-        }),
+        ArgumentValue::Expression(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectInstructionParameterType {
+                expected: "i16".to_owned(),
+                actual: "expression".to_owned(),
+                instruction_name: inst_name.to_owned(),
+                function_name: function_name.to_owned(),
+            },
+        )),
     }
 }
 
-fn read_argument_value_as_i32(inst_name: &str, v: &ArgumentValue) -> Result<u32, AssemblerError> {
+fn read_argument_value_as_i32(
+    function_name: &str,
+    inst_name: &str,
+    v: &ArgumentValue,
+) -> Result<u32, AssemblerError> {
     match v {
-        ArgumentValue::Identifier(_) => Err(AssemblerError{
-            message: format!("Expect an i32 value for parameter of instruction \"{}\", but it is actually an identifier.", inst_name)
-        }),
+        ArgumentValue::Identifier(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectInstructionParameterType {
+                expected: "i32".to_owned(),
+                actual: "identifier".to_owned(),
+                instruction_name: inst_name.to_owned(),
+                function_name: function_name.to_owned(),
+            },
+        )),
         ArgumentValue::LiteralNumber(literal_number) => match literal_number {
             LiteralNumber::I8(v) => Ok(*v as u32),
             LiteralNumber::I16(v) => Ok(*v as u32),
             LiteralNumber::I32(v) => Ok(*v),
             LiteralNumber::I64(v) => Ok(*v as u32),
-            LiteralNumber::F32(_) | LiteralNumber::F64(_)  => Err(AssemblerError{
-                message: format!("Expect an i32 value for parameter of instruction \"{}\", but it is actually a floating-point number.", inst_name)
-            }),
+            LiteralNumber::F32(_) | LiteralNumber::F64(_) => Err(AssemblerError::new(
+                AssembleErrorType::IncorrectInstructionParameterType {
+                    expected: "i32".to_owned(),
+                    actual: "f32/f64".to_owned(),
+                    instruction_name: inst_name.to_owned(),
+                    function_name: function_name.to_owned(),
+                },
+            )),
         },
-        ArgumentValue::Expression(_) => Err(AssemblerError{
-            message: format!("Expect an i32 value for parameter of instruction \"{}\", but it is actually an expression.", inst_name)
-        }),
+        ArgumentValue::Expression(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectInstructionParameterType {
+                expected: "i32".to_owned(),
+                actual: "expression".to_owned(),
+                instruction_name: inst_name.to_owned(),
+                function_name: function_name.to_owned(),
+            },
+        )),
     }
 }
 
-fn read_argument_value_as_i64(inst_name: &str, v: &ArgumentValue) -> Result<u64, AssemblerError> {
+fn read_argument_value_as_i64(
+    function_name: &str,
+    inst_name: &str,
+    v: &ArgumentValue,
+) -> Result<u64, AssemblerError> {
     match v {
-        ArgumentValue::Identifier(_) => Err(AssemblerError{
-            message: format!("Expect an i64 value for parameter of instruction \"{}\", but it is actually an identifier.", inst_name)
-        }),
+        ArgumentValue::Identifier(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectInstructionParameterType {
+                expected: "i64".to_owned(),
+                actual: "identifier".to_owned(),
+                instruction_name: inst_name.to_owned(),
+                function_name: function_name.to_owned(),
+            },
+        )),
         ArgumentValue::LiteralNumber(literal_number) => match literal_number {
             LiteralNumber::I8(v) => Ok(*v as u64),
             LiteralNumber::I16(v) => Ok(*v as u64),
             LiteralNumber::I32(v) => Ok(*v as u64),
             LiteralNumber::I64(v) => Ok(*v),
-            LiteralNumber::F32(_) | LiteralNumber::F64(_)  => Err(AssemblerError{
-                message: format!("Expect an i64 value for parameter of instruction \"{}\", but it is actually a floating-point number.", inst_name)
-            }),
+            LiteralNumber::F32(_) | LiteralNumber::F64(_) => Err(AssemblerError::new(
+                AssembleErrorType::IncorrectInstructionParameterType {
+                    expected: "i64".to_owned(),
+                    actual: "f32/f64".to_owned(),
+                    instruction_name: inst_name.to_owned(),
+                    function_name: function_name.to_owned(),
+                },
+            )),
         },
-        ArgumentValue::Expression(_) => Err(AssemblerError{
-            message: format!("Expect an i64 value for parameter of instruction \"{}\", but it is actually an expression.", inst_name)
-        }),
+        ArgumentValue::Expression(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectInstructionParameterType {
+                expected: "i64".to_owned(),
+                actual: "expression".to_owned(),
+                instruction_name: inst_name.to_owned(),
+                function_name: function_name.to_owned(),
+            },
+        )),
     }
 }
 
-fn read_argument_value_as_f32(inst_name: &str, v: &ArgumentValue) -> Result<f32, AssemblerError> {
+fn read_argument_value_as_f32(
+    function_name: &str,
+    inst_name: &str,
+    v: &ArgumentValue,
+) -> Result<f32, AssemblerError> {
     match v {
-        ArgumentValue::Identifier(_) => Err(AssemblerError{
-            message: format!("Expect an f32 value for parameter of instruction \"{}\", but it is actually an identifier.", inst_name)
-        }),
+        ArgumentValue::Identifier(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectInstructionParameterType {
+                expected: "f32".to_owned(),
+                actual: "identifier".to_owned(),
+                instruction_name: inst_name.to_owned(),
+                function_name: function_name.to_owned(),
+            },
+        )),
         ArgumentValue::LiteralNumber(literal_number) => match literal_number {
             LiteralNumber::I8(v) => Ok(*v as f32),
             LiteralNumber::I16(v) => Ok(*v as f32),
             LiteralNumber::I32(v) => Ok(*v as f32),
             LiteralNumber::I64(v) => Ok(*v as f32),
-            LiteralNumber::F32(v)  => Ok(*v),
-            LiteralNumber::F64(v)  => Ok(*v as f32),
+            LiteralNumber::F32(v) => Ok(*v),
+            LiteralNumber::F64(v) => Ok(*v as f32),
         },
-        ArgumentValue::Expression(_) => Err(AssemblerError{
-            message: format!("Expect an f32 value for parameter of instruction \"{}\", but it is actually an expression.", inst_name)
-        }),
+        ArgumentValue::Expression(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectInstructionParameterType {
+                expected: "f32".to_owned(),
+                actual: "expression".to_owned(),
+                instruction_name: inst_name.to_owned(),
+                function_name: function_name.to_owned(),
+            },
+        )),
     }
 }
 
-fn read_argument_value_as_f64(inst_name: &str, v: &ArgumentValue) -> Result<f64, AssemblerError> {
+fn read_argument_value_as_f64(
+    function_name: &str,
+    inst_name: &str,
+    v: &ArgumentValue,
+) -> Result<f64, AssemblerError> {
     match v {
-        ArgumentValue::Identifier(_) => Err(AssemblerError{
-            message: format!("Expect an f64 value for parameter of instruction \"{}\", but it is actually an identifier.", inst_name)
-        }),
+        ArgumentValue::Identifier(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectInstructionParameterType {
+                expected: "f64".to_owned(),
+                actual: "identifier".to_owned(),
+                instruction_name: inst_name.to_owned(),
+                function_name: function_name.to_owned(),
+            },
+        )),
         ArgumentValue::LiteralNumber(literal_number) => match literal_number {
             LiteralNumber::I8(v) => Ok(*v as f64),
             LiteralNumber::I16(v) => Ok(*v as f64),
             LiteralNumber::I32(v) => Ok(*v as f64),
             LiteralNumber::I64(v) => Ok(*v as f64),
-            LiteralNumber::F32(v)  => Ok(*v as f64),
-            LiteralNumber::F64(v)  => Ok(*v),
+            LiteralNumber::F32(v) => Ok(*v as f64),
+            LiteralNumber::F64(v) => Ok(*v),
         },
-        ArgumentValue::Expression(_) => Err(AssemblerError{
-            message: format!("Expect an f64 value for parameter of instruction \"{}\", but it is actually an expression.", inst_name)
-        }),
+        ArgumentValue::Expression(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectInstructionParameterType {
+                expected: "f64".to_owned(),
+                actual: "expression".to_owned(),
+                instruction_name: inst_name.to_owned(),
+                function_name: function_name.to_owned(),
+            },
+        )),
     }
 }
 
 fn read_argument_value_as_expression<'a>(
+    function_name: &str,
     inst_name: &str,
     v: &'a ArgumentValue,
 ) -> Result<&'a ExpressionNode, AssemblerError> {
     match v {
-        ArgumentValue::Identifier(_) => Err(AssemblerError{
-            message: format!("Expect an expression for parameter of instruction \"{}\", but it is actually an identifier.", inst_name)
-        }),
-        ArgumentValue::LiteralNumber(_) => Err(AssemblerError{
-            message: format!("Expect an expression for parameter of instruction \"{}\", but it is actually a number literal.", inst_name)
-        }),
-
+        ArgumentValue::Identifier(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectInstructionParameterType {
+                expected: "expression".to_owned(),
+                actual: "identifier".to_owned(),
+                instruction_name: inst_name.to_owned(),
+                function_name: function_name.to_owned(),
+            },
+        )),
+        ArgumentValue::LiteralNumber(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectInstructionParameterType {
+                expected: "expression".to_owned(),
+                actual: "liberal number".to_owned(),
+                instruction_name: inst_name.to_owned(),
+                function_name: function_name.to_owned(),
+            },
+        )),
         ArgumentValue::Expression(exp) => Ok(exp.as_ref()),
     }
 }
 
 fn read_argument_value_as_identifer<'a>(
+    function_name: &str,
     inst_name: &str,
     v: &'a ArgumentValue,
 ) -> Result<&'a String, AssemblerError> {
     match v {
         ArgumentValue::Identifier(id) => Ok(id),
-        ArgumentValue::LiteralNumber(_) => Err(AssemblerError{
-            message: format!("Expect an identifier for parameter of instruction \"{}\", but it is actually a number literal.", inst_name)
-        }),
-        ArgumentValue::Expression(_) => Err(AssemblerError{
-            message: format!("Expect an identifier for parameter of instruction \"{}\", but it is actually an expression.", inst_name)
-        }),
+        ArgumentValue::LiteralNumber(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectInstructionParameterType {
+                expected: "identifier".to_owned(),
+                actual: "literal number".to_owned(),
+                instruction_name: inst_name.to_owned(),
+                function_name: function_name.to_owned(),
+            },
+        )),
+        ArgumentValue::Expression(_) => Err(AssemblerError::new(
+            AssembleErrorType::IncorrectInstructionParameterType {
+                expected: "identifier".to_owned(),
+                actual: "expression".to_owned(),
+                instruction_name: inst_name.to_owned(),
+                function_name: function_name.to_owned(),
+            },
+        )),
     }
 }
 
@@ -2580,27 +2790,32 @@ fn get_named_argument_value<'a>(
 }
 
 fn conver_data_type_value_pair_to_inited_data_entry(
+    data_name: &str, // for building error message only
     data_type_value_pair: &DataTypeValuePair,
 ) -> Result<InitedDataEntry, AssemblerError> {
     let entry = match data_type_value_pair.data_type {
-        DeclareDataType::I64 => {
-            InitedDataEntry::from_i64(read_data_value_as_i64(&data_type_value_pair.value)?)
-        }
-        DeclareDataType::I32 => {
-            InitedDataEntry::from_i32(read_data_value_as_i32(&data_type_value_pair.value)?)
-        }
-        DeclareDataType::F64 => {
-            InitedDataEntry::from_f64(read_data_value_as_f64(&data_type_value_pair.value)?)
-        }
-        DeclareDataType::F32 => {
-            InitedDataEntry::from_f32(read_data_value_as_f32(&data_type_value_pair.value)?)
-        }
+        DeclareDataType::I64 => InitedDataEntry::from_i64(read_data_value_as_i64(
+            data_name,
+            &data_type_value_pair.value,
+        )?),
+        DeclareDataType::I32 => InitedDataEntry::from_i32(read_data_value_as_i32(
+            data_name,
+            &data_type_value_pair.value,
+        )?),
+        DeclareDataType::F64 => InitedDataEntry::from_f64(read_data_value_as_f64(
+            data_name,
+            &data_type_value_pair.value,
+        )?),
+        DeclareDataType::F32 => InitedDataEntry::from_f32(read_data_value_as_f32(
+            data_name,
+            &data_type_value_pair.value,
+        )?),
         DeclareDataType::Bytes(opt_align) => InitedDataEntry::from_bytes(
-            read_data_value_as_bytes(&data_type_value_pair.value)?,
+            read_data_value_as_bytes(data_name, &data_type_value_pair.value)?,
             opt_align.unwrap_or(1) as u16,
         ),
         DeclareDataType::FixedBytes(length, opt_align) => {
-            let mut bytes = read_data_value_as_bytes(&data_type_value_pair.value)?;
+            let mut bytes = read_data_value_as_bytes(data_name, &data_type_value_pair.value)?;
             bytes.resize(length, 0);
             InitedDataEntry::from_bytes(bytes, opt_align.unwrap_or(1) as u16)
         }

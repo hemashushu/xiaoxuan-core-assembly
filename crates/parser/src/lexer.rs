@@ -8,10 +8,10 @@ pub const LEXER_PEEK_CHAR_MAX_COUNT: usize = 3;
 
 use crate::{
     charposition::{CharWithPosition, CharsWithPositionIter},
-    error::ParserError,
     location::Location,
     peekableiter::PeekableIter,
     token::{NumberToken, NumberType},
+    ParserError,
 };
 
 use super::token::{Comment, Token, TokenWithRange};
@@ -382,9 +382,9 @@ impl Lexer<'_> {
             Token::FullName(name_string)
         } else {
             match name_string.as_str() {
-                "import" | "as" | "from" | "external" | "fn" | "data" | "type" | "pub" | "readonly"
-                | "uninit" | "align" | "block" | "when" | "if" | "break" | "break_fn" | "recur"
-                | "recur_fn" => Token::Keyword(name_string),
+                "import" | "as" | "from" | "external" | "fn" | "data" | "type" | "pub"
+                | "readonly" | "uninit" | "align" | "block" | "when" | "if" | "break"
+                | "break_fn" | "recur" | "recur_fn" => Token::Keyword(name_string),
                 "i64" | "i32" | "i16" | "i8" | "f64" | "f32" | "byte" => {
                     Token::DataTypeName(name_string)
                 }
@@ -1858,9 +1858,9 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use crate::{
-        error::ParserError,
         location::Location,
         token::{Comment, NumberToken, Token, TokenWithRange},
+        ParserError,
     };
 
     use super::lex_from_str;

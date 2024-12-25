@@ -118,3 +118,35 @@ TODO
 ### Local Variables
 
 TODO
+
+    /// all local variables, including the parameters of function
+    /// should not have duplicate names in the scope. e.g.
+    ///
+    /// ```ancasm
+    /// fn add(left:i32, right:i32) -> i32 {
+    ///     block (
+    ///         temp:i32       /* valid */
+    ///         left:i32       /* invalid, duplicated with the fn parameter 'left' */
+    ///     ) -> ()
+    ///     [
+    ///         count:i32      /* valid */
+    ///         left:i32       /* invalid, duplicated with the fn parameter 'left' */
+    ///         temp:i32       /* invalid, duplicated with the 1st block parameter 'temp' */
+    ///     ]
+    ///     {
+    ///         block (
+    ///             abc:i32    /* valid */
+    ///             count:i32  /* invalid, duplicated with the local variable 'count' */
+    ///         )
+    ///         {
+    ///             ...
+    ///         }
+    ///
+    ///         block (
+    ///             abc:i32    /* valid, since it is out of the scope of the first 'abc' */
+    ///         ) {
+    ///             ...
+    ///         }
+    ///     }
+    /// }
+    /// ```

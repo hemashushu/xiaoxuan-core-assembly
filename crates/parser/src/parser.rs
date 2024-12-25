@@ -15,12 +15,12 @@ use anc_assembly::ast::{
 };
 
 use crate::{
-    error::ParserError,
     lexer::lex_from_str,
     location::Location,
     normalizer::{clean, normalize},
     peekableiter::PeekableIter,
     token::{NumberToken, Token, TokenWithRange},
+    ParserError,
 };
 
 pub const PARSER_PEEK_TOKEN_MAX_COUNT: usize = 4;

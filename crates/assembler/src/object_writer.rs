@@ -24,12 +24,12 @@ use anc_image::{
     module_image::{ImageType, ModuleImage, SectionEntry},
 };
 
-use crate::{entry::ImageCommonEntry, AssemblerError};
+use crate::entry::ImageCommonEntry;
 
 pub fn write_object_file(
     image_common_entry: &ImageCommonEntry,
     writer: &mut dyn Write,
-) -> Result<(), AssemblerError> {
+) -> std::io::Result<()> {
     // property section
     let common_property_section = CommonPropertySection::new(
         &image_common_entry.name,
@@ -169,12 +169,13 @@ pub fn write_object_file(
     };
 
     // save
-    module_image.write(writer).map_err(|io_error| {
-        AssemblerError::new(&format!(
-            "Failed to write object file: {}",
-            io_error
-        ))
-    })
+    module_image.write(writer)
+    // .map_err(|io_error| {
+    //     AssemblerError::new(&format!(
+    //         "Failed to write object file: {}",
+    //         io_error
+    //     ))
+    // })
 }
 
 #[cfg(test)]
@@ -299,10 +300,5 @@ fn add(left:i32, right:i32) -> i32 {
         );
 
         // todo: check data full name
-    }
-
-    #[test]
-    fn test_image_generate_with_import_and_external() {
-        // TODO
     }
 }

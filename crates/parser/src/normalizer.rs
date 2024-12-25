@@ -7,10 +7,10 @@
 use std::ops::Neg;
 
 use crate::{
-    error::ParserError,
     location::Location,
     peekableiter::PeekableIter,
     token::{NumberToken, Token, TokenWithRange},
+    ParserError,
 };
 
 pub fn clean(tokens: Vec<TokenWithRange>) -> Vec<TokenWithRange> {
@@ -335,10 +335,10 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use crate::{
-        error::ParserError,
         lexer::lex_from_str,
         location::Location,
         token::{NumberToken, Token, TokenWithRange},
+        ParserError,
     };
 
     use super::{clean, normalize};
