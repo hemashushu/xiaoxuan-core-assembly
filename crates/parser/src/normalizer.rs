@@ -402,12 +402,12 @@ mod tests {
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::I32(11)),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     2
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::I32(13)),
-                    &Location::new_position(0, 13, 0, 13),
+                    &Location::new_position(/*0,*/ 13, 0, 13),
                     2
                 ),
             ]
@@ -489,17 +489,17 @@ mod tests {
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::I32(11)),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     2
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::NewLine,
-                    &Location::new_position(0, 2, 0, 2),
+                    &Location::new_position(/*0,*/ 2, 0, 2),
                     6
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::I32(13)),
-                    &Location::new_position(0, 8, 3, 0),
+                    &Location::new_position(/*0,*/ 8, 3, 0),
                     2
                 ),
             ]
@@ -511,12 +511,12 @@ mod tests {
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::Comma,
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     1
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::I32(11)),
-                    &Location::new_position(0, 4, 3, 0),
+                    &Location::new_position(/*0,*/ 4, 3, 0),
                     2
                 ),
             ]
@@ -528,12 +528,12 @@ mod tests {
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::I32(11)),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     2
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::Comma,
-                    &Location::new_position(0, 5, 3, 0),
+                    &Location::new_position(/*0,*/ 5, 3, 0),
                     1
                 ),
             ]
@@ -545,17 +545,17 @@ mod tests {
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::I32(11)),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     2
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::Comma,
-                    &Location::new_position(0, 4, 2, 0),
+                    &Location::new_position(/*0,*/ 4, 2, 0),
                     1
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::I32(13)),
-                    &Location::new_position(0, 7, 4, 0),
+                    &Location::new_position(/*0,*/ 7, 4, 0),
                     2
                 ),
             ]
@@ -567,12 +567,12 @@ mod tests {
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::Comma,
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     1
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::Comma,
-                    &Location::new_position(0, 7, 1, 0),
+                    &Location::new_position(/*0,*/ 7, 1, 0),
                     1
                 ),
             ]
@@ -584,17 +584,17 @@ mod tests {
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::I32(11)),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     2
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::NewLine,
-                    &Location::new_position(0, 2, 0, 2),
+                    &Location::new_position(/*0,*/ 2, 0, 2),
                     9
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::I32(13)),
-                    &Location::new_position(0, 11, 4, 0),
+                    &Location::new_position(/*0,*/ 11, 4, 0),
                     2
                 ),
             ]
@@ -643,7 +643,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -658,7 +658,7 @@ mod tests {
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /*unit: 0,*/
                         index: 0,
                         line: 0,
                         column: 0,
@@ -686,7 +686,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -701,7 +701,7 @@ mod tests {
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /*unit: 0,*/
                         index: 0,
                         line: 0,
                         column: 0,
@@ -716,7 +716,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -744,7 +744,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -759,7 +759,7 @@ mod tests {
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /*unit: 0,*/
                         index: 0,
                         line: 0,
                         column: 0,
@@ -774,7 +774,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -802,7 +802,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -817,7 +817,7 @@ mod tests {
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /*unit: 0,*/
                         index: 0,
                         line: 0,
                         column: 0,
@@ -832,7 +832,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -866,7 +866,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -881,7 +881,7 @@ mod tests {
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /*unit: 0,*/
                         index: 0,
                         line: 0,
                         column: 0,
@@ -896,7 +896,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -913,7 +913,7 @@ mod tests {
                 normalize_and_lex_from_str("+11").unwrap(),
                 vec![TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::I32(11)),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     3
                 ),]
             );
@@ -922,7 +922,7 @@ mod tests {
                 normalize_and_lex_from_str("-13").unwrap(),
                 vec![TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::I32(-13_i32 as u32)),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     3
                 ),]
             );
@@ -932,17 +932,17 @@ mod tests {
                 vec![
                     TokenWithRange::from_position_and_length(
                         Token::Number(NumberToken::I32(11)),
-                        &Location::new_position(0, 0, 0, 0),
+                        &Location::new_position(/*0,*/ 0, 0, 0),
                         3
                     ),
                     TokenWithRange::from_position_and_length(
                         Token::Comma,
-                        &Location::new_position(0, 3, 0, 3),
+                        &Location::new_position(/*0,*/ 3, 0, 3),
                         1
                     ),
                     TokenWithRange::from_position_and_length(
                         Token::Number(NumberToken::I32(-13_i32 as u32)),
-                        &Location::new_position(0, 4, 0, 4),
+                        &Location::new_position(/*0,*/ 4, 0, 4),
                         3
                     ),
                 ]
@@ -967,7 +967,7 @@ mod tests {
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /*unit: 0,*/
                     index: 0,
                     line: 0,
                     column: 0,
@@ -982,7 +982,7 @@ mod tests {
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /*unit: 0,*/
                     index: 0,
                     line: 0,
                     column: 0,
@@ -999,7 +999,7 @@ mod tests {
             normalize_and_lex_from_str("+3.402_823_5e+38").unwrap(),
             vec![TokenWithRange::from_position_and_length(
                 Token::Number(NumberToken::F64(3.402_823_5e38f64)),
-                &Location::new_position(0, 0, 0, 0),
+                &Location::new_position(/*0,*/ 0, 0, 0),
                 16
             )]
         );
@@ -1008,7 +1008,7 @@ mod tests {
             normalize_and_lex_from_str("-3.402_823_5e+38").unwrap(),
             vec![TokenWithRange::from_position_and_length(
                 Token::Number(NumberToken::F64(-3.402_823_5e38f64)),
-                &Location::new_position(0, 0, 0, 0),
+                &Location::new_position(/*0,*/ 0, 0, 0),
                 16
             )]
         );
@@ -1024,7 +1024,7 @@ mod tests {
                 normalize_and_lex_from_str("+0.0").unwrap(),
                 vec![TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::F64(0f64)),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     4
                 )]
             );
@@ -1034,7 +1034,7 @@ mod tests {
                 normalize_and_lex_from_str("-0.0").unwrap(),
                 vec![TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::F64(0f64)),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     4
                 )]
             );
@@ -1056,7 +1056,7 @@ mod tests {
         //         normalize_and_lex_from_str("+Inf").unwrap(),
         //         vec![TokenWithRange::from_position_and_length(
         //             Token::Number(NumberToken::F64(f64::INFINITY)),
-        //             &Location::new_position(0, 0, 0, 0),
+        //             &Location::new_position(/*0,*/ 0, 0, 0),
         //             4
         //         )]
         //     );
@@ -1064,7 +1064,7 @@ mod tests {
         //         normalize_and_lex_from_str("-Inf").unwrap(),
         //         vec![TokenWithRange::from_position_and_length(
         //             Token::Number(NumberToken::F64(f64::NEG_INFINITY)),
-        //             &Location::new_position(0, 0, 0, 0),
+        //             &Location::new_position(/*0,*/ 0, 0, 0),
         //             4
         //         )]
         //     );
@@ -1076,7 +1076,7 @@ mod tests {
         //     Err(Error::MessageWithLocation(
         //         _,
         //         Location {
-        //             unit: 0,
+        //             /*unit: 0,*/
         //             index: 0,
         //             line: 0,
         //             column: 0,
@@ -1091,7 +1091,7 @@ mod tests {
         //     Err(Error::MessageWithLocation(
         //         _,
         //         Location {
-        //             unit: 0,
+        //             /*unit: 0,*/
         //             index: 0,
         //             line: 0,
         //             column: 0,
@@ -1109,7 +1109,7 @@ mod tests {
                 normalize_and_lex_from_str("+1.602_176_6e-19_f32").unwrap(),
                 vec![TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::F32(1.602_176_6e-19f32)),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     20
                 )]
             );
@@ -1118,7 +1118,7 @@ mod tests {
                 normalize_and_lex_from_str("-1.602_176_6e-19_f32").unwrap(),
                 vec![TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::F32(-1.602_176_6e-19f32)),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     20
                 )]
             );
@@ -1132,7 +1132,7 @@ mod tests {
                 normalize_and_lex_from_str("+0_f32").unwrap(),
                 vec![TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::F32(0f32)),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     6
                 )]
             );
@@ -1142,7 +1142,7 @@ mod tests {
                 normalize_and_lex_from_str("-0_f32").unwrap(),
                 vec![TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::F32(0f32)),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     6
                 )]
             );
@@ -1157,7 +1157,7 @@ mod tests {
             //     normalize_and_lex_from_str("+Inf_f32").unwrap(),
             //     vec![TokenWithRange::from_position_and_length(
             //         Token::Number(NumberToken::F32(f32::INFINITY)),
-            //         &Location::new_position(0, 0, 0, 0),
+            //         &Location::new_position(/*0,*/ 0, 0, 0),
             //         8
             //     )]
             // );
@@ -1165,7 +1165,7 @@ mod tests {
             //     normalize_and_lex_from_str("-Inf_f32").unwrap(),
             //     vec![TokenWithRange::from_position_and_length(
             //         Token::Number(NumberToken::F32(f32::NEG_INFINITY)),
-            //         &Location::new_position(0, 0, 0, 0),
+            //         &Location::new_position(/*0,*/ 0, 0, 0),
             //         8
             //     )]
             // );
@@ -1176,7 +1176,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -1191,7 +1191,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -1207,7 +1207,7 @@ mod tests {
                 normalize_and_lex_from_str("+1.797_693_134_862_315_7e+308_f64").unwrap(),
                 vec![TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::F64(1.797_693_134_862_315_7e308_f64)),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     33
                 )]
             );
@@ -1216,7 +1216,7 @@ mod tests {
                 normalize_and_lex_from_str("-1.797_693_134_862_315_7e+308_f64").unwrap(),
                 vec![TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::F64(-1.797_693_134_862_315_7e308_f64)),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     33
                 )]
             );
@@ -1230,7 +1230,7 @@ mod tests {
                 normalize_and_lex_from_str("+0_f64").unwrap(),
                 vec![TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::F64(0f64)),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     6
                 )]
             );
@@ -1240,7 +1240,7 @@ mod tests {
                 normalize_and_lex_from_str("-0_f64").unwrap(),
                 vec![TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::F64(0f64)),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     6
                 )]
             );
@@ -1255,7 +1255,7 @@ mod tests {
             //     normalize_and_lex_from_str("+Inf_f64").unwrap(),
             //     vec![TokenWithRange::from_position_and_length(
             //         Token::Number(NumberToken::F64(f64::INFINITY)),
-            //         &Location::new_position(0, 0, 0, 0),
+            //         &Location::new_position(/*0,*/ 0, 0, 0),
             //         8
             //     )]
             // );
@@ -1263,7 +1263,7 @@ mod tests {
             //     normalize_and_lex_from_str("-Inf_f64").unwrap(),
             //     vec![TokenWithRange::from_position_and_length(
             //         Token::Number(NumberToken::F64(f64::NEG_INFINITY)),
-            //         &Location::new_position(0, 0, 0, 0),
+            //         &Location::new_position(/*0,*/ 0, 0, 0),
             //         8
             //     )]
             // );
@@ -1274,7 +1274,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -1289,7 +1289,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -1321,7 +1321,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -1336,7 +1336,7 @@ mod tests {
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /*unit: 0,*/
                         index: 0,
                         line: 0,
                         column: 0,
@@ -1364,7 +1364,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -1379,7 +1379,7 @@ mod tests {
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /*unit: 0,*/
                         index: 0,
                         line: 0,
                         column: 0,
@@ -1394,7 +1394,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -1422,7 +1422,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -1437,7 +1437,7 @@ mod tests {
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /*unit: 0,*/
                         index: 0,
                         line: 0,
                         column: 0,
@@ -1452,7 +1452,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -1480,7 +1480,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -1495,7 +1495,7 @@ mod tests {
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /*unit: 0,*/
                         index: 0,
                         line: 0,
                         column: 0,
@@ -1510,7 +1510,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -1542,7 +1542,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -1557,7 +1557,7 @@ mod tests {
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /*unit: 0,*/
                         index: 0,
                         line: 0,
                         column: 0,
@@ -1572,7 +1572,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -1589,7 +1589,7 @@ mod tests {
                 normalize_and_lex_from_str("+0x11").unwrap(),
                 vec![TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::I32(0x11)),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     5
                 ),]
             );
@@ -1598,7 +1598,7 @@ mod tests {
                 normalize_and_lex_from_str("-0x13").unwrap(),
                 vec![TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::I32(-0x13_i32 as u32)),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     5
                 ),]
             );
@@ -1608,17 +1608,17 @@ mod tests {
                 vec![
                     TokenWithRange::from_position_and_length(
                         Token::Number(NumberToken::I32(0x11)),
-                        &Location::new_position(0, 0, 0, 0),
+                        &Location::new_position(/*0,*/ 0, 0, 0),
                         5
                     ),
                     TokenWithRange::from_position_and_length(
                         Token::Comma,
-                        &Location::new_position(0, 5, 0, 5),
+                        &Location::new_position(/*0,*/ 5, 0, 5),
                         1
                     ),
                     TokenWithRange::from_position_and_length(
                         Token::Number(NumberToken::I32(-0x13_i32 as u32)),
-                        &Location::new_position(0, 6, 0, 6),
+                        &Location::new_position(/*0,*/ 6, 0, 6),
                         5
                     ),
                 ]
@@ -1647,17 +1647,17 @@ mod tests {
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::F32(std::f32::consts::PI)),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     16
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::Comma,
-                    &Location::new_position(0, 16, 0, 16),
+                    &Location::new_position(/*0,*/ 16, 0, 16),
                     1
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::F64(-std::f64::consts::E)),
-                    &Location::new_position(0, 17, 0, 17),
+                    &Location::new_position(/*0,*/ 17, 0, 17),
                     25
                 ),
             ]
@@ -1687,7 +1687,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -1704,7 +1704,7 @@ mod tests {
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /*unit: 0,*/
                         index: 0,
                         line: 0,
                         column: 0,
@@ -1732,7 +1732,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -1747,7 +1747,7 @@ mod tests {
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /*unit: 0,*/
                         index: 0,
                         line: 0,
                         column: 0,
@@ -1762,7 +1762,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -1790,7 +1790,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -1805,7 +1805,7 @@ mod tests {
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /*unit: 0,*/
                         index: 0,
                         line: 0,
                         column: 0,
@@ -1820,7 +1820,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -1854,7 +1854,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -1871,7 +1871,7 @@ mod tests {
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /*unit: 0,*/
                         index: 0,
                         line: 0,
                         column: 0,
@@ -1886,7 +1886,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -1914,7 +1914,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -1929,7 +1929,7 @@ mod tests {
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /*unit: 0,*/
                         index: 0,
                         line: 0,
                         column: 0,
@@ -1945,7 +1945,7 @@ mod tests {
             //     Err(Error::MessageWithLocation(
             //         _,
             //         Location {
-            //             unit: 0,
+            //             /*unit: 0,*/
             //             index: 0,
             //             line: 0,
             //             column: 0,
@@ -1961,7 +1961,7 @@ mod tests {
                     normalize_and_lex_from_str("+0b101").unwrap(),
                     vec![TokenWithRange::from_position_and_length(
                         Token::Number(NumberToken::I32(0b101_i32 as u32)),
-                        &Location::new_position(0, 0, 0, 0),
+                        &Location::new_position(/*0,*/ 0, 0, 0),
                         6
                     )]
                 );
@@ -1970,7 +1970,7 @@ mod tests {
                     normalize_and_lex_from_str("-0b010").unwrap(),
                     vec![TokenWithRange::from_position_and_length(
                         Token::Number(NumberToken::I32(-0b010_i32 as u32)),
-                        &Location::new_position(0, 0, 0, 0),
+                        &Location::new_position(/*0,*/ 0, 0, 0),
                         6
                     )]
                 );
@@ -1980,17 +1980,17 @@ mod tests {
                     vec![
                         TokenWithRange::from_position_and_length(
                             Token::Number(NumberToken::I32(0b101_i32 as u32)),
-                            &Location::new_position(0, 0, 0, 0),
+                            &Location::new_position(/*0,*/ 0, 0, 0),
                             6
                         ),
                         TokenWithRange::from_position_and_length(
                             Token::Comma,
-                            &Location::new_position(0, 6, 0, 6),
+                            &Location::new_position(/*0,*/ 6, 0, 6),
                             1
                         ),
                         TokenWithRange::from_position_and_length(
                             Token::Number(NumberToken::I32(-0b010_i32 as u32)),
-                            &Location::new_position(0, 7, 0, 7),
+                            &Location::new_position(/*0,*/ 7, 0, 7),
                             6
                         )
                     ]

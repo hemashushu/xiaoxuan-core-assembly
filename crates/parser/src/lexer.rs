@@ -7,7 +7,7 @@
 pub const LEXER_PEEK_CHAR_MAX_COUNT: usize = 3;
 
 use crate::{
-    charposition::{CharWithPosition, CharsWithPositionIter},
+    charwithposition::{CharWithPosition, CharsWithPositionIter},
     location::Location,
     peekableiter::PeekableIter,
     token::{NumberToken, NumberType},
@@ -18,7 +18,7 @@ use super::token::{Comment, Token, TokenWithRange};
 
 pub fn lex_from_str(s: &str) -> Result<Vec<TokenWithRange>, ParserError> {
     let mut chars = s.chars();
-    let mut char_position_iter = CharsWithPositionIter::new(0, &mut chars);
+    let mut char_position_iter = CharsWithPositionIter::new(/* 0,*/ &mut chars);
     let mut peekable_char_position_iter =
         PeekableIter::new(&mut char_position_iter, LEXER_PEEK_CHAR_MAX_COUNT);
     let mut lexer = Lexer::new(&mut peekable_char_position_iter);
@@ -35,7 +35,7 @@ impl<'a> Lexer<'a> {
     fn new(upstream: &'a mut PeekableIter<'a, CharWithPosition>) -> Self {
         Self {
             upstream,
-            last_position: Location::new_position(0, 0, 0, 0),
+            last_position: Location::new_position(/*0,*/ 0, 0, 0),
             saved_positions: vec![],
         }
     }
@@ -1927,16 +1927,16 @@ mod tests {
         assert_eq!(
             lex_from_str("()").unwrap(),
             vec![
-                TokenWithRange::new(Token::LeftParen, Location::new_range(0, 0, 0, 0, 1)),
-                TokenWithRange::new(Token::RightParen, Location::new_range(0, 1, 0, 1, 1)),
+                TokenWithRange::new(Token::LeftParen, Location::new_range(/*0,*/ 0, 0, 0, 1)),
+                TokenWithRange::new(Token::RightParen, Location::new_range(/*0,*/ 1, 0, 1, 1)),
             ]
         );
 
         assert_eq!(
             lex_from_str("(  )").unwrap(),
             vec![
-                TokenWithRange::new(Token::LeftParen, Location::new_range(0, 0, 0, 0, 1)),
-                TokenWithRange::new(Token::RightParen, Location::new_range(0, 3, 0, 3, 1)),
+                TokenWithRange::new(Token::LeftParen, Location::new_range(/*0,*/ 0, 0, 0, 1)),
+                TokenWithRange::new(Token::RightParen, Location::new_range(/*0,*/ 3, 0, 3, 1)),
             ]
         );
 
@@ -1950,11 +1950,11 @@ mod tests {
         assert_eq!(
             lex_from_str("(\t\r\n\n\n)").unwrap(),
             vec![
-                TokenWithRange::new(Token::LeftParen, Location::new_range(0, 0, 0, 0, 1)),
-                TokenWithRange::new(Token::NewLine, Location::new_range(0, 2, 0, 2, 2,)),
-                TokenWithRange::new(Token::NewLine, Location::new_range(0, 4, 1, 0, 1,)),
-                TokenWithRange::new(Token::NewLine, Location::new_range(0, 5, 2, 0, 1,)),
-                TokenWithRange::new(Token::RightParen, Location::new_range(0, 6, 3, 0, 1)),
+                TokenWithRange::new(Token::LeftParen, Location::new_range(/*0,*/ 0, 0, 0, 1)),
+                TokenWithRange::new(Token::NewLine, Location::new_range(/*0,*/ 2, 0, 2, 2,)),
+                TokenWithRange::new(Token::NewLine, Location::new_range(/*0,*/ 4, 1, 0, 1,)),
+                TokenWithRange::new(Token::NewLine, Location::new_range(/*0,*/ 5, 2, 0, 1,)),
+                TokenWithRange::new(Token::RightParen, Location::new_range(/*0,*/ 6, 3, 0, 1)),
             ]
         );
     }
@@ -1987,12 +1987,12 @@ mod tests {
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::Minus,
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     1
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::RightArrow,
-                    &Location::new_position(0, 1, 0, 1),
+                    &Location::new_position(/*0,*/ 1, 0, 1),
                     2
                 ),
             ]
@@ -2042,12 +2042,12 @@ mod tests {
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::new_name("hello"),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     5
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::new_name("ASON"),
-                    &Location::new_position(0, 6, 0, 6),
+                    &Location::new_position(/*0,*/ 6, 0, 6),
                     4
                 )
             ]
@@ -2059,7 +2059,7 @@ mod tests {
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 3,
                     line: 0,
                     column: 3,
@@ -2076,27 +2076,27 @@ mod tests {
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::new_full_name("foo::bar"),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     8
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::new_full_name("a::bc::def"),
-                    &Location::new_position(0, 9, 0, 9),
+                    &Location::new_position(/*0,*/ 9, 0, 9),
                     10
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::new_name("a"),
-                    &Location::new_position(0, 20, 0, 20),
+                    &Location::new_position(/*0,*/ 20, 0, 20),
                     1
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::Colon,
-                    &Location::new_position(0, 21, 0, 21),
+                    &Location::new_position(/*0,*/ 21, 0, 21),
                     1
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::new_name("b"),
-                    &Location::new_position(0, 22, 0, 22),
+                    &Location::new_position(/*0,*/ 22, 0, 22),
                     1
                 )
             ]
@@ -2160,22 +2160,22 @@ recur recur_fn"
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::new_keyword("data"),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     4
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::new_name("foo"),
-                    &Location::new_position(0, 5, 0, 5),
+                    &Location::new_position(/*0,*/ 5, 0, 5),
                     3
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::Colon,
-                    &Location::new_position(0, 8, 0, 8),
+                    &Location::new_position(/*0,*/ 8, 0, 8),
                     1
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::new_datatype_name("i32"),
-                    &Location::new_position(0, 9, 0, 9),
+                    &Location::new_position(/*0,*/ 9, 0, 9),
                     3
                 ),
             ]
@@ -2195,37 +2195,37 @@ recur recur_fn"
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::LeftBracket,
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     1
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::NewLine,
-                    &Location::new_position(0, 1, 0, 1),
+                    &Location::new_position(/*0,*/ 1, 0, 1),
                     1
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::new_keyword("pub"),
-                    &Location::new_position(0, 4, 1, 2),
+                    &Location::new_position(/*0,*/ 4, 1, 2),
                     3
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::NewLine,
-                    &Location::new_position(0, 7, 1, 5),
+                    &Location::new_position(/*0,*/ 7, 1, 5),
                     1
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::new_keyword("data"),
-                    &Location::new_position(0, 12, 2, 4),
+                    &Location::new_position(/*0,*/ 12, 2, 4),
                     4
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::NewLine,
-                    &Location::new_position(0, 16, 2, 8),
+                    &Location::new_position(/*0,*/ 16, 2, 8),
                     1
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::RightBracket,
-                    &Location::new_position(0, 17, 3, 0),
+                    &Location::new_position(/*0,*/ 17, 3, 0),
                     1
                 ),
             ]
@@ -2238,7 +2238,7 @@ recur recur_fn"
             lex_from_str("#!/bin/bash\nabc").unwrap(),
             vec![TokenWithRange::from_position_and_length(
                 Token::new_name("abc"),
-                &Location::new_position(0, 12, 1, 0),
+                &Location::new_position(/*0,*/ 12, 1, 0),
                 3
             )]
         );
@@ -2290,12 +2290,12 @@ recur recur_fn"
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::I32(223)),
-                    &Location::new_position(0, 0, 0, 0,),
+                    &Location::new_position(/*0,*/ 0, 0, 0,),
                     3
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::I32(211)),
-                    &Location::new_position(0, 4, 0, 4,),
+                    &Location::new_position(/*0,*/ 4, 0, 4,),
                     3
                 ),
             ]
@@ -2307,7 +2307,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 2,
                     line: 0,
                     column: 2,
@@ -2322,7 +2322,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 0,
                     line: 0,
                     column: 0,
@@ -2371,7 +2371,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 3,
                     line: 0,
                     column: 3,
@@ -2386,7 +2386,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 3,
                     line: 0,
                     column: 3,
@@ -2401,7 +2401,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 4,
                     line: 0,
                     column: 4,
@@ -2416,7 +2416,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 4,
                     line: 0,
                     column: 4,
@@ -2431,7 +2431,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 0,
                     line: 0,
                     column: 0,
@@ -2469,12 +2469,12 @@ recur recur_fn"
                 vec![
                     TokenWithRange::from_position_and_length(
                         Token::Number(NumberToken::I16(101)),
-                        &Location::new_position(0, 0, 0, 0),
+                        &Location::new_position(/*0,*/ 0, 0, 0),
                         7
                     ),
                     TokenWithRange::from_position_and_length(
                         Token::Number(NumberToken::I32(103)),
-                        &Location::new_position(0, 8, 0, 8),
+                        &Location::new_position(/*0,*/ 8, 0, 8),
                         7
                     ),
                 ]
@@ -2499,7 +2499,7 @@ recur recur_fn"
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /* unit: 0, */
                         index: 0,
                         line: 0,
                         column: 0,
@@ -2527,7 +2527,7 @@ recur recur_fn"
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /* unit: 0, */
                         index: 0,
                         line: 0,
                         column: 0,
@@ -2555,7 +2555,7 @@ recur recur_fn"
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /* unit: 0, */
                         index: 0,
                         line: 0,
                         column: 0,
@@ -2585,7 +2585,7 @@ recur recur_fn"
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /* unit: 0, */
                         index: 0,
                         line: 0,
                         column: 0,
@@ -2613,7 +2613,7 @@ recur recur_fn"
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /* unit: 0, */
                         index: 0,
                         line: 0,
                         column: 0,
@@ -2643,7 +2643,7 @@ recur recur_fn"
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /* unit: 0, */
                         index: 0,
                         line: 0,
                         column: 0,
@@ -2678,12 +2678,12 @@ recur recur_fn"
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::I32(0xab)),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     4
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::I32(0xdef)),
-                    &Location::new_position(0, 5, 0, 5,),
+                    &Location::new_position(/*0,*/ 5, 0, 5,),
                     5
                 ),
             ]
@@ -2695,7 +2695,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 6,
                     line: 0,
                     column: 6,
@@ -2710,7 +2710,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 0,
                     line: 0,
                     column: 0,
@@ -2725,7 +2725,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 0,
                     line: 0,
                     column: 0,
@@ -2763,12 +2763,12 @@ recur recur_fn"
                 vec![
                     TokenWithRange::from_position_and_length(
                         Token::Number(NumberToken::I16(0x101)),
-                        &Location::new_position(0, 0, 0, 0),
+                        &Location::new_position(/*0,*/ 0, 0, 0),
                         9
                     ),
                     TokenWithRange::from_position_and_length(
                         Token::Number(NumberToken::I32(0x103)),
-                        &Location::new_position(0, 10, 0, 10),
+                        &Location::new_position(/*0,*/ 10, 0, 10),
                         9
                     ),
                 ]
@@ -2793,7 +2793,7 @@ recur recur_fn"
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /* unit: 0, */
                         index: 0,
                         line: 0,
                         column: 0,
@@ -2821,7 +2821,7 @@ recur recur_fn"
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /* unit: 0, */
                         index: 0,
                         line: 0,
                         column: 0,
@@ -2849,7 +2849,7 @@ recur recur_fn"
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /* unit: 0, */
                         index: 0,
                         line: 0,
                         column: 0,
@@ -2879,7 +2879,7 @@ recur recur_fn"
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /* unit: 0, */
                         index: 0,
                         line: 0,
                         column: 0,
@@ -2937,7 +2937,7 @@ recur recur_fn"
             lex_from_str("0x1.4p3").unwrap(),
             vec![TokenWithRange::from_position_and_length(
                 Token::Number(NumberToken::F64(10f64)),
-                &Location::new_position(0, 0, 0, 0),
+                &Location::new_position(/*0,*/ 0, 0, 0),
                 7
             )]
         );
@@ -2948,7 +2948,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 0,
                     line: 0,
                     column: 0,
@@ -2963,7 +2963,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 5,
                     line: 0,
                     column: 5,
@@ -2978,7 +2978,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 7,
                     line: 0,
                     column: 7,
@@ -2993,7 +2993,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 8,
                     line: 0,
                     column: 8,
@@ -3008,7 +3008,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 9,
                     line: 0,
                     column: 9,
@@ -3042,12 +3042,12 @@ recur recur_fn"
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::I32(0b10)),
-                    &Location::new_position(0, 0, 0, 0,),
+                    &Location::new_position(/*0,*/ 0, 0, 0,),
                     4
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::Number(NumberToken::I32(0b0101)),
-                    &Location::new_position(0, 5, 0, 5,),
+                    &Location::new_position(/*0,*/ 5, 0, 5,),
                     6
                 ),
             ]
@@ -3059,7 +3059,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 4,
                     line: 0,
                     column: 4,
@@ -3074,7 +3074,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 0,
                     line: 0,
                     column: 0,
@@ -3089,7 +3089,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 5,
                     line: 0,
                     column: 5,
@@ -3104,7 +3104,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 0,
                     line: 0,
                     column: 0,
@@ -3142,12 +3142,12 @@ recur recur_fn"
                 vec![
                     TokenWithRange::from_position_and_length(
                         Token::Number(NumberToken::I16(0b101)),
-                        &Location::new_position(0, 0, 0, 0),
+                        &Location::new_position(/*0,*/ 0, 0, 0),
                         9
                     ),
                     TokenWithRange::from_position_and_length(
                         Token::Number(NumberToken::I32(0b1010)),
-                        &Location::new_position(0, 10, 0, 10),
+                        &Location::new_position(/*0,*/ 10, 0, 10),
                         10
                     ),
                 ]
@@ -3172,7 +3172,7 @@ recur recur_fn"
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /* unit: 0, */
                         index: 0,
                         line: 0,
                         column: 0,
@@ -3200,7 +3200,7 @@ recur recur_fn"
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /* unit: 0, */
                         index: 0,
                         line: 0,
                         column: 0,
@@ -3230,7 +3230,7 @@ recur recur_fn"
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /* unit: 0, */
                         index: 0,
                         line: 0,
                         column: 0,
@@ -3258,7 +3258,7 @@ recur recur_fn"
                 Err(ParserError::MessageWithLocation(
                     _,
                     Location {
-                        unit: 0,
+                        /* unit: 0, */
                         index: 0,
                         line: 0,
                         column: 0,
@@ -3274,7 +3274,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 5,
                     line: 0,
                     column: 5,
@@ -3374,12 +3374,12 @@ recur recur_fn"
     //             vec![
     //                 TokenWithRange::from_position_and_length(
     //                     Token::Char('a'),
-    //                     &Location::new_position(0, 0, 0, 0),
+    //                     &Location::new_position(/*0,*/ 0, 0, 0),
     //                     3
     //                 ),
     //                 TokenWithRange::from_position_and_length(
     //                     Token::Char('文'),
-    //                     &Location::new_position(0, 4, 0, 4),
+    //                     &Location::new_position(/*0,*/ 4, 0, 4),
     //                     3
     //                 )
     //             ]
@@ -3389,7 +3389,7 @@ recur recur_fn"
     //             lex_from_str("'\\t'").unwrap(),
     //             vec![TokenWithRange::from_position_and_length(
     //                 Token::Char('\t'),
-    //                 &Location::new_position(0, 0, 0, 0),
+    //                 &Location::new_position(/*0,*/ 0, 0, 0),
     //                 4
     //             )]
     //         );
@@ -3398,7 +3398,7 @@ recur recur_fn"
     //             lex_from_str("'\\u{6587}'").unwrap(),
     //             vec![TokenWithRange::from_position_and_length(
     //                 Token::Char('文'),
-    //                 &Location::new_position(0, 0, 0, 0),
+    //                 &Location::new_position(/*0,*/ 0, 0, 0),
     //                 10
     //             )]
     //         );
@@ -3409,7 +3409,7 @@ recur recur_fn"
     //             Err(Error::MessageWithLocation(
     //                 _,
     //                 Location {
-    //                     unit: 0,
+    //                     /* unit: 0, */
     //                     index: 0,
     //                     line: 0,
     //                     column: 0,
@@ -3436,7 +3436,7 @@ recur recur_fn"
     //             Err(Error::MessageWithLocation(
     //                 _,
     //                 Location {
-    //                     unit: 0,
+    //                     /* unit: 0, */
     //                     index: 2,
     //                     line: 0,
     //                     column: 2,
@@ -3451,7 +3451,7 @@ recur recur_fn"
     //             Err(Error::MessageWithLocation(
     //                 _,
     //                 Location {
-    //                     unit: 0,
+    //                     /* unit: 0, */
     //                     index: 2,
     //                     line: 0,
     //                     column: 2,
@@ -3466,7 +3466,7 @@ recur recur_fn"
     //             Err(Error::MessageWithLocation(
     //                 _,
     //                 Location {
-    //                     unit: 0,
+    //                     /* unit: 0, */
     //                     index: 1,
     //                     line: 0,
     //                     column: 1,
@@ -3481,7 +3481,7 @@ recur recur_fn"
     //             Err(Error::MessageWithLocation(
     //                 _,
     //                 Location {
-    //                     unit: 0,
+    //                     /* unit: 0, */
     //                     index: 1,
     //                     line: 0,
     //                     column: 1,
@@ -3498,7 +3498,7 @@ recur recur_fn"
     //             Err(Error::MessageWithLocation(
     //                 _,
     //                 Location {
-    //                     unit: 0,
+    //                     /* unit: 0, */
     //                     index: 3,
     //                     line: 0,
     //                     column: 3,
@@ -3515,7 +3515,7 @@ recur recur_fn"
     //             Err(Error::MessageWithLocation(
     //                 _,
     //                 Location {
-    //                     unit: 0,
+    //                     /* unit: 0, */
     //                     index: 3,
     //                     line: 0,
     //                     column: 3,
@@ -3532,7 +3532,7 @@ recur recur_fn"
     //             Err(Error::MessageWithLocation(
     //                 _,
     //                 Location {
-    //                     unit: 0,
+    //                     /* unit: 0, */
     //                     index: 3,
     //                     line: 0,
     //                     column: 3,
@@ -3547,7 +3547,7 @@ recur recur_fn"
     //             Err(Error::MessageWithLocation(
     //                 _,
     //                 Location {
-    //                     unit: 0,
+    //                     /* unit: 0, */
     //                     index: 6,
     //                     line: 0,
     //                     column: 6,
@@ -3562,7 +3562,7 @@ recur recur_fn"
     //             Err(Error::MessageWithLocation(
     //                 _,
     //                 Location {
-    //                     unit: 0,
+    //                     /* unit: 0, */
     //                     index: 8,
     //                     line: 0,
     //                     column: 8,
@@ -3583,7 +3583,7 @@ recur recur_fn"
     //             Err(Error::MessageWithLocation(
     //                 _,
     //                 Location {
-    //                     unit: 0,
+    //                     /* unit: 0, */
     //                     index: 3,
     //                     line: 0,
     //                     column: 3,
@@ -3669,12 +3669,12 @@ recur recur_fn"
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::new_string("abc"),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     5
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::new_string("文字😊"),
-                    &Location::new_position(0, 6, 0, 6),
+                    &Location::new_position(/*0,*/ 6, 0, 6),
                     5
                 ),
             ]
@@ -3704,7 +3704,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 4,
                     line: 0,
                     column: 4,
@@ -3719,7 +3719,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 4,
                     line: 0,
                     column: 4,
@@ -3736,7 +3736,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 6,
                     line: 0,
                     column: 6,
@@ -3753,7 +3753,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 6,
                     line: 0,
                     column: 6,
@@ -3770,7 +3770,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 6,
                     line: 0,
                     column: 6,
@@ -3785,7 +3785,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 9,
                     line: 0,
                     column: 9,
@@ -3800,7 +3800,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 11,
                     line: 0,
                     column: 11,
@@ -3821,7 +3821,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 6,
                     line: 0,
                     column: 6,
@@ -3850,12 +3850,12 @@ recur recur_fn"
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::new_string("abc\n    xyz\n"),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     14
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::new_string("foo\nbar"),
-                    &Location::new_position(0, 15, 2, 2),
+                    &Location::new_position(/*0,*/ 15, 2, 2),
                     9
                 )
             ]
@@ -3895,12 +3895,12 @@ recur recur_fn"
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::new_string("abcxyz"),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     16
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::new_string(""),
-                    &Location::new_position(0, 17, 2, 9),
+                    &Location::new_position(/*0,*/ 17, 2, 9),
                     4
                 )
             ]
@@ -3938,12 +3938,12 @@ recur recur_fn"
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::new_string("abc\n    xyz"),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     14
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::new_string("foo\\nbar"),
-                    &Location::new_position(0, 15, 1, 9),
+                    &Location::new_position(/*0,*/ 15, 1, 9),
                     11
                 )
             ]
@@ -3986,12 +3986,12 @@ recur recur_fn"
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::new_string("abc\n    xyz"),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     16
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::new_string("foo\\nbar"),
-                    &Location::new_position(0, 17, 1, 10),
+                    &Location::new_position(/*0,*/ 17, 1, 10),
                     13
                 )
             ]
@@ -4128,27 +4128,27 @@ recur recur_fn"
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::LeftBracket,
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     1
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::new_string("foo\nbar"),
-                    &Location::new_position(0, 1, 0, 1),
+                    &Location::new_position(/*0,*/ 1, 0, 1),
                     23
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::Comma,
-                    &Location::new_position(0, 24, 3, 3),
+                    &Location::new_position(/*0,*/ 24, 3, 3),
                     1
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::new_string("hello\nworld"),
-                    &Location::new_position(0, 26, 3, 5),
+                    &Location::new_position(/*0,*/ 26, 3, 5),
                     27
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::RightBracket,
-                    &Location::new_position(0, 53, 6, 3),
+                    &Location::new_position(/*0,*/ 53, 6, 3),
                     1
                 ),
             ]
@@ -4165,7 +4165,7 @@ recur recur_fn"
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 4,
                     line: 1,
                     column: 3,
@@ -4268,7 +4268,7 @@ hello
             lex_from_str("h\"11 13\"").unwrap(),
             vec![TokenWithRange::from_position_and_length(
                 Token::HexByteData(vec![0x11, 0x13]),
-                &Location::new_position(0, 0, 0, 0),
+                &Location::new_position(/*0,*/ 0, 0, 0),
                 8
             )]
         );
@@ -4278,12 +4278,12 @@ hello
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::HexByteData(vec![0x11]),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     5
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::HexByteData(vec![0x13]),
-                    &Location::new_position(0, 6, 0, 6),
+                    &Location::new_position(/*0,*/ 6, 0, 6),
                     5
                 )
             ]
@@ -4295,7 +4295,7 @@ hello
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 6,
                     line: 0,
                     column: 6,
@@ -4310,7 +4310,7 @@ hello
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 7,
                     line: 0,
                     column: 7,
@@ -4325,7 +4325,7 @@ hello
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 6,
                     line: 0,
                     column: 6,
@@ -4340,7 +4340,7 @@ hello
             Err(ParserError::MessageWithLocation(
                 _,
                 Location {
-                    unit: 0,
+                    /* unit: 0, */
                     index: 4,
                     line: 0,
                     column: 4,
@@ -4404,12 +4404,12 @@ hello
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::new_name("foo"),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     3
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::Comment(Comment::Line(" bar".to_owned())),
-                    &Location::new_position(0, 4, 0, 4),
+                    &Location::new_position(/*0,*/ 4, 0, 4),
                     6
                 ),
             ]
@@ -4420,27 +4420,27 @@ hello
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::new_name("abc"),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     3
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::Comment(Comment::Line(" def".to_owned())),
-                    &Location::new_position(0, 4, 0, 4),
+                    &Location::new_position(/*0,*/ 4, 0, 4),
                     6
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::NewLine,
-                    &Location::new_position(0, 10, 0, 10),
+                    &Location::new_position(/*0,*/ 10, 0, 10),
                     1
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::Comment(Comment::Line(" xyz".to_owned())),
-                    &Location::new_position(0, 11, 1, 0),
+                    &Location::new_position(/*0,*/ 11, 1, 0),
                     6
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::NewLine,
-                    &Location::new_position(0, 17, 1, 6),
+                    &Location::new_position(/*0,*/ 17, 1, 6),
                     1
                 ),
             ]
@@ -4506,17 +4506,17 @@ hello
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::new_name("foo"),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     3
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::Comment(Comment::Block(" hello ".to_owned())),
-                    &Location::new_position(0, 4, 0, 4),
+                    &Location::new_position(/*0,*/ 4, 0, 4),
                     11
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::new_name("bar"),
-                    &Location::new_position(0, 16, 0, 16),
+                    &Location::new_position(/*0,*/ 16, 0, 16),
                     3
                 ),
             ]
@@ -4527,12 +4527,12 @@ hello
             vec![
                 TokenWithRange::from_position_and_length(
                     Token::Comment(Comment::Block(" abc\nxyz ".to_owned())),
-                    &Location::new_position(0, 0, 0, 0),
+                    &Location::new_position(/*0,*/ 0, 0, 0),
                     13
                 ),
                 TokenWithRange::from_position_and_length(
                     Token::Comment(Comment::Block(" hello ".to_owned())),
-                    &Location::new_position(0, 14, 1, 7),
+                    &Location::new_position(/*0,*/ 14, 1, 7),
                     11
                 ),
             ]

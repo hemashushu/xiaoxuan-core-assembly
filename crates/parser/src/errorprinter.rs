@@ -161,7 +161,7 @@ mod tests {
 
     use pretty_assertions::assert_eq;
 
-    use crate::{ParserError, location::Location};
+    use crate::{location::Location, ParserError};
 
     #[test]
     fn test_error_with_source() {
@@ -209,16 +209,22 @@ mod tests {
         // first
 
         assert_eq!(
-            ParserError::MessageWithLocation(msg.to_owned(), Location::new_position(0, 0, 11, 13))
-                .with_source(source1),
+            ParserError::MessageWithLocation(
+                msg.to_owned(),
+                Location::new_position(/*0,*/ 0, 11, 13)
+            )
+            .with_source(source1),
             r#"Error at line: 12, column: 14
 | 0123456789
 | ^____ abcde"#
         );
 
         assert_eq!(
-            ParserError::MessageWithLocation(msg.to_owned(), Location::new_position(0, 0, 11, 13))
-                .with_source(source2),
+            ParserError::MessageWithLocation(
+                msg.to_owned(),
+                Location::new_position(/*0,*/ 0, 11, 13)
+            )
+            .with_source(source2),
             r#"Error at line: 12, column: 14
 | 012345678_b12345678_c12345678_d12345678_...
 | ^____ abcde"#
@@ -227,16 +233,22 @@ mod tests {
         // head
 
         assert_eq!(
-            ParserError::MessageWithLocation(msg.to_owned(), Location::new_position(0, 2, 11, 13))
-                .with_source(source1),
+            ParserError::MessageWithLocation(
+                msg.to_owned(),
+                Location::new_position(/*0,*/ 2, 11, 13)
+            )
+            .with_source(source1),
             r#"Error at line: 12, column: 14
 | 0123456789
 |   ^____ abcde"#
         );
 
         assert_eq!(
-            ParserError::MessageWithLocation(msg.to_owned(), Location::new_position(0, 15, 11, 13))
-                .with_source(source2),
+            ParserError::MessageWithLocation(
+                msg.to_owned(),
+                Location::new_position(/*0,*/ 15, 11, 13)
+            )
+            .with_source(source2),
             r#"Error at line: 12, column: 14
 | ...b12345678_c12345678_d12345678_e123456789
 |         ^____ abcde"#
@@ -245,16 +257,22 @@ mod tests {
         // middle
 
         assert_eq!(
-            ParserError::MessageWithLocation(msg.to_owned(), Location::new_position(0, 5, 11, 13))
-                .with_source(source1),
+            ParserError::MessageWithLocation(
+                msg.to_owned(),
+                Location::new_position(/*0,*/ 5, 11, 13)
+            )
+            .with_source(source1),
             r#"Error at line: 12, column: 14
 | 0123456789
 |      ^____ abcde"#
         );
 
         assert_eq!(
-            ParserError::MessageWithLocation(msg.to_owned(), Location::new_position(0, 25, 11, 13))
-                .with_source(source2),
+            ParserError::MessageWithLocation(
+                msg.to_owned(),
+                Location::new_position(/*0,*/ 25, 11, 13)
+            )
+            .with_source(source2),
             r#"Error at line: 12, column: 14
 | ...b12345678_c12345678_d12345678_e123456789
 |                   ^____ abcde"#
@@ -263,16 +281,22 @@ mod tests {
         // tail
 
         assert_eq!(
-            ParserError::MessageWithLocation(msg.to_owned(), Location::new_position(0, 8, 11, 13))
-                .with_source(source1),
+            ParserError::MessageWithLocation(
+                msg.to_owned(),
+                Location::new_position(/*0,*/ 8, 11, 13)
+            )
+            .with_source(source1),
             r#"Error at line: 12, column: 14
 | 0123456789
 |         ^____ abcde"#
         );
 
         assert_eq!(
-            ParserError::MessageWithLocation(msg.to_owned(), Location::new_position(0, 45, 11, 13))
-                .with_source(source2),
+            ParserError::MessageWithLocation(
+                msg.to_owned(),
+                Location::new_position(/*0,*/ 45, 11, 13)
+            )
+            .with_source(source2),
             r#"Error at line: 12, column: 14
 | ...b12345678_c12345678_d12345678_e123456789
 |                                       ^____ abcde"#
@@ -281,16 +305,22 @@ mod tests {
         // last
 
         assert_eq!(
-            ParserError::MessageWithLocation(msg.to_owned(), Location::new_position(0, 10, 11, 13))
-                .with_source(source1),
+            ParserError::MessageWithLocation(
+                msg.to_owned(),
+                Location::new_position(/*0,*/ 10, 11, 13)
+            )
+            .with_source(source1),
             r#"Error at line: 12, column: 14
 | 0123456789
 |           ^____ abcde"#
         );
 
         assert_eq!(
-            ParserError::MessageWithLocation(msg.to_owned(), Location::new_position(0, 50, 11, 13))
-                .with_source(source2),
+            ParserError::MessageWithLocation(
+                msg.to_owned(),
+                Location::new_position(/*0,*/ 50, 11, 13)
+            )
+            .with_source(source2),
             r#"Error at line: 12, column: 14
 | ...b12345678_c12345678_d12345678_e123456789
 |                                            ^____ abcde"#
@@ -306,16 +336,22 @@ mod tests {
         // first
 
         assert_eq!(
-            ParserError::MessageWithLocation(msg.to_owned(), Location::new_range(0, 0, 17, 19, 4))
-                .with_source(source1),
+            ParserError::MessageWithLocation(
+                msg.to_owned(),
+                Location::new_range(/*0,*/ 0, 17, 19, 4)
+            )
+            .with_source(source1),
             r#"Error at line: 18, column: 20
 | 0123456789
 | ^^^^ abcde"#
         );
 
         assert_eq!(
-            ParserError::MessageWithLocation(msg.to_owned(), Location::new_range(0, 0, 17, 19, 8))
-                .with_source(source2),
+            ParserError::MessageWithLocation(
+                msg.to_owned(),
+                Location::new_range(/*0,*/ 0, 17, 19, 8)
+            )
+            .with_source(source2),
             r#"Error at line: 18, column: 20
 | 012345678_b12345678_c12345678_d12345678_...
 | ^^^^^^^^ abcde"#
@@ -324,16 +360,22 @@ mod tests {
         // head
 
         assert_eq!(
-            ParserError::MessageWithLocation(msg.to_owned(), Location::new_range(0, 2, 17, 19, 4))
-                .with_source(source1),
+            ParserError::MessageWithLocation(
+                msg.to_owned(),
+                Location::new_range(/*0,*/ 2, 17, 19, 4)
+            )
+            .with_source(source1),
             r#"Error at line: 18, column: 20
 | 0123456789
 |   ^^^^ abcde"#
         );
 
         assert_eq!(
-            ParserError::MessageWithLocation(msg.to_owned(), Location::new_range(0, 15, 17, 19, 8))
-                .with_source(source2),
+            ParserError::MessageWithLocation(
+                msg.to_owned(),
+                Location::new_range(/*0,*/ 15, 17, 19, 8)
+            )
+            .with_source(source2),
             r#"Error at line: 18, column: 20
 | ...b12345678_c12345678_d12345678_e123456789
 |         ^^^^^^^^ abcde"#
@@ -342,16 +384,22 @@ mod tests {
         // middle
 
         assert_eq!(
-            ParserError::MessageWithLocation(msg.to_owned(), Location::new_range(0, 5, 17, 19, 4))
-                .with_source(source1),
+            ParserError::MessageWithLocation(
+                msg.to_owned(),
+                Location::new_range(/*0,*/ 5, 17, 19, 4)
+            )
+            .with_source(source1),
             r#"Error at line: 18, column: 20
 | 0123456789
 |      ^^^^ abcde"#
         );
 
         assert_eq!(
-            ParserError::MessageWithLocation(msg.to_owned(), Location::new_range(0, 25, 17, 19, 8))
-                .with_source(source2),
+            ParserError::MessageWithLocation(
+                msg.to_owned(),
+                Location::new_range(/*0,*/ 25, 17, 19, 8)
+            )
+            .with_source(source2),
             r#"Error at line: 18, column: 20
 | ...b12345678_c12345678_d12345678_e123456789
 |                   ^^^^^^^^ abcde"#
@@ -360,16 +408,22 @@ mod tests {
         // tail
 
         assert_eq!(
-            ParserError::MessageWithLocation(msg.to_owned(), Location::new_range(0, 8, 17, 19, 4))
-                .with_source(source1),
+            ParserError::MessageWithLocation(
+                msg.to_owned(),
+                Location::new_range(/*0,*/ 8, 17, 19, 4)
+            )
+            .with_source(source1),
             r#"Error at line: 18, column: 20
 | 0123456789
 |         ^^ abcde"#
         );
 
         assert_eq!(
-            ParserError::MessageWithLocation(msg.to_owned(), Location::new_range(0, 45, 17, 19, 8))
-                .with_source(source2),
+            ParserError::MessageWithLocation(
+                msg.to_owned(),
+                Location::new_range(/*0,*/ 45, 17, 19, 8)
+            )
+            .with_source(source2),
             r#"Error at line: 18, column: 20
 | ...b12345678_c12345678_d12345678_e123456789
 |                                       ^^^^^ abcde"#
@@ -378,16 +432,22 @@ mod tests {
         // last
 
         assert_eq!(
-            ParserError::MessageWithLocation(msg.to_owned(), Location::new_range(0, 10, 17, 19, 4))
-                .with_source(source1),
+            ParserError::MessageWithLocation(
+                msg.to_owned(),
+                Location::new_range(/*0,*/ 10, 17, 19, 4)
+            )
+            .with_source(source1),
             r#"Error at line: 18, column: 20
 | 0123456789
 |           ^____ abcde"#
         );
 
         assert_eq!(
-            ParserError::MessageWithLocation(msg.to_owned(), Location::new_range(0, 50, 17, 19, 8))
-                .with_source(source2),
+            ParserError::MessageWithLocation(
+                msg.to_owned(),
+                Location::new_range(/*0,*/ 50, 17, 19, 8)
+            )
+            .with_source(source2),
             r#"Error at line: 18, column: 20
 | ...b12345678_c12345678_d12345678_e123456789
 |                                            ^____ abcde"#

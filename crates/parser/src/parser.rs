@@ -34,7 +34,7 @@ impl<'a> Parser<'a> {
     fn new(upstream: &'a mut PeekableIter<'a, TokenWithRange>) -> Self {
         Self {
             upstream,
-            last_range: Location::new_range(0, 0, 0, 0, 0),
+            last_range: Location::new_range(/*0,*/ 0, 0, 0, 0),
         }
     }
 

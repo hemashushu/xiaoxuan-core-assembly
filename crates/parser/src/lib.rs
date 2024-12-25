@@ -7,7 +7,7 @@
 use crate::location::Location;
 use std::fmt::Display;
 
-mod charposition;
+mod charwithposition;
 mod errorprinter;
 mod lexer;
 mod location;
