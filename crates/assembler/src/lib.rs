@@ -7,8 +7,6 @@
 use std::fmt::Display;
 
 pub mod assembler;
-pub mod entry;
-pub mod object_writer;
 
 // https://doc.rust-lang.org/reference/conditional-compilation.html#debug_assertions
 // https://doc.rust-lang.org/reference/conditional-compilation.html#test

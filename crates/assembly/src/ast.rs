@@ -68,11 +68,11 @@ pub struct ExternalDataNode {
 
 #[derive(Debug, PartialEq)]
 pub struct DataNode {
-    // field 'export' is used to indicate the visibility of this item when this
+    // field 'public' is used to indicate the visibility of this item when this
     // module is used as a shared module.
-    // Note that in the case of static linking, the item is always
-    // visible to other modules, regardless of the value of this property.
-    pub export: bool,
+    // Note that in the same module, the data items are always
+    // visible to other submodules, regardless of the value of this property.
+    pub public: bool,
     pub name: String,
     pub data_section: DataSection,
 }
@@ -121,11 +121,11 @@ pub enum DataValue {
 
 #[derive(Debug, PartialEq)]
 pub struct FunctionNode {
-    // field 'export' is used to indicate the visibility of this item when this
+    // field 'public' is used to indicate the visibility of this item when this
     // module is used as a shared module.
-    // Note that in the case of static linking, the item is always
-    // visible to other modules, regardless of the value of this property.
-    pub export: bool,
+    // Note that in the same module, the data items are always
+    // visible to other submodules, regardless of the value of this property.
+    pub public: bool,
     pub name: String,
     pub params: Vec<NamedParameter>,
     pub results: Vec<OperandDataType>,

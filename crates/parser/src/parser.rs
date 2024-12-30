@@ -69,9 +69,9 @@ impl<'a> Parser<'a> {
     }
 
     /// Returns:
-    /// - `None` if the specified token is not found,
-    /// - `Some(false)` if no new-line is found,
-    /// - `Some(true)` otherwise.
+    /// - `None` if the specified token is not found.
+    /// - `Some(false)` found the token without new-line.
+    /// - `Some(true)` found the token and new-line.
     fn expect_token_ignore_newline(&self, offset: usize, expected_token: &Token) -> Option<bool> {
         if self.expect_token(offset, expected_token) {
             Some(false)
@@ -855,7 +855,7 @@ impl Parser<'_> {
 
     fn parse_data_node(
         &mut self,
-        export: bool,
+        public: bool,
         data_section_type: DataSectionType,
     ) -> Result<DataNode, ParserError> {
         // data name:type = value ?  //
@@ -888,7 +888,7 @@ impl Parser<'_> {
                 self.consume_new_line_if_exist(); // consume '\n'
 
                 Ok(DataNode {
-                    export,
+                    public,
                     name,
                     data_section: if data_section_type == DataSectionType::ReadOnly {
                         DataSection::ReadOnly(DataTypeValuePair { data_type, value })
@@ -902,7 +902,7 @@ impl Parser<'_> {
                 self.consume_new_line_if_exist(); // consume '\n'
 
                 Ok(DataNode {
-                    export,
+                    public,
                     name,
                     data_section: DataSection::Uninit(data_type),
                 })
@@ -1173,7 +1173,7 @@ impl Parser<'_> {
         }
     }
 
-    fn parse_function_node(&mut self, export: bool) -> Result<FunctionNode, ParserError> {
+    fn parse_function_node(&mut self, public: bool) -> Result<FunctionNode, ParserError> {
         // fn (...) [-> ...] [...] exp ?  //
         // ^                           ^__// to here
         // |------------------------------// current token, validated
@@ -1210,7 +1210,7 @@ impl Parser<'_> {
         self.consume_new_line_if_exist();
 
         let node = FunctionNode {
-            export,
+            public,
             name,
             params,
             results,

@@ -31,7 +31,7 @@ fn print_function_node(
     //     body
     // ```
 
-    if node.export {
+    if node.public {
         write!(writer, "pub ")?;
     }
 
@@ -65,7 +65,7 @@ fn print_data_node(
     node: &DataNode,
     indent_chars: &str,
 ) -> Result<(), Error> {
-    if node.export {
+    if node.public {
         write!(writer, "pub ")?;
     }
 
@@ -948,7 +948,7 @@ mod tests {
         };
 
         let node0 = DataNode {
-            export: false,
+            public: false,
             name: "foo".to_owned(),
             data_section: DataSection::ReadOnly(DataTypeValuePair {
                 data_type: DeclareDataType::I32,
@@ -960,7 +960,7 @@ mod tests {
 
         // test byte array data type
         let node1 = DataNode {
-            export: true,
+            public: true,
             name: "foo".to_owned(),
             data_section: DataSection::ReadOnly(DataTypeValuePair {
                 data_type: DeclareDataType::FixedBytes(32, None),
@@ -972,7 +972,7 @@ mod tests {
 
         // test byte array data type with unspecific length
         let node2 = DataNode {
-            export: true,
+            public: true,
             name: "foo".to_owned(),
             data_section: DataSection::ReadWrite(DataTypeValuePair {
                 data_type: DeclareDataType::Bytes(None),
@@ -984,7 +984,7 @@ mod tests {
 
         // test uninit
         let node3 = DataNode {
-            export: false,
+            public: false,
             name: "got".to_owned(),
             data_section: DataSection::Uninit(FixedDeclareDataType::FixedBytes(1024, None)),
         };
@@ -993,7 +993,7 @@ mod tests {
 
         // test byte array align
         let node4 = DataNode {
-            export: false,
+            public: false,
             name: "foo".to_owned(),
             data_section: DataSection::Uninit(FixedDeclareDataType::FixedBytes(1024, Some(8))),
         };
@@ -1002,7 +1002,7 @@ mod tests {
 
         // test hex byte data
         let node5 = DataNode {
-            export: true,
+            public: true,
             name: "foo".to_owned(),
             data_section: DataSection::ReadWrite(DataTypeValuePair {
                 data_type: DeclareDataType::Bytes(None),
@@ -1022,7 +1022,7 @@ mod tests {
 
         // test data value list
         let node6 = DataNode {
-            export: false,
+            public: false,
             name: "bar".to_owned(),
             data_section: DataSection::ReadWrite(DataTypeValuePair {
                 data_type: DeclareDataType::Bytes(Some(4)),
@@ -1065,7 +1065,7 @@ data bar:byte[align=4] = [
         };
 
         let node0 = FunctionNode {
-            export: false,
+            public: false,
             name: "foo".to_owned(),
             params: vec![],
             results: vec![],
@@ -1095,7 +1095,7 @@ fn foo() -> ()
 
         // test params, results
         let node1 = FunctionNode {
-            export: true,
+            public: true,
             name: "add".to_owned(),
             params: vec![
                 NamedParameter {
@@ -1154,7 +1154,7 @@ pub fn add(left:i32, right:i32) -> i32
 
         // test multiple results and local variables
         let node2 = FunctionNode {
-            export: false,
+            public: false,
             name: "hello".to_owned(),
             params: vec![],
             results: vec![OperandDataType::I32, OperandDataType::I64],
@@ -1197,7 +1197,7 @@ fn hello() -> (i32, i64)
         };
 
         let node0 = FunctionNode {
-            export: false,
+            public: false,
             name: "foo".to_owned(),
             params: vec![],
             results: vec![],
@@ -1277,7 +1277,7 @@ fn foo() -> ()
 
         // test nested group
         let node1 = FunctionNode {
-            export: false,
+            public: false,
             name: "foo".to_owned(),
             params: vec![],
             results: vec![],
@@ -1318,7 +1318,7 @@ fn foo() -> ()
         };
 
         let node0 = FunctionNode {
-            export: false,
+            public: false,
             name: "foo".to_owned(),
             params: vec![],
             results: vec![],
@@ -1349,7 +1349,7 @@ fn foo() -> ()
 
         // test `when` with multiple layers instructions
         let node1 = FunctionNode {
-            export: false,
+            public: false,
             name: "foo".to_owned(),
             params: vec![],
             results: vec![],
@@ -1397,7 +1397,7 @@ fn foo() -> ()
 
         // test `when` with local variables
         let node2 = FunctionNode {
-            export: false,
+            public: false,
             name: "foo".to_owned(),
             params: vec![],
             results: vec![],
@@ -1442,7 +1442,7 @@ fn foo() -> ()
 
         // test 'when' with 'group'
         let node3 = FunctionNode {
-            export: false,
+            public: false,
             name: "foo".to_owned(),
             params: vec![],
             results: vec![],
@@ -1503,7 +1503,7 @@ fn foo() -> ()
         };
 
         let node0 = FunctionNode {
-            export: false,
+            public: false,
             name: "foo".to_owned(),
             params: vec![],
             results: vec![],
@@ -1572,7 +1572,7 @@ fn foo() -> ()
 
         // test `if` with params and return value
         let node1 = FunctionNode {
-            export: false,
+            public: false,
             name: "foo".to_owned(),
             params: vec![],
             results: vec![],
@@ -1619,7 +1619,7 @@ fn foo() -> ()
 
         // test `if` with multiple return multiple values
         let node2 = FunctionNode {
-            export: false,
+            public: false,
             name: "foo".to_owned(),
             params: vec![],
             results: vec![],
@@ -1818,7 +1818,7 @@ fn foo() -> ()
         };
 
         let node0 = FunctionNode {
-            export: false,
+            public: false,
             name: "foo".to_owned(),
             params: vec![],
             results: vec![],
@@ -1857,7 +1857,7 @@ fn foo() -> ()
 
         // test 'block' with params, results and local variablers
         let node1 = FunctionNode {
-            export: false,
+            public: false,
             name: "foo".to_owned(),
             params: vec![],
             results: vec![],
@@ -1917,7 +1917,7 @@ fn foo() -> ()
 
         // test 'block' with 'group' and complex param value
         let node2 = FunctionNode {
-            export: false,
+            public: false,
             name: "foo".to_owned(),
             params: vec![],
             results: vec![],
@@ -2010,7 +2010,7 @@ fn foo() -> ()
         };
 
         let node0 = FunctionNode {
-            export: false,
+            public: false,
             name: "foo".to_owned(),
             params: vec![],
             results: vec![],
@@ -2061,7 +2061,7 @@ fn foo() -> ()
 
         // test 'recur'
         let node1 = FunctionNode {
-            export: false,
+            public: false,
             name: "foo".to_owned(),
             params: vec![],
             results: vec![],
@@ -2156,7 +2156,7 @@ fn foo() -> ()
             ],
             datas: vec![
                 DataNode {
-                    export: false,
+                    public: false,
                     name: "count".to_owned(),
                     data_section: DataSection::ReadWrite(DataTypeValuePair {
                         data_type: DeclareDataType::I32,
@@ -2164,7 +2164,7 @@ fn foo() -> ()
                     }),
                 },
                 DataNode {
-                    export: true,
+                    public: true,
                     name: "plt".to_owned(),
                     data_section: DataSection::ReadOnly(DataTypeValuePair {
                         data_type: DeclareDataType::FixedBytes(128, Some(8)),
@@ -2179,7 +2179,7 @@ fn foo() -> ()
             ],
             functions: vec![
                 FunctionNode {
-                    export: false,
+                    public: false,
                     name: "add".to_owned(),
                     params: vec![
                         NamedParameter {
@@ -2200,7 +2200,7 @@ fn foo() -> ()
                     })),
                 },
                 FunctionNode {
-                    export: true,
+                    public: true,
                     name: "entry".to_owned(),
                     params: vec![],
                     results: vec![OperandDataType::I32],

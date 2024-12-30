@@ -233,7 +233,7 @@ impl Lexer<'_> {
                 }
                 'h' if self.peek_char_and_equals(1, '"') => {
                     // hex byte data
-                    token_with_ranges.push(self.lex_byte_data_hexadecimal()?);
+                    token_with_ranges.push(self.lex_hexadecimal_byte_data()?);
                 }
                 'r' if self.peek_char_and_equals(1, '"') => {
                     // raw string
@@ -409,7 +409,8 @@ impl Lexer<'_> {
             // '0x...'
             self.lex_number_hex()
         } else {
-            // '123'
+            // '1234'
+            // '1.23'
             self.lex_number_decimal()
         }
     }
@@ -1621,7 +1622,7 @@ impl Lexer<'_> {
         Ok(TokenWithRange::new(Token::String(content), range))
     }
 
-    fn lex_byte_data_hexadecimal(&mut self) -> Result<TokenWithRange, ParserError> {
+    fn lex_hexadecimal_byte_data(&mut self) -> Result<TokenWithRange, ParserError> {
         // h"00 11 aa bb"?  //
         // ^^            ^__// to here
         // ||_______________// validated

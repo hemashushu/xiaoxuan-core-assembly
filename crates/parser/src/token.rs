@@ -63,6 +63,7 @@ pub enum Token {
     Number(NumberToken),
     String(String),
     HexByteData(Vec<u8>),
+
     Comment(Comment),
 }
 

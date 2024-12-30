@@ -9,6 +9,7 @@ use anc_image::{
         ExternalFunctionIndexEntry, ExternalFunctionIndexListEntry, ExternalLibraryEntry,
         ImportModuleEntry,
     },
+    entry_writer::write_object_file,
     index_sections::{
         self,
         data_index_section::{DataIndexItem, DataIndexSection},
@@ -24,17 +25,17 @@ use anc_image::{
 use anc_isa::{DataSectionType, RUNTIME_MAJOR_VERSION, RUNTIME_MINOR_VERSION};
 use anc_parser_asm::parser::parse_from_str;
 
-use crate::{assembler::assemble_module_node, object_writer::write_object_file};
+use crate::assembler::assemble_module_node;
 
 pub fn helper_assemble_single_module(
-    source: &str,
+    source_code: &str,
     import_module_entries: &[ImportModuleEntry],
     external_library_entries: &[ExternalLibraryEntry],
 ) -> Vec<u8> {
-    let module_node = match parse_from_str(source) {
+    let module_node = match parse_from_str(source_code) {
         Ok(node) => node,
         Err(parser_error) => {
-            panic!("{}", parser_error.with_source(source));
+            panic!("{}", parser_error.with_source(source_code));
         }
     };
 
@@ -47,19 +48,19 @@ pub fn helper_assemble_single_module(
     .unwrap();
 
     let mut buf: Vec<u8> = vec![];
-    write_object_file(&image_common_entry, &mut buf).unwrap();
+    write_object_file(&image_common_entry, true, &mut buf).unwrap();
     buf
 }
 
-pub fn helper_make_single_module_app(source: &str) -> Vec<u8> {
-    helper_make_single_module_app_with_external_library(source, &[])
+pub fn helper_make_single_module_app(source_code: &str) -> Vec<u8> {
+    helper_make_single_module_app_with_external_library(source_code, &[])
 }
 
 pub fn helper_make_single_module_app_with_external_library(
-    source: &str,
+    source_code: &str,
     external_library_entries: &[ExternalLibraryEntry],
 ) -> Vec<u8> {
-    let common_binary = helper_assemble_single_module(source, &[], external_library_entries);
+    let common_binary = helper_assemble_single_module(source_code, &[], external_library_entries);
     let common_module_image = ModuleImage::read(&common_binary).unwrap();
 
     // build the following index sections:
@@ -155,11 +156,11 @@ pub fn helper_make_single_module_app_with_external_library(
     let uninit_data_section = common_module_image
         .get_optional_uninit_data_section()
         .unwrap_or_default();
-    let function_name_section = common_module_image
-        .get_optional_function_name_section()
+    let export_function_section = common_module_image
+        .get_optional_export_function_section()
         .unwrap_or_default();
-    let data_name_section = common_module_image
-        .get_optional_data_name_section()
+    let export_data_section = common_module_image
+        .get_optional_export_data_section()
         .unwrap_or_default();
 
     // build unified external type/library/function sections
@@ -259,8 +260,8 @@ pub fn helper_make_single_module_app_with_external_library(
         &external_function_section,
         // &import_function_section,
         // &import_data_section,
-        &function_name_section,
-        &data_name_section,
+        &export_function_section,
+        &export_data_section,
         &common_property_section,
         // index sections
         &function_index_section,
