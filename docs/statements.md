@@ -76,7 +76,7 @@ It's worth nothing that the source files for "multiple executable units" in the 
 |-------------------|----------------|---------------------|
 | ./app/cmd1.ancasm | cmd1           | hello_world::cmd1   |
 | ./app/cmd2.ancasm | cmd2           | hello_world::cmd2   |
-| ./test/one.ancasm | one            | hello_world::one    |
+| ./test/one.ancasm       | one        | hello_world::one        |
 | ./test/utils/foo.ancasm | utils::foo | hello_world::utils::foo |
 
 Source files in the "test" folder are generated only during unit testing and are not included in the binary image of the module for distribution. Therefore, never import unit test functions and data.

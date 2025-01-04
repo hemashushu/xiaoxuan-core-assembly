@@ -10,21 +10,21 @@ project_folder
  |-- README.md
  |-- LICENSE.md etc.
  |-- src
- |   |-- lib.ancasm     // top-level submodule
- |   |-- foo.ancasm     // submodule
+ |   |-- lib.anca       // top-level submodule
+ |   |-- foo.anca       // submodule
  |   |-- subfolder
- |   |   |-- bar.ancasm // another submodule
- |   |-- app.ancasm     // the default executable unit
+ |   |   |-- bar.anca   // another submodule
+ |   |-- app.anca       // the default executable unit
  |
  |-- app
- |   |-- cmd1.ancasm    // sub-executable unit
- |   |-- cmd2.ancasm    // sub-executable unit
+ |   |-- cmd1.anca      // sub-executable unit
+ |   |-- cmd2.anca      // sub-executable unit
  |
  |-- test               // unit test source files
- |   |-- test1.ancasm   // a testing unit
- |   |-- test2.ancasm   // another testing unit
+ |   |-- test1.anca     // a testing unit
+ |   |-- test2.anca     // another testing unit
  |   |-- subfolder
- |       |-- bar.ancasm // submodule for unit testing only
+ |       |-- bar.anca   // submodule for unit testing only
  |
  |-- doc
  |   |-- README.md      // documentations
@@ -35,7 +35,7 @@ project_folder
 
 ### Code Example
 
-Code of file `./src/lib.ancasm`:
+Code of file `./src/lib.anca  `:
 
 ```rust
 // imports functions and data from other submodules or shared modules
@@ -76,7 +76,7 @@ pub fn inc(num:i32) -> i32 {
 }
 
 // the default entry function
-pub fn entry() -> i32 {
+pub fn _start() -> i32 {
     imm_i32(0)
 }
 ```
@@ -89,7 +89,7 @@ Content of file `./module.anc.ason`:
 {
     name: "hello"
     version: "1.0.0"
-    runtime_version: "1.0"
+    edition: "2025"
     constants: {
         // Declares constants and their values for used
         // by the current configuration file.
@@ -155,10 +155,9 @@ Content of file `./module.anc.ason`:
 }
 ```
 
-## XiaoXuan Core Assembly Language (Ancasm)
+## XiaoXuan Core Assembly Language (AncASM)
 
 - [Data types and literals](./datatypes.md)
 - [Statements](./statements.md)
 - [Expressions](./expressions.md)
 - [Instruction](./instructions.md)
-

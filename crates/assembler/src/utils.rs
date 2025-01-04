@@ -6,23 +6,23 @@
 
 use anc_image::{
     entry::{
-        ExternalFunctionIndexEntry, ExternalFunctionIndexListEntry, ExternalLibraryEntry,
-        ImportModuleEntry,
+        EntryPointEntry, ExternalFunctionIndexEntry, ExternalFunctionIndexListEntry,
+        ExternalLibraryEntry, ImportModuleEntry,
     },
     entry_writer::write_object_file,
     index_sections::{
         self,
         data_index_section::{DataIndexItem, DataIndexSection},
+        entry_point_section::EntryPointSection,
         external_function_index_section::ExternalFunctionIndexSection,
         external_function_section::UnifiedExternalFunctionSection,
         external_library_section::UnifiedExternalLibrarySection,
         external_type_section::{self, UnifiedExternalTypeSection},
         function_index_section::{FunctionIndexItem, FunctionIndexSection},
-        index_property_section::IndexPropertySection,
     },
     module_image::{ImageType, ModuleImage, RangeItem, SectionEntry},
 };
-use anc_isa::{DataSectionType, RUNTIME_MAJOR_VERSION, RUNTIME_MINOR_VERSION};
+use anc_isa::DataSectionType;
 use anc_parser_asm::parser::parse_from_str;
 
 use crate::assembler::assemble_module_node;
@@ -65,7 +65,7 @@ pub fn helper_make_single_module_app_with_external_library(
 
     // build the following index sections:
     //
-    // - index_property_section
+    // - entry_point_section
     // - module_list_section (empty)
     // - function_index_section
     // - data_index_section
@@ -141,12 +141,6 @@ pub fn helper_make_single_module_app_with_external_library(
         items: &data_index_items,
     };
 
-    let index_property_section = IndexPropertySection {
-        runtime_major_version: RUNTIME_MAJOR_VERSION,
-        runtime_minor_version: RUNTIME_MINOR_VERSION,
-        entry_function_public_index: 0,
-    };
-
     let read_only_data_section = common_module_image
         .get_optional_read_only_data_section()
         .unwrap_or_default();
@@ -156,12 +150,26 @@ pub fn helper_make_single_module_app_with_external_library(
     let uninit_data_section = common_module_image
         .get_optional_uninit_data_section()
         .unwrap_or_default();
+
     let export_function_section = common_module_image
         .get_optional_export_function_section()
         .unwrap_or_default();
     let export_data_section = common_module_image
         .get_optional_export_data_section()
         .unwrap_or_default();
+
+    // entry point section
+    let entry_point_entries = vec![EntryPointEntry::new(
+        "".to_string(), // the name of default entry point is empty string
+        0,              // entry_function_public_index
+    )];
+
+    let (entry_point_items, unit_names_data) =
+        EntryPointSection::convert_from_entries(&entry_point_entries);
+    let entry_point_section = EntryPointSection {
+        items: &entry_point_items,
+        unit_names_data: &unit_names_data,
+    };
 
     // build unified external type/library/function sections
 
@@ -246,7 +254,7 @@ pub fn helper_make_single_module_app_with_external_library(
     // other sections
 
     let local_variable_section = common_module_image.get_local_variable_section();
-    let common_property_section = common_module_image.get_common_property_section();
+    let property_section = common_module_image.get_property_section();
 
     let section_entries: Vec<&dyn SectionEntry> = vec![
         // common sections
@@ -262,15 +270,15 @@ pub fn helper_make_single_module_app_with_external_library(
         // &import_data_section,
         &export_function_section,
         &export_data_section,
-        &common_property_section,
+        &property_section,
         // index sections
+        &entry_point_section,
         &function_index_section,
         &data_index_section,
         &unified_external_type_section,
         &unified_external_library_section,
         &unified_external_function_section,
         &external_function_index_section,
-        &index_property_section,
     ];
 
     // build application module binary

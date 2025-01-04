@@ -2536,9 +2536,8 @@ fn read_data_value_as_f64(data_name: &str, data_value: &DataValue) -> Result<f64
 }
 
 fn read_data_value_as_bytes(
-    data_name: &str,
     data_value: &DataValue,
-) -> Result<Vec<u8>, AssemblerError> {
+) -> Vec<u8> {
     let bytes = match data_value {
         DataValue::I8(v) => v.to_le_bytes().to_vec(),
         DataValue::I16(v) => v.to_le_bytes().to_vec(),
@@ -2551,14 +2550,14 @@ fn read_data_value_as_bytes(
         DataValue::List(v) => {
             let mut bytes: Vec<u8> = vec![];
             for item in v {
-                let mut b = read_data_value_as_bytes(data_name, item)?;
+                let mut b = read_data_value_as_bytes( item);
                 bytes.append(&mut b);
             }
             bytes
         }
     };
 
-    Ok(bytes)
+    bytes
 }
 
 fn read_argument_value_as_i16(
@@ -2828,11 +2827,11 @@ fn conver_data_type_value_pair_to_inited_data_entry(
             &data_type_value_pair.value,
         )?),
         DeclareDataType::Bytes(opt_align) => InitedDataEntry::from_bytes(
-            read_data_value_as_bytes(data_name, &data_type_value_pair.value)?,
+            read_data_value_as_bytes( &data_type_value_pair.value),
             opt_align.unwrap_or(1) as u16,
         ),
         DeclareDataType::FixedBytes(length, opt_align) => {
-            let mut bytes = read_data_value_as_bytes(data_name, &data_type_value_pair.value)?;
+            let mut bytes = read_data_value_as_bytes(&data_type_value_pair.value);
             bytes.resize(length, 0);
             InitedDataEntry::from_bytes(bytes, opt_align.unwrap_or(1) as u16)
         }

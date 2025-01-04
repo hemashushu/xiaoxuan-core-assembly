@@ -6,10 +6,7 @@
 
 use anc_assembler::utils::helper_make_single_module_app;
 use anc_context::resource::Resource;
-use anc_isa::{
-    ForeignValue, RUNTIME_CODE_NAME, RUNTIME_MAJOR_VERSION, RUNTIME_MINOR_VERSION,
-    RUNTIME_PATCH_VERSION,
-};
+use anc_isa::{ForeignValue, RUNTIME_EDITION};
 use anc_processor::{
     envcall_num::EnvCallNum, handler::Handler, in_memory_resource::InMemoryResource,
     process::process_function,
@@ -35,9 +32,12 @@ fn test_assemble_envcall_runtime_version() {
 
     let result0 = process_function(&handler, &mut thread_context0, 0, 0, &[]);
 
-    let expect_version_number = RUNTIME_PATCH_VERSION as u64
-        | (RUNTIME_MINOR_VERSION as u64) << 16
-        | (RUNTIME_MAJOR_VERSION as u64) << 32;
+    let version_patch = env!("CARGO_PKG_VERSION_PATCH").parse::<u16>().unwrap();
+    let version_minor = env!("CARGO_PKG_VERSION_MINOR").parse::<u16>().unwrap();
+    let version_major = env!("CARGO_PKG_VERSION_MAJOR").parse::<u16>().unwrap();
+
+    let expect_version_number =
+        version_patch as u64 | (version_minor as u64) << 16 | (version_major as u64) << 32;
 
     assert_eq!(
         result0.unwrap(),
@@ -57,11 +57,11 @@ fn test_assemble_envcall_runtime_code_name() {
         fn test () -> (i32, i64)
             [buf:byte[8, align=8]]
         {{
-            envcall({ENV_CALL_CODE_RUNTIME_NAME}, host_addr_local(buf))
+            envcall({ENV_CALL_CODE_RUNTIME_EDITION}, host_addr_local(buf))
             local_load_i64(buf)
         }}
         "#,
-        ENV_CALL_CODE_RUNTIME_NAME = (EnvCallNum::runtime_name as u32)
+        ENV_CALL_CODE_RUNTIME_EDITION = (EnvCallNum::runtime_edition as u32)
     ));
 
     let handler = Handler::new();
@@ -75,5 +75,9 @@ fn test_assemble_envcall_runtime_code_name() {
     let name_u64 = fvs1[1].as_u64();
 
     let name_data = name_u64.to_le_bytes();
-    assert_eq!(&RUNTIME_CODE_NAME[..], &name_data[0..name_len as usize]);
+    assert_eq!(RUNTIME_EDITION, &name_data);
+    assert_eq!(
+        RUNTIME_EDITION.iter().position(|c| *c == 0).unwrap(),
+        name_len as usize
+    );
 }

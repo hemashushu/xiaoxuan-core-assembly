@@ -10,40 +10,39 @@ use anc_assembler::utils::helper_make_single_module_app;
 use anc_context::resource::Resource;
 use anc_processor::{
     envcall_num::EnvCallNum, in_memory_resource::InMemoryResource,
-    multithread_process::start_with_multiple_thread,
+    multithread_process::start_program,
 };
 use pretty_assertions::assert_eq;
 
 #[test]
-fn test_assemble_multithread_thread_id() {
+fn test_assemble_multithread_main_thread_id() {
     // the signature of 'thread start function' must be
-    // () -> (i64)
+    // () -> (i32)
 
     let binary0 = helper_make_single_module_app(&format!(
         r#"
-        fn test ()->i64
-            extend_i32_u_to_i64(
-                envcall({ENV_CALL_CODE_THREAD_ID}))
+        fn test ()->i32
+            envcall({ENV_CALL_CODE_THREAD_ID})
         "#,
         ENV_CALL_CODE_THREAD_ID = (EnvCallNum::thread_id as u32)
     ));
 
     let resource0 = InMemoryResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
-    let result0 = start_with_multiple_thread(&process_context0, vec![]);
+    let result0 = start_program(&process_context0, "", vec![]);
 
-    const FIRST_CHILD_THREAD_ID: u64 = 1;
-    assert_eq!(result0.unwrap(), FIRST_CHILD_THREAD_ID);
+    const MAIN_THREAD_ID: u32 = 0;
+    assert_eq!(result0.unwrap(), MAIN_THREAD_ID);
 }
 
 #[test]
-fn test_assemble_multithread_thread_create() {
+fn test_assemble_multithread_child_thread_id() {
     // the signature of 'thread start function' must be
-    // () -> (i64)
+    // () -> (i32)
 
     let binary0 = helper_make_single_module_app(&format!(
         r#"
-        fn test ()-> i64
+        fn test ()->i32
         [
             temp:i32  // for dropping operands
         ]
@@ -62,7 +61,49 @@ fn test_assemble_multithread_thread_create() {
             )
         }}
 
-        fn child ()->i64
+        fn child ()->i32
+            envcall({ENV_CALL_CODE_THREAD_ID})
+        "#,
+        ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT = (EnvCallNum::thread_wait_and_collect as u32),
+        ENV_CALL_CODE_THREAD_CREATE = (EnvCallNum::thread_create as u32),
+        ENV_CALL_CODE_THREAD_ID = (EnvCallNum::thread_id as u32)
+    ));
+
+    let resource0 = InMemoryResource::new(vec![binary0]);
+    let process_context0 = resource0.create_process_context().unwrap();
+    let result0 = start_program(&process_context0, "", vec![]);
+
+    const FIRST_CHILD_THREAD_ID: u32 = 1;
+    assert_eq!(result0.unwrap(), FIRST_CHILD_THREAD_ID);
+}
+
+#[test]
+fn test_assemble_multithread_thread_create() {
+    // the signature of 'thread start function' must be
+    // () -> (i32)
+
+    let binary0 = helper_make_single_module_app(&format!(
+        r#"
+        fn test ()->i32
+        [
+            temp:i32  // for dropping operands
+        ]
+        {{
+            // drops 'thread result', leaves 'child thread exit code'
+            local_store_i32(temp
+                // returns (child thread exit code, thread result)
+                envcall({ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT}
+                    // returns the child thread id
+                    envcall({ENV_CALL_CODE_THREAD_CREATE}
+                        get_function(child)                 // get function public index
+                        imm_i32(0)                          // thread_start_data_address
+                        imm_i32(0)                          // thread_start_data_length
+                    )
+                )
+            )
+        }}
+
+        fn child ()->i32
             imm_i64(0x13)  // set thread_exit_code as 0x13
         "#,
         ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT = (EnvCallNum::thread_wait_and_collect as u32),
@@ -71,18 +112,18 @@ fn test_assemble_multithread_thread_create() {
 
     let resource0 = InMemoryResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
-    let result0 = start_with_multiple_thread(&process_context0, vec![]);
+    let result0 = start_program(&process_context0, "", vec![]);
     assert_eq!(result0.unwrap(), 0x13);
 }
 
 #[test]
 fn test_assemble_multithread_thread_sleep() {
     // the signature of 'thread start function' must be
-    // () -> (i64)
+    // () -> (i32)
 
     let binary0 = helper_make_single_module_app(&format!(
         r#"
-        fn test ()-> i64
+        fn test ()->i32
         {{
             // `thread_sleep (milliseconds:u64)`
             envcall({ENV_CALL_CODE_THREAD_SLEEP}
@@ -100,7 +141,7 @@ fn test_assemble_multithread_thread_sleep() {
     let process_context0 = resource0.create_process_context().unwrap();
 
     let instant_a = Instant::now();
-    let result0 = start_with_multiple_thread(&process_context0, vec![]);
+    let result0 = start_program(&process_context0, "", vec![]);
     assert_eq!(result0.unwrap(), 0x13);
 
     let instant_b = Instant::now();
@@ -112,13 +153,13 @@ fn test_assemble_multithread_thread_sleep() {
 #[test]
 fn test_assemble_multithread_thread_local_data_and_memory() {
     // the signature of 'thread start function' must be
-    // () -> (i64)
+    // () -> (i32)
 
     let binary0 = helper_make_single_module_app(&format!(
         r#"
         data dat0:i32=0
 
-        fn test ()-> i64
+        fn test ()->i32
             [tid:i32]
         {{
             // resize heap to 1 page
@@ -178,7 +219,7 @@ fn test_assemble_multithread_thread_local_data_and_memory() {
             imm_i64(0)
         }}
 
-        fn child ()->i64
+        fn child ()->i32
         {{
             // resize heap to 1 page
             memory_resize(imm_i32(1))
@@ -206,14 +247,14 @@ fn test_assemble_multithread_thread_local_data_and_memory() {
 
     let resource0 = InMemoryResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
-    let result0 = start_with_multiple_thread(&process_context0, vec![]);
+    let result0 = start_program(&process_context0, "", vec![]);
     assert_eq!(result0.unwrap(), 0);
 }
 
 #[test]
 fn test_assemble_multithread_thread_start_data() {
     // the signature of 'thread start function' must be
-    // () -> (i64)
+    // () -> (i32)
 
     // the "start data" is:
     // [0x11_i8, 0x13, 0x17, 0x19, 0x23, 0x29, 0x31, 0x37]
@@ -233,7 +274,7 @@ fn test_assemble_multithread_thread_start_data() {
 
     let binary0 = helper_make_single_module_app(&format!(
         r#"
-        fn test ()->i64
+        fn test ()->i32
             [temp:i32]
         {{
             // check the data length
@@ -289,8 +330,9 @@ fn test_assemble_multithread_thread_start_data() {
 
     let resource0 = InMemoryResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
-    let result0 = start_with_multiple_thread(
+    let result0 = start_program(
         &process_context0,
+        "",
         vec![0x11, 0x13, 0x17, 0x19, 0x23, 0x29, 0x31, 0x37],
     );
     assert_eq!(result0.unwrap(), 0);
@@ -299,11 +341,11 @@ fn test_assemble_multithread_thread_start_data() {
 #[test]
 fn test_assemble_multithread_thread_running_status() {
     // the signature of 'thread start function' must be
-    // () -> (i64)
+    // () -> (i32)
 
     let binary0 = helper_make_single_module_app(&format!(
         r#"
-        fn test ()->i64
+        fn test ()->i32
         [
             tid:i32
             last_status:i32, last_result:i32
@@ -396,7 +438,7 @@ fn test_assemble_multithread_thread_running_status() {
             )
         }}
 
-        fn child ()->i64
+        fn child ()->i32
         {{
             // sleep for 1000ms
             envcall({ENV_CALL_CODE_THREAD_SLEEP}, imm_i64(1000))
@@ -413,18 +455,18 @@ fn test_assemble_multithread_thread_running_status() {
 
     let resource0 = InMemoryResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
-    let result0 = start_with_multiple_thread(&process_context0, vec![]);
+    let result0 = start_program(&process_context0, "", vec![]);
     assert_eq!(result0.unwrap(), 0x17);
 }
 
 #[test]
 fn test_assemble_multithread_thread_terminate() {
     // the signature of 'thread start function' must be
-    // () -> (i64)
+    // () -> (i32)
 
     let binary0 = helper_make_single_module_app(&format!(
         r#"
-        fn test ()-> i64
+        fn test ()->i32
             [
             tid:i32
             last_status:i32
@@ -502,7 +544,7 @@ fn test_assemble_multithread_thread_terminate() {
             imm_i64(0x23)
         }}
 
-        fn child ()->i64
+        fn child ()->i32
         {{
             // sleep for 5000ms
             envcall({ENV_CALL_CODE_THREAD_SLEEP}, imm_i64(5000))
@@ -520,14 +562,14 @@ fn test_assemble_multithread_thread_terminate() {
 
     let resource0 = InMemoryResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
-    let result0 = start_with_multiple_thread(&process_context0, vec![]);
+    let result0 = start_program(&process_context0, "", vec![]);
     assert_eq!(result0.unwrap(), 0x23);
 }
 
 #[test]
 fn test_assemble_multithread_thread_message_send_and_receive() {
     // the signature of 'thread start function' must be
-    // () -> (i64)
+    // () -> (i32)
     //
     // main thread       child thread
     //          send
@@ -541,7 +583,7 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
     let binary0 = helper_make_single_module_app(&format!(
         r#"
         data dat0:i32 = 0
-        fn test ()-> i64
+        fn test ()->i32
         [
             tid:i32
             last_length:i32
@@ -673,7 +715,7 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
             )
         }}
 
-        fn child ()-> i64
+        fn child ()->i32
         [
             last_length:i32
             last_result:i32
@@ -768,14 +810,14 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
 
     let resource0 = InMemoryResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
-    let result0 = start_with_multiple_thread(&process_context0, vec![]);
+    let result0 = start_program(&process_context0, "", vec![]);
     assert_eq!(result0.unwrap(), 0x17);
 }
 
 #[test]
 fn test_assemble_multithread_thread_message_forward() {
     // the signature of 'thread start function' must be
-    // () -> (i64)
+    // () -> (i32)
 
     // main thread      child thread 0      child thread 1
     //
@@ -793,7 +835,7 @@ fn test_assemble_multithread_thread_message_forward() {
     let binary0 = helper_make_single_module_app(&format!(
         r#"
         data dat0:i32 = 0
-        fn test ()-> i64
+        fn test ()->i32
         [
             tid0:i32
             tid1:i32
@@ -871,7 +913,7 @@ fn test_assemble_multithread_thread_message_forward() {
             imm_i64(0x19)
         }}
 
-        fn child0 ()-> i64
+        fn child0 ()->i32
         {{
             // set the value to be sent
             data_store_i32(dat0
@@ -888,7 +930,7 @@ fn test_assemble_multithread_thread_message_forward() {
             imm_i64(0x13)
         }}
 
-        fn child1 ()-> i64
+        fn child1 ()->i32
         {{
             // receive data from parent
             envcall({ENV_CALL_CODE_THREAD_RECEIVE_MSG_FROM_PARENT})
@@ -924,6 +966,6 @@ fn test_assemble_multithread_thread_message_forward() {
 
     let resource0 = InMemoryResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
-    let result0 = start_with_multiple_thread(&process_context0, vec![]);
+    let result0 = start_program(&process_context0, "", vec![]);
     assert_eq!(result0.unwrap(), 0x19);
 }
