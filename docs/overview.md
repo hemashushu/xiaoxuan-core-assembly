@@ -90,53 +90,42 @@ Content of file `./module.anc.ason`:
     name: "hello"
     version: "1.0.0"
     edition: "2025"
-    constants: {
-        // Declares constants and their values for used
-        // by the current configuration file.
-        //
-        // e.g.
-        //
-        // "foo": const::number(123)
-        // "bar": const::bool(true)
-        // "logger_version": const::string("1.1")
-        //
-        // Note that the name of a constant cannot duplicate
-        // the name of property.
-        //
-        // Strings can interoperate with constants using
-        // the placeholder `{name}`
-    }
-    properties: {
+    properties: [
         // Declares properties and there default values for
-        // use by the current program (module).
+        // used by the current program (module).
         // This value of the property declared here can be
         // read in the program's souce code by the macro `prop!(...)`.
         //
-        // e.g.
         //
-        // "enable_abc": prop::default::bool(true)
-        // "enable_def": prop::default::bool(false)
-        // "enable_logger": prop::eval("{enable_abc} && {enable_def}")
-    }
+        // Strings can interoperate with constants using
+        // the placeholder `{name}`
+        //
+        // e.g.
+        // version: "{logger_version}"
+
+        "enable_abc": prop::bool(true)
+        "enable_xyz": prop::bool(false)
+        "logger_version": prop::string("1.0.1")
+        "bits": prop::number(32)
+        "enable_logger": prop::eval("enable_abc && enable_xyz")
+    ]
     modules: [
         "std": module::Runtime
         "digest": module::Share({
-            repository: Option::Some("internal")
             version: "1.0"
             // Pass values to the "properties" of module "digest"
-            values: {
-               "enable_sha2": value::bool(true)
-               "enable_md5": value::bool(false)
-
-               /* Where `{enable_xyz}` is the name of a property or constant
-                  declared in the current configuration file.
-               */
-               "enable_foo": value::eval("{enable_xyz}")
-            }
+            parameters: [
+               "enable_sha2": param::bool(true)
+               "enable_md5": param::bool(false)
+               "bits": param::prop("bits")
+               "enable_abc": param::prop("enable_abc")
+               "enable_foo": param::eval("not(enable_md5)")
+            ]
+            repository: "custom"
         })
         "logger": module::Share({
             version: "{logger_version}"
-            condition: Option::Some(cond::is_true("PROFILE_DEVEL"))
+            condition: cond::is_true("enable_logger")
         })
     ]
     libraries: [
@@ -147,9 +136,11 @@ Content of file `./module.anc.ason`:
         })
     ]
     module_repositories: [
+        "name": "https://..."
         // ...
     ]
     library_repositories: [
+        "name": "https://..."
         // ...
     ]
 }

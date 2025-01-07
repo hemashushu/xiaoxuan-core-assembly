@@ -2535,9 +2535,7 @@ fn read_data_value_as_f64(data_name: &str, data_value: &DataValue) -> Result<f64
     }
 }
 
-fn read_data_value_as_bytes(
-    data_value: &DataValue,
-) -> Vec<u8> {
+fn read_data_value_as_bytes(data_value: &DataValue) -> Vec<u8> {
     let bytes = match data_value {
         DataValue::I8(v) => v.to_le_bytes().to_vec(),
         DataValue::I16(v) => v.to_le_bytes().to_vec(),
@@ -2550,7 +2548,7 @@ fn read_data_value_as_bytes(
         DataValue::List(v) => {
             let mut bytes: Vec<u8> = vec![];
             for item in v {
-                let mut b = read_data_value_as_bytes( item);
+                let mut b = read_data_value_as_bytes(item);
                 bytes.append(&mut b);
             }
             bytes
@@ -2827,7 +2825,7 @@ fn conver_data_type_value_pair_to_inited_data_entry(
             &data_type_value_pair.value,
         )?),
         DeclareDataType::Bytes(opt_align) => InitedDataEntry::from_bytes(
-            read_data_value_as_bytes( &data_type_value_pair.value),
+            read_data_value_as_bytes(&data_type_value_pair.value),
             opt_align.unwrap_or(1) as u16,
         ),
         DeclareDataType::FixedBytes(length, opt_align) => {
@@ -2856,6 +2854,8 @@ fn convert_fixed_declare_data_type_to_uninit_data_entry(
 #[cfg(test)]
 mod tests {
 
+    use std::collections::HashMap;
+
     use anc_image::{
         bytecode_reader::format_bytecode_as_text,
         entry::{
@@ -2867,8 +2867,8 @@ mod tests {
         module_image::{RelocateType, Visibility},
     };
     use anc_isa::{
-        DataSectionType, DependencyLocal, ExternalLibraryDependency, MemoryDataType,
-        ModuleDependency, OperandDataType,
+        DataSectionType, DependencyCondition, DependencyLocal, ExternalLibraryDependency,
+        MemoryDataType, ModuleDependency, OperandDataType,
     };
     use anc_parser_asm::parser::parse_from_str;
     use pretty_assertions::assert_eq;
@@ -2953,8 +2953,8 @@ mod tests {
             name: "merged_module".to_owned(),
             value: Box::new(ModuleDependency::Local(Box::new(DependencyLocal {
                 path: "/path/to/merged_module".to_owned(),
-                values: None,
-                condition: None,
+                condition: DependencyCondition::True,
+                parameters: HashMap::default(),
             }))),
         };
 
@@ -2962,8 +2962,8 @@ mod tests {
             name: "some_module".to_owned(),
             value: Box::new(ModuleDependency::Local(Box::new(DependencyLocal {
                 path: "/path/to/some_module".to_owned(),
-                values: None,
-                condition: None,
+                condition: DependencyCondition::True,
+                parameters: HashMap::default(),
             }))),
         };
 
@@ -3895,8 +3895,8 @@ fn bar() {
                     Box::new(ExternalLibraryDependency::Local(Box::new(
                         DependencyLocal {
                             path: "libabc.so.1".to_owned(),
-                            values: None,
-                            condition: None
+                            condition: DependencyCondition::True,
+                            parameters: HashMap::default(),
                         }
                     )))
                 )]
@@ -4157,8 +4157,8 @@ fn bar() {
                 Box::new(ExternalLibraryDependency::Local(Box::new(
                     DependencyLocal {
                         path: "libabc.so.1".to_owned(),
-                        values: None,
-                        condition: None,
+                        condition: DependencyCondition::True,
+                        parameters: HashMap::default(),
                     },
                 ))),
             )],

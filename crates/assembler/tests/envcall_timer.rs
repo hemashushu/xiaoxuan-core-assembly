@@ -7,9 +7,9 @@
 use std::time::SystemTime;
 
 use anc_assembler::utils::helper_make_single_module_app;
-use anc_context::resource::Resource;
+use anc_context::process_resource::ProcessResource;
 use anc_processor::{
-    envcall_num::EnvCallNum, handler::Handler, in_memory_resource::InMemoryResource,
+    envcall_num::EnvCallNum, handler::Handler, in_memory_process_resource::InMemoryProcessResource,
     process::process_function,
 };
 // use libc::{clock_gettime, timespec, CLOCK_MONOTONIC};
@@ -27,7 +27,7 @@ fn test_assemble_envcall_time_now() {
     ));
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 

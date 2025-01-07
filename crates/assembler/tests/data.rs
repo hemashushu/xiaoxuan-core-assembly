@@ -5,10 +5,10 @@
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
 use anc_assembler::utils::helper_make_single_module_app;
-use anc_context::resource::Resource;
+use anc_context::process_resource::ProcessResource;
 use anc_isa::ForeignValue;
 use anc_processor::{
-    handler::Handler, in_memory_resource::InMemoryResource, process::process_function,
+    handler::Handler, in_memory_process_resource::InMemoryProcessResource, process::process_function,
 };
 use pretty_assertions::assert_eq;
 
@@ -104,7 +104,7 @@ fn test_assemble_data_load_and_store_initialized() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
@@ -237,7 +237,7 @@ fn test_assemble_data_load_and_store_uninitialized() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
@@ -360,7 +360,7 @@ fn test_assemble_data_load_and_store_extend() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 

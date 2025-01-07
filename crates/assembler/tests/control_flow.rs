@@ -5,10 +5,10 @@
 // more details in file LICENSE, LICENSE.additional and CONTRIBUTING.
 
 use anc_assembler::utils::helper_make_single_module_app;
-use anc_context::resource::Resource;
+use anc_context::process_resource::ProcessResource;
 use anc_isa::ForeignValue;
 use anc_processor::{
-    handler::Handler, in_memory_resource::InMemoryResource, process::process_function,
+    handler::Handler, in_memory_process_resource::InMemoryProcessResource, process::process_function,
     HandleErrorType, HandlerError,
 };
 use pretty_assertions::assert_eq;
@@ -45,7 +45,7 @@ fn test_assemble_control_flow_block() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
@@ -93,7 +93,7 @@ fn test_assemble_control_flow_block_with_args_and_results() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
@@ -207,7 +207,7 @@ fn test_assemble_control_flow_block_with_local_variables() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
@@ -260,7 +260,7 @@ fn test_assemble_control_flow_break_function() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
     let result0 = process_function(&handler, &mut thread_context0, 0, 0, &[]);
@@ -309,7 +309,7 @@ fn test_assemble_control_flow_break_block() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
@@ -364,7 +364,7 @@ fn test_assemble_control_flow_break_block_to_function() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
@@ -418,7 +418,7 @@ fn test_assemble_control_flow_structure_when() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
@@ -496,7 +496,7 @@ fn test_assemble_control_flow_break_crossing_block() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
@@ -567,7 +567,7 @@ fn test_assemble_control_flow_structure_if() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
@@ -652,7 +652,7 @@ fn test_assemble_control_flow_structure_if_nested() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
@@ -784,7 +784,7 @@ fn test_assemble_control_flow_structure_branch() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
@@ -901,7 +901,7 @@ fn test_assemble_control_flow_structure_branch_without_default_arm() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
 
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
@@ -1013,7 +1013,7 @@ fn test_assemble_control_flow_structure_loop() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
@@ -1093,7 +1093,7 @@ fn test_assemble_control_flow_structure_loop_with_block_parameters_and_when() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
@@ -1171,7 +1171,7 @@ fn test_assemble_control_flow_structure_loop_with_block_parameters_and_if() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
@@ -1254,7 +1254,7 @@ fn test_assemble_control_flow_function_tail_call_with_when() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
@@ -1322,7 +1322,7 @@ fn test_assemble_control_flow_function_tail_call_with_if() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 

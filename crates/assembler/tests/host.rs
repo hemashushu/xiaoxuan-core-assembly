@@ -9,12 +9,12 @@ use std::collections::HashMap;
 use anc_assembler::utils::{
     helper_make_single_module_app, helper_make_single_module_app_with_external_library,
 };
-use anc_context::{environment::Environment, resource::Resource};
+use anc_context::{process_config::ProcessConfig, process_resource::ProcessResource};
 use anc_image::entry::ExternalLibraryEntry;
-use anc_isa::{DependencyLocal, ExternalLibraryDependency, ForeignValue};
+use anc_isa::{DependencyCondition, DependencyLocal, ExternalLibraryDependency, ForeignValue};
 use anc_processor::{
-    handler::Handler, in_memory_resource::InMemoryResource, process::process_function,
-    HandleErrorType, HandlerError,
+    handler::Handler, in_memory_process_resource::InMemoryProcessResource,
+    process::process_function, HandleErrorType, HandlerError,
 };
 use pretty_assertions::assert_eq;
 
@@ -97,7 +97,7 @@ fn test_assemble_host_panic() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
 
     let mut thread_context0 = process_context0.create_thread_context();
@@ -131,7 +131,7 @@ fn test_assemble_host_debug() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
 
     let mut thread_context0 = process_context0.create_thread_context();
@@ -165,7 +165,7 @@ fn test_assemble_host_unreachable() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
 
     let mut thread_context0 = process_context0.create_thread_context();
@@ -279,7 +279,7 @@ fn test_assemble_host_address_of_data_and_local_variables() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
 
     let mut thread_context0 = process_context0.create_thread_context();
@@ -370,7 +370,7 @@ fn test_assemble_host_address_of_data_and_local_variables_extend() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
 
     let mut thread_context0 = process_context0.create_thread_context();
@@ -440,7 +440,7 @@ fn test_assemble_host_address_memory() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
 
     let mut thread_context0 = process_context0.create_thread_context();
@@ -496,7 +496,7 @@ fn test_assemble_host_memory_and_vm_memory_copy() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
@@ -545,7 +545,7 @@ fn test_assemble_host_external_memory_copy() {
     );
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let mut thread_context0 = process_context0.create_thread_context();
 
@@ -606,8 +606,8 @@ fn test_assemble_host_addr_function_and_callback_function() {
         Box::new(ExternalLibraryDependency::Local(Box::new(
             DependencyLocal {
                 path: "lib/libtest0.so.1".to_owned(), // it should be a path of file "*.so.VERSION" relative to the application
-                values: None,
-                condition: None,
+                condition: DependencyCondition::True,
+                parameters: HashMap::default(),
             },
         ))),
     );
@@ -651,14 +651,12 @@ fn test_assemble_host_addr_function_and_callback_function() {
     let application_path = pwd.to_str().unwrap();
 
     let handler = Handler::new();
-    let resource0 = InMemoryResource::with_environment(
+    let resource0 = InMemoryProcessResource::with_config(
         vec![binary0],
-        &Environment::new(
+        &ProcessConfig::new(
             application_path,
-            true,
-            "",
-            &[""],
-            "",
+            false,
+            vec![],
             HashMap::<String, String>::new(),
         ),
     );

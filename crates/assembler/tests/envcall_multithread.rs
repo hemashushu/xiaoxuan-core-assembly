@@ -7,9 +7,9 @@
 use std::time::Instant;
 
 use anc_assembler::utils::helper_make_single_module_app;
-use anc_context::resource::Resource;
+use anc_context::process_resource::ProcessResource;
 use anc_processor::{
-    envcall_num::EnvCallNum, in_memory_resource::InMemoryResource,
+    envcall_num::EnvCallNum, in_memory_process_resource::InMemoryProcessResource,
     multithread_process::start_program,
 };
 use pretty_assertions::assert_eq;
@@ -27,7 +27,7 @@ fn test_assemble_multithread_main_thread_id() {
         ENV_CALL_CODE_THREAD_ID = (EnvCallNum::thread_id as u32)
     ));
 
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let result0 = start_program(&process_context0, "", vec![]);
 
@@ -69,7 +69,7 @@ fn test_assemble_multithread_child_thread_id() {
         ENV_CALL_CODE_THREAD_ID = (EnvCallNum::thread_id as u32)
     ));
 
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let result0 = start_program(&process_context0, "", vec![]);
 
@@ -110,7 +110,7 @@ fn test_assemble_multithread_thread_create() {
         ENV_CALL_CODE_THREAD_CREATE = (EnvCallNum::thread_create as u32)
     ));
 
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let result0 = start_program(&process_context0, "", vec![]);
     assert_eq!(result0.unwrap(), 0x13);
@@ -137,7 +137,7 @@ fn test_assemble_multithread_thread_sleep() {
         ENV_CALL_CODE_THREAD_SLEEP = (EnvCallNum::thread_sleep as u32)
     ));
 
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
 
     let instant_a = Instant::now();
@@ -245,7 +245,7 @@ fn test_assemble_multithread_thread_local_data_and_memory() {
         ENV_CALL_CODE_THREAD_CREATE = (EnvCallNum::thread_create as u32)
     ));
 
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let result0 = start_program(&process_context0, "", vec![]);
     assert_eq!(result0.unwrap(), 0);
@@ -328,7 +328,7 @@ fn test_assemble_multithread_thread_start_data() {
         ENV_CALL_CODE_THREAD_START_DATA_READ = (EnvCallNum::thread_start_data_read as u32)
     ));
 
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let result0 = start_program(
         &process_context0,
@@ -453,7 +453,7 @@ fn test_assemble_multithread_thread_running_status() {
         ENV_CALL_CODE_THREAD_CREATE = (EnvCallNum::thread_create as u32)
     ));
 
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let result0 = start_program(&process_context0, "", vec![]);
     assert_eq!(result0.unwrap(), 0x17);
@@ -560,7 +560,7 @@ fn test_assemble_multithread_thread_terminate() {
         ENV_CALL_CODE_THREAD_CREATE = (EnvCallNum::thread_create as u32)
     ));
 
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let result0 = start_program(&process_context0, "", vec![]);
     assert_eq!(result0.unwrap(), 0x23);
@@ -808,7 +808,7 @@ fn test_assemble_multithread_thread_message_send_and_receive() {
         ENV_CALL_CODE_THREAD_SLEEP = (EnvCallNum::thread_sleep as u32),
     ));
 
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let result0 = start_program(&process_context0, "", vec![]);
     assert_eq!(result0.unwrap(), 0x17);
@@ -964,7 +964,7 @@ fn test_assemble_multithread_thread_message_forward() {
         ENV_CALL_CODE_THREAD_WAIT_AND_COLLECT = (EnvCallNum::thread_wait_and_collect as u32),
     ));
 
-    let resource0 = InMemoryResource::new(vec![binary0]);
+    let resource0 = InMemoryProcessResource::new(vec![binary0]);
     let process_context0 = resource0.create_process_context().unwrap();
     let result0 = start_program(&process_context0, "", vec![]);
     assert_eq!(result0.unwrap(), 0x19);
