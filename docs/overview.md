@@ -11,16 +11,16 @@ project_folder
  |-- LICENSE.md etc.
  |-- src
  |   |-- lib.anca       // top-level submodule
+ |   |-- main.anca      // the default executable unit
  |   |-- foo.anca       // submodule
  |   |-- subfolder
- |   |   |-- bar.anca   // another submodule
- |   |-- app.anca       // the default executable unit
+ |       |-- bar.anca   // another submodule
  |
  |-- app
  |   |-- cmd1.anca      // sub-executable unit
  |   |-- cmd2.anca      // sub-executable unit
  |
- |-- test               // unit test source files
+ |-- tests              // unit test source files
  |   |-- test1.anca     // a testing unit
  |   |-- test2.anca     // another testing unit
  |   |-- subfolder
@@ -35,7 +35,7 @@ project_folder
 
 ### Code Example
 
-Code of file `./src/lib.anca  `:
+Code of file `./src/main.anca`:
 
 ```rust
 // imports functions and data from other submodules or shared modules

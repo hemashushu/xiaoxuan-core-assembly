@@ -48,11 +48,11 @@ The correspondence between file names and submodule names is shown in the follow
 
 | File                   | Submodule name | Submodule full name     |
 |------------------------|----------------|-------------------------|
-| ./src/one.ancasm       | one            | hello_world::one        |
-| ./src/two.ancasm       | two            | hello_world::two        |
-| ./src/utils/foo.ancasm | utils::foo     | hello_world::utils::foo |
-| ./src/utils/codegen/bar.ancasm | utils::codegen::bar | hello_world::utils::codegen::bar |
-| ./src/lib.ancasm       | -              | hello_world             |
+| ./src/one.anca         | one            | hello_world::one        |
+| ./src/two.anca         | two            | hello_world::two        |
+| ./src/utils/foo.anca   | utils::foo     | hello_world::utils::foo |
+| ./src/utils/codegen/bar.anca | utils::codegen::bar | hello_world::utils::codegen::bar |
+| ./src/lib.anca         | ""             | hello_world             |
 
 ### Importing Functions and Data from Other Modules
 
@@ -60,24 +60,24 @@ When importing public functions and data located within a submodule, the name of
 
 `import fn hello_world::one::do_this()`
 
-Note that in the table above, the submodule name for the file "lib.ancasm" is empty (i.e., ""), because this file is the top-level file of the module. When importing public functions and data that reside in the main file, it is not necessary to add the submodule name. For example, if there is a function "do_that()" in "lib.ancasm", the import statement would be:
+Note that in the table above, the submodule name for the file "lib.anca" is empty (i.e., ""), because this file is the top-level file of the module. When importing public functions and data that reside in the main file, it is not necessary to add the submodule name. For example, if there is a function "do_that()" in "lib.anca", the import statement would be:
 
 `import fn hello_world::do_that()`
 
-For applications, there is also a file "src/app.ancasm", which is also the top-level file of the module, so the submodule name is also empty.
+For applications, there is also a file "src/main.anca", which is also the top-level file of the module, so the submodule name is also empty.
 
-| File             | Submodule name | Full submodule name |
-|------------------|----------------|---------------------|
-| ./src/app.ancasm | -              | -                   |
+| File            | Submodule name | Full submodule name |
+|-----------------|----------------|---------------------|
+| ./src/main.anca | ""             | hello_world         |
 
 It's worth nothing that the source files for "multiple executable units" in the "app" folder, as well as the unit test source files in the "test" folder, although they are also normal submodules, cannot be imported by other modules.
 
-| File              | Submodule name | Full submodule name |
-|-------------------|----------------|---------------------|
-| ./app/cmd1.ancasm | cmd1           | hello_world::cmd1   |
-| ./app/cmd2.ancasm | cmd2           | hello_world::cmd2   |
-| ./test/one.ancasm       | one        | hello_world::one        |
-| ./test/utils/foo.ancasm | utils::foo | hello_world::utils::foo |
+| File                   | Submodule name    | Full submodule name            |
+|------------------------|-------------------|--------------------------------|
+| ./app/cmd1.anca        | app::cmd1         | hello_world::app::cmd1         |
+| ./app/cmd2.anca        | app::cmd2         | hello_world::app::cmd2         |
+| ./tests/one.anca       | tests::one        | hello_world::tests::one        |
+| ./tests/utils/foo.anca | tests::utils::foo | hello_world::tests::utils::foo |
 
 Source files in the "test" folder are generated only during unit testing and are not included in the binary image of the module for distribution. Therefore, never import unit test functions and data.
 

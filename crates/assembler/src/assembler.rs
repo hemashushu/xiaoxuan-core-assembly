@@ -196,10 +196,6 @@ pub fn assemble_module_node(
         name: module_name.to_owned(),
         image_type: ImageType::ObjectFile,
         //
-        import_module_entries,
-        import_function_entries,
-        import_data_entries,
-        //
         type_entries,
         local_variable_list_entries,
         function_entries,
@@ -207,6 +203,10 @@ pub fn assemble_module_node(
         read_only_data_entries,
         read_write_data_entries,
         uninit_data_entries,
+        //
+        import_module_entries,
+        import_function_entries,
+        import_data_entries,
         //
         export_function_entries,
         export_data_entries,

@@ -358,7 +358,6 @@ fn test_assemble_extcall_with_system_libc_getuid() {
     let mut thread_context0 = process_context0.create_thread_context();
 
     let result0 = process_function(&handler, &mut thread_context0, 0, 0, &[]);
-
     assert!(result0.is_ok());
 
     // let results0 = result0.unwrap();
