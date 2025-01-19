@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use anc_assembler::utils::{
     helper_make_single_module_app, helper_make_single_module_app_with_external_library,
 };
-use anc_context::{process_config::ProcessConfig, process_resource::ProcessResource};
+use anc_context::{process_property::ProcessProperty, process_resource::ProcessResource};
 use anc_image::entry::ExternalLibraryEntry;
 use anc_isa::{DependencyCondition, DependencyLocal, ExternalLibraryDependency, ForeignValue};
 use anc_processor::{
@@ -453,9 +453,9 @@ fn test_assemble_extcall_with_user_lib() {
     let application_path = pwd.to_str().unwrap();
 
     let handler = Handler::new();
-    let resource0 = InMemoryProcessResource::with_config(
+    let resource0 = InMemoryProcessResource::with_property(
         vec![binary0],
-        &ProcessConfig::new(
+        &ProcessProperty::new(
             application_path,
             false,
             vec![],

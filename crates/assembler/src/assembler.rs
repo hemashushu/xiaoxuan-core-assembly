@@ -22,8 +22,8 @@ use anc_image::{
     module_image::{ImageType, Visibility},
 };
 use anc_isa::{
-    opcode::Opcode, DataSectionType, MemoryDataType, ModuleDependency, OperandDataType,
-    SELF_REFERENCE_MODULE_NAME,
+    opcode::Opcode, DataSectionType, EffectiveVersion, MemoryDataType, ModuleDependency,
+    OperandDataType, SELF_REFERENCE_MODULE_NAME,
 };
 
 use crate::{AssembleErrorType, AssemblerError};
@@ -194,6 +194,7 @@ pub fn assemble_module_node(
 
     let module_entry = ImageCommonEntry {
         name: module_name.to_owned(),
+        version: EffectiveVersion::new(0, 0, 0),
         image_type: ImageType::ObjectFile,
         //
         type_entries,
