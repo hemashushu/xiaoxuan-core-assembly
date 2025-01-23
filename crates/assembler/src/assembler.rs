@@ -2879,13 +2879,13 @@ mod tests {
     use super::assemble_module_node;
 
     fn assemble(source_code: &str) -> ImageCommonEntry {
-        assemble_with_imports_and_externals(source_code, vec![], vec![])
+        assemble_with_imports_and_externals(source_code, &[], &[])
     }
 
     fn assemble_with_imports_and_externals(
         source_code: &str,
-        import_module_entries: Vec<ImportModuleEntry>,
-        external_library_entries: Vec<ExternalLibraryEntry>,
+        import_module_entries: &[ImportModuleEntry],
+        external_library_entries: &[ExternalLibraryEntry],
     ) -> ImageCommonEntry {
         let module_node = match parse_from_str(source_code) {
             Ok(node) => node,
@@ -2897,8 +2897,8 @@ mod tests {
         assemble_module_node(
             &module_node,
             "mymodule",
-            &import_module_entries,
-            &external_library_entries,
+            import_module_entries,
+            external_library_entries,
         )
         .unwrap()
     }
@@ -2910,8 +2910,8 @@ mod tests {
 
     fn bytecode_with_import_and_external(
         source_code: &str,
-        import_module_entries_excludes_virtual: Vec<ImportModuleEntry>,
-        external_library_entries: Vec<ExternalLibraryEntry>,
+        import_module_entries_excludes_virtual: &[ImportModuleEntry],
+        external_library_entries: &[ExternalLibraryEntry],
     ) -> String {
         let entry = assemble_with_imports_and_externals(
             source_code,
@@ -2979,8 +2979,8 @@ import data restful::count type i64 from merged_module   // module index: 2
 import data module::sum type i32                 // module index: 0
 import uninit data mymodule::calc::result type i32     // module index: 0
             "#,
-            vec![mod1.clone(), mod2.clone(), mod3.clone()],
-            vec![],
+            &[mod1.clone(), mod2.clone(), mod3.clone()],
+            &[],
         );
 
         // check import modules
@@ -3890,8 +3890,8 @@ fn foo() {
 fn bar() {
     nop()
 }"#,
-                vec![],
-                vec![ExternalLibraryEntry::new(
+                &[],
+                &[ExternalLibraryEntry::new(
                     "abc".to_owned(),
                     Box::new(ExternalLibraryDependency::Local(Box::new(
                         DependencyLocal {
@@ -4152,8 +4152,8 @@ fn bar() {
     extcall(dothis, imm_i32(0x17), imm_i32(0x19))
 }
 "#,
-            vec![],
-            vec![ExternalLibraryEntry::new(
+            &[],
+            &[ExternalLibraryEntry::new(
                 "abc".to_owned(),
                 Box::new(ExternalLibraryDependency::Local(Box::new(
                     DependencyLocal {
