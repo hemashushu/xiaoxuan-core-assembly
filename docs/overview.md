@@ -109,8 +109,8 @@ Content of file `./module.anc.ason`:
         "enable_logger": prop::eval("enable_abc && enable_xyz")
     ]
     modules: [
-        "std": module::Runtime
-        "digest": module::Share({
+        "std": module::runtime
+        "digest": module::share({
             version: "1.0"
             // Pass values to the "properties" of module "digest"
             parameters: [
@@ -122,24 +122,37 @@ Content of file `./module.anc.ason`:
             ]
             repository: "custom"
         })
-        "logger": module::Share({
+        "logger": module::share({
             version: "{logger_version}"
             condition: cond::is_true("enable_logger")
         })
     ]
     libraries: [
-        "libfoo": library::Remote({
+        "foo": library::remote({
             url: "https://github.com/..."
             revision: "v1.0.1"
             path: "/lib/libfoo.so.1"
         })
+        "bar": library::system("libbar.so.1")
     ]
     module_repositories: [
-        "name": "https://..."
+        "name": {
+            url: "https://..."
+            mirrors: [
+                "https://..."
+                // ...
+            ]
+        }
         // ...
     ]
     library_repositories: [
-        "name": "https://..."
+        "name": {
+            url: "https://..."
+            mirrors: [
+                "https://..."
+                // ...
+            ]
+        }
         // ...
     ]
 }

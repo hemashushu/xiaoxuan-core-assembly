@@ -450,13 +450,13 @@ fn test_assemble_extcall_with_user_lib() {
         pwd.push(crate_folder_name);
     }
     pwd.push("tests");
-    let application_path = pwd.to_str().unwrap();
+    // let application_path = pwd.to_str().unwrap();
 
     let handler = Handler::new();
     let resource0 = InMemoryProcessResource::with_property(
         vec![binary0],
         &ProcessProperty::new(
-            application_path,
+            pwd,
             false,
             vec![],
             HashMap::<String, String>::new(),

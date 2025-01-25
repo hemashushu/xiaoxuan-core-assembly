@@ -22,9 +22,10 @@ use anc_image::{
     module_image::{ImageType, Visibility},
 };
 use anc_isa::{
-    opcode::Opcode, DataSectionType, EffectiveVersion, MemoryDataType, ModuleDependency,
-    OperandDataType, SELF_REFERENCE_MODULE_NAME,
+    opcode::Opcode, DataSectionType, EffectiveVersion, MemoryDataType, OperandDataType,
+    SELF_REFERENCE_MODULE_NAME,
 };
+use anc_parser_asm::NAME_PATH_SEPARATOR;
 
 use crate::{AssembleErrorType, AssemblerError};
 
@@ -42,7 +43,9 @@ const INSTRUCTION_STUB_VALUE: u32 = 0;
 /// - "namespace" = "sub_module_name"{0,N}
 ///
 fn get_module_name_and_name_path(full_name: &str) -> (&str, &str) {
-    full_name.split_once("::").unwrap_or((full_name, ""))
+    full_name
+        .split_once(NAME_PATH_SEPARATOR)
+        .unwrap_or((full_name, ""))
 }
 
 /// Get the "namespace" and "identifier" from a "name path",
@@ -55,21 +58,16 @@ fn get_module_name_and_name_path(full_name: &str) -> (&str, &str) {
 /// - "name_path" = "namespace::identifier"
 /// - "namespace" = "sub_module_name"{0,N}
 fn get_namespace_and_identifier(name_path: &str) -> (&str, &str) {
-    name_path.rsplit_once("::").unwrap_or(("", name_path))
+    name_path
+        .rsplit_once(NAME_PATH_SEPARATOR)
+        .unwrap_or(("", name_path))
 }
 
 /// about library "full_name"
 /// -------------------------
 /// "full_name" = "library_name::identifier"
 fn get_library_name_and_identifier(full_name: &str) -> (&str, &str) {
-    full_name.split_once("::").unwrap()
-}
-
-pub fn create_self_reference_import_module_entry() -> ImportModuleEntry {
-    ImportModuleEntry {
-        name: SELF_REFERENCE_MODULE_NAME.to_owned(),
-        value: Box::new(ModuleDependency::Current),
-    }
+    full_name.split_once(NAME_PATH_SEPARATOR).unwrap()
 }
 
 /// parameter 'submodule_full_name' is the full name of a submodule.
@@ -2115,7 +2113,7 @@ fn assemble_dependencies(
     // in the same module.
 
     import_module_identifiers.insert(0, SELF_REFERENCE_MODULE_NAME.to_owned());
-    import_module_entries.insert(0, create_self_reference_import_module_entry());
+    import_module_entries.insert(0, ImportModuleEntry::self_reference_entry());
 
     Ok(AssembleResultForDependencies {
         import_module_entries,
@@ -2874,8 +2872,6 @@ mod tests {
     use anc_parser_asm::parser::parse_from_str;
     use pretty_assertions::assert_eq;
 
-    use crate::assembler::create_self_reference_import_module_entry;
-
     use super::assemble_module_node;
 
     fn assemble(source_code: &str) -> ImageCommonEntry {
@@ -2947,12 +2943,12 @@ mod tests {
     fn test_assemble_import_statement() {
         let mod1 = ImportModuleEntry {
             name: "std".to_owned(),
-            value: Box::new(ModuleDependency::Runtime),
+            module_dependency: Box::new(ModuleDependency::Runtime),
         };
 
         let mod2 = ImportModuleEntry {
             name: "merged_module".to_owned(),
-            value: Box::new(ModuleDependency::Local(Box::new(DependencyLocal {
+            module_dependency: Box::new(ModuleDependency::Local(Box::new(DependencyLocal {
                 path: "/path/to/merged_module".to_owned(),
                 condition: DependencyCondition::True,
                 parameters: HashMap::default(),
@@ -2961,7 +2957,7 @@ mod tests {
 
         let mod3 = ImportModuleEntry {
             name: "some_module".to_owned(),
-            value: Box::new(ModuleDependency::Local(Box::new(DependencyLocal {
+            module_dependency: Box::new(ModuleDependency::Local(Box::new(DependencyLocal {
                 path: "/path/to/some_module".to_owned(),
                 condition: DependencyCondition::True,
                 parameters: HashMap::default(),
@@ -2986,7 +2982,7 @@ import uninit data mymodule::calc::result type i32     // module index: 0
         // check import modules
         assert_eq!(
             &entry.import_module_entries[0],
-            &create_self_reference_import_module_entry()
+            &ImportModuleEntry::self_reference_entry()
         );
 
         assert_eq!(&entry.import_module_entries[1], &mod1);
