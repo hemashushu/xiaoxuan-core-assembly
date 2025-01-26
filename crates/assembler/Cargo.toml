@@ -1,6 +1,6 @@
 [package]
 name = "anc-assembler"
-version = "0.2.1"
+version = "2.2.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -17,4 +17,3 @@ anc-processor = { path = "../../../xiaoxuan-core-vm/crates/processor" }
 anc-context = { path = "../../../xiaoxuan-core-vm/crates/context" }
 syscall-util = { git = "https://github.com/hemashushu/syscall-util.git", rev = "c21096fe6f31b63424eec1e5c39a3c1ffe63d67c" }
 dyncall-util = { git = "https://github.com/hemashushu/dyncall-util.git", rev = "0a56f688d9b48dec59d19512aaef666c8d69884c" }
-# libc = "0.2"
