@@ -8,6 +8,7 @@
   - [Syntax](#syntax)
   - [Multi-Source File Modules](#multi-source-file-modules)
   - [Importing Functions and Data from Other Modules](#importing-functions-and-data-from-other-modules)
+  - [TODO](#todo)
   - [Importing Functions and Data from the Current Module](#importing-functions-and-data-from-the-current-module)
   - [Specify Module](#specify-module)
 - [The `external` Statements](#the-external-statements)
@@ -69,6 +70,28 @@ For applications, there is also a file "src/main.anca", which is also the top-le
 | File            | Submodule name | Full submodule name |
 |-----------------|----------------|---------------------|
 | ./src/main.anca | ""             | hello_world         |
+
+### TODO
+
+```text
+MODULE_FOLDER
+  |-- src
+  |   |-- lib.anca          # top-level submodule
+  |   |-- main.anca         # the default executable unit
+  |   |-- foo.anca          # submodule
+  |   |-- subfolder
+  |       |-- bar.anca      # submodule under the subfolder
+  |
+  |-- app
+  |   |-- cmd1.anca         # sub-executable unit
+  |   |-- cmd2.anca         # sub-executable unit
+  |
+  |-- tests                 # unit test directory
+      |-- test1.anca        # testing unit
+      |-- test2.anca        # testing unit
+      |-- subfolder
+          |-- bar.anca      # submodule for unit testing only
+```
 
 It's worth nothing that the source files for "multiple executable units" in the "app" folder, as well as the unit test source files in the "test" folder, although they are also normal submodules, cannot be imported by other modules.
 
